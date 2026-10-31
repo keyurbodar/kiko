@@ -20,31 +20,31 @@ import {
 } from "./state"
 
 const pillClass =
-  "relative h-7 shrink-0 cursor-pointer rounded-full px-3 text-hint text-fg3 hover:bg-hover hover:text-fg"
+  "relative h-7 shrink-0 cursor-pointer rounded-full px-3 text-xs text-tertiary hover:bg-tertiary hover:text-primary"
 
 function StatusChip(props: { status: InstallStatus }) {
-  const chip = "flex h-6 shrink-0 items-center gap-1.5 rounded-full px-2.5 text-hint"
+  const chip = "flex h-6 shrink-0 items-center gap-1.5 rounded-full px-2.5 text-xs"
   return (
     <span class="flex min-w-0 items-center gap-2" data-component="recipe-status">
       {(() => {
         const s = props.status
         if (s.kind === "next")
           return (
-            <span class={cn(chip, "min-w-0 bg-panel text-fg")}>
+            <span class={cn(chip, "min-w-0 bg-editor text-primary")}>
               <span class="truncate">{nextRunLabel(s.at, Date.now())}</span>
             </span>
           )
         if (s.kind === "paused")
           return (
             <>
-              <span class={cn(chip, "bg-panel text-fg3")}>
+              <span class={cn(chip, "bg-editor text-tertiary")}>
                 <RemixIcon icon={PauseIcon} size={12} />
                 Paused
               </span>
-              <span class="truncate text-hint text-fg3">{s.schedule}</span>
+              <span class="truncate text-xs text-tertiary">{s.schedule}</span>
             </>
           )
-        return <span class="truncate text-hint text-fg3">{s.label}</span>
+        return <span class="truncate text-xs text-tertiary">{s.label}</span>
       })()}
     </span>
   )
@@ -93,7 +93,7 @@ function InstallActions(props: { install: RecipeInstall; card: RecipeCard; go: (
 function Runner(props: { install: RecipeInstall }) {
   return (
     <Show when={targetsForChat(props.install.roomId).length > 1}>
-      <span class="flex shrink-0 items-center gap-1 text-hint text-fg">
+      <span class="flex shrink-0 items-center gap-1 text-xs text-primary">
         <IdentityAvatar seed={props.install.agent} size={16} />
         {agentName(props.install.agent)}
       </span>
@@ -134,9 +134,9 @@ export function InstallCard(props: { install: RecipeInstall; card: RecipeCard })
         aria-label={`Open ${chatName()}`}
         onClick={() => openChat(props.install.roomId)}
       >
-        <span class="truncate type-ui font-semibold text-fg">{props.card.title}</span>
-        <span class="type-row truncate text-fg3">{props.card.description}</span>
-        <span class="type-label mt-0.5 flex min-w-0 items-center gap-2 text-fg4">
+        <span class="truncate type-base font-semibold text-primary">{props.card.title}</span>
+        <span class="type-base truncate text-tertiary">{props.card.description}</span>
+        <span class="type-sm mt-0.5 flex min-w-0 items-center gap-2 text-quaternary">
           <RemixIcon icon={ClockIcon} size={16} class="shrink-0" />
           <span class="truncate">{localizeWhen(props.card.when)}</span>
           <ChatAvatar faces={room.chatFaces(props.install.roomId)} size={18} />
@@ -146,7 +146,7 @@ export function InstallCard(props: { install: RecipeInstall; card: RecipeCard })
       <span class="relative z-[1] flex shrink-0 items-center gap-3">
         <Show when={note()}>
           {(text) => (
-            <span class="type-label hidden text-fg3 @min-[560px]/page:block" data-component="recipe-status">
+            <span class="type-sm hidden text-tertiary @min-[560px]/page:block" data-component="recipe-status">
               {text()}
             </span>
           )}
@@ -162,7 +162,7 @@ export function InstallCard(props: { install: RecipeInstall; card: RecipeCard })
             onClick={() => setInstallPaused(props.install, on())}
           />
         </Show>
-        <span class="opacity-0 transition-opacity duration-(--dur-hover) group-hover:opacity-100 group-focus-within:opacity-100 [@media(pointer:coarse)]:opacity-100">
+        <span class="opacity-0 transition-opacity duration-(--duration-fast) group-hover:opacity-100 group-focus-within:opacity-100 [@media(pointer:coarse)]:opacity-100">
           <InstallMenu install={props.install} card={props.card} go={openChat} />
         </span>
       </span>
@@ -174,7 +174,7 @@ export function InstallRow(props: { install: RecipeInstall; card: RecipeCard; na
   const title = () => room.chatById(props.install.roomId)?.name ?? agentName(props.install.agent)
   return (
     <div
-      class="flex items-center gap-2 rounded-pop px-2.5 py-2 hover:bg-hover"
+      class="flex items-center gap-2 rounded-xl px-2.5 py-2 hover:bg-tertiary"
       data-install={props.install.installId}
       data-status={installStatus(props.install, props.card).kind}
     >
@@ -186,7 +186,7 @@ export function InstallRow(props: { install: RecipeInstall; card: RecipeCard; na
       >
         <ChatAvatar faces={room.chatFaces(props.install.roomId)} size={36} />
         <span class="flex min-w-0 flex-1 flex-col gap-1">
-          <span class="type-row truncate font-medium text-fg">{title()}</span>
+          <span class="type-base truncate font-medium text-primary">{title()}</span>
           <span class="flex min-w-0 items-center gap-2">
             <Runner install={props.install} />
             <StatusChip status={installStatus(props.install, props.card)} />

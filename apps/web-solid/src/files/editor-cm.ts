@@ -27,23 +27,23 @@ export type Mounted = {
 }
 
 const theme = EditorView.theme({
-  "&": { height: "100%", backgroundColor: "transparent", color: "var(--fg)", fontSize: "13px" },
+  "&": { height: "100%", backgroundColor: "transparent", color: "var(--text-primary)", fontSize: "13px" },
   ".cm-scroller": { fontFamily: "var(--font-family-mono)", lineHeight: "21px", overflow: "auto" },
-  ".cm-content": { caretColor: "var(--fg)", padding: "8px 0" },
+  ".cm-content": { caretColor: "var(--text-primary)", padding: "8px 0" },
   "&.cm-focused": { outline: "none" },
-  ".cm-cursor": { borderLeftColor: "var(--fg)" },
-  ".cm-gutters": { backgroundColor: "transparent", color: "var(--text-400)", border: "none" },
+  ".cm-cursor": { borderLeftColor: "var(--text-primary)" },
+  ".cm-gutters": { backgroundColor: "transparent", color: "var(--text-quaternary)", border: "none" },
   ".cm-lineNumbers .cm-gutterElement": { padding: "0 16px 0 8px", minWidth: "40px" },
   ".cm-activeLine": { backgroundColor: "var(--fe-active-line)" },
-  ".cm-activeLineGutter": { backgroundColor: "transparent", color: "var(--fg)" },
+  ".cm-activeLineGutter": { backgroundColor: "transparent", color: "var(--text-primary)" },
   "&.cm-readonly .cm-activeLine": { backgroundColor: "transparent" },
   "&.cm-readonly .cm-cursor": { display: "none" },
-  ".cm-selectionBackground, &.cm-focused .cm-selectionBackground": { backgroundColor: "var(--active)" },
-  ".cm-selectionMatch": { backgroundColor: "var(--active)" },
-  ".cm-searchMatch": { backgroundColor: "var(--active)", outline: "1px solid var(--line2)" },
+  ".cm-selectionBackground, &.cm-focused .cm-selectionBackground": { backgroundColor: "var(--bg-secondary)" },
+  ".cm-selectionMatch": { backgroundColor: "var(--bg-secondary)" },
+  ".cm-searchMatch": { backgroundColor: "var(--bg-secondary)", outline: "1px solid var(--stroke-secondary)" },
   ".cm-panels": {
-    backgroundColor: "var(--raise)",
-    color: "var(--fg)",
+    backgroundColor: "var(--bg-elevated)",
+    color: "var(--text-primary)",
     fontFamily: "var(--font-family-sans)",
   },
   ".cm-panels-bottom": { borderTop: "none" },
@@ -51,10 +51,10 @@ const theme = EditorView.theme({
   ".cm-textfield": {
     backgroundColor: "transparent",
     border: "none",
-    boxShadow: "inset 0 0 0 1px var(--active)",
+    boxShadow: "inset 0 0 0 1px var(--bg-secondary)",
     borderRadius: "6px",
   },
-  ".cm-button": { backgroundImage: "none", backgroundColor: "var(--hover)", border: "none", borderRadius: "6px" },
+  ".cm-button": { backgroundImage: "none", backgroundColor: "var(--bg-tertiary)", border: "none", borderRadius: "6px" },
 })
 
 const MAX_HIGHLIGHT_CHARS = 200_000

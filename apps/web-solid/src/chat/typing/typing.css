@@ -47,8 +47,8 @@
 }
 
 .typing-more {
-  color: var(--text-300);
-  font-size: var(--type-hint);
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
 }
 
 .typing-stack[data-group] .typing-more {
@@ -69,10 +69,10 @@
 
 @media (prefers-reduced-motion: no-preference) {
   .typing {
-    animation: typing-in 200ms var(--ease-kiko) backwards;
+    animation: typing-in 200ms var(--ease-sharp) backwards;
   }
   .typing-bird {
-    animation: typing-bird-hop 1.2s var(--ease-kiko) infinite;
+    animation: typing-bird-hop 1.2s var(--ease-sharp) infinite;
     transform-origin: 50% 100%;
   }
 }

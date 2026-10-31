@@ -59,14 +59,14 @@
   position: relative;
   isolation: isolate;
   overflow: hidden;
-  border-radius: var(--radius-card);
-  transition: background-color var(--dur-hover) var(--ease-kiko);
+  border-radius: var(--radius-xl);
+  transition: background-color var(--duration-fast) var(--ease-sharp);
 }
 
 @media (hover: hover) and (pointer: fine) {
   .tpl:hover,
   .tpl:focus-within {
-    background: var(--panel);
+    background: var(--bg-editor);
   }
 }
 
@@ -77,17 +77,17 @@
   z-index: -1;
   width: calc(var(--spacing) * 47.5);
   padding: 10px 12px;
-  border-radius: var(--radius-tile) var(--radius-tile) 0 0;
-  background: var(--raise);
+  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+  background: var(--bg-elevated);
   box-shadow:
     0 -8px 24px rgb(0 0 0 / 0.4),
-    var(--edge-strong);
+    var(--hairline-strong);
   opacity: 0;
   transform: translateY(100%) rotate(0deg);
   transform-origin: 100% 100%;
   transition:
-    transform var(--dur-pop) var(--ease-kiko),
-    opacity var(--dur-pop) var(--ease-kiko);
+    transform var(--duration-normal) var(--ease-sharp),
+    opacity var(--duration-normal) var(--ease-sharp);
   pointer-events: none;
 }
 
@@ -113,12 +113,12 @@
   align-items: center;
   justify-content: center;
   border-radius: 5px;
-  box-shadow: inset 0 0 0 1.5px var(--fg4);
-  color: var(--bg);
+  box-shadow: inset 0 0 0 1.5px var(--text-quaternary);
+  color: var(--bg-chrome);
 }
 
 .tpl-peek-check.on {
-  background: var(--fg);
+  background: var(--text-primary);
   box-shadow: none;
 }
 
@@ -134,24 +134,24 @@
   height: calc(var(--spacing) * 10);
   flex-shrink: 0;
   place-items: center;
-  border-radius: var(--radius-tile);
-  background: var(--raise);
-  color: var(--fg2);
-  transition: background-color var(--dur-hover) var(--ease-kiko);
+  border-radius: var(--radius-xl);
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  transition: background-color var(--duration-fast) var(--ease-sharp);
 }
 
 @media (hover: hover) and (pointer: fine) {
   .tpl:hover .tpl-tile,
   .tpl:focus-within .tpl-tile {
-    background: var(--active);
+    background: var(--bg-secondary);
   }
 }
 
 .tpl-tile > svg {
   position: absolute;
   transition:
-    opacity var(--dur-hover) var(--ease-kiko),
-    transform var(--dur-hover) var(--ease-kiko);
+    opacity var(--duration-fast) var(--ease-sharp),
+    transform var(--duration-fast) var(--ease-sharp);
 }
 
 .tpl-glyph {
@@ -197,8 +197,8 @@
   height: calc(var(--spacing) * 5.5);
   flex-shrink: 0;
   border-radius: var(--radius-full);
-  background: var(--active);
-  transition: background-color var(--dur-hover) var(--ease-kiko);
+  background: var(--bg-secondary);
+  transition: background-color var(--duration-fast) var(--ease-sharp);
 }
 
 .tpl-switch::after {
@@ -209,18 +209,18 @@
   width: calc(var(--spacing) * 4);
   height: calc(var(--spacing) * 4);
   border-radius: var(--radius-full);
-  background: var(--fg3);
+  background: var(--text-tertiary);
   transition:
-    transform var(--dur-pop) var(--ease-kiko),
-    background-color var(--dur-hover) var(--ease-kiko);
+    transform var(--duration-normal) var(--ease-sharp),
+    background-color var(--duration-fast) var(--ease-sharp);
 }
 
 .tpl-switch[aria-checked="true"] {
-  background: var(--fg);
+  background: var(--text-primary);
 }
 
 .tpl-switch[aria-checked="true"]::after {
-  background: var(--bg);
+  background: var(--bg-chrome);
   transform: translateX(14px);
 }
 
@@ -230,12 +230,12 @@
 
 .tpl[data-install] > .tpl-tile {
   transition:
-    background-color var(--dur-hover) var(--ease-kiko),
-    opacity var(--dur-step) var(--ease-kiko);
+    background-color var(--duration-fast) var(--ease-sharp),
+    opacity var(--duration-slower) var(--ease-sharp);
 }
 
 .tpl[data-install] > [data-action="open-recipe-chat"] {
-  transition: opacity var(--dur-step) var(--ease-kiko);
+  transition: opacity var(--duration-slower) var(--ease-sharp);
 }
 
 .tpl[data-status="paused"] > .tpl-tile,
@@ -265,7 +265,7 @@
 
 @keyframes recipe-wash {
   from {
-    background-color: color-mix(in oklab, var(--ok) 12%, transparent);
+    background-color: color-mix(in oklab, var(--text-success) 12%, transparent);
   }
 
   to {
@@ -275,13 +275,13 @@
 
 .tpl[data-fresh] {
   animation:
-    recipe-drop var(--dur-pop) var(--ease-kiko) var(--fresh-skip, 0ms) both,
-    recipe-wash 1200ms var(--ease-kiko) var(--fresh-skip, 0ms) both;
+    recipe-drop var(--duration-normal) var(--ease-sharp) var(--fresh-skip, 0ms) both,
+    recipe-wash 1200ms var(--ease-sharp) var(--fresh-skip, 0ms) both;
 }
 
 @media (prefers-reduced-motion: reduce) {
   .tpl[data-fresh] {
-    animation: recipe-wash 1200ms var(--ease-kiko) var(--fresh-skip, 0ms) both;
+    animation: recipe-wash 1200ms var(--ease-sharp) var(--fresh-skip, 0ms) both;
   }
 }
 
@@ -324,7 +324,7 @@
 
 .recipe-sheet-body {
   overflow: hidden;
-  transition: height var(--dur-pop) var(--ease-kiko);
+  transition: height var(--duration-normal) var(--ease-sharp);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -339,24 +339,24 @@
   margin: 0 -10px;
   padding: 2px 10px;
   border: 0;
-  border-radius: var(--radius-control, 8px);
+  border-radius: var(--radius-base, 8px);
   background: transparent;
-  color: var(--fg);
-  font-family: var(--font-family-display);
-  font-variation-settings: var(--display-variation);
+  color: var(--text-primary);
+  font-family: var(--font-family-sans);
+  font-variation-settings: normal;
   font-size: clamp(26px, 8vw, 40px);
   font-weight: 400;
   line-height: 1.1;
   letter-spacing: -0.015em;
   outline: none;
-  transition: background-color var(--dur-hover) var(--ease-kiko);
+  transition: background-color var(--duration-fast) var(--ease-sharp);
 }
 .recipe-doc-title:focus {
-  background: var(--panel);
+  background: var(--bg-editor);
 }
 @media (hover: hover) and (pointer: fine) {
   .recipe-doc-title:hover:not(:focus) {
-    background: var(--hover);
+    background: var(--bg-tertiary);
   }
 }
 
@@ -373,13 +373,13 @@
 .recipe-doc-prose {
   margin: 0 -12px;
   padding: 8px 12px;
-  border-radius: var(--radius-pop);
-  color: var(--fg3);
-  font-size: var(--type-msg);
+  border-radius: var(--radius-xl);
+  color: var(--text-tertiary);
+  font-size: var(--font-size-lg);
   line-height: 28px;
   outline: none;
   cursor: text;
-  transition: background-color var(--dur-hover) var(--ease-kiko);
+  transition: background-color var(--duration-fast) var(--ease-sharp);
 }
 .recipe-doc-prose p,
 .recipe-doc-prose ol,
@@ -394,15 +394,15 @@
   padding-left: 22px;
 }
 .recipe-doc-prose strong {
-  color: var(--fg);
+  color: var(--text-primary);
   font-weight: 600;
 }
 .recipe-doc-prose:focus-visible {
-  background: var(--panel);
+  background: var(--bg-editor);
 }
 @media (hover: hover) and (pointer: fine) {
   div.recipe-doc-prose:hover {
-    background: var(--panel);
+    background: var(--bg-editor);
   }
 }
 .recipe-doc-area {
@@ -411,7 +411,7 @@
   resize: none;
   overflow: hidden;
   border: 0;
-  background: var(--panel);
+  background: var(--bg-editor);
   font-family: inherit;
   white-space: pre-wrap;
 }

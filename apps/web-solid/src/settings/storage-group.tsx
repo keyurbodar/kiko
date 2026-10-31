@@ -20,14 +20,14 @@ function Meter(props: { storage: Storage }) {
       aria-valuemax={OBJECT_LIMIT_BYTES}
       aria-valuenow={used()}
       aria-valuetext={`${formatSize(props.storage.objectBytes)} of ${formatSize(OBJECT_LIMIT_BYTES)}`}
-      class="h-1 overflow-hidden rounded-full bg-[var(--fill-control)]"
+      class="h-1 overflow-hidden rounded-full bg-[var(--bg-tertiary)]"
       data-part="storage-meter"
     >
       <div
         class="h-full rounded-full"
         classList={{
-          "bg-[var(--danger)]": nearlyFull(props.storage),
-          "bg-fg2": !nearlyFull(props.storage),
+          "bg-[var(--text-danger)]": nearlyFull(props.storage),
+          "bg-neutral": !nearlyFull(props.storage),
         }}
         style={{ width: `${(used() / OBJECT_LIMIT_BYTES) * 100}%` }}
       />
@@ -51,14 +51,14 @@ export function StorageGroup() {
           {(s) => (
             <div class="flex flex-col gap-2.5 px-4 py-3.5" data-setting="object-storage">
               <div class="flex items-baseline gap-1.5">
-                <span class="type-row text-fg" data-field="object-bytes">
+                <span class="type-base text-primary" data-field="object-bytes">
                   {formatSize(s().objectBytes)}
                 </span>
-                <span class="type-label text-[var(--fg3)]">of {formatSize(OBJECT_LIMIT_BYTES)}</span>
-                <span class="ml-auto truncate type-label text-[var(--fg3)]">Stored in your Worker</span>
+                <span class="type-sm text-[var(--text-tertiary)]">of {formatSize(OBJECT_LIMIT_BYTES)}</span>
+                <span class="ml-auto truncate type-sm text-[var(--text-tertiary)]">Stored in your Worker</span>
               </div>
               <Meter storage={s()} />
-              <span class="type-label text-[var(--fg3)]">{about(s())}</span>
+              <span class="type-sm text-[var(--text-tertiary)]">{about(s())}</span>
               <Show when={nearlyFull(s())}>
                 <div data-part="storage-warning">
                   <Notice>

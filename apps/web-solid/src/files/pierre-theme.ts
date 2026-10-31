@@ -1,7 +1,7 @@
 export const PIERRE_TREE_UNSAFE_CSS = `
   :host {
     --trees-bg-override: transparent;
-    --trees-fg-override: var(--fg);
+    --trees-fg-override: var(--text-primary);
     --trees-selected-bg-override: color-mix(in srgb, currentColor 12%, transparent);
     --trees-hover-bg-override: color-mix(in srgb, currentColor 7%, transparent);
     --trees-border-color-override: color-mix(in srgb, currentColor 14%, transparent);

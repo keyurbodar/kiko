@@ -1,5 +1,5 @@
 .run-tree {
-  --run-rail: color-mix(in oklab, var(--fg) 20%, var(--bg));
+  --run-rail: color-mix(in oklab, var(--text-primary) 20%, var(--bg-chrome));
   --run-inset: var(--bubble-pad-x);
   --run-icon: 16px;
   --run-space: 9px;
@@ -28,15 +28,15 @@
   gap: 9px;
   min-height: 30px;
   max-width: 100%;
-  color: var(--text-300);
+  color: var(--text-tertiary);
   cursor: pointer;
   user-select: none;
-  transition: color var(--dur-hover) var(--ease-out);
+  transition: color var(--duration-fast) var(--ease-sharp);
 }
 .run-tree-head[data-live] {
   display: flex;
   align-self: stretch;
-  color: var(--text-200);
+  color: var(--text-secondary);
 }
 .run-tree-head[data-live] .run-tree-clock-slot {
   margin-left: auto;
@@ -56,9 +56,9 @@
   display: inline-block;
   flex: none;
   overflow: hidden;
-  color: var(--fg4);
-  font-size: var(--type-label);
-  line-height: var(--type-label-line);
+  color: var(--text-quaternary);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-sm);
 }
 .run-tree-clock-text {
   display: inline-block;
@@ -68,7 +68,7 @@
   position: relative;
   display: grid;
   min-width: 0;
-  height: var(--type-label-line);
+  height: var(--line-height-sm);
   overflow: hidden;
 }
 .run-tree-cross-out,
@@ -112,7 +112,7 @@
   position: absolute;
   left: calc(var(--run-rail-x) - var(--run-indent));
   border-left: var(--run-stroke) solid var(--run-rail);
-  transition: border-color var(--dur-hover) var(--ease-out);
+  transition: border-color var(--duration-fast) var(--ease-sharp);
 }
 .run-tree-item::before {
   top: 0;
@@ -126,14 +126,14 @@
   width: calc(var(--run-indent) - var(--run-rail-x) - var(--run-elbow-gap));
   height: calc((var(--run-row) + var(--run-stroke)) / 2);
   border-bottom: var(--run-stroke) solid var(--run-rail);
-  border-bottom-left-radius: var(--radius-control);
+  border-bottom-left-radius: var(--radius-base);
 }
 .run-tree-item[data-live]::before,
 .run-tree-item[data-hot]::after {
-  border-color: var(--text-100);
+  border-color: var(--text-primary);
 }
 .run-tree-item[data-live]::after {
-  border-left-color: var(--text-100);
+  border-left-color: var(--text-primary);
 }
 
 .run-tree-row {
@@ -143,22 +143,22 @@
   height: var(--run-row);
   min-width: 0;
   padding: 0;
-  border-radius: var(--radius-tail);
-  color: var(--text-300);
+  border-radius: var(--radius-base);
+  color: var(--text-tertiary);
   font-size: 14px;
   line-height: 20px;
   white-space: nowrap;
   text-align: start;
   cursor: default;
   user-select: none;
-  transition: color var(--dur-hover) var(--ease-out);
+  transition: color var(--duration-fast) var(--ease-sharp);
 }
 button.run-tree-row {
   cursor: pointer;
 }
 button.run-tree-row:focus-visible,
 .run-tree-head:focus-visible {
-  color: var(--text-100);
+  color: var(--text-primary);
 }
 
 .run-tree-slot {
@@ -177,26 +177,26 @@ button.run-tree-row:focus-visible,
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: var(--text-300);
+  color: var(--text-tertiary);
 }
 .run-tree-said .run-tree-label {
-  color: var(--text-200);
+  color: var(--text-secondary);
 }
 .run-tree-said-body {
   margin: 2px 0 6px var(--run-indent);
-  color: var(--text-200);
+  color: var(--text-secondary);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   user-select: text;
 }
 
 .run-tree-object {
-  color: var(--text-100);
+  color: var(--text-primary);
   font-weight: 500;
 }
 .run-tree-object[data-mono] {
   font-family: var(--font-family-mono);
-  font-size: var(--type-label);
+  font-size: var(--font-size-sm);
 }
 .motion-shine .run-tree-object {
   color: inherit;
@@ -204,19 +204,19 @@ button.run-tree-row:focus-visible,
 
 .run-tree-icon {
   flex: none;
-  color: var(--text-400);
-  transition: color var(--dur-hover) var(--ease-out);
+  color: var(--text-quaternary);
+  transition: color var(--duration-fast) var(--ease-sharp);
 }
 .run-tree-icon[data-failed] {
-  color: var(--danger);
+  color: var(--text-danger);
 }
 
 .run-tree-meta {
   flex: none;
   margin-left: auto;
   padding-left: 14px;
-  color: var(--fg4);
-  font-size: var(--type-label);
+  color: var(--text-quaternary);
+  font-size: var(--font-size-sm);
 }
 .run-tree-time {
   margin-left: 0;
@@ -248,17 +248,17 @@ button.run-tree-row:focus-visible,
 }
 
 .run-tree-more {
-  color: var(--text-400);
+  color: var(--text-quaternary);
 }
 
 .run-tree-chevron {
   display: grid;
   flex: none;
   place-items: center;
-  color: var(--fg4);
+  color: var(--text-quaternary);
   transition:
-    color var(--dur-hover) var(--ease-out),
-    transform 200ms var(--ease-pop);
+    color var(--duration-fast) var(--ease-sharp),
+    transform 200ms var(--ease-sharp);
 }
 .run-tree-chevron[data-open] {
   transform: rotate(90deg);
@@ -268,9 +268,9 @@ button.run-tree-row[data-kind="thought"] > .run-tree-chevron,
 button.run-tree-row[data-kind="note"] > .run-tree-chevron {
   opacity: 0;
   transition:
-    opacity var(--dur-hover) var(--ease-out),
-    color var(--dur-hover) var(--ease-out),
-    transform 200ms var(--ease-pop);
+    opacity var(--duration-fast) var(--ease-sharp),
+    color var(--duration-fast) var(--ease-sharp),
+    transform 200ms var(--ease-sharp);
 }
 button.run-tree-row[data-kind="step"]:focus-visible > .run-tree-chevron,
 button.run-tree-row[data-kind="step"][aria-expanded="true"] > .run-tree-chevron,
@@ -284,19 +284,19 @@ button.run-tree-row[data-kind="note"][aria-expanded="true"] > .run-tree-chevron 
 @media (hover: hover) and (pointer: fine) {
   button.run-tree-row:hover,
   .run-tree-head:hover {
-    color: var(--text-100);
+    color: var(--text-primary);
   }
   button.run-tree-row:hover .run-tree-label,
   .run-tree-head:hover .run-tree-label {
-    color: var(--text-100);
+    color: var(--text-primary);
   }
   button.run-tree-row:hover .run-tree-icon,
   button.run-tree-row:hover .run-tree-chevron,
   .run-tree-head:hover .run-tree-chevron {
-    color: var(--text-200);
+    color: var(--text-secondary);
   }
   button.run-tree-row:hover .run-tree-icon[data-failed] {
-    color: var(--danger);
+    color: var(--text-danger);
   }
   button.run-tree-row:hover > .run-tree-time-slot > .run-tree-time,
   .run-tree-head:hover .run-tree-time {
@@ -308,7 +308,7 @@ button.run-tree-row[data-kind="note"][aria-expanded="true"] > .run-tree-chevron 
   }
   button.run-tree-row[data-file]:hover .run-tree-label {
     text-decoration: underline;
-    text-decoration-color: color-mix(in oklab, var(--text-100) 30%, transparent);
+    text-decoration-color: color-mix(in oklab, var(--text-primary) 30%, transparent);
     text-underline-offset: 3px;
   }
   .run-tree-input:hover > .run-tree-copy,
@@ -323,7 +323,7 @@ button.run-tree-row[data-kind="note"][aria-expanded="true"] > .run-tree-chevron 
   flex: none;
   width: var(--run-icon);
   height: var(--run-icon);
-  color: var(--text-100);
+  color: var(--text-primary);
 }
 .run-tree-leaves > i {
   position: absolute;
@@ -351,7 +351,7 @@ button.run-tree-row[data-kind="note"][aria-expanded="true"] > .run-tree-chevron 
   transform-origin: 50% 100%;
 }
 .run-tree-leaves[data-failed] {
-  color: var(--danger);
+  color: var(--text-danger);
 }
 
 .run-tree-fold {
@@ -380,17 +380,17 @@ button.run-tree-row[data-kind="note"][aria-expanded="true"] > .run-tree-chevron 
   min-width: 0;
   flex-direction: column;
   overflow: hidden;
-  border-radius: var(--radius-tile);
-  background: var(--panel);
-  box-shadow: inset 0 0 0 1px var(--border-100);
+  border-radius: var(--radius-xl);
+  background: var(--bg-editor);
+  box-shadow: inset 0 0 0 1px var(--stroke-tertiary);
 }
 .run-tree-mono {
   margin: 0;
   padding: 8px 12px;
   overflow: auto;
   font-family: var(--font-family-mono);
-  font-size: var(--type-code);
-  line-height: var(--type-code-line);
+  font-size: var(--font-size-code);
+  line-height: var(--line-height-code);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   user-select: text;
@@ -404,7 +404,7 @@ button.run-tree-row[data-kind="note"][aria-expanded="true"] > .run-tree-chevron 
   flex: 1;
   max-height: 8rem;
   padding-right: 40px;
-  color: var(--text-100);
+  color: var(--text-primary);
 }
 .run-tree-output-wrap {
   position: relative;
@@ -414,29 +414,29 @@ button.run-tree-row[data-kind="note"][aria-expanded="true"] > .run-tree-chevron 
 }
 .run-tree-output {
   max-height: 16rem;
-  color: var(--text-200);
+  color: var(--text-secondary);
 }
 .run-tree-input + .run-tree-output-wrap {
-  border-top: 1px solid var(--border-100);
+  border-top: 1px solid var(--stroke-tertiary);
 }
 .run-tree-note {
   margin: 0;
-  color: var(--text-300);
+  color: var(--text-tertiary);
   user-select: text;
 }
 .run-tree-more-lines {
   align-self: flex-start;
   margin: 0 12px 8px;
   padding: 2px 8px;
-  border-radius: var(--radius-tail);
-  color: var(--text-300);
-  font-size: var(--type-label);
+  border-radius: var(--radius-base);
+  color: var(--text-tertiary);
+  font-size: var(--font-size-sm);
   cursor: pointer;
-  background: var(--fill-hover);
+  background: var(--bg-quaternary);
 }
 @media (hover: hover) and (pointer: fine) {
   .run-tree-more-lines:hover {
-    color: var(--text-100);
+    color: var(--text-primary);
   }
 }
 
@@ -451,15 +451,15 @@ button.run-tree-row[data-kind="note"][aria-expanded="true"] > .run-tree-chevron 
   min-width: 24px;
   justify-content: center;
   padding: 0 6px;
-  border-radius: var(--radius-tail);
-  color: var(--text-300);
-  font-size: var(--type-hint);
+  border-radius: var(--radius-base);
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
   cursor: pointer;
   opacity: 0;
   transition:
-    opacity var(--dur-hover) var(--ease-out),
-    color var(--dur-hover) var(--ease-out),
-    background-color var(--dur-hover) var(--ease-out);
+    opacity var(--duration-fast) var(--ease-sharp),
+    color var(--duration-fast) var(--ease-sharp),
+    background-color var(--duration-fast) var(--ease-sharp);
 }
 .run-tree-copy:focus-visible,
 .run-tree-copy[data-copied],
@@ -468,8 +468,8 @@ button.run-tree-row[data-kind="note"][aria-expanded="true"] > .run-tree-chevron 
   opacity: 1;
 }
 .run-tree-copy[data-copied] {
-  color: var(--text-100);
-  background: var(--fill-hover);
+  color: var(--text-primary);
+  background: var(--bg-quaternary);
 }
 @media (hover: none) {
   .run-tree-copy {
@@ -481,7 +481,7 @@ button.run-tree-row[data-kind="note"][aria-expanded="true"] > .run-tree-chevron 
   margin: 0 0 6px var(--run-indent);
   padding: 0;
   border-left: 0;
-  color: var(--text-400);
+  color: var(--text-quaternary);
   font-size: 13.5px;
   line-height: 21px;
 }
@@ -496,19 +496,19 @@ button.run-tree-row[data-kind="note"][aria-expanded="true"] > .run-tree-chevron 
 
 @media (prefers-reduced-motion: no-preference) {
   .run-tree-fold.run-tree-fold {
-    transition: grid-template-rows 300ms var(--ease-snap);
+    transition: grid-template-rows 300ms var(--ease-drawer);
   }
 
   .run-tree-cross-out {
-    animation: run-tree-cross-out 300ms var(--ease-out) both;
+    animation: run-tree-cross-out 300ms var(--ease-sharp) both;
   }
   .run-tree-cross-in {
-    animation: run-tree-cross-in 300ms var(--ease-out) both;
+    animation: run-tree-cross-in 300ms var(--ease-sharp) both;
   }
 
   .run-tree-item[data-fresh]::before,
   .run-tree-item[data-fresh]::after {
-    animation: run-tree-branch-in 160ms var(--ease-out) both;
+    animation: run-tree-branch-in 160ms var(--ease-sharp) both;
   }
   .run-tree-leaves[data-running] > i::before {
     animation: run-tree-leaf 1.2s infinite;
@@ -525,24 +525,24 @@ button.run-tree-row[data-kind="note"][aria-expanded="true"] > .run-tree-chevron 
 
   .run-tree-item[data-fresh] > .run-tree-row,
   .run-tree-item[data-fresh] > .thinking-stream {
-    animation: run-tree-row-in 160ms var(--ease-out) var(--run-delay, 0ms) backwards;
+    animation: run-tree-row-in 160ms var(--ease-sharp) var(--run-delay, 0ms) backwards;
   }
 
   .run-tree-slot[data-settled] > .run-tree-icon {
-    animation: run-tree-settle 300ms var(--ease-pop) backwards;
+    animation: run-tree-settle 300ms var(--ease-sharp) backwards;
   }
   .run-tree-slot[data-settled]::before {
     content: "";
     position: absolute;
     inset: -3px;
     border-radius: 50%;
-    background: var(--text-100);
-    animation: run-tree-disc 300ms var(--ease-pop) forwards;
+    background: var(--text-primary);
+    animation: run-tree-disc 300ms var(--ease-sharp) forwards;
     pointer-events: none;
   }
 
   .run-tree-detail {
-    animation: run-tree-row-in 160ms var(--ease-out) backwards;
+    animation: run-tree-row-in 160ms var(--ease-sharp) backwards;
   }
 }
 

@@ -261,7 +261,7 @@ function TaskRow(props: { task: Task; current: boolean; index: number }) {
     >
       <Show when={props.current} fallback={<TaskCheck task={props.task} />}>
         <span class="grid size-4 shrink-0 place-items-center">
-          <span class="td-spinner size-3 rounded-full border-[1.5px] border-[var(--line2)] border-t-[var(--fg)]" />
+          <span class="td-spinner size-3 rounded-full border-[1.5px] border-[var(--stroke-secondary)] border-t-[var(--text-primary)]" />
         </span>
       </Show>
       <span class="min-w-0 flex-1 truncate">{taskText(props.task.title, room.roomMembers())}</span>
@@ -364,7 +364,7 @@ function HelpersSection(props: { chatId: string; now: number }) {
                 icon={lane.state === "failed" ? AlertCircleIcon : CheckIcon}
                 size={16}
                 class={`td-check-pop size-3.5 shrink-0 self-start ${
-                  lane.state === "failed" ? "text-[var(--danger)]" : "text-[var(--ok)]"
+                  lane.state === "failed" ? "text-[var(--text-danger)]" : "text-[var(--text-success)]"
                 }`}
               />
             </Show>
@@ -385,7 +385,7 @@ function HelpersSection(props: { chatId: string; now: number }) {
                 <Row label={lane.title} action="open-helper" onClick={() => openHelper(lane.id, lane.window)}>
                   <span class="size-4 shrink-0" />
                   <span class="min-w-0 flex-1 truncate">{lane.title}</span>
-                  <span class={`td-meta shrink-0 ${lane.state === "failed" ? "text-[var(--danger)]" : ""}`}>
+                  <span class={`td-meta shrink-0 ${lane.state === "failed" ? "text-[var(--text-danger)]" : ""}`}>
                     {helperWord(lane.state)}
                   </span>
                 </Row>
@@ -490,8 +490,8 @@ function UsedRowView(props: { row: UsedRow }) {
           <div class="flex max-h-80 w-64 flex-col overflow-y-auto p-1" data-component="details-used-pop">
             <For each={props.row.items}>
               {(item) => (
-                <div class="flex min-h-7 min-w-0 items-center gap-2.5 rounded-[var(--radius-micro)] px-2 py-1">
-                  <span class="min-w-0 flex-1 truncate text-[12.5px] text-[var(--fg)]">{item.name}</span>
+                <div class="flex min-h-7 min-w-0 items-center gap-2.5 rounded-[var(--radius-sm)] px-2 py-1">
+                  <span class="min-w-0 flex-1 truncate text-[12.5px] text-[var(--text-primary)]">{item.name}</span>
                   <span class="td-meta shrink-0">{item.meta}</span>
                 </div>
               )}

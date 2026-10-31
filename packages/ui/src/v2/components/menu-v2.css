@@ -19,10 +19,10 @@
     z-index: 80;
     pointer-events: auto;
 
-    background: var(--popover);
-    border-radius: var(--radius-control);
-    box-shadow: var(--edge), var(--shadow-pop);
-    color: var(--fg);
+    background: var(--bg-elevated);
+    border-radius: var(--radius-base);
+    box-shadow: var(--hairline), var(--box-shadow-popup);
+    color: var(--text-primary);
 
     outline: none;
 
@@ -33,12 +33,12 @@
     position: relative;
 
     & > [data-slot="glide"] {
-      border-radius: var(--radius-micro);
-      background: var(--fill-hover);
+      border-radius: var(--radius-sm);
+      background: var(--bg-quaternary);
     }
 
     & > [data-slot="glide"][data-tone="bad"] {
-      background: var(--danger-fill);
+      background: var(--bg-danger-tertiary);
     }
 
     &:focus-visible {
@@ -47,11 +47,11 @@
   }
 
   [data-component="menu-v2-item"] {
-    --menu-v2-fg: var(--fg);
-    --menu-v2-fg-muted: var(--fg3);
-    --menu-v2-fg-subtle: var(--fg3);
-    --menu-v2-icon: var(--fg2);
-    --menu-v2-badge-bg: var(--active);
+    --menu-v2-fg: var(--text-primary);
+    --menu-v2-fg-muted: var(--text-tertiary);
+    --menu-v2-fg-subtle: var(--text-tertiary);
+    --menu-v2-icon: var(--text-secondary);
+    --menu-v2-badge-bg: var(--bg-secondary);
 
     -webkit-font-smoothing: auto;
     text-rendering: geometricPrecision;
@@ -66,7 +66,7 @@
     background: transparent;
     position: relative;
     z-index: 1;
-    border-radius: var(--radius-micro);
+    border-radius: var(--radius-sm);
     outline: none;
     cursor: default;
     user-select: none;
@@ -82,7 +82,7 @@
       gap: 8px;
       min-width: 0;
 
-      font-size: var(--type-ui);
+      font-size: var(--font-size-base);
       font-weight: 400;
       line-height: 20px;
       color: inherit;
@@ -100,10 +100,10 @@
       display: inline-flex;
       align-items: center;
       flex: none;
-      font-size: var(--type-label);
+      font-size: var(--font-size-sm);
       font-weight: 400;
       line-height: 16px;
-      color: var(--text-300);
+      color: var(--text-tertiary);
       white-space: nowrap;
     }
 
@@ -119,9 +119,9 @@
       padding: 0 4px;
 
       background: var(--menu-v2-badge-bg);
-      border-radius: var(--radius-check);
+      border-radius: var(--radius-sm);
 
-      font-size: var(--type-hint);
+      font-size: var(--font-size-xs);
       font-weight: 500;
       line-height: 100%;
       letter-spacing: 0.05px;
@@ -152,14 +152,14 @@
     }
 
     &:is([data-highlighted], [data-expanded]) {
-      --menu-v2-icon: var(--fg);
-      --menu-v2-fg: var(--fg);
-      --menu-v2-fg-muted: var(--fg);
-      color: var(--fg);
+      --menu-v2-icon: var(--text-primary);
+      --menu-v2-fg: var(--text-primary);
+      --menu-v2-fg-muted: var(--text-primary);
+      color: var(--text-primary);
     }
 
     &[data-expanded]:not([data-highlighted]) {
-      background: var(--fill-hover);
+      background: var(--bg-quaternary);
     }
 
     &[data-disabled] {
@@ -168,16 +168,16 @@
     }
 
     &.text-bad {
-      --menu-v2-fg: var(--danger);
-      --menu-v2-icon: var(--danger);
-      color: var(--danger);
+      --menu-v2-fg: var(--text-danger);
+      --menu-v2-icon: var(--text-danger);
+      color: var(--text-danger);
     }
   }
 
   [data-slot="menu-v2-separator"] {
     height: 1px;
     margin: 4px 8px;
-    background: var(--border-100);
+    background: var(--stroke-tertiary);
     border: none;
   }
 
@@ -187,10 +187,10 @@
     align-items: center;
     padding: 6px 8px;
 
-    font-size: var(--type-label);
+    font-size: var(--font-size-sm);
     font-weight: 500;
     line-height: 16px;
-    color: var(--text-300);
+    color: var(--text-tertiary);
     user-select: none;
   }
 }
@@ -219,10 +219,10 @@
   }
 
   [data-popper-positioner] [data-component="menu-v2-content"][data-expanded] {
-    animation: menu-v2-in var(--dur-pop) var(--ease-kiko) both;
+    animation: menu-v2-in var(--duration-normal) var(--ease-sharp) both;
   }
 
   [data-popper-positioner] [data-component="menu-v2-content"][data-closed] {
-    animation: menu-v2-out 100ms var(--ease-kiko) both;
+    animation: menu-v2-out 100ms var(--ease-sharp) both;
   }
 }

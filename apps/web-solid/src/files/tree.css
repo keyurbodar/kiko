@@ -12,16 +12,16 @@
   flex: 1;
   padding: 0 9px;
   border: 1px solid transparent;
-  border-radius: var(--radius-tail);
+  border-radius: var(--radius-base);
   background: transparent;
-  color: var(--fg);
+  color: var(--text-primary);
   font-size: 12px;
   outline: none;
-  transition: background-color var(--dur-hover) var(--ease-kiko);
+  transition: background-color var(--duration-fast) var(--ease-sharp);
 }
 
 .kt-search::placeholder {
-  color: var(--fg3);
+  color: var(--text-tertiary);
 }
 
 .kt-search::-webkit-search-cancel-button {
@@ -30,13 +30,13 @@
 
 @media (hover: hover) and (pointer: fine) {
   .kt-search:hover {
-    background: color-mix(in oklab, var(--fg) 3%, transparent);
+    background: color-mix(in oklab, var(--text-primary) 3%, transparent);
   }
 }
 
 .kt-search:focus-visible {
   outline: none;
-  background: var(--bg);
+  background: var(--bg-chrome);
 }
 
 .kt-host {
@@ -82,7 +82,7 @@
 
 @media (prefers-reduced-motion: no-preference) {
   .kt-morph > svg {
-    transition: opacity var(--dur-hover) var(--ease-kiko);
+    transition: opacity var(--duration-fast) var(--ease-sharp);
   }
 }
 
@@ -94,11 +94,11 @@
   justify-content: center;
   gap: 10px;
   padding: 24px 20px 40px;
-  color: var(--text-400);
+  color: var(--text-quaternary);
   text-align: center;
 }
 
 .kt-empty > p {
   max-width: 220px;
-  color: var(--text-300);
+  color: var(--text-tertiary);
 }

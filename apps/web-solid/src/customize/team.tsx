@@ -80,7 +80,7 @@ export function TeamTab() {
           {(agent) => (
             <article
               ref={(el) => onCleanup(look(el))}
-              class="group relative flex min-w-0 flex-col gap-4 page-card rounded-card bg-panel p-4 transition-colors duration-(--dur-hover) hover:bg-raise"
+              class="group relative flex min-w-0 flex-col gap-4 page-card rounded-xl bg-editor p-4 transition-colors duration-(--duration-fast) hover:bg-elevated"
               data-agent={agent.slug}
             >
               <div class="flex min-w-0 items-center gap-3.5">
@@ -93,15 +93,15 @@ export function TeamTab() {
                 >
                   <IdentityAvatar seed={agent.slug} size={48} />
                   <span class="flex min-w-0 flex-1 flex-col">
-                    <span class="type-row truncate font-semibold text-fg">{agent.name}</span>
-                    <span class="type-label truncate text-fg3">
+                    <span class="type-base truncate font-semibold text-primary">{agent.name}</span>
+                    <span class="type-sm truncate text-tertiary">
                       {agent.id === KIKO ? "Lead, plans and routes" : firstLine(agent.prompt) || `@${agent.slug}`}
                     </span>
                   </span>
                 </button>
                 <button
                   type="button"
-                  class="type-label relative z-[1] flex h-8 shrink-0 cursor-pointer items-center rounded-control px-3 font-medium text-fg2 transition-colors duration-(--dur-hover) hover:bg-active hover:text-fg"
+                  class="type-sm relative z-[1] flex h-8 shrink-0 cursor-pointer items-center rounded-base px-3 font-medium text-secondary transition-colors duration-(--duration-fast) hover:bg-secondary hover:text-primary"
                   aria-label={`Edit ${agent.name}`}
                   data-action="edit-agent"
                   onClick={() => openSettings("models")}
@@ -111,7 +111,7 @@ export function TeamTab() {
                 <Show when={agent.id !== KIKO}>
                   <button
                     type="button"
-                    class="type-label relative z-[1] flex h-8 shrink-0 cursor-pointer items-center rounded-control px-3 font-medium text-fg2 transition-colors duration-(--dur-hover) hover:bg-active hover:text-bad"
+                    class="type-sm relative z-[1] flex h-8 shrink-0 cursor-pointer items-center rounded-base px-3 font-medium text-secondary transition-colors duration-(--duration-fast) hover:bg-secondary hover:text-danger"
                     aria-label={`Delete ${agent.name}`}
                     data-action="delete-agent"
                     onClick={() => setDeleting(agent)}
@@ -122,13 +122,13 @@ export function TeamTab() {
               </div>
               <Show when={appsFor(agent.slug).length}>
                 <div class="flex flex-col gap-2">
-                  <span class="type-label text-fg3">Can use</span>
+                  <span class="type-sm text-tertiary">Can use</span>
                   <span class="flex items-center gap-1.5">
                     <For each={appsFor(agent.slug).slice(0, 8)}>{(app) => <AppLogo app={app} size={26} />}</For>
                   </span>
                 </div>
               </Show>
-              <div class="flex items-center justify-between gap-3 type-label pt-3 text-fg3 shadow-[inset_0_1px_0_var(--line)]">
+              <div class="flex items-center justify-between gap-3 type-sm pt-3 text-tertiary shadow-[inset_0_1px_0_var(--stroke-tertiary)]">
                 <span class="flex min-w-0 items-center gap-2">
                   <Show when={resolvedModel(agent)}>
                     {(model) => (

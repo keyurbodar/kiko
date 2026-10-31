@@ -2,8 +2,8 @@
   position: relative;
   isolation: isolate;
   overflow: hidden;
-  color: var(--fg);
-  background: var(--bg);
+  color: var(--text-primary);
+  background: var(--bg-chrome);
   font-family: var(--font-family-sans);
 }
 .welcome::after {
@@ -14,8 +14,8 @@
   pointer-events: none;
   background: radial-gradient(
     ellipse 70% 60% at 50% 48%,
-    color-mix(in oklab, var(--bg) 45%, transparent),
-    color-mix(in oklab, var(--bg) 60%, transparent)
+    color-mix(in oklab, var(--bg-chrome) 45%, transparent),
+    color-mix(in oklab, var(--bg-chrome) 60%, transparent)
   );
 }
 
@@ -33,7 +33,7 @@
   flex: none;
   flex-direction: column;
   padding: 84px 14px 16px;
-  background: var(--side);
+  background: var(--bg-sidebar);
 }
 .ob-back-rows {
   display: flex;
@@ -45,13 +45,13 @@
   height: 50px;
   align-items: center;
   gap: 12px;
-  border-radius: var(--radius-row);
+  border-radius: var(--radius-base);
   padding: 0 10px;
   opacity: 0.35;
   filter: grayscale(1);
   transition:
-    opacity var(--dur-step) var(--ease-kiko),
-    filter var(--dur-step) var(--ease-kiko);
+    opacity var(--duration-slower) var(--ease-sharp),
+    filter var(--duration-slower) var(--ease-sharp);
 }
 .ob-back-row[data-on] {
   opacity: 1;
@@ -67,8 +67,8 @@
   display: block;
   height: 8px;
   width: 90px;
-  border-radius: var(--radius-micro);
-  background: var(--active);
+  border-radius: var(--radius-sm);
+  background: var(--bg-secondary);
 }
 .ob-back-row i + i {
   width: 140px;
@@ -80,13 +80,13 @@
   gap: 10px;
   margin-top: auto;
   padding: 0 10px;
-  animation: ob-fade var(--dur-step) var(--ease-kiko) both;
+  animation: ob-fade var(--duration-slower) var(--ease-sharp) both;
 }
 .ob-back-me span {
   width: 30px;
   height: 30px;
   border-radius: 50%;
-  background: var(--active);
+  background: var(--bg-secondary);
 }
 .ob-back-main {
   display: flex;
@@ -99,7 +99,7 @@
 .ob-back-composer {
   height: 96px;
   border-radius: 22px;
-  background: var(--raise);
+  background: var(--bg-elevated);
 }
 
 .ob-wordmark {
@@ -107,8 +107,8 @@
   z-index: 3;
   top: 30px;
   left: 36px;
-  font-family: var(--font-family-display);
-  font-variation-settings: var(--display-variation);
+  font-family: var(--font-family-sans);
+  font-variation-settings: normal;
   font-size: 23px;
   font-weight: 400;
   letter-spacing: -0.015em;
@@ -130,11 +130,11 @@
   height: min(680px, 100%);
   min-height: 0;
   border-radius: 28px;
-  background: var(--raise);
+  background: var(--bg-elevated);
   box-shadow:
-    0 1px 0 color-mix(in oklab, var(--fg) 4%, transparent) inset,
+    0 1px 0 color-mix(in oklab, var(--text-primary) 4%, transparent) inset,
     0 50px 120px rgb(0 0 0 / 35%);
-  transition: width var(--dur-step) var(--ease-kiko);
+  transition: width var(--duration-slower) var(--ease-sharp);
 }
 .ob-sheet[data-done] {
   width: min(760px, 100%);
@@ -163,15 +163,15 @@
   align-items: center;
   justify-content: center;
   border-radius: 0 28px 28px 0;
-  background: radial-gradient(circle at 50% 46%, var(--hover), var(--raise) 70%);
-  animation: ob-fade var(--dur-step) var(--ease-kiko) both;
+  background: radial-gradient(circle at 50% 46%, var(--bg-tertiary), var(--bg-elevated) 70%);
+  animation: ob-fade var(--duration-slower) var(--ease-sharp) both;
 }
 .ob-caption {
   position: absolute;
   right: 0;
   bottom: 26px;
   left: 0;
-  color: var(--fg3);
+  color: var(--text-tertiary);
   font-size: 12.5px;
   text-align: center;
 }
@@ -196,17 +196,17 @@
   flex: 1;
   overflow: hidden;
   border-radius: 2px;
-  background: var(--active);
+  background: var(--bg-secondary);
 }
 .ob-segs > li::after {
   content: "";
   position: absolute;
   inset: 0;
   border-radius: 2px;
-  background: var(--fg);
+  background: var(--text-primary);
   transform: scaleX(0);
   transform-origin: left;
-  transition: transform var(--dur-step) var(--ease-kiko);
+  transition: transform var(--duration-slower) var(--ease-sharp);
 }
 .ob-segs > li[data-state="current"]::after {
   transform: scaleX(0.5);
@@ -215,7 +215,7 @@
   transform: scaleX(1);
 }
 .ob-count {
-  color: var(--fg3);
+  color: var(--text-tertiary);
   font-size: 12.5px;
 }
 .ob-back {
@@ -227,17 +227,17 @@
   gap: 4px;
   border-radius: 8px;
   padding: 0 8px;
-  color: var(--fg3);
+  color: var(--text-tertiary);
   font-size: 13px;
   transition:
-    color var(--dur-hover),
-    background-color var(--dur-hover),
-    transform var(--dur-hover);
+    color var(--duration-fast),
+    background-color var(--duration-fast),
+    transform var(--duration-fast);
 }
 @media (hover: hover) and (pointer: fine) {
   .ob-back:hover:not(:disabled) {
-    background: var(--hover);
-    color: var(--fg);
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
   }
 }
 .ob-back:active:not(:disabled) {
@@ -255,14 +255,14 @@
   flex: 1;
   flex-direction: column;
   gap: 14px;
-  animation: ob-step var(--dur-step) var(--ease-kiko) both;
+  animation: ob-step var(--duration-slower) var(--ease-sharp) both;
 }
 .welcome-title {
   margin: 0;
   flex: none;
-  color: var(--fg);
-  font-family: var(--font-family-display);
-  font-variation-settings: var(--display-variation);
+  color: var(--text-primary);
+  font-family: var(--font-family-sans);
+  font-variation-settings: normal;
   font-size: 38px;
   font-weight: 400;
   letter-spacing: -0.015em;
@@ -271,7 +271,7 @@
 .welcome-lede {
   margin: -4px 0 0;
   flex: none;
-  color: var(--fg2);
+  color: var(--text-secondary);
   font-size: 15px;
   line-height: 23px;
   overflow-wrap: anywhere;
@@ -289,7 +289,7 @@
   padding: 2px 8px 8px;
   mask-image: linear-gradient(to bottom, #000 calc(100% - 24px), transparent);
   scrollbar-width: thin;
-  scrollbar-color: var(--active) transparent;
+  scrollbar-color: var(--bg-secondary) transparent;
 }
 .ob-group {
   display: flex;
@@ -299,15 +299,15 @@
 }
 .ob-label {
   padding: 0 4px;
-  color: var(--fg3);
+  color: var(--text-tertiary);
   font-size: 12.5px;
   font-weight: 500;
 }
 .ob-empty {
   margin: 0;
   padding: 24px 0;
-  color: var(--fg3);
-  font-size: var(--type-ui);
+  color: var(--text-tertiary);
+  font-size: var(--font-size-base);
   text-align: center;
 }
 .ob-cta {
@@ -342,21 +342,21 @@
   font-weight: 600;
   white-space: nowrap;
   transition:
-    transform var(--dur-hover) var(--ease-kiko),
-    background-color var(--dur-hover),
-    box-shadow var(--dur-hover),
-    opacity var(--dur-hover);
+    transform var(--duration-fast) var(--ease-sharp),
+    background-color var(--duration-fast),
+    box-shadow var(--duration-fast),
+    opacity var(--duration-fast);
 }
 .ob-primary {
   height: 48px;
-  border-radius: var(--radius-pop);
-  background: var(--fg);
-  color: var(--bg);
-  box-shadow: 0 10px 30px color-mix(in oklab, var(--fg) 8%, transparent);
+  border-radius: var(--radius-xl);
+  background: var(--text-primary);
+  color: var(--bg-chrome);
+  box-shadow: 0 10px 30px color-mix(in oklab, var(--text-primary) 8%, transparent);
 }
 @media (hover: hover) and (pointer: fine) {
   .ob-primary:hover:not(:disabled) {
-    box-shadow: 0 12px 34px color-mix(in oklab, var(--fg) 16%, transparent);
+    box-shadow: 0 12px 34px color-mix(in oklab, var(--text-primary) 16%, transparent);
     filter: brightness(0.96);
   }
 }
@@ -364,30 +364,30 @@
 .ob-ghost,
 .ob-danger {
   height: 44px;
-  border-radius: var(--radius-tile);
+  border-radius: var(--radius-xl);
   font-weight: 500;
 }
 .ob-secondary {
-  background: var(--active);
-  color: var(--fg);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
 }
 @media (hover: hover) and (pointer: fine) {
   .ob-secondary:hover:not(:disabled) {
-    background: color-mix(in oklab, var(--active) 80%, var(--fg));
+    background: color-mix(in oklab, var(--bg-secondary) 80%, var(--text-primary));
   }
 }
 .ob-ghost {
-  color: var(--fg2);
+  color: var(--text-secondary);
 }
 @media (hover: hover) and (pointer: fine) {
   .ob-ghost:hover:not(:disabled) {
-    background: var(--hover);
-    color: var(--fg);
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
   }
 }
 .ob-danger {
-  background: color-mix(in oklab, var(--bad) 14%, transparent);
-  color: var(--bad);
+  background: color-mix(in oklab, var(--text-danger) 14%, transparent);
+  color: var(--text-danger);
 }
 .ob-primary:active:not(:disabled),
 .ob-secondary:active:not(:disabled),
@@ -415,13 +415,13 @@
   align-self: flex-start;
   border-radius: 8px;
   padding: 0 4px;
-  color: var(--fg3);
+  color: var(--text-tertiary);
   font-size: 13px;
-  transition: color var(--dur-hover);
+  transition: color var(--duration-fast);
 }
 @media (hover: hover) and (pointer: fine) {
   .ob-textbtn:hover {
-    color: var(--fg);
+    color: var(--text-primary);
   }
 }
 .ob-signout {
@@ -437,17 +437,17 @@
   justify-content: space-between;
   border-radius: 10px;
   padding: 0 14px;
-  color: var(--fg2);
+  color: var(--text-secondary);
   font-size: 13.5px;
   font-weight: 600;
   transition:
-    color var(--dur-hover),
-    background-color var(--dur-hover);
+    color var(--duration-fast),
+    background-color var(--duration-fast);
 }
 @media (hover: hover) and (pointer: fine) {
   .ob-more:hover {
-    background: var(--hover);
-    color: var(--fg);
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
   }
 }
 .ob-linkish {
@@ -456,45 +456,45 @@
   text-underline-offset: 2px;
 }
 .ob-link {
-  color: var(--info);
-  font-size: var(--type-ui);
+  color: var(--text-accent);
+  font-size: var(--font-size-base);
   text-decoration: underline;
   text-underline-offset: 2px;
 }
 .ob-field {
   width: 100%;
-  height: var(--spacing-control-big);
+  height: 48px;
   flex: none;
-  border-radius: var(--radius-tile);
-  background: var(--hover);
-  box-shadow: inset 0 0 0 1px var(--field-ring);
+  border-radius: var(--radius-xl);
+  background: var(--bg-tertiary);
+  box-shadow: inset 0 0 0 1px var(--stroke-tertiary);
   padding: 0 16px;
-  color: var(--fg);
-  font-size: var(--type-ui);
-  transition: box-shadow var(--dur-hover);
+  color: var(--text-primary);
+  font-size: var(--font-size-base);
+  transition: box-shadow var(--duration-fast);
 }
 .ob-field::placeholder {
-  color: var(--fg4);
+  color: var(--text-quaternary);
 }
 .ob-field:focus {
-  box-shadow: inset 0 0 0 1.5px color-mix(in oklab, var(--fg) 35%, transparent);
+  box-shadow: inset 0 0 0 1.5px color-mix(in oklab, var(--text-primary) 35%, transparent);
 }
 .ob-field[data-invalid] {
-  box-shadow: inset 0 0 0 1.5px var(--bad);
-  animation: ob-shake 360ms var(--ease-kiko);
+  box-shadow: inset 0 0 0 1.5px var(--text-danger);
+  animation: ob-shake 360ms var(--ease-sharp);
 }
 .ob-error {
   margin: 0;
-  color: var(--bad);
+  color: var(--text-danger);
   font-size: 13.5px;
   line-height: 20px;
 }
 .ob-note {
   margin: 0;
-  border-radius: var(--radius-tile);
-  background: var(--hover);
+  border-radius: var(--radius-xl);
+  background: var(--bg-tertiary);
   padding: 12px 14px;
-  color: var(--fg2);
+  color: var(--text-secondary);
   font-size: 13.5px;
   line-height: 20px;
 }
@@ -504,31 +504,31 @@
   align-items: flex-start;
   gap: 12px;
   margin-bottom: 20px;
-  border-radius: var(--radius-card);
-  background: var(--hover);
+  border-radius: var(--radius-xl);
+  background: var(--bg-tertiary);
   padding: 14px 16px;
-  color: var(--fg2);
-  font-size: var(--type-ui);
+  color: var(--text-secondary);
+  font-size: var(--font-size-base);
   line-height: 20px;
-  animation: ob-fade var(--dur-step) var(--ease-kiko) both;
+  animation: ob-fade var(--duration-slower) var(--ease-sharp) both;
 }
 .ob-resume p {
   margin: 0;
 }
 .ob-resume b {
-  color: var(--fg);
+  color: var(--text-primary);
   font-weight: 600;
 }
 .ob-resume button {
   height: 32px;
   cursor: pointer;
-  border-radius: var(--radius-control);
-  background: var(--fg);
+  border-radius: var(--radius-base);
+  background: var(--text-primary);
   padding: 0 12px;
-  color: var(--bg);
+  color: var(--bg-chrome);
   font-size: 13.5px;
   font-weight: 600;
-  transition: transform var(--dur-hover) var(--ease-kiko);
+  transition: transform var(--duration-fast) var(--ease-sharp);
 }
 .ob-resume button:active {
   transform: scale(0.97);
@@ -537,8 +537,8 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  color: var(--fg2);
-  font-size: var(--type-ui);
+  color: var(--text-secondary);
+  font-size: var(--font-size-base);
 }
 
 .ob-card {
@@ -548,19 +548,19 @@
   cursor: pointer;
   align-items: center;
   gap: 12px;
-  border-radius: var(--radius-pop);
-  background: var(--hover);
+  border-radius: var(--radius-xl);
+  background: var(--bg-tertiary);
   padding: 12px 14px;
   text-align: left;
   box-shadow: inset 0 0 0 1.5px transparent;
   transition:
-    background-color var(--dur-hover),
-    box-shadow var(--dur-hover),
-    transform var(--dur-hover) var(--ease-kiko);
+    background-color var(--duration-fast),
+    box-shadow var(--duration-fast),
+    transform var(--duration-fast) var(--ease-sharp);
 }
 @media (hover: hover) and (pointer: fine) {
   .ob-card:hover {
-    background: var(--active);
+    background: var(--bg-secondary);
   }
 }
 .ob-card:active {
@@ -568,12 +568,12 @@
 }
 .ob-card-plain {
   min-height: 48px;
-  font-size: var(--type-ui);
+  font-size: var(--font-size-base);
   font-weight: 600;
 }
 .ob-card[aria-checked="true"] {
-  background: var(--active);
-  box-shadow: inset 0 0 0 1.5px color-mix(in oklab, var(--fg) 85%, transparent);
+  background: var(--bg-secondary);
+  box-shadow: inset 0 0 0 1.5px color-mix(in oklab, var(--text-primary) 85%, transparent);
 }
 .ob-logo {
   display: inline-flex;
@@ -582,7 +582,7 @@
   flex: none;
   align-items: center;
   justify-content: center;
-  border-radius: var(--radius-control);
+  border-radius: var(--radius-base);
   background: #f4f3f1;
   color: #141414;
 }
@@ -595,15 +595,15 @@
 }
 .ob-card-title {
   overflow: hidden;
-  color: var(--fg);
-  font-size: var(--type-ui);
+  color: var(--text-primary);
+  font-size: var(--font-size-base);
   font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .ob-card-note {
   overflow: hidden;
-  color: var(--fg2);
+  color: var(--text-secondary);
   font-size: 13px;
   line-height: 18px;
   text-overflow: ellipsis;
@@ -617,13 +617,13 @@
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  background: var(--accent-fill);
-  color: var(--on-accent);
+  background: var(--bg-accent);
+  color: var(--text-on-accent);
   opacity: 0;
   transform: scale(0.5);
   transition:
-    opacity var(--dur-hover),
-    transform 250ms var(--spring250-easing, var(--ease-kiko));
+    opacity var(--duration-fast),
+    transform 250ms var(--ease-drawer, var(--ease-sharp));
 }
 [aria-checked="true"] > .ob-tick {
   opacity: 1;
@@ -634,16 +634,16 @@
   flex: none;
   align-items: center;
   gap: 4px;
-  color: var(--ok);
+  color: var(--text-success);
   font-size: 12.5px;
   font-weight: 500;
-  animation: ob-fade var(--dur-pop) var(--ease-kiko) both;
+  animation: ob-fade var(--duration-normal) var(--ease-sharp) both;
 }
 .ob-skeleton {
   height: 56px;
   flex: none;
-  border-radius: var(--radius-pop);
-  background: var(--hover);
+  border-radius: var(--radius-xl);
+  background: var(--bg-tertiary);
 }
 .welcome-search {
   display: flex;
@@ -651,21 +651,21 @@
   flex: none;
   align-items: center;
   gap: 8px;
-  border-radius: var(--radius-tile);
-  background: var(--hover);
+  border-radius: var(--radius-xl);
+  background: var(--bg-tertiary);
   padding: 0 14px;
-  color: var(--fg3);
+  color: var(--text-tertiary);
 }
 .welcome-search input {
   min-width: 0;
   flex: 1;
   background: transparent;
-  color: var(--fg);
-  font-size: var(--type-ui);
+  color: var(--text-primary);
+  font-size: var(--font-size-base);
   outline: none;
 }
 .welcome-search input::placeholder {
-  color: var(--fg4);
+  color: var(--text-quaternary);
 }
 
 .ob-facts {
@@ -673,15 +673,15 @@
   flex: none;
   flex-direction: column;
   gap: 12px;
-  border-radius: var(--radius-card);
-  background: var(--hover);
+  border-radius: var(--radius-xl);
+  background: var(--bg-tertiary);
   padding: 16px;
 }
 .ob-fact {
   display: flex;
   align-items: flex-start;
   gap: 12px;
-  color: var(--fg2);
+  color: var(--text-secondary);
 }
 .ob-fact > svg {
   margin-top: 2px;
@@ -691,12 +691,12 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
-  font-size: var(--type-label);
+  font-size: var(--font-size-sm);
   line-height: 19px;
 }
 .ob-fact b {
-  color: var(--fg);
-  font-size: var(--type-ui);
+  color: var(--text-primary);
+  font-size: var(--font-size-base);
   font-weight: 600;
   line-height: 20px;
 }
@@ -707,17 +707,17 @@
   flex: none;
   align-items: center;
   justify-content: center;
-  border-radius: var(--radius-tail);
+  border-radius: var(--radius-base);
   background: #f4f3f1;
-  box-shadow: 0 0 0 1.5px var(--bg);
+  box-shadow: 0 0 0 1.5px var(--bg-chrome);
 }
 
 .ob-hi {
   display: flex;
   align-items: center;
   gap: 12px;
-  border-radius: var(--radius-card);
-  background: var(--hover);
+  border-radius: var(--radius-xl);
+  background: var(--bg-tertiary);
   padding: 12px 14px;
 }
 .ob-hi-initial {
@@ -728,8 +728,8 @@
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  background: var(--active);
-  font-size: var(--type-label);
+  background: var(--bg-secondary);
+  font-size: var(--font-size-sm);
   font-weight: 700;
 }
 .ob-hi-text {
@@ -738,25 +738,25 @@
   flex-direction: column;
 }
 .ob-hi-text b {
-  font-size: var(--type-ui);
+  font-size: var(--font-size-base);
   font-weight: 600;
 }
 .ob-hi-text span {
   overflow: hidden;
-  color: var(--fg3);
-  font-size: var(--type-hint);
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
   text-overflow: ellipsis;
 }
 .ob-hi > button {
   margin-left: auto;
   cursor: pointer;
-  color: var(--fg3);
-  font-size: var(--type-label);
-  transition: color var(--dur-hover);
+  color: var(--text-tertiary);
+  font-size: var(--font-size-sm);
+  transition: color var(--duration-fast);
 }
 @media (hover: hover) and (pointer: fine) {
   .ob-hi > button:hover {
-    color: var(--fg);
+    color: var(--text-primary);
   }
 }
 
@@ -782,8 +782,8 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
-  border-radius: var(--radius-card);
-  background: var(--hover);
+  border-radius: var(--radius-xl);
+  background: var(--bg-tertiary);
   padding: 14px 16px;
 }
 .ob-check {
@@ -791,9 +791,9 @@
   height: 32px;
   align-items: center;
   gap: 12px;
-  color: var(--fg3);
-  font-size: var(--type-ui);
-  transition: color var(--dur-step) var(--ease-kiko);
+  color: var(--text-tertiary);
+  font-size: var(--font-size-base);
+  transition: color var(--duration-slower) var(--ease-sharp);
 }
 .ob-check-box {
   display: inline-flex;
@@ -803,41 +803,41 @@
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  color: var(--bg);
-  box-shadow: inset 0 0 0 1.5px var(--fg4);
+  color: var(--bg-chrome);
+  box-shadow: inset 0 0 0 1.5px var(--text-quaternary);
   transition:
-    background-color var(--dur-step) var(--ease-kiko),
-    box-shadow var(--dur-step) var(--ease-kiko);
+    background-color var(--duration-slower) var(--ease-sharp),
+    box-shadow var(--duration-slower) var(--ease-sharp);
 }
 .ob-check-box > svg {
   opacity: 0;
   transform: scale(0.4);
 }
 .ob-check[data-state="done"] {
-  color: var(--fg2);
+  color: var(--text-secondary);
 }
 .ob-check[data-state="done"] .ob-check-box {
-  background: var(--fg);
+  background: var(--text-primary);
   box-shadow: none;
 }
 .ob-check[data-state="done"] .ob-check-box > svg {
   opacity: 1;
   transform: scale(1);
   transition:
-    opacity var(--dur-pop),
-    transform 250ms var(--spring250-easing, var(--ease-kiko));
+    opacity var(--duration-normal),
+    transform 250ms var(--ease-drawer, var(--ease-sharp));
 }
 .ob-check[data-state="running"] {
-  color: var(--fg);
+  color: var(--text-primary);
 }
 .ob-check[data-state="running"] .ob-check-box {
-  background: conic-gradient(from 0deg, var(--fg) 0 25%, transparent 25% 100%);
+  background: conic-gradient(from 0deg, var(--text-primary) 0 25%, transparent 25% 100%);
   mask: radial-gradient(circle, transparent 7px, #000 7.5px);
   box-shadow: none;
   animation: ob-spin 900ms linear infinite;
 }
 .ob-check[data-state="running"] .ob-check-label {
-  background: linear-gradient(90deg, var(--fg) 30%, var(--fg3) 50%, var(--fg) 70%) 0 0 / 200% 100%;
+  background: linear-gradient(90deg, var(--text-primary) 30%, var(--text-tertiary) 50%, var(--text-primary) 70%) 0 0 / 200% 100%;
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
@@ -850,21 +850,21 @@
   gap: 8px;
 }
 .ob-problem[role="alert"] {
-  border-radius: var(--radius-card);
-  background: var(--hover);
+  border-radius: var(--radius-xl);
+  background: var(--bg-tertiary);
   padding: 16px;
-  box-shadow: inset 0 0 0 1.5px color-mix(in oklab, var(--bad) 70%, transparent);
+  box-shadow: inset 0 0 0 1.5px color-mix(in oklab, var(--text-danger) 70%, transparent);
 }
 .ob-problem b {
-  color: var(--fg);
-  font-size: var(--type-ui);
+  color: var(--text-primary);
+  font-size: var(--font-size-base);
   font-weight: 600;
   line-height: 20px;
 }
 .ob-detail {
   margin: 0;
-  color: var(--fg2);
-  font-size: var(--type-hint);
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
   line-height: 18px;
   overflow-wrap: anywhere;
 }
@@ -876,21 +876,21 @@
 .ob-problem-actions > button {
   width: auto;
   height: 32px;
-  border-radius: var(--radius-control);
+  border-radius: var(--radius-base);
   padding: 0 14px;
-  font-size: var(--type-ui);
+  font-size: var(--font-size-base);
 }
 .ob-token {
   display: flex;
   flex: none;
   flex-direction: column;
   gap: 12px;
-  border-radius: var(--radius-card);
-  background: var(--hover);
+  border-radius: var(--radius-xl);
+  background: var(--bg-tertiary);
   padding: 16px;
 }
 .ob-token .ob-field {
-  background: var(--raise);
+  background: var(--bg-elevated);
 }
 .ob-token .ob-note {
   background: transparent;
@@ -903,8 +903,8 @@
   flex-direction: column;
   gap: 4px;
   padding-left: 20px;
-  color: var(--fg);
-  font-size: var(--type-label);
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
 }
 
 .ob-solo {
@@ -919,8 +919,8 @@
   display: flex;
   width: min(480px, 100%);
   flex-direction: column;
-  border-radius: var(--radius-sheet);
-  background: var(--raise);
+  border-radius: var(--radius-3xl);
+  background: var(--bg-elevated);
   padding: 32px;
   box-shadow: 0 30px 80px rgb(0 0 0 / 25%);
 }
@@ -958,7 +958,7 @@
   display: block;
   filter: grayscale(1) brightness(0.55);
   transform-origin: 50% 100%;
-  transition: filter var(--dur-step) var(--ease-kiko);
+  transition: filter var(--duration-slower) var(--ease-sharp);
   animation: ob-breathe 3s ease-in-out infinite;
   animation-delay: calc(var(--i) * 0.4s);
 }
@@ -971,14 +971,14 @@
 }
 .ob-perch[data-celebrating] .ob-mascot[data-newest] > img,
 .ob-perch[data-celebrating] .ob-mascot > :is(img, .ob-mark) {
-  animation: ob-hop 1.1s var(--ease-kiko) calc(var(--i) * 140ms) 2 both;
+  animation: ob-hop 1.1s var(--ease-sharp) calc(var(--i) * 140ms) 2 both;
 }
 .ob-z {
   position: absolute;
   top: -8px;
   right: -4px;
-  color: var(--fg3);
-  font-size: var(--type-hint);
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
   font-weight: 700;
   animation: ob-zz 2.4s var(--z) infinite;
 }
@@ -992,12 +992,12 @@
 .ob-draw {
   stroke-dasharray: 1;
   stroke-dashoffset: 1;
-  animation: ob-draw 700ms var(--ease-kiko) 120ms forwards;
+  animation: ob-draw 700ms var(--ease-sharp) 120ms forwards;
 }
 .ob-pop {
   transform-box: fill-box;
   transform-origin: center;
-  animation: ob-pop 450ms var(--ease-kiko) 600ms both;
+  animation: ob-pop 450ms var(--ease-sharp) 600ms both;
 }
 .ob-steam {
   animation: ob-steam 2.4s ease-in-out infinite alternate;
@@ -1180,7 +1180,7 @@
     display: none;
   }
   .welcome-title {
-    font-size: var(--type-section);
+    font-size: var(--font-size-3xl);
     line-height: 36px;
   }
   .ob-perch {

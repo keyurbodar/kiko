@@ -15,10 +15,10 @@ const CLOSE_DELAY = 200
 const TIME_RESERVE = 52
 
 const BUTTON = cn(
-  "grid size-7 shrink-0 cursor-default place-items-center rounded-full p-0 text-fg2",
+  "grid size-7 shrink-0 cursor-default place-items-center rounded-full p-0 text-secondary",
   "transition-[background,color,transform] duration-[120ms] active:scale-95",
-  "hover:bg-hover hover:text-fg focus-visible:bg-hover focus-visible:text-fg",
-  "data-[open]:bg-active data-[open]:text-fg",
+  "hover:bg-tertiary hover:text-primary focus-visible:bg-tertiary focus-visible:text-primary",
+  "data-[open]:bg-secondary data-[open]:text-primary",
 )
 
 const COPIED_MS = 1200
@@ -117,7 +117,7 @@ export function MessageActions(props: {
       data-placement={placement()}
       data-open={open() ? "" : undefined}
     >
-      <div class="flex items-center gap-0.5 rounded-full bg-raise p-0.5 shadow-[0_6px_18px_rgb(0_0_0/0.28),inset_0_0_0_1px_var(--line)]">
+      <div class="flex items-center gap-0.5 rounded-full bg-elevated p-0.5 shadow-[0_6px_18px_rgb(0_0_0/0.28),inset_0_0_0_1px_var(--stroke-tertiary)]">
         <button
           ref={react}
           type="button"
@@ -149,7 +149,7 @@ export function MessageActions(props: {
           data-copied={copied() ? "" : undefined}
           onClick={() => void copy()}
         >
-          <CopyCheckIcon copied={copied()} size={16} class={copied() ? "text-ok" : undefined} />
+          <CopyCheckIcon copied={copied()} size={16} class={copied() ? "text-success" : undefined} />
         </button>
         <button type="button" class={BUTTON} aria-label="Reply" data-action="reply" onClick={() => props.onReply()}>
           <RemixIcon icon={ReplyIcon} size={16} />

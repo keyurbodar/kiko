@@ -1,7 +1,7 @@
 .lchip,
 .mchip {
-  --chip-fill: color-mix(in oklab, var(--fg) 9%, transparent);
-  --chip-fill-hover: color-mix(in oklab, var(--fg) 14%, transparent);
+  --chip-fill: color-mix(in oklab, var(--text-primary) 9%, transparent);
+  --chip-fill-hover: color-mix(in oklab, var(--text-primary) 14%, transparent);
   display: inline-flex;
   box-sizing: border-box;
   max-width: 100%;
@@ -9,9 +9,9 @@
   align-items: center;
   border: 0;
   background: var(--chip-fill);
-  color: var(--fg);
+  color: var(--text-primary);
   font: inherit;
-  font-size: var(--type-row);
+  font-size: var(--font-size-base);
   line-height: 20px;
   vertical-align: middle;
   white-space: nowrap;
@@ -20,11 +20,11 @@
 .lchip {
   gap: 5px;
   padding: 0 8px 0 4px;
-  border-radius: var(--radius-tail);
+  border-radius: var(--radius-base);
   cursor: pointer;
   transition:
-    background-color var(--dur-hover) var(--ease-kiko),
-    transform var(--dur-hover) var(--ease-kiko);
+    background-color var(--duration-fast) var(--ease-sharp),
+    transform var(--duration-fast) var(--ease-sharp);
 }
 
 .lchip-anchor,
@@ -45,11 +45,11 @@
   flex: none;
 }
 .lchip-thumb {
-  border-radius: var(--radius-micro);
+  border-radius: var(--radius-sm);
   object-fit: cover;
 }
 .lchip-folder {
-  color: var(--fg2);
+  color: var(--text-secondary);
 }
 
 .lchip-label,
@@ -61,12 +61,12 @@
 
 .lchip-meta {
   flex: none;
-  color: var(--fg3);
-  font-size: var(--type-label);
+  color: var(--text-tertiary);
+  font-size: var(--font-size-sm);
 }
 
 .lchip[data-missing] {
-  color: var(--fg2);
+  color: var(--text-secondary);
 }
 
 @media (hover: hover) and (pointer: fine) {
@@ -79,7 +79,7 @@
 }
 
 .mchip {
-  --chip-fill: color-mix(in oklab, var(--fg) 11%, transparent);
+  --chip-fill: color-mix(in oklab, var(--text-primary) 11%, transparent);
   gap: 4px;
   padding: 0 7px 0 3px;
   border-radius: var(--radius-full);
@@ -87,8 +87,8 @@
 }
 .mchip[data-self] {
   padding-left: 7px;
-  background: color-mix(in oklab, var(--info) 16%, transparent);
-  color: var(--info);
+  background: color-mix(in oklab, var(--text-accent) 16%, transparent);
+  color: var(--text-accent);
 }
 
 @media (prefers-reduced-motion: reduce) {

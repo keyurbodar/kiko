@@ -5,8 +5,8 @@
   min-height: 0;
   flex: 1;
   flex-direction: column;
-  background: var(--code-surface);
-  color: var(--fg);
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
 }
 
 .file-editor {
@@ -46,7 +46,7 @@
 }
 
 .file-editor .cm-gutters {
-  color: var(--fg4);
+  color: var(--text-quaternary);
   background: transparent;
 }
 
@@ -68,12 +68,12 @@
   align-items: center;
   gap: 8px;
   padding: 0 8px 0 16px;
-  font-size: var(--type-label);
-  color: var(--fg3);
+  font-size: var(--font-size-sm);
+  color: var(--text-tertiary);
 }
 
 .file-editor .fe-warn {
-  color: var(--fg);
+  color: var(--text-primary);
   font-weight: 600;
 }
 
@@ -81,22 +81,22 @@
   height: 24px;
   padding: 0 8px;
   border: none;
-  border-radius: var(--radius-tail);
-  background: var(--hover);
-  color: var(--fg);
+  border-radius: var(--radius-base);
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
   font: inherit;
   cursor: pointer;
 }
 
 .file-editor .fe-btn:disabled {
-  color: var(--fg3);
+  color: var(--text-tertiary);
   cursor: default;
 }
 
 .file-view .fv-markdown {
-  font-size: var(--type-msg);
+  font-size: var(--font-size-lg);
   line-height: 1.6;
-  color: var(--fg);
+  color: var(--text-primary);
 }
 
 .file-view .fv-markdown > * + * {

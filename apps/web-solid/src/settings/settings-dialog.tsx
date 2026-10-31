@@ -55,7 +55,7 @@ function StatusFoot() {
       <span class="settings-status-dot" aria-hidden="true" />
       <span
         class={cn("min-w-0 flex-1 truncate", health() === "waiting" && "motion-shine")}
-        style={health() === "waiting" ? { "--run-text": "var(--fg4)", "--visible-animation-state": "running" } : {}}
+        style={health() === "waiting" ? { "--run-text": "var(--text-quaternary)", "--visible-animation-state": "running" } : {}}
         role="status"
       >
         {HEALTH_LABEL[health()]}
@@ -196,7 +196,7 @@ export function SettingsDialog(props: ParentProps) {
                   <RemixIcon
                     icon={ChevronLeftIcon}
                     size={16}
-                    class="transition-transform duration-(--dur-hover) group-hover:-translate-x-0.5 group-active:-translate-x-0.5"
+                    class="transition-transform duration-(--duration-fast) group-hover:-translate-x-0.5 group-active:-translate-x-0.5"
                   />
                   Settings
                 </button>

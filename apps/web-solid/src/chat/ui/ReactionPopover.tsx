@@ -89,7 +89,7 @@ export function ReactionPopover(props: {
           when={full()}
           fallback={
             <div
-              class="grid grid-cols-7 rounded-hero bg-raise p-2 text-fg shadow-popover"
+              class="grid grid-cols-7 rounded-composer bg-elevated p-2 text-primary shadow-popup"
               role="menu"
               aria-label="Reactions"
             >
@@ -98,7 +98,7 @@ export function ReactionPopover(props: {
                   <button
                     type="button"
                     role="menuitem"
-                    class="grid size-10 cursor-default place-items-center rounded-row p-0 font-emoji text-[26px] leading-none hover:bg-fill-hover focus-visible:bg-fill-hover focus-visible:outline-none"
+                    class="grid size-10 cursor-default place-items-center rounded-base p-0 font-emoji text-[26px] leading-none hover:bg-quaternary focus-visible:bg-quaternary focus-visible:outline-none"
                     aria-label={`React with ${emoji}`}
                     data-emoji={emoji}
                     onClick={() => pick(emoji)}
@@ -110,7 +110,7 @@ export function ReactionPopover(props: {
               <button
                 type="button"
                 role="menuitem"
-                class="grid size-10 cursor-default place-items-center rounded-row p-0 text-[20px] leading-none font-semibold text-fg2 hover:bg-fill-hover hover:text-fg focus-visible:bg-fill-hover focus-visible:outline-none"
+                class="grid size-10 cursor-default place-items-center rounded-base p-0 text-[20px] leading-none font-semibold text-secondary hover:bg-quaternary hover:text-primary focus-visible:bg-quaternary focus-visible:outline-none"
                 aria-label="More emoji"
                 data-action="more-emoji"
                 onClick={() => setFull(true)}

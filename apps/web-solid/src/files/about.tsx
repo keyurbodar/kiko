@@ -14,8 +14,8 @@ import { fileType, TYPE_NAMES } from "./type"
 function Row(props: { label: string; children: JSX.Element }) {
   return (
     <div class="grid grid-cols-[72px_minmax(0,1fr)] items-center gap-2 py-1" data-row={props.label}>
-      <dt class="type-hint text-[var(--text-300)]">{props.label}</dt>
-      <dd class="type-label m-0 flex min-w-0 items-center gap-2 text-fg">{props.children}</dd>
+      <dt class="type-xs text-[var(--text-tertiary)]">{props.label}</dt>
+      <dd class="type-sm m-0 flex min-w-0 items-center gap-2 text-primary">{props.children}</dd>
     </div>
   )
 }
@@ -36,7 +36,7 @@ export function FileAbout(props: { chatId: string; path: string; file: FileRef |
   const edited = () => fact()?.at
   return (
     <section class="flex min-w-0 flex-col gap-2 px-4 py-4" aria-label="About this file" data-component="file-about">
-      <h3 class="type-label m-0 font-medium text-fg">About this file</h3>
+      <h3 class="type-sm m-0 font-medium text-primary">About this file</h3>
       <dl class="m-0 flex flex-col">
         <Row label="Type">
           {recipeSlugOf(props.path)

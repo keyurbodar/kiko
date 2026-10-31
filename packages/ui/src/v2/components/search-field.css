@@ -8,34 +8,34 @@
     align-items: center;
     gap: 8px;
     padding: 0 6px 0 10px;
-    color: var(--fg);
-    background: var(--fill-field);
-    border-radius: var(--radius-row);
-    box-shadow: var(--edge);
+    color: var(--text-primary);
+    background: var(--bg-input-field);
+    border-radius: var(--radius-base);
+    box-shadow: var(--hairline);
     cursor: text;
     transition:
-      background-color var(--dur-hover) var(--ease-kiko),
-      box-shadow var(--dur-hover) var(--ease-kiko);
+      background-color var(--duration-fast) var(--ease-sharp),
+      box-shadow var(--duration-fast) var(--ease-sharp);
   }
 
   [data-component="search-field"][data-size="large"] {
     height: 40px;
-    border-radius: var(--radius-tile);
+    border-radius: var(--radius-xl);
   }
 
   @media (hover: hover) and (pointer: fine) {
     [data-component="search-field"]:hover {
-      box-shadow: var(--edge-strong);
+      box-shadow: var(--hairline-strong);
     }
   }
 
   [data-component="search-field"]:focus-within {
-    box-shadow: var(--edge-strong);
+    box-shadow: var(--hairline-strong);
   }
 
   [data-slot="search-field-icon"] {
     flex-shrink: 0;
-    color: var(--fg3);
+    color: var(--text-tertiary);
   }
 
   [data-component="search-field"] > input {
@@ -43,9 +43,9 @@
     min-width: 0;
     flex: 1;
     padding: 0;
-    color: var(--fg);
+    color: var(--text-primary);
     font-family: var(--font-family-sans);
-    font-size: var(--type-ui);
+    font-size: var(--font-size-base);
     line-height: 20px;
     background: transparent;
     border: 0;
@@ -54,7 +54,7 @@
   }
 
   [data-component="search-field"] > input::placeholder {
-    color: var(--fg4);
+    color: var(--text-quaternary);
   }
 
   [data-component="search-field"] > input::-webkit-search-cancel-button,
@@ -69,20 +69,20 @@
     flex-shrink: 0;
     place-items: center;
     padding: 0;
-    color: var(--fg3);
+    color: var(--text-tertiary);
     background: transparent;
     border: 0;
-    border-radius: var(--radius-tail);
+    border-radius: var(--radius-base);
     cursor: pointer;
     transition:
-      background-color var(--dur-hover) var(--ease-kiko),
-      color var(--dur-hover) var(--ease-kiko);
+      background-color var(--duration-fast) var(--ease-sharp),
+      color var(--duration-fast) var(--ease-sharp);
   }
 
   @media (hover: hover) and (pointer: fine) {
     [data-slot="search-field-clear"]:hover {
-      color: var(--fg);
-      background: var(--active);
+      color: var(--text-primary);
+      background: var(--bg-secondary);
     }
   }
 

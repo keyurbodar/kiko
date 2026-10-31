@@ -61,7 +61,7 @@ const FIRST_DELAY_MS = 0
 const STAGGER_MS = 30
 
 const PILL =
-  "cursor-pointer rounded-row bg-fill px-2.5 py-0.5 text-fg transition-transform hover:bg-fill-hover active:scale-[0.97]"
+  "cursor-pointer rounded-base bg-tertiary px-2.5 py-0.5 text-primary transition-transform hover:bg-quaternary active:scale-[0.97]"
 
 function withKey(current: ReadonlySet<string>, key: string): ReadonlySet<string> {
   const next = new Set(current)

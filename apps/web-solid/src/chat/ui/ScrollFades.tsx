@@ -11,7 +11,7 @@ export function ScrollFades(props: { showTop: boolean; showBottom: boolean; clas
         <div
           class={cn(
             "chat-fades__top absolute inset-x-0 top-0 h-6",
-            "bg-[linear-gradient(to_bottom,var(--bg),transparent)]",
+            "bg-[linear-gradient(to_bottom,var(--bg-chrome),transparent)]",
           )}
           data-component="chat-fade-top"
         />
@@ -20,7 +20,7 @@ export function ScrollFades(props: { showTop: boolean; showBottom: boolean; clas
         <div
           class={cn(
             "chat-fades__bottom absolute inset-x-0 bottom-0 h-6",
-            "bg-[linear-gradient(to_top,var(--bg),transparent)]",
+            "bg-[linear-gradient(to_top,var(--bg-chrome),transparent)]",
           )}
           data-component="chat-fade-bottom"
         />

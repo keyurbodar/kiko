@@ -27,8 +27,8 @@ export function Broken(props: { error: unknown; reset: () => void }) {
     console.error("view crashed", props.error)
   })
   return (
-    <div class="grid min-h-dvh place-items-center bg-bg p-6" role="alert" data-component="crash">
-      <div class="flex w-full min-w-0 max-w-[480px] flex-col items-center gap-5 rounded-sheet bg-raise px-6 pt-8 pb-6 text-center shadow-[var(--float-shadow)] sm:px-8">
+    <div class="grid min-h-dvh place-items-center bg-chrome p-6" role="alert" data-component="crash">
+      <div class="flex w-full min-w-0 max-w-[480px] flex-col items-center gap-5 rounded-3xl bg-elevated px-6 pt-8 pb-6 text-center shadow-[var(--popup-shadow)] sm:px-8">
         <img
           src={cachedUri(KIKO, { flavour: "fubuki", mood: "dizzy" })}
           alt=""
@@ -37,8 +37,8 @@ export function Broken(props: { error: unknown; reset: () => void }) {
           draggable={false}
         />
         <div class="flex flex-col gap-2">
-          <h1 class="type-section text-fg">Something broke in this view</h1>
-          <p class="type-ui text-fg2">Your chats are safe. Try again, or reload Kiko.</p>
+          <h1 class="type-3xl text-primary">Something broke in this view</h1>
+          <p class="type-base text-secondary">Your chats are safe. Try again, or reload Kiko.</p>
         </div>
         <div class="flex w-full flex-col gap-2 sm:w-auto sm:flex-row-reverse sm:justify-center">
           <Button variant="primary" big data-action="crash-retry" onClick={props.reset}>
@@ -49,13 +49,13 @@ export function Broken(props: { error: unknown; reset: () => void }) {
           </Button>
         </div>
         <details class="group w-full text-left" data-component="crash-details">
-          <summary class="mx-auto flex w-fit cursor-pointer list-none items-center gap-1 rounded-control px-2 py-1 type-label text-fg3 transition-colors duration-(--dur-hover) hover:text-fg [&::-webkit-details-marker]:hidden">
+          <summary class="mx-auto flex w-fit cursor-pointer list-none items-center gap-1 rounded-base px-2 py-1 type-sm text-tertiary transition-colors duration-(--duration-fast) hover:text-primary [&::-webkit-details-marker]:hidden">
             <span class="group-open:hidden">Show details</span>
             <span class="hidden group-open:inline">Hide details</span>
           </summary>
           <div class="mt-2 flex flex-col gap-2">
             <pre
-              class="max-h-48 overflow-auto rounded-tile bg-panel p-3 type-code text-hint leading-[18px] [overflow-wrap:anywhere] whitespace-pre-wrap text-fg2"
+              class="max-h-48 overflow-auto rounded-xl bg-editor p-3 type-code text-xs leading-[18px] [overflow-wrap:anywhere] whitespace-pre-wrap text-secondary"
               data-component="crash-stack"
             >
               {details()}

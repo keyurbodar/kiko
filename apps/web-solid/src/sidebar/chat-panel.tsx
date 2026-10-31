@@ -199,7 +199,7 @@ export function ChatSections(props: ChatSectionsProps): JSX.Element {
         </TooltipV2>
       </SectionLabel>
       <Show when={shown().length === 0 && unreadOnly()}>
-        <div class="sidebar-empty type-label" data-component="sidebar-empty">
+        <div class="sidebar-empty type-sm" data-component="sidebar-empty">
           <span>You're all caught up</span>
           <button type="button" class="sidebar-empty-link link-grow" onClick={() => setUnreadOnly(false)}>
             Show all

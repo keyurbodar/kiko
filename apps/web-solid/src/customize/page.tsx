@@ -65,7 +65,7 @@ export default function CustomizePage() {
           }
         >
           <div ref={pageIn} class="-mt-2 flex flex-col gap-6">
-            <p class="type-ui text-fg3">Your agents, what they know and what they can use.</p>
+            <p class="type-base text-tertiary">Your agents, what they know and what they can use.</p>
             <TeamTab />
           </div>
         </Show>

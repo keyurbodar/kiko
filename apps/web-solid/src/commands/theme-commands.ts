@@ -1,7 +1,15 @@
 import type { Imported } from "@kiko/theme/imported"
 import type { Mode } from "@kiko/theme/look"
 import { appearanceOf } from "@kiko/theme/apply"
-import { THEME_IDS, THEMES, type DarkThemeId, type ThemeId, type ThemeAppearance } from "@kiko/theme/palette"
+import {
+  appearanceOfTheme,
+  THEME_IDS,
+  THEMES,
+  type DarkThemeId,
+  type LightThemeId,
+  type ThemeAppearance,
+  type ThemeId,
+} from "@kiko/theme/palette"
 import type { Choice, Command, CommandId } from "./registry"
 
 const MODES: [Mode, string][] = [
@@ -12,12 +20,17 @@ const MODES: [Mode, string][] = [
 
 export function themeCommands(deps: {
   mode: () => Mode
-  darkTheme: () => DarkThemeId
+  builtin: () => Record<ThemeAppearance, ThemeId>
   setMode: (mode: Mode) => void
   setBuiltin: (id: ThemeId) => void
   imported: () => Imported
   setTheme: (appearance: ThemeAppearance, id: string) => void
-  preview: (look: { mode?: Mode; darkTheme?: DarkThemeId; active?: Imported["active"] }) => () => void
+  preview: (look: {
+    mode?: Mode
+    darkTheme?: DarkThemeId
+    lightTheme?: LightThemeId
+    active?: Imported["active"]
+  }) => () => void
   activeAgent: () => string | null
   changeAvatar: (slug: string) => void
   openView: (id: CommandId) => void
@@ -57,18 +70,18 @@ export function themeCommands(deps: {
             run: () => deps.setTheme(appearance, id),
           })),
           ...THEME_IDS.map((id): Choice => {
-            const mode = id === "snow" ? "light" : "dark"
+            const mode = appearanceOfTheme(id)
             return {
               id: `builtin.${id}`,
               title: THEMES[id].label,
               icon: "appearance",
               group: "Theme",
-              swatch: THEMES[id].accent,
-              current: shown === mode && !imported.active[mode] && (id === "snow" || deps.darkTheme() === id),
+              swatch: THEMES[id].palette.accent,
+              current: shown === mode && !imported.active[mode] && deps.builtin()[mode] === id,
               preview: () =>
                 deps.preview({
                   mode,
-                  ...(id === "snow" ? {} : { darkTheme: id }),
+                  [mode === "dark" ? "darkTheme" : "lightTheme"]: id,
                   active: { ...imported.active, [mode]: undefined },
                 }),
               run: () => deps.setBuiltin(id),

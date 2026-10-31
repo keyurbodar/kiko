@@ -17,8 +17,8 @@
   }
 }
 [data-component="bot-picker"] [data-check="on"] {
-  animation: bot-picker-pop 120ms var(--ease-kiko);
+  animation: bot-picker-pop 120ms var(--ease-sharp);
 }
 [data-component="bot-picker"] [data-slide] {
-  animation: bot-picker-slide 140ms var(--ease-kiko);
+  animation: bot-picker-slide 140ms var(--ease-sharp);
 }

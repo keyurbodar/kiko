@@ -544,7 +544,7 @@ export function PaletteSurface(props: { source: TabData }) {
                     <Show
                       when={attachable(entries()).length > 0}
                       fallback={
-                        <span class="type-hint text-fg4" data-component="palette-attach-other">
+                        <span class="type-xs text-quaternary" data-component="palette-attach-other">
                           Files from other chats stay in their chat
                         </span>
                       }

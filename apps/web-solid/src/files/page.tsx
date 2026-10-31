@@ -228,20 +228,20 @@ function ListView(props: { shown: readonly Entry[]; open: (key: string) => void 
         {(e) => (
           <button
             type="button"
-            class="group flex h-12 cursor-pointer items-center gap-3 rounded-row px-3 text-left outline-none transition-colors duration-(--dur-hover) hover:bg-hover focus-visible:bg-hover"
+            class="group flex h-12 cursor-pointer items-center gap-3 rounded-base px-3 text-left outline-none transition-colors duration-(--duration-fast) hover:bg-tertiary focus-visible:bg-tertiary"
             data-file={e.path}
             data-fresh={isFresh(e.path) ? "" : undefined}
             onClick={() => props.open(e.key)}
           >
             <span
-              class="grid size-8 shrink-0 place-items-center rounded-control transition-colors duration-(--dur-hover)"
-              style={{ background: `color-mix(in oklab, ${toneOf(e.name)} 14%, var(--panel))` }}
+              class="grid size-8 shrink-0 place-items-center rounded-base transition-colors duration-(--duration-fast)"
+              style={{ background: `color-mix(in oklab, ${toneOf(e.name)} 14%, var(--bg-editor))` }}
             >
               <TypeIcon type={e.type} size={16} />
             </span>
-            <span class="type-row min-w-0 flex-1 truncate text-fg">{e.name}</span>
+            <span class="type-base min-w-0 flex-1 truncate text-primary">{e.name}</span>
             <span
-              class="type-label hidden w-56 min-w-0 items-center gap-1.5 text-fg3 @min-[640px]/page:flex"
+              class="type-sm hidden w-56 min-w-0 items-center gap-1.5 text-tertiary @min-[640px]/page:flex"
               title={
                 e.madeBy ? `${agentDisplayName(e.madeBy, user.agents())} made it in ${place(e)}` : `In ${place(e)}`
               }
@@ -249,8 +249,8 @@ function ListView(props: { shown: readonly Entry[]; open: (key: string) => void 
               <Maker entry={e} />
               <span class="truncate">{agoText(e.at)}</span>
             </span>
-            <span class="type-label hidden w-24 text-fg3 @min-[640px]/page:block">{TYPE_NAMES[e.type]}</span>
-            <span class="type-hint w-16 text-right text-fg4">{formatBytes(e.file.size)}</span>
+            <span class="type-sm hidden w-24 text-tertiary @min-[640px]/page:block">{TYPE_NAMES[e.type]}</span>
+            <span class="type-xs w-16 text-right text-quaternary">{formatBytes(e.file.size)}</span>
           </button>
         )}
       </For>

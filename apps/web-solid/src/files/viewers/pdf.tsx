@@ -161,7 +161,7 @@ export default function PdfViewer(props: { src: string; title: string }): JSX.El
 
   return (
     <div class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden" data-component="file-pdf">
-      <div class="flex h-10 min-h-10 shrink-0 items-center gap-1 border-b border-[var(--border-100)] px-2 text-hint text-fg3">
+      <div class="flex h-10 min-h-10 shrink-0 items-center gap-1 border-b border-[var(--stroke-tertiary)] px-2 text-xs text-tertiary">
         <span class="mr-auto px-1" aria-live="polite">
           {doc() ? `Page ${current() + 1} of ${pageCount()}` : "PDF"}
         </span>
@@ -211,7 +211,7 @@ export default function PdfViewer(props: { src: string; title: string }): JSX.El
         aria-label={props.title}
         tabIndex={0}
         class="relative min-h-0 w-full min-w-0 flex-1 overflow-auto outline-none"
-        style={{ background: "var(--bg-000)" }}
+        style={{ background: "var(--bg-elevated)" }}
         onScroll={(event) => setScrollTop(event.currentTarget.scrollTop)}
       >
         {error() ? (

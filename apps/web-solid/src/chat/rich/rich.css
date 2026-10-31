@@ -1,8 +1,8 @@
 :root {
-  --rich-border: var(--line2);
-  --rich-surface: var(--panel);
-  --rich-accent: var(--active);
-  --rich-muted: var(--fg3);
+  --rich-border: var(--stroke-secondary);
+  --rich-surface: var(--bg-editor);
+  --rich-accent: var(--bg-secondary);
+  --rich-muted: var(--text-tertiary);
 }
 .rich {
   min-width: 0;
@@ -25,13 +25,13 @@
   margin: 10px 0;
 }
 .rich strong {
-  color: var(--text-000);
+  color: var(--text-primary);
   font-weight: 600;
 }
 .rich em {
   font-style: normal;
   font-weight: 500;
-  color: var(--text-000);
+  color: var(--text-primary);
 }
 .rich h1,
 .rich h2,
@@ -45,21 +45,21 @@
   line-height: 1.3;
 }
 .rich h1 {
-  font-size: calc(var(--type-msg) * 1.25);
+  font-size: calc(var(--font-size-lg) * 1.25);
   line-height: 1.4;
 }
 .rich h2 {
-  font-size: calc(var(--type-msg) * 1.125);
+  font-size: calc(var(--font-size-lg) * 1.125);
   line-height: 1.4;
 }
 .rich h3 {
-  font-size: var(--type-msg);
-  line-height: var(--type-msg-line);
+  font-size: var(--font-size-lg);
+  line-height: var(--line-height-lg);
 }
 .rich h4,
 .rich h5,
 .rich h6 {
-  font-size: var(--type-ui);
+  font-size: var(--font-size-base);
   line-height: 20px;
 }
 .rich h6 {
@@ -132,7 +132,7 @@
 .rich-link-icon-glyph {
   width: 14px;
   height: 14px;
-  border-radius: var(--radius-micro);
+  border-radius: var(--radius-sm);
   object-fit: contain;
 }
 .rich .rich-image {
@@ -148,7 +148,7 @@
   padding: 0;
   overflow: hidden;
   border: 1px solid color-mix(in oklab, var(--rich-border) 60%, transparent);
-  border-radius: var(--radius-control);
+  border-radius: var(--radius-base);
   background: var(--rich-surface);
   cursor: zoom-in;
   color: var(--rich-muted);
@@ -190,7 +190,7 @@
   white-space: nowrap;
 }
 .rich-link {
-  color: var(--info);
+  color: var(--text-accent);
   text-decoration: none;
 }
 .rich-link:focus-visible {
@@ -213,7 +213,7 @@
   font-size: 13px;
   padding: 1px 5px;
   border-radius: 4px;
-  background: var(--fill-control);
+  background: var(--bg-tertiary);
   box-decoration-break: clone;
   -webkit-box-decoration-break: clone;
 }
@@ -257,15 +257,15 @@
 }
 .rich-table-scroll thead th {
   padding-block: 0.55rem;
-  color: var(--text-100);
+  color: var(--text-primary);
   font-weight: 600;
   line-height: 18px;
   overflow-wrap: normal;
   word-break: normal;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--stroke-tertiary);
 }
 .rich-table-scroll tbody td {
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--stroke-tertiary);
 }
 .rich-table-footer {
   display: flex;
@@ -283,18 +283,18 @@
   align-items: center;
   gap: 6px;
   padding: 0 6px;
-  border-radius: var(--radius-control);
-  color: var(--fg2);
-  font-size: var(--type-hint);
+  border-radius: var(--radius-base);
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
   cursor: pointer;
   transition:
-    background-color var(--dur-hover) var(--ease-kiko),
-    color var(--dur-hover) var(--ease-kiko);
+    background-color var(--duration-fast) var(--ease-sharp),
+    color var(--duration-fast) var(--ease-sharp);
 }
 @media (hover: hover) and (pointer: fine) {
   .rich-table-more:hover {
-    background: var(--active);
-    color: var(--fg);
+    background: var(--bg-secondary);
+    color: var(--text-primary);
   }
 }
 .rich-table[data-rows-folded] .rich-table-scroll tbody tr:nth-child(4) td {
@@ -309,36 +309,36 @@
   padding: 0;
   background: none;
   border: 0;
-  border-radius: var(--radius-control);
+  border-radius: var(--radius-base);
   color: var(--rich-muted);
   cursor: pointer;
 }
 @media (hover: hover) and (pointer: fine) {
   .rich-table-action:hover {
-    color: var(--fg);
+    color: var(--text-primary);
     background: var(--rich-accent);
   }
 }
 .rich-table-action[data-active] {
-  color: var(--fg);
+  color: var(--text-primary);
   background: var(--rich-surface);
 }
 
 .rich-rule {
   margin: 1rem 0;
   border: 0;
-  border-top: 1px solid var(--border-100);
+  border-top: 1px solid var(--stroke-tertiary);
 }
 
 .rich {
-  font-size: var(--type-ui);
+  font-size: var(--font-size-base);
   line-height: 24px;
   word-break: break-word;
 }
 [data-slot="bubble"] .rich {
-  font-size: var(--type-bubble);
-  line-height: var(--type-bubble-line);
+  font-size: var(--font-size-lg);
+  line-height: var(--line-height-lg);
 }
 [data-side="bot"] .rich {
-  color: var(--fg);
+  color: var(--text-primary);
 }

@@ -3,19 +3,19 @@
   margin: 0.65rem 0;
   overflow: hidden;
   border-radius: 12px;
-  background: var(--sunken);
-  box-shadow: var(--edge);
+  background: var(--bg-quaternary);
+  box-shadow: var(--hairline);
   line-height: 21px;
 
-  --sh-class: var(--text-200);
-  --sh-identifier: var(--fg);
-  --sh-sign: var(--text-400);
-  --sh-property: var(--text-300);
-  --sh-entity: var(--fg);
-  --sh-jsxliterals: var(--text-300);
-  --sh-string: var(--text-300);
-  --sh-keyword: var(--text-200);
-  --sh-comment: var(--text-400);
+  --sh-class: var(--text-secondary);
+  --sh-identifier: var(--text-primary);
+  --sh-sign: var(--text-quaternary);
+  --sh-property: var(--text-tertiary);
+  --sh-entity: var(--text-primary);
+  --sh-jsxliterals: var(--text-tertiary);
+  --sh-string: var(--text-tertiary);
+  --sh-keyword: var(--text-secondary);
+  --sh-comment: var(--text-quaternary);
   --sh-space: inherit;
   --sh-break: inherit;
 }
@@ -44,20 +44,20 @@
   height: 26px;
   padding: 0 8px;
   border-radius: 6px;
-  color: var(--text-300);
+  color: var(--text-tertiary);
   font-size: 12.5px;
   font-weight: 500;
   line-height: 26px;
   white-space: nowrap;
   cursor: pointer;
   transition:
-    background-color var(--dur-hover) var(--ease-kiko),
-    color var(--dur-hover) var(--ease-kiko);
+    background-color var(--duration-fast) var(--ease-sharp),
+    color var(--duration-fast) var(--ease-sharp);
 }
 
 .chat-code-tab[data-active] {
-  background: var(--fill-hover);
-  color: var(--fg);
+  background: var(--bg-quaternary);
+  color: var(--text-primary);
 }
 
 .chat-code-title {
@@ -65,7 +65,7 @@
   min-width: 0;
   align-items: center;
   gap: 6px;
-  color: var(--text-300);
+  color: var(--text-tertiary);
   font-family: var(--font-family-sans);
   font-size: 12.5px;
   font-weight: 500;
@@ -100,18 +100,18 @@
   border: 0;
   border-radius: 6px;
   background: none;
-  color: var(--text-300);
+  color: var(--text-tertiary);
   cursor: pointer;
   transition:
-    background-color var(--dur-hover) var(--ease-kiko),
-    color var(--dur-hover) var(--ease-kiko),
-    transform var(--dur-hover) var(--ease-kiko);
+    background-color var(--duration-fast) var(--ease-sharp),
+    color var(--duration-fast) var(--ease-sharp),
+    transform var(--duration-fast) var(--ease-sharp);
 }
 
 @media (hover: hover) and (pointer: fine) {
   .chat-code-action:hover {
-    background: var(--fill-hover);
-    color: var(--fg);
+    background: var(--bg-quaternary);
+    color: var(--text-primary);
   }
 }
 
@@ -120,8 +120,8 @@
 }
 
 .chat-code-action[data-active] {
-  background: var(--fill-hover);
-  color: var(--fg);
+  background: var(--bg-quaternary);
+  color: var(--text-primary);
 }
 
 .chat-code-body {
@@ -139,7 +139,7 @@
   line-height: 21px;
   tab-size: 2;
   scrollbar-width: thin;
-  scrollbar-color: color-mix(in srgb, var(--rich-border, var(--line2)) 78%, transparent) transparent;
+  scrollbar-color: color-mix(in srgb, var(--rich-border, var(--stroke-secondary)) 78%, transparent) transparent;
 }
 
 .chat-code-pre::-webkit-scrollbar {
@@ -149,7 +149,7 @@
 
 .chat-code-pre::-webkit-scrollbar-thumb {
   border-radius: var(--radius-full);
-  background: color-mix(in srgb, var(--rich-border, var(--line2)) 78%, transparent);
+  background: color-mix(in srgb, var(--rich-border, var(--stroke-secondary)) 78%, transparent);
 }
 
 .chat-code-lines {
@@ -174,8 +174,8 @@
   box-sizing: border-box;
   min-width: calc(var(--digits, 1) * 1ch + 26px);
   padding: 0 12px 0 14px;
-  background: var(--sunken);
-  color: var(--text-400);
+  background: var(--bg-quaternary);
+  color: var(--text-quaternary);
   text-align: right;
   user-select: none;
   font-variant-numeric: tabular-nums;
@@ -195,7 +195,7 @@
   position: absolute;
   pointer-events: none;
   opacity: 0;
-  transition: opacity 120ms var(--ease-kiko);
+  transition: opacity 120ms var(--ease-sharp);
 }
 
 .chat-code-fade[data-on] {
@@ -207,7 +207,7 @@
   right: 0;
   left: 0;
   height: 24px;
-  background: linear-gradient(to bottom, var(--sunken), transparent);
+  background: linear-gradient(to bottom, var(--bg-quaternary), transparent);
 }
 
 .chat-code-fade[data-edge="bottom"] {
@@ -215,7 +215,7 @@
   bottom: var(--fade-bottom, 0);
   left: 0;
   height: 24px;
-  background: linear-gradient(to top, var(--sunken), transparent);
+  background: linear-gradient(to top, var(--bg-quaternary), transparent);
 }
 
 .chat-code-fade[data-edge="left"] {
@@ -223,7 +223,7 @@
   bottom: var(--fade-bottom, 0);
   left: 0;
   width: 24px;
-  background: linear-gradient(to right, var(--sunken), transparent);
+  background: linear-gradient(to right, var(--bg-quaternary), transparent);
 }
 
 .chat-code-fade[data-edge="right"] {
@@ -231,7 +231,7 @@
   right: var(--fade-right, 0);
   bottom: var(--fade-bottom, 0);
   width: 24px;
-  background: linear-gradient(to left, var(--sunken), transparent);
+  background: linear-gradient(to left, var(--bg-quaternary), transparent);
 }
 
 @media (prefers-reduced-motion: no-preference) {

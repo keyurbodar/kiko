@@ -10,7 +10,7 @@ import { TEXT_KINDS, viewerKind } from "../files/kind"
 import type { PromptInputV2Attachment } from "./prompt-input/types"
 
 const ICON_BUTTON =
-  "grid size-7 shrink-0 place-items-center rounded-control text-fg2 transition-colors duration-(--dur-hover) hover:bg-hover hover:text-fg"
+  "grid size-7 shrink-0 place-items-center rounded-base text-secondary transition-colors duration-(--duration-fast) hover:bg-tertiary hover:text-primary"
 
 function DraftText(props: { url: string }) {
   const [text] = createResource(
@@ -20,7 +20,7 @@ function DraftText(props: { url: string }) {
   return (
     <Show when={!text.error} fallback={<SurfaceFailure message="Unable to read this file." />}>
       <pre
-        class="min-h-0 flex-1 overflow-auto px-4 py-3 font-mono text-code whitespace-pre-wrap break-words text-fg"
+        class="min-h-0 flex-1 overflow-auto px-4 py-3 font-mono text-code whitespace-pre-wrap break-words text-primary"
         data-component="draft-file-text"
       >
         {text()}
@@ -40,7 +40,7 @@ export default function DraftFileDialog(props: {
       <ModalV2.Portal>
         <ModalV2.Overlay />
         <ModalV2.Content
-          class="h-[min(85vh,52rem)] w-[min(56rem,92vw)] flex-col overflow-hidden rounded-hero bg-bg shadow-2xl"
+          class="h-[min(85vh,52rem)] w-[min(56rem,92vw)] flex-col overflow-hidden rounded-composer bg-chrome shadow-2xl"
           data-component="draft-file-dialog"
           onOpenAutoFocus={(event: Event) => {
             const close = (event.currentTarget as HTMLElement | null)?.querySelector<HTMLElement>(
@@ -53,10 +53,10 @@ export default function DraftFileDialog(props: {
         >
           <div class={`${SUBHEADER} h-11 min-h-11`}>
             <FileIcon node={{ path: props.part.filename, type: "file" }} class="size-5" />
-            <ModalV2.Title class="min-w-0 flex-1 truncate text-label font-medium text-fg">
+            <ModalV2.Title class="min-w-0 flex-1 truncate text-sm font-medium text-primary">
               {props.part.filename}
             </ModalV2.Title>
-            <span class="shrink-0 text-hint text-fg3">{formatBytes(props.part.size)}</span>
+            <span class="shrink-0 text-xs text-tertiary">{formatBytes(props.part.size)}</span>
             <button
               type="button"
               aria-label="Remove from draft"

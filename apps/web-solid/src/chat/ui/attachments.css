@@ -5,7 +5,7 @@
   min-width: 0;
   gap: 2px;
   overflow: hidden;
-  border-radius: var(--radius-card);
+  border-radius: var(--radius-xl);
   grid-template-columns: repeat(2, 1fr);
 }
 
@@ -21,7 +21,7 @@
   padding: 0;
   overflow: hidden;
   border: 0;
-  background: var(--active);
+  background: var(--bg-secondary);
   cursor: zoom-in;
 }
 
@@ -50,8 +50,8 @@
   min-width: 0;
   flex-direction: column;
   overflow: hidden;
-  border-radius: var(--radius-card);
-  background: var(--raise);
+  border-radius: var(--radius-xl);
+  background: var(--bg-elevated);
 }
 
 .att-file {
@@ -75,7 +75,7 @@
 
 .att-file + .att-file,
 .att-file + .att-foot {
-  border-top: 1px solid var(--line);
+  border-top: 1px solid var(--stroke-tertiary);
 }
 
 .att-tile {
@@ -84,25 +84,25 @@
   height: 40px;
   flex: none;
   place-items: center;
-  border-radius: var(--radius-control);
+  border-radius: var(--radius-base);
   background: color-mix(in oklab, currentColor 12%, transparent);
-  color: var(--fg2);
+  color: var(--text-secondary);
 }
 
 .att-name {
   overflow: hidden;
-  font-size: var(--type-ui);
+  font-size: var(--font-size-base);
   font-weight: 500;
-  line-height: var(--type-ui-line);
+  line-height: var(--line-height-base);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .att-meta {
   overflow: hidden;
-  color: var(--fg3);
-  font-size: var(--type-label);
-  line-height: var(--type-label-line);
+  color: var(--text-tertiary);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-sm);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -113,17 +113,17 @@
   height: 28px;
   flex: none;
   place-items: center;
-  border-radius: var(--radius-control);
-  color: var(--fg3);
+  border-radius: var(--radius-base);
+  color: var(--text-tertiary);
   transition:
-    background var(--dur-hover) var(--ease-kiko),
-    color var(--dur-hover) var(--ease-kiko);
+    background var(--duration-fast) var(--ease-sharp),
+    color var(--duration-fast) var(--ease-sharp);
 }
 
 @media (hover: hover) and (pointer: fine) {
   .att-file:hover .att-download {
-    background: var(--active);
-    color: var(--fg);
+    background: var(--bg-secondary);
+    color: var(--text-primary);
   }
 }
 
@@ -146,19 +146,19 @@
   align-items: center;
   gap: 6px;
   padding: 0 6px;
-  border-radius: var(--radius-control);
-  color: var(--fg2);
-  font-size: var(--type-label);
+  border-radius: var(--radius-base);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
   cursor: pointer;
   transition:
-    background var(--dur-hover) var(--ease-kiko),
-    color var(--dur-hover) var(--ease-kiko);
+    background var(--duration-fast) var(--ease-sharp),
+    color var(--duration-fast) var(--ease-sharp);
 }
 
 @media (hover: hover) and (pointer: fine) {
   .att-foot-action:hover {
-    background: var(--active);
-    color: var(--fg);
+    background: var(--bg-secondary);
+    color: var(--text-primary);
   }
 }
 

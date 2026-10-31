@@ -53,7 +53,7 @@ export function Dialog(props: {
         <ModalV2.Overlay />
         <ModalV2.Content
           class={cn(
-            "max-h-[calc(100dvh-32px)] flex-col overflow-hidden rounded-sheet bg-raise text-fg shadow-[var(--float-shadow)]",
+            "max-h-[calc(100dvh-32px)] flex-col overflow-hidden rounded-3xl bg-elevated text-primary shadow-[var(--popup-shadow)]",
             WIDTH[props.size ?? "sm"],
             props.class,
           )}
@@ -65,9 +65,9 @@ export function Dialog(props: {
         >
           <div class="relative flex min-h-0 flex-1 flex-col" data-component={props["data-component"]}>
             <header class="shrink-0 px-5 pt-4 pr-12 pb-4">
-              <ModalV2.Title class="type-section font-semibold leading-snug text-fg">{props.title}</ModalV2.Title>
+              <ModalV2.Title class="type-3xl font-semibold leading-snug text-primary">{props.title}</ModalV2.Title>
               <Show when={props.description}>
-                <p id={describedBy} class="mt-1 text-label leading-relaxed text-[var(--kit-meta)]">
+                <p id={describedBy} class="mt-1 text-sm leading-relaxed text-[var(--kit-meta)]">
                   {props.description}
                 </p>
               </Show>

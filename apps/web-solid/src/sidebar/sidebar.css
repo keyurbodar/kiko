@@ -4,8 +4,8 @@
   height: 100%;
   min-height: 0;
   flex: 1;
-  color: var(--fg);
-  background: var(--side);
+  color: var(--text-primary);
+  background: var(--bg-sidebar);
   font-family: var(--font-family-sans);
 }
 
@@ -17,8 +17,8 @@
   flex-shrink: 0;
   flex-direction: column;
   overflow: clip;
-  background: var(--side);
-  box-shadow: inset -1px 0 0 var(--line);
+  background: var(--bg-sidebar);
+  box-shadow: inset -1px 0 0 var(--stroke-tertiary);
 }
 
 .sidebar-shell .panel[data-collapsed] {
@@ -34,7 +34,7 @@
 .sidebar-shell .panel-header {
   position: relative;
   display: flex;
-  height: var(--spacing-header);
+  height: var(--spacing-top-bar-height);
   flex-shrink: 0;
   align-items: center;
   gap: 2px;
@@ -49,11 +49,11 @@
 .sidebar-shell .panel-brand {
   display: flex;
   align-items: center;
-  color: var(--fg);
-  font-family: var(--font-family-display);
-  font-size: var(--type-wordmark);
+  color: var(--text-primary);
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-2xl);
   font-weight: 400;
-  font-variation-settings: var(--display-variation);
+  font-variation-settings: normal;
   letter-spacing: -0.015em;
   line-height: 1;
   text-decoration: none;
@@ -64,51 +64,51 @@
 .sidebar-shell .main-sidebar-toggle {
   position: relative;
   display: grid;
-  width: var(--spacing-control);
-  height: var(--spacing-control);
+  width: var(--spacing-control-xl);
+  height: var(--spacing-control-xl);
   flex-shrink: 0;
   place-items: center;
   padding: 0;
-  color: var(--fg2);
+  color: var(--text-secondary);
   background: none;
   border: none;
-  border-radius: var(--radius-control);
+  border-radius: var(--radius-base);
   cursor: pointer;
   appearance: none;
   transition:
-    background var(--dur-hover) var(--ease-kiko),
-    color var(--dur-hover) var(--ease-kiko),
-    transform var(--dur-hover) var(--ease-kiko);
+    background var(--duration-fast) var(--ease-sharp),
+    color var(--duration-fast) var(--ease-sharp),
+    transform var(--duration-fast) var(--ease-sharp);
 }
 
 @media (hover: hover) and (pointer: fine) {
   .sidebar-shell .panel-icon-button:hover,
   .sidebar-shell .top-bar-button:hover,
   .sidebar-shell .main-sidebar-toggle:hover {
-    color: var(--fg);
-    background: var(--hover);
+    color: var(--text-primary);
+    background: var(--bg-tertiary);
   }
 }
 
 .sidebar-shell :is(.panel-icon-button, .top-bar-button, .main-sidebar-toggle):active {
   transform: scale(0.94);
-  transition-duration: var(--dur-hover), var(--dur-hover), var(--dur-press);
+  transition-duration: var(--duration-fast), var(--duration-fast), var(--duration-fast);
 }
 
 .sidebar-shell .panel-header .panel-icon-button {
-  color: var(--fg3);
+  color: var(--text-tertiary);
 }
 
 @media (hover: hover) and (pointer: fine) {
   .sidebar-shell .panel-header .panel-icon-button:hover {
-    color: var(--fg);
+    color: var(--text-primary);
   }
 }
 
 .sidebar-shell .panel-icon-button[data-active],
 .sidebar-shell .top-bar-button[aria-pressed="true"] {
-  color: var(--fg);
-  background: var(--active);
+  color: var(--text-primary);
+  background: var(--bg-secondary);
 }
 
 .sidebar-shell .main-sidebar-toggle {
@@ -128,37 +128,37 @@
 
 .sidebar-shell .nav-row {
   display: flex;
-  height: var(--spacing-nav-tab);
+  height: var(--spacing-control-xl);
   width: 100%;
   align-items: center;
   gap: 12px;
   padding: 0 10px;
-  color: var(--fg2);
+  color: var(--text-secondary);
   font: inherit;
-  font-size: var(--type-ui);
-  line-height: var(--type-ui-line);
+  font-size: var(--font-size-base);
+  line-height: var(--line-height-base);
   text-align: left;
   text-decoration: none;
   background: none;
   border: none;
-  border-radius: var(--radius-nav);
+  border-radius: var(--radius-base);
   cursor: pointer;
   appearance: none;
   transition:
-    background var(--dur-hover) var(--ease-kiko),
-    color var(--dur-hover) var(--ease-kiko),
-    transform var(--dur-hover) var(--ease-kiko);
+    background var(--duration-fast) var(--ease-sharp),
+    color var(--duration-fast) var(--ease-sharp),
+    transform var(--duration-fast) var(--ease-sharp);
 }
 
 .sidebar-shell .nav-icon {
   display: flex;
-  color: var(--fg3);
-  transition: color var(--dur-hover) var(--ease-kiko);
+  color: var(--text-tertiary);
+  transition: color var(--duration-fast) var(--ease-sharp);
 }
 
 .sidebar-shell .nav-row:is([data-active], :active),
 .sidebar-shell .nav-row:is([data-active], :active) .nav-icon {
-  color: var(--fg);
+  color: var(--text-primary);
 }
 
 .sidebar-shell .nav-label {
@@ -169,10 +169,10 @@
 .sidebar-shell .nav-kbd {
   margin-left: auto;
   padding-left: 12px;
-  color: var(--fg4);
+  color: var(--text-quaternary);
   font: inherit;
-  font-size: var(--type-hint);
-  line-height: var(--type-hint-line);
+  font-size: var(--font-size-xs);
+  line-height: var(--line-height-xs);
   white-space: nowrap;
 }
 
@@ -187,27 +187,27 @@
 }
 
 .sidebar-shell .nav-row[data-active] {
-  background: var(--active);
+  background: var(--bg-secondary);
 }
 
 @media (hover: hover) and (pointer: fine) {
   .sidebar-shell .nav-row:hover {
-    color: var(--fg);
-    background: var(--hover);
+    color: var(--text-primary);
+    background: var(--bg-tertiary);
   }
 
   .sidebar-shell .nav-row:hover .nav-icon {
-    color: var(--fg);
+    color: var(--text-primary);
   }
 
   .sidebar-shell .nav-row[data-active]:hover {
-    background: var(--active);
+    background: var(--bg-secondary);
   }
 }
 
 .sidebar-shell .nav-row:active {
   transform: scale(var(--press-scale));
-  transition-duration: var(--dur-hover), var(--dur-hover), var(--dur-press);
+  transition-duration: var(--duration-fast), var(--duration-fast), var(--duration-fast);
 }
 
 .sidebar-shell .panel-scroll {
@@ -245,19 +245,19 @@
   align-items: center;
   gap: 10px;
   padding: 0 8px 0 6px;
-  color: var(--fg);
+  color: var(--text-primary);
   font: inherit;
-  font-size: var(--type-ui);
+  font-size: var(--font-size-base);
   text-decoration: none;
   background: none;
   border: none;
-  border-radius: var(--radius-row);
-  transition: background var(--dur-hover) var(--ease-kiko);
+  border-radius: var(--radius-base);
+  transition: background var(--duration-fast) var(--ease-sharp);
 }
 
 @media (hover: hover) and (pointer: fine) {
   .sidebar-shell .panel-me:hover {
-    background: var(--hover);
+    background: var(--bg-tertiary);
   }
 }
 
@@ -281,7 +281,7 @@
 }
 
 .sidebar-shell [data-component="main-column"] {
-  background: var(--bg);
+  background: var(--bg-chrome);
 }
 
 .sidebar-shell .chat-scroll {
@@ -292,27 +292,27 @@
   overscroll-behavior: contain;
   position: relative;
   scrollbar-width: thin;
-  scrollbar-color: var(--line2) transparent;
+  scrollbar-color: var(--stroke-secondary) transparent;
 }
 
 .sidebar-shell .chat-section {
   display: flex;
-  height: var(--spacing-section-label);
+  height: var(--spacing-sidebar-group-label);
   flex-shrink: 0;
   align-items: center;
   gap: 6px;
   margin-top: 14px;
   padding: 0 10px;
-  color: var(--fg3);
-  font-size: var(--type-label);
-  line-height: var(--type-label-line);
+  color: var(--text-tertiary);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-sm);
   font-weight: 500;
   user-select: none;
 }
 
 .sidebar-shell .chat-section-toggle {
   display: inline-flex;
-  height: var(--spacing-section-label);
+  height: var(--spacing-sidebar-group-label);
   align-items: center;
   gap: 6px;
   padding: 0;
@@ -321,18 +321,18 @@
   background: none;
   border: none;
   cursor: pointer;
-  transition: color var(--dur-hover) var(--ease-kiko);
+  transition: color var(--duration-fast) var(--ease-sharp);
 }
 
 @media (hover: hover) and (pointer: fine) {
   .sidebar-shell .chat-section-toggle:hover {
-    color: var(--fg2);
+    color: var(--text-secondary);
   }
 }
 
 .sidebar-shell .chat-section-chevron {
-  color: var(--fg4);
-  transition: transform var(--dur-pop) var(--ease-kiko);
+  color: var(--text-quaternary);
+  transition: transform var(--duration-normal) var(--ease-sharp);
 }
 
 .sidebar-shell .chat-section-toggle:not([data-open]) .chat-section-chevron {
@@ -351,21 +351,21 @@
   height: 24px;
   place-items: center;
   padding: 0;
-  color: var(--fg4);
+  color: var(--text-quaternary);
   background: none;
   border: none;
-  border-radius: var(--radius-control);
+  border-radius: var(--radius-base);
   cursor: pointer;
   transition:
-    background var(--dur-hover) var(--ease-kiko),
-    color var(--dur-hover) var(--ease-kiko),
-    transform var(--dur-hover) var(--ease-kiko);
+    background var(--duration-fast) var(--ease-sharp),
+    color var(--duration-fast) var(--ease-sharp),
+    transform var(--duration-fast) var(--ease-sharp);
 }
 
 @media (hover: hover) and (pointer: fine) {
   .sidebar-shell .chat-section-button:hover {
-    color: var(--fg);
-    background: var(--hover);
+    color: var(--text-primary);
+    background: var(--bg-tertiary);
   }
 }
 
@@ -374,8 +374,8 @@
 }
 
 .sidebar-shell .chat-section-button[aria-pressed="true"] {
-  color: var(--fg);
-  background: var(--active);
+  color: var(--text-primary);
+  background: var(--bg-secondary);
 }
 
 .sidebar-shell .chat-fold {
@@ -383,8 +383,8 @@
   grid-template-rows: 0fr;
   opacity: 0;
   transition:
-    grid-template-rows var(--dur-pop) var(--ease-kiko),
-    opacity var(--dur-pop) var(--ease-kiko);
+    grid-template-rows var(--duration-normal) var(--ease-sharp),
+    opacity var(--duration-normal) var(--ease-sharp);
 }
 
 .sidebar-shell .chat-fold[data-open] {
@@ -398,7 +398,7 @@
 }
 
 .sidebar-shell .chat-section-name {
-  animation: chat-section-name-in var(--dur-hover) var(--ease-kiko);
+  animation: chat-section-name-in var(--duration-fast) var(--ease-sharp);
 }
 
 @keyframes chat-section-name-in {
@@ -410,17 +410,17 @@
 .sidebar-shell .chat-section-filter {
   height: 24px;
   padding: 0 8px;
-  color: var(--fg3);
+  color: var(--text-tertiary);
   font: inherit;
   background: none;
   border: none;
-  border-radius: var(--radius-control);
+  border-radius: var(--radius-base);
   cursor: pointer;
   opacity: 0;
   transition:
-    opacity var(--dur-hover) var(--ease-kiko),
-    color var(--dur-hover) var(--ease-kiko),
-    background-color var(--dur-hover) var(--ease-kiko);
+    opacity var(--duration-fast) var(--ease-sharp),
+    color var(--duration-fast) var(--ease-sharp),
+    background-color var(--duration-fast) var(--ease-sharp);
 }
 
 .sidebar-shell .chat-section:focus-within .chat-section-filter,
@@ -440,13 +440,13 @@
   }
 
   .sidebar-shell .chat-section-filter:hover {
-    color: var(--fg);
+    color: var(--text-primary);
   }
 }
 
 .sidebar-shell .chat-section-filter[aria-pressed="true"] {
-  color: var(--fg);
-  background: var(--active);
+  color: var(--text-primary);
+  background: var(--bg-secondary);
 }
 
 .sidebar-shell .sidebar-empty {
@@ -454,12 +454,12 @@
   align-items: baseline;
   gap: 8px;
   padding: 12px 10px 4px;
-  color: var(--fg3);
+  color: var(--text-tertiary);
 }
 
 .sidebar-shell .sidebar-empty-link {
   padding: 0;
-  color: var(--fg2);
+  color: var(--text-secondary);
   font: inherit;
   background: none;
   border: none;
@@ -472,7 +472,7 @@
 
 .sidebar-shell .chat-skeleton-row {
   display: flex;
-  height: var(--spacing-chat-row);
+  height: var(--spacing-sidebar-row-tall);
   align-items: center;
   gap: 10px;
   padding: 0 10px;
@@ -481,15 +481,15 @@
 .sidebar-shell .chat-skeleton {
   display: block;
   height: 10px;
-  border-radius: var(--radius-check);
-  background: color-mix(in oklab, var(--fg) 7%, transparent);
+  border-radius: var(--radius-sm);
+  background: color-mix(in oklab, var(--text-primary) 7%, transparent);
 }
 
 .sidebar-shell .chat-skeleton-avatar {
-  width: var(--spacing-mascot);
-  height: var(--spacing-mascot);
+  width: 32px;
+  height: 32px;
   flex: none;
-  border-radius: var(--radius-row);
+  border-radius: var(--radius-base);
 }
 
 .sidebar-shell .chat-skeleton-text {
@@ -504,28 +504,28 @@
   position: relative;
   display: flex;
   width: 100%;
-  height: var(--spacing-chat-row);
+  height: var(--spacing-sidebar-row-tall);
   align-items: center;
   gap: 10px;
   padding: 0 10px;
-  color: var(--fg);
+  color: var(--text-primary);
   font-family: inherit;
   text-align: left;
   background: none;
   border: none;
-  border-radius: var(--radius-row);
+  border-radius: var(--radius-base);
   cursor: pointer;
   appearance: none;
   content-visibility: auto;
-  contain-intrinsic-size: auto var(--spacing-chat-row);
+  contain-intrinsic-size: auto var(--spacing-sidebar-row-tall);
   transition:
     background 0ms,
-    transform var(--dur-slow) var(--press-spring);
+    transform var(--duration-slower) var(--ease-sharp);
 }
 
 .sidebar-shell .chat-row[data-enter] {
   overflow: hidden;
-  animation: sidebar-row-open var(--dur-land) var(--ease-out) both;
+  animation: sidebar-row-open var(--dur-land) var(--ease-sharp) both;
 }
 
 @keyframes sidebar-row-open {
@@ -538,47 +538,47 @@
 
 @media (hover: hover) and (pointer: fine) {
   .sidebar-shell .chat-row:hover {
-    background: var(--hover);
+    background: var(--bg-tertiary);
     transition:
-      background var(--dur-hover) var(--ease-out),
-      transform var(--dur-slow) var(--press-spring);
+      background var(--duration-fast) var(--ease-sharp),
+      transform var(--duration-slower) var(--ease-sharp);
   }
 
   .sidebar-shell .chat-row:hover .chat-name {
-    color: var(--fg);
+    color: var(--text-primary);
   }
 
   .sidebar-shell .chat-row:hover .chat-preview {
-    color: var(--fg2);
+    color: var(--text-secondary);
   }
 
   .sidebar-shell .chat-row[data-muted]:hover .chat-name {
-    color: var(--fg3);
+    color: var(--text-tertiary);
   }
 
   .sidebar-shell .chat-row[data-muted]:hover .chat-preview {
-    color: var(--fg4);
+    color: var(--text-quaternary);
   }
 
   .sidebar-shell .chat-row[data-need="failed"]:hover .chat-preview {
-    color: var(--bad);
+    color: var(--text-danger);
   }
 }
 
 .sidebar-shell .chat-row:active {
   transform: scale(0.99);
   transition:
-    background var(--dur-hover) var(--ease-out),
-    transform var(--dur-press) var(--ease-out);
+    background var(--duration-fast) var(--ease-sharp),
+    transform var(--duration-fast) var(--ease-sharp);
 }
 
 .sidebar-shell .chat-row[data-active],
 .sidebar-shell .chat-row[data-menu-open] {
-  background: var(--active);
+  background: var(--bg-secondary);
 }
 
 .sidebar-shell .chat-row:has(.chat-link:focus-visible) {
-  background: var(--hover);
+  background: var(--bg-tertiary);
 }
 
 .sidebar-shell .chat-link {
@@ -609,20 +609,20 @@
   height: 24px;
   place-items: center;
   padding: 0;
-  color: var(--fg3);
+  color: var(--text-tertiary);
   background: none;
   border: none;
-  border-radius: var(--radius-check);
+  border-radius: var(--radius-sm);
   cursor: pointer;
   opacity: 0;
   transition:
-    opacity var(--dur-hover) var(--ease-kiko),
-    color var(--dur-hover) var(--ease-kiko),
-    background-color var(--dur-hover) var(--ease-kiko);
+    opacity var(--duration-fast) var(--ease-sharp),
+    color var(--duration-fast) var(--ease-sharp),
+    background-color var(--duration-fast) var(--ease-sharp);
 }
 
 .sidebar-shell .chat-time {
-  transition: opacity var(--dur-hover) var(--ease-kiko);
+  transition: opacity var(--duration-fast) var(--ease-sharp);
 }
 
 .sidebar-shell .chat-row:is(:focus-within, [data-menu-open]) .chat-more {
@@ -643,8 +643,8 @@
   }
 
   .sidebar-shell .chat-more:hover {
-    color: var(--fg);
-    background: var(--hover);
+    color: var(--text-primary);
+    background: var(--bg-tertiary);
   }
 }
 
@@ -652,7 +652,7 @@
   .sidebar-shell .chat-row > button.chat-more {
     top: auto;
     bottom: 5px;
-    color: var(--fg4);
+    color: var(--text-quaternary);
     opacity: 1;
   }
 
@@ -667,13 +667,13 @@
 
 .sidebar-shell .chat-row[data-leaving] {
   overflow: hidden;
-  animation: chat-row-fold 350ms var(--ease-out) forwards;
+  animation: chat-row-fold 350ms var(--ease-sharp) forwards;
   pointer-events: none;
 }
 
 @keyframes chat-row-fold {
   43% {
-    height: var(--spacing-chat-row);
+    height: var(--spacing-sidebar-row-tall);
     opacity: 0;
     transform: translateX(-16px);
   }
@@ -690,16 +690,16 @@
 
 .sidebar-shell .chat-glide {
   position: absolute;
-  border-radius: var(--radius-row);
-  background: var(--active);
+  border-radius: var(--radius-base);
+  background: var(--bg-secondary);
   pointer-events: none;
 }
 
 .sidebar-shell .chat-avatar {
   position: relative;
   display: flex;
-  width: var(--spacing-mascot);
-  height: var(--spacing-mascot);
+  width: 32px;
+  height: 32px;
   flex: none;
   align-items: center;
   justify-content: center;
@@ -742,23 +742,23 @@
 
 .sidebar-shell .chat-name {
   transition:
-    color 250ms var(--ease-kiko),
-    font-weight 250ms var(--ease-kiko);
+    color 250ms var(--ease-sharp),
+    font-weight 250ms var(--ease-sharp);
   display: block;
   min-width: 0;
   flex: 1;
   overflow: hidden;
-  color: var(--fg2);
-  font-size: var(--type-row);
+  color: var(--text-secondary);
+  font-size: var(--font-size-base);
   font-weight: 600;
-  line-height: var(--type-row-line);
+  line-height: var(--line-height-base);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .sidebar-shell .chat-row[data-unread] .chat-name,
 .sidebar-shell .chat-row[data-active] .chat-name {
-  color: var(--fg);
+  color: var(--text-primary);
 }
 
 .sidebar-shell .chat-row[data-unread] .chat-name {
@@ -767,25 +767,25 @@
 }
 
 .sidebar-shell .chat-row[data-muted] .chat-name {
-  color: var(--fg3);
+  color: var(--text-tertiary);
 }
 
 .sidebar-shell .chat-muted-icon {
   flex-shrink: 0;
   align-self: center;
-  color: var(--fg4);
+  color: var(--text-quaternary);
 }
 
 .sidebar-shell .chat-time {
   flex-shrink: 0;
-  color: var(--fg4);
-  font-size: var(--type-hint);
-  line-height: var(--type-hint-line);
+  color: var(--text-quaternary);
+  font-size: var(--font-size-xs);
+  line-height: var(--line-height-xs);
   white-space: nowrap;
 }
 
 .sidebar-shell .chat-row[data-unread] .chat-time {
-  color: var(--fg2);
+  color: var(--text-secondary);
 }
 
 .sidebar-shell .chat-preview {
@@ -793,9 +793,9 @@
   min-width: 0;
   flex: 1;
   overflow: hidden;
-  color: var(--fg3);
-  font-size: var(--type-label);
-  line-height: var(--type-label-line);
+  color: var(--text-tertiary);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-sm);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -805,28 +805,28 @@
 }
 
 .sidebar-shell .chat-row[data-unread] .chat-preview {
-  color: var(--fg2);
+  color: var(--text-secondary);
 }
 
 .sidebar-shell .chat-row[data-need="failed"] .chat-preview {
-  color: var(--bad);
+  color: var(--text-danger);
 }
 
 .sidebar-shell .chat-row[data-muted] .chat-preview {
-  color: var(--fg4);
+  color: var(--text-quaternary);
 }
 
 .sidebar-shell .chat-preview-from {
-  color: var(--fg2);
+  color: var(--text-secondary);
 }
 
 .sidebar-shell .chat-draft {
   flex: none;
-  color: var(--fg2);
-  font-size: var(--type-label);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
   font-weight: 500;
-  line-height: var(--type-label-line);
-  animation: sidebar-fade-in var(--dur-pop) var(--ease-kiko) both;
+  line-height: var(--line-height-sm);
+  animation: sidebar-fade-in var(--duration-normal) var(--ease-sharp) both;
 }
 
 .sidebar-shell .chat-need-disc {
@@ -834,21 +834,21 @@
   height: 6px;
   flex: none;
   border-radius: 50%;
-  background: var(--warn);
+  background: var(--text-warning);
 }
 
 .sidebar-shell .chat-not-sent {
   flex: none;
-  color: var(--bad);
-  font-size: var(--type-hint);
-  line-height: var(--type-label-line);
+  color: var(--text-danger);
+  font-size: var(--font-size-xs);
+  line-height: var(--line-height-sm);
 }
 
 .sidebar-shell .chat-live-ring {
   width: 10px;
   height: 10px;
   flex: none;
-  border: 1.5px solid var(--fg2);
+  border: 1.5px solid var(--text-secondary);
   border-right-color: transparent;
   border-radius: 50%;
   animation: sidebar-spin 0.9s linear infinite;
@@ -862,15 +862,15 @@
 
 .sidebar-shell .chat-row[data-need="failed"][data-enter] {
   animation:
-    sidebar-row-in var(--dur-pop) var(--ease-kiko) both,
-    sidebar-shake 360ms var(--ease-kiko) var(--dur-pop) 1 both;
+    sidebar-row-in var(--duration-normal) var(--ease-sharp) both,
+    sidebar-shake 360ms var(--ease-sharp) var(--duration-normal) 1 both;
 }
 
 .sidebar-shell .chat-retry {
   position: relative;
   z-index: 2;
   padding: 0;
-  color: var(--fg);
+  color: var(--text-primary);
   font: inherit;
   font-weight: 600;
   text-decoration: underline;
@@ -882,23 +882,23 @@
 }
 
 .sidebar-shell .chat-mention {
-  color: var(--info);
+  color: var(--text-accent);
 }
 
 .sidebar-shell .chat-pin-icon {
   flex-shrink: 0;
   align-self: center;
-  color: var(--fg4);
+  color: var(--text-quaternary);
   transform-origin: 50% 100%;
 }
 
 .sidebar-shell .chat-pin-icon[data-bounce] {
-  animation: sidebar-pin-bounce 520ms var(--ease-kiko) 120ms both;
+  animation: sidebar-pin-bounce 520ms var(--ease-sharp) 120ms both;
 }
 
 .sidebar-shell .chat-shimmer {
   color: transparent;
-  background: linear-gradient(90deg, var(--fg3) 0%, var(--fg3) 40%, var(--fg) 50%, var(--fg3) 60%, var(--fg3) 100%) 0
+  background: linear-gradient(90deg, var(--text-tertiary) 0%, var(--text-tertiary) 40%, var(--text-primary) 50%, var(--text-tertiary) 60%, var(--text-tertiary) 100%) 0
     0 / 300% 100%;
   -webkit-background-clip: text;
   background-clip: text;
@@ -911,15 +911,15 @@
   flex: 1;
   padding: 0 6px;
   margin: -2px 0 -2px -6px;
-  color: var(--fg);
+  color: var(--text-primary);
   font: inherit;
-  font-size: var(--type-row);
+  font-size: var(--font-size-base);
   font-weight: 500;
-  background: var(--raise);
+  background: var(--bg-elevated);
   border: none;
-  border-radius: var(--radius-control);
+  border-radius: var(--radius-base);
   outline: none;
-  box-shadow: inset 0 0 0 1px var(--line2);
+  box-shadow: inset 0 0 0 1px var(--stroke-secondary);
 }
 
 @keyframes sidebar-row-in {
@@ -979,7 +979,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   .sidebar-shell .chat-shimmer {
-    color: var(--fg3);
+    color: var(--text-tertiary);
     background: none;
     animation: none;
   }
@@ -1052,7 +1052,7 @@
   bottom: var(--frame-gap);
   left: -1px;
   width: 2px;
-  background: color-mix(in oklab, var(--fg) 14%, transparent);
+  background: color-mix(in oklab, var(--text-primary) 14%, transparent);
   opacity: 0;
   content: "";
 }
@@ -1088,8 +1088,8 @@
     bottom: 0;
     left: 0;
     width: min(320px, calc(100vw - 24px));
-    background: var(--side);
-    box-shadow: var(--popover-shadow);
+    background: var(--bg-sidebar);
+    box-shadow: var(--box-shadow-popup);
   }
 
   .sidebar-shell .panel[data-collapsed] {
@@ -1104,7 +1104,7 @@
 }
 
 .sidebar-shell [data-component="sidecar"] {
-  background: var(--bg);
+  background: var(--bg-chrome);
 }
 
 .sidebar-shell .sidecar-scrim {
@@ -1119,11 +1119,11 @@
   bottom: var(--frame-gap);
   width: min(24rem, calc(100vw - 24px));
   overflow: hidden;
-  background: var(--bg);
+  background: var(--bg-chrome);
   border-radius: 0;
   -webkit-backdrop-filter: var(--surface-blur);
   backdrop-filter: var(--surface-blur);
-  box-shadow: var(--popover-shadow);
+  box-shadow: var(--box-shadow-popup);
 }
 
 .sidebar-shell .sidecar-overlay [data-component="sidecar"] {

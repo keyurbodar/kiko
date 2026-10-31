@@ -15,12 +15,12 @@
   height: 120px;
   place-items: center;
   border-radius: 50%;
-  background: var(--panel);
+  background: var(--bg-editor);
 }
 
 @media (prefers-reduced-motion: no-preference) {
   .chat-empty-mochi {
-    animation: motion-fade-scale-in var(--dur-pop) var(--ease-kiko) both;
+    animation: motion-fade-scale-in var(--duration-normal) var(--ease-sharp) both;
   }
 }
 

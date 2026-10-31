@@ -49,18 +49,18 @@ export default function FontViewer(props: { name: string; src: string; size: num
           <div class="min-h-0 flex-1 overflow-auto" data-component="file-font">
             <div class="mx-auto flex max-w-[860px] flex-col gap-6 px-6 py-6">
               <div class="flex items-baseline gap-3">
-                <h2 class="text-section text-fg">{name()}</h2>
-                <span class="text-hint text-fg3">{props.name}</span>
+                <h2 class="text-3xl text-primary">{name()}</h2>
+                <span class="text-xs text-tertiary">{props.name}</span>
               </div>
-              <p class="text-ui whitespace-pre-wrap break-words text-fg2" style={{ "font-family": FAMILY }}>
+              <p class="text-base whitespace-pre-wrap break-words text-secondary" style={{ "font-family": FAMILY }}>
                 ABCDEFGHIJKLMNOPQRSTUVWXYZ{"\n"}abcdefghijklmnopqrstuvwxyz{"\n"}0123456789 !?&@#%(){}[] — €£¥
               </p>
               <For each={SIZES}>
                 {(size) => (
-                  <div class="flex flex-col gap-1 border-t border-[var(--border-100)] pt-3">
-                    <span class="text-hint text-fg3">{size} px</span>
+                  <div class="flex flex-col gap-1 border-t border-[var(--stroke-tertiary)] pt-3">
+                    <span class="text-xs text-tertiary">{size} px</span>
                     <p
-                      class="whitespace-pre-wrap break-words text-fg"
+                      class="whitespace-pre-wrap break-words text-primary"
                       style={{ "font-family": FAMILY, "font-size": `${size}px`, "line-height": 1.35 }}
                     >
                       {SENTENCE}

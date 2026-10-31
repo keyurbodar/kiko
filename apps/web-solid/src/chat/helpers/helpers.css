@@ -4,19 +4,19 @@
   flex-shrink: 0;
   place-items: center;
   border-radius: var(--radius-full);
-  color: var(--fg);
+  color: var(--text-primary);
 }
 .helper-flake[data-disc] {
-  background: var(--active);
+  background: var(--bg-secondary);
 }
 .helper-flake[data-state="done"] {
-  color: var(--fg2);
+  color: var(--text-secondary);
 }
 .helper-flake[data-state="stopped"] {
-  color: var(--fg3);
+  color: var(--text-tertiary);
 }
 .helper-flake[data-state="failed"] {
-  color: var(--bad);
+  color: var(--text-danger);
 }
 .helper-flake-art {
   width: 78%;
@@ -29,8 +29,8 @@
   bottom: -3px;
   display: grid;
   border-radius: var(--radius-full);
-  background: var(--bg);
-  box-shadow: 0 0 0 1.5px var(--bg);
+  background: var(--bg-chrome);
+  box-shadow: 0 0 0 1.5px var(--bg-chrome);
 }
 
 @media (prefers-reduced-motion: no-preference) {
@@ -60,7 +60,7 @@
   top: 0;
   bottom: 16px;
   width: 10px;
-  border-left: 1px solid var(--line, color-mix(in oklab, var(--fg4) 45%, transparent));
+  border-left: 1px solid var(--stroke-tertiary, color-mix(in oklab, var(--text-quaternary) 45%, transparent));
   border-bottom-left-radius: 8px;
 }
 .helper-nest-row {
@@ -70,12 +70,12 @@
   gap: 10px;
   height: 32px;
   padding: 0 10px 0 4px;
-  border-radius: var(--radius-control);
-  color: var(--fg2);
-  font-size: var(--type-label);
+  border-radius: var(--radius-base);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
   text-align: start;
   cursor: pointer;
-  transition: background-color var(--dur-hover) var(--ease-kiko);
+  transition: background-color var(--duration-fast) var(--ease-sharp);
 }
 .helper-nest-row::before {
   content: "";
@@ -83,21 +83,21 @@
   left: -14px;
   top: 50%;
   width: 12px;
-  border-top: 1px solid color-mix(in oklab, var(--fg4) 45%, transparent);
+  border-top: 1px solid color-mix(in oklab, var(--text-quaternary) 45%, transparent);
 }
 @media (hover: hover) and (pointer: fine) {
   .helper-nest-row:hover {
-    background: var(--hover);
-    color: var(--fg);
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
   }
 }
 .helper-nest-row[data-state="done"] {
-  color: var(--fg3);
+  color: var(--text-tertiary);
 }
 .helper-nest-word {
   margin-left: auto;
-  font-size: var(--type-hint);
-  color: var(--fg4);
+  font-size: var(--font-size-xs);
+  color: var(--text-quaternary);
 }
 
 .helper-peek {
@@ -122,21 +122,21 @@
   max-width: 11rem;
   padding: 0 10px 0 7px;
   border-radius: var(--radius-full);
-  font-size: var(--type-label);
-  color: var(--fg3);
+  font-size: var(--font-size-sm);
+  color: var(--text-tertiary);
   cursor: pointer;
   transition:
-    background-color var(--dur-hover) var(--ease-kiko),
-    color var(--dur-hover) var(--ease-kiko);
+    background-color var(--duration-fast) var(--ease-sharp),
+    color var(--duration-fast) var(--ease-sharp);
 }
 .helper-peek-tab[aria-selected="true"] {
-  background: var(--active);
-  color: var(--fg);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
 }
 @media (hover: hover) and (pointer: fine) {
   .helper-peek-tab:hover {
-    color: var(--fg);
-    background: var(--hover);
+    color: var(--text-primary);
+    background: var(--bg-tertiary);
   }
 }
 .helper-peek-tab span:last-child {
@@ -146,15 +146,15 @@
 }
 .helper-peek-brief {
   padding: 10px 12px;
-  border-radius: var(--radius-tile);
-  background: var(--active);
-  color: var(--fg);
-  font-size: var(--type-ui);
+  border-radius: var(--radius-xl);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  font-size: var(--font-size-base);
   line-height: 20px;
   overflow-wrap: anywhere;
 }
 .helper-peek-brief span {
-  color: var(--fg3);
+  color: var(--text-tertiary);
 }
 .helper-peek-steps {
   position: relative;
@@ -162,7 +162,7 @@
   flex-direction: column;
   margin-left: 6px;
   padding-left: 16px;
-  border-left: 1px solid color-mix(in oklab, var(--fg4) 45%, transparent);
+  border-left: 1px solid color-mix(in oklab, var(--text-quaternary) 45%, transparent);
   border-bottom-left-radius: 8px;
 }
 .helper-peek-step {
@@ -170,15 +170,15 @@
   align-items: center;
   gap: 10px;
   min-height: 32px;
-  color: var(--fg2);
-  font-size: var(--type-ui);
+  color: var(--text-secondary);
+  font-size: var(--font-size-base);
   overflow-wrap: anywhere;
 }
 .helper-peek-step[data-note] {
-  color: var(--fg3);
+  color: var(--text-tertiary);
 }
 .helper-peek-step[data-failed] {
-  color: var(--bad);
+  color: var(--text-danger);
 }
 .helper-peek-foot {
   position: sticky;
@@ -188,7 +188,7 @@
   align-items: center;
   gap: 6px;
   padding-top: 10px;
-  font-size: var(--type-hint);
-  color: var(--fg3);
-  background: var(--bg);
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary);
+  background: var(--bg-chrome);
 }

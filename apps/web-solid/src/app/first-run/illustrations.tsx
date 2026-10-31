@@ -3,7 +3,7 @@ import type { JSX } from "solid-js"
 export type IllustrationName = "envelope" | "plug" | "pot" | "chat"
 
 const LINE = {
-  stroke: "var(--fg)",
+  stroke: "var(--text-primary)",
   "stroke-width": 3.2,
   "stroke-linecap": "round",
   "stroke-linejoin": "round",
@@ -23,9 +23,9 @@ function Drawing(props: { id: string; seed: number; children: JSX.Element }) {
   )
 }
 
-const FILL = "var(--active)"
-const FILL_DEEP = "var(--hover)"
-const ACCENT = "var(--accent)"
+const FILL = "var(--bg-secondary)"
+const FILL_DEEP = "var(--bg-tertiary)"
+const ACCENT = "var(--text-accent)"
 
 function Envelope() {
   return (
@@ -34,7 +34,7 @@ function Envelope() {
       <path class="ob-draw" pathLength="1" d="M26 48 l49 36 l49 -36" fill="none" {...LINE} />
       <g class="ob-pop">
         <circle cx="112" cy="44" r="16" fill={ACCENT} {...LINE} />
-        <path d="M105 44 l5 5 l9 -10" fill="none" {...LINE} stroke="var(--on-accent)" />
+        <path d="M105 44 l5 5 l9 -10" fill="none" {...LINE} stroke="var(--text-on-accent)" />
       </g>
     </Drawing>
   )

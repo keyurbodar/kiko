@@ -87,7 +87,7 @@ export function NewAbovePill(props: { above: NewAbove | null; onClick: () => voi
                 </span>
               </Show>
               <span>{above().count} new above</span>
-              <RemixIcon icon={ArrowUpIcon} size={16} class="text-fg3" />
+              <RemixIcon icon={ArrowUpIcon} size={16} class="text-tertiary" />
             </span>
             <span class="scroll-faces-pill-arrow" aria-hidden="true">
               <RemixIcon icon={ArrowUpIcon} size={16} />

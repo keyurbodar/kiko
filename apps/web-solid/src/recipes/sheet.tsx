@@ -11,9 +11,9 @@ import { localizeWhen } from "./model"
 import { InstallRow } from "./row"
 import { addToTarget, editRecipe, installsFor, isAdded, isEditing, refreshListing, targetsForChat } from "./state"
 
-const label = "type-label text-fg3"
+const label = "type-sm text-tertiary"
 const sheetSecondary =
-  "type-ui flex h-control cursor-pointer items-center gap-2 rounded-control bg-fill px-3 font-medium text-fg transition-[background-color,transform] duration-(--dur-hover) hover:bg-fill-hover active:scale-[0.97] disabled:opacity-(--opacity-disabled)"
+  "type-base flex h-control-xl cursor-pointer items-center gap-2 rounded-base bg-tertiary px-3 font-medium text-primary transition-[background-color,transform] duration-(--duration-fast) hover:bg-quaternary active:scale-[0.97] disabled:opacity-(--opacity-disabled)"
 const capital = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
 
 const asksFirst = (count: number) =>
@@ -21,16 +21,16 @@ const asksFirst = (count: number) =>
 
 function Fact(props: { name: string; children: JSX.Element }) {
   return (
-    <div class="type-ui flex items-center gap-3 px-4 py-3">
+    <div class="type-base flex items-center gap-3 px-4 py-3">
       <span class={`${label} w-22 shrink-0`}>{props.name}</span>
-      <div class="flex min-w-0 flex-1 flex-wrap items-center gap-x-4 gap-y-2 text-fg">{props.children}</div>
+      <div class="flex min-w-0 flex-1 flex-wrap items-center gap-x-4 gap-y-2 text-primary">{props.children}</div>
     </div>
   )
 }
 
 function Facts(props: { recipe: RecipeCard; onConnect: () => void }) {
   return (
-    <div class="flex flex-col divide-y divide-line rounded-card bg-panel" data-component="recipe-facts">
+    <div class="flex flex-col divide-y divide-[var(--stroke-tertiary)] rounded-xl bg-editor" data-component="recipe-facts">
       <Fact name="Runs">{localizeWhen(props.recipe.when)}</Fact>
       <Show when={props.recipe.apps.length}>
         <Fact name="Uses">
@@ -42,7 +42,7 @@ function Facts(props: { recipe: RecipeCard; onConnect: () => void }) {
                 <Show when={app.connected === false}>
                   <button
                     type="button"
-                    class="type-label cursor-pointer text-info hover:underline"
+                    class="type-sm cursor-pointer text-accent hover:underline"
                     data-action="connect-recipe-app"
                     onClick={props.onConnect}
                   >
@@ -98,7 +98,7 @@ export function RecipeSheet(props: {
       title={
         <span class="flex items-center gap-3.5 pt-1">
           <span
-            class="grid size-12 shrink-0 place-items-center rounded-tile bg-panel"
+            class="grid size-12 shrink-0 place-items-center rounded-xl bg-editor"
             style={{ color: `var(--recipe-${props.recipe.tone})` }}
             aria-hidden="true"
           >
@@ -106,7 +106,7 @@ export function RecipeSheet(props: {
           </span>
           <span class="flex min-w-0 flex-col gap-0.5">
             <span class="truncate">{props.recipe.title}</span>
-            <span class="type-label flex items-center gap-1.5 truncate text-fg3">
+            <span class="type-sm flex items-center gap-1.5 truncate text-tertiary">
               <RemixIcon icon={ClockIcon} size={16} class="shrink-0" />
               {adding() ? "Choose where it runs" : localizeWhen(props.recipe.when)}
             </span>
@@ -138,14 +138,14 @@ export function RecipeSheet(props: {
               <div class="flex flex-col gap-3">
                 <button
                   type="button"
-                  class="group type-label -ml-1 flex w-fit cursor-pointer items-center gap-1 rounded-row px-1 py-0.5 text-fg3 transition-colors duration-(--dur-hover) hover:text-fg"
+                  class="group type-sm -ml-1 flex w-fit cursor-pointer items-center gap-1 rounded-base px-1 py-0.5 text-tertiary transition-colors duration-(--duration-fast) hover:text-primary"
                   data-action="recipe-back"
                   onClick={() => setAdding(false)}
                 >
                   <RemixIcon
                     icon={ChevronLeftIcon}
                     size={16}
-                    class="transition-transform duration-(--dur-hover) group-hover:-translate-x-0.5"
+                    class="transition-transform duration-(--duration-fast) group-hover:-translate-x-0.5"
                   />
                   Back
                 </button>
@@ -154,7 +154,7 @@ export function RecipeSheet(props: {
             }
           >
             <div class="flex flex-col gap-5">
-              <p class="type-ui text-fg">{props.recipe.description}</p>
+              <p class="type-base text-primary">{props.recipe.description}</p>
 
               <Facts recipe={props.recipe} onConnect={add} />
 
@@ -164,7 +164,7 @@ export function RecipeSheet(props: {
                   <div class="flex flex-col items-end gap-1">
                     <For each={props.recipe.setup}>
                       {(q) => (
-                        <p class="type-ui max-w-[85%] rounded-bubble rounded-br-tail bg-me px-3 py-2 text-fg">
+                        <p class="type-base max-w-[85%] rounded-xl rounded-br-base bg-quaternary px-3 py-2 text-primary">
                           {capital(q)}
                         </p>
                       )}

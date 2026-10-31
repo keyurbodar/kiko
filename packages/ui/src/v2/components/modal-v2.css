@@ -5,7 +5,7 @@
     position: fixed;
     inset: 0;
     z-index: 70;
-    background: var(--scrim, oklch(0% 0 none / 0.5));
+    background: var(--bg-scrim, oklch(0% 0 none / 0.5));
     -webkit-backdrop-filter: var(--scrim-blur, none);
     backdrop-filter: var(--scrim-blur, none);
   }

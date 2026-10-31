@@ -55,8 +55,8 @@ function ChatMenuItems(props: { id: string }) {
       <MenuV2.Item onSelect={() => closeChat(props.id, active())}>Close</MenuV2.Item>
       <MenuV2.Separator />
       <Show when={!chat()?.kiko} fallback={<MenuV2.Item disabled>Kiko can't be deleted</MenuV2.Item>}>
-        <MenuV2.Item class="text-bad" data-action="delete-chat" onSelect={() => deleteChat(props.id, active())}>
-          <span class="text-bad">Delete</span>
+        <MenuV2.Item class="text-danger" data-action="delete-chat" onSelect={() => deleteChat(props.id, active())}>
+          <span class="text-danger">Delete</span>
         </MenuV2.Item>
       </Show>
     </>
@@ -106,8 +106,8 @@ function ChatPreview(props: { bot: RosterBot; tail: readonly ChatMessage[] }) {
     <div class="flex w-[280px] flex-col gap-1.5 p-3" data-component="sidebar-preview">
       <For each={props.tail}>
         {(message) => (
-          <p class="type-label line-clamp-2 text-fg3">
-            <span class="font-semibold text-fg">{speaker(message)}:</span> {quoteOf(message, name)}
+          <p class="type-sm line-clamp-2 text-tertiary">
+            <span class="font-semibold text-primary">{speaker(message)}:</span> {quoteOf(message, name)}
           </p>
         )}
       </For>

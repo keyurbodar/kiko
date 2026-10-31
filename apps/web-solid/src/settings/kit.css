@@ -1,11 +1,11 @@
 :root {
-  --kit-muted: var(--fg2);
+  --kit-muted: var(--text-secondary);
 
-  --kit-meta: var(--fg3);
+  --kit-meta: var(--text-tertiary);
 }
 
 .settings-page-title {
-  color: var(--fg);
+  color: var(--text-primary);
   font-family: var(--font-family-sans);
   font-size: 24px;
   font-weight: 600;
@@ -21,23 +21,23 @@
   gap: 6px;
   padding: 0 14px;
   border: 0;
-  border-radius: var(--radius-control);
+  border-radius: var(--radius-base);
   font-size: 14px;
   font-weight: 500;
   white-space: nowrap;
   cursor: pointer;
   outline: none;
   transition:
-    background-color var(--dur-hover) var(--ease-out),
-    color var(--dur-hover) var(--ease-out),
-    box-shadow var(--dur-hover) var(--ease-out),
-    transform var(--dur-press) var(--ease-out);
+    background-color var(--duration-fast) var(--ease-sharp),
+    color var(--duration-fast) var(--ease-sharp),
+    box-shadow var(--duration-fast) var(--ease-sharp),
+    transform var(--duration-fast) var(--ease-sharp);
 }
 
 .kit-btn:active:not(:disabled) {
   transform: scale(var(--press-scale));
-  transition-duration: var(--dur-hover), var(--dur-hover), var(--dur-hover), var(--dur-press);
-  transition-timing-function: var(--ease-out);
+  transition-duration: var(--duration-fast), var(--duration-fast), var(--duration-fast), var(--duration-fast);
+  transition-timing-function: var(--ease-sharp);
 }
 
 .kit-btn:disabled,
@@ -53,58 +53,58 @@
 }
 
 .kit-btn--big {
-  height: var(--spacing-control-big);
+  height: 48px;
   padding: 0 22px;
-  border-radius: var(--radius-pop);
+  border-radius: var(--radius-xl);
   font-size: 15px;
 }
 
 .kit-btn--primary {
-  color: var(--bg);
-  background: var(--fg);
+  color: var(--bg-chrome);
+  background: var(--text-primary);
 }
 
 @media (hover: hover) and (pointer: fine) {
   .kit-btn--primary:hover:not(:disabled) {
-    background: color-mix(in oklab, var(--fg) 88%, var(--bg));
+    background: color-mix(in oklab, var(--text-primary) 88%, var(--bg-chrome));
   }
 }
 
 .kit-btn--secondary,
 .kit-btn--danger {
-  color: var(--fg);
-  background: var(--active);
+  color: var(--text-primary);
+  background: var(--bg-secondary);
 }
 
 @media (hover: hover) and (pointer: fine) {
   .kit-btn--secondary:hover:not(:disabled) {
-    background: var(--fill-pressed);
+    background: var(--bg-active);
   }
 }
 
 .kit-btn--secondary[aria-pressed="true"] {
-  color: var(--fg);
-  background: color-mix(in oklab, var(--fg) 16%, var(--active));
+  color: var(--text-primary);
+  background: color-mix(in oklab, var(--text-primary) 16%, var(--bg-secondary));
 }
 
 .kit-btn--danger {
-  color: var(--bad);
+  color: var(--text-danger);
 }
 
 @media (hover: hover) and (pointer: fine) {
   .kit-btn--danger:hover:not(:disabled) {
-    background: color-mix(in oklab, var(--bad) 12%, var(--active));
+    background: color-mix(in oklab, var(--text-danger) 12%, var(--bg-secondary));
   }
 }
 
 .kit-btn--ghost {
-  color: var(--fg2);
+  color: var(--text-secondary);
 }
 
 @media (hover: hover) and (pointer: fine) {
   .kit-btn--ghost:hover:not(:disabled) {
-    color: var(--fg);
-    background: var(--hover);
+    color: var(--text-primary);
+    background: var(--bg-tertiary);
   }
 }
 
@@ -117,20 +117,20 @@
   justify-content: space-between;
   gap: 8px;
   padding: 0 10px 0 12px;
-  color: var(--fg);
+  color: var(--text-primary);
   font-size: 13.5px;
   text-align: left;
-  background: var(--active);
+  background: var(--bg-secondary);
   border: none;
-  border-radius: var(--radius-control);
+  border-radius: var(--radius-base);
   cursor: pointer;
   outline: none;
-  transition: background var(--dur-hover) var(--ease-kiko);
+  transition: background var(--duration-fast) var(--ease-sharp);
 }
 
 @media (hover: hover) and (pointer: fine) {
   .kit-select:hover:not(:disabled) {
-    background: var(--fill-pressed);
+    background: var(--bg-active);
   }
 }
 
@@ -148,17 +148,17 @@
   height: 20px;
   flex-shrink: 0;
   padding: 3px;
-  background: color-mix(in oklab, var(--fg) 16%, var(--panel));
+  background: color-mix(in oklab, var(--text-primary) 16%, var(--bg-editor));
   border-radius: 10px;
   transition:
-    background var(--dur-pop) var(--ease-snap),
-    box-shadow var(--dur-hover) var(--ease-out);
+    background var(--duration-normal) var(--ease-drawer),
+    box-shadow var(--duration-fast) var(--ease-sharp);
   cursor: pointer;
   outline: none;
 }
 
 .kit-switch[aria-checked="true"] {
-  background: var(--accent-fill);
+  background: var(--bg-accent);
 }
 
 .kit-switch:disabled {
@@ -168,11 +168,11 @@
 
 @media (hover: hover) and (pointer: fine) {
   .kit-switch:hover:not(:disabled) {
-    background: color-mix(in oklab, var(--fg) 20%, var(--panel));
+    background: color-mix(in oklab, var(--text-primary) 20%, var(--bg-editor));
   }
 
   .kit-switch[aria-checked="true"]:hover:not(:disabled) {
-    background: var(--accent-fill-hover);
+    background: var(--bg-accent-hover);
   }
 }
 
@@ -180,16 +180,16 @@
   display: block;
   width: 14px;
   height: 14px;
-  background: var(--fg3);
+  background: var(--text-tertiary);
   border-radius: 7px;
   transform-origin: left center;
   transition:
-    transform var(--dur-pop) var(--ease-snap),
-    background var(--dur-pop) var(--ease-snap);
+    transform var(--duration-normal) var(--ease-drawer),
+    background var(--duration-normal) var(--ease-drawer);
 }
 
 .kit-switch[aria-checked="true"] > span {
-  background: var(--on-accent);
+  background: var(--text-on-accent);
   transform: translateX(14px);
   transform-origin: right center;
 }
@@ -220,47 +220,47 @@
   border-radius: var(--radius-full);
   background: linear-gradient(
     to right,
-    var(--fg2) 0 var(--fill),
-    color-mix(in oklab, var(--fg) 14%, transparent) var(--fill) 100%
+    var(--text-secondary) 0 var(--bg-tertiary),
+    color-mix(in oklab, var(--text-primary) 14%, transparent) var(--bg-tertiary) 100%
   );
 }
 
 .kit-range::-moz-range-track {
   height: 4px;
   border-radius: var(--radius-full);
-  background: color-mix(in oklab, var(--fg) 14%, transparent);
+  background: color-mix(in oklab, var(--text-primary) 14%, transparent);
 }
 
 .kit-range::-moz-range-progress {
   height: 4px;
   border-radius: var(--radius-full);
-  background: var(--fg2);
+  background: var(--text-secondary);
 }
 
 .kit-range::-webkit-slider-thumb {
   width: 16px;
   height: 16px;
   margin-top: -6px;
-  background: var(--fg);
-  border: 1px solid var(--line2);
+  background: var(--text-primary);
+  border: 1px solid var(--stroke-secondary);
   border-radius: var(--radius-full);
-  box-shadow: var(--shadow-sm);
+  box-shadow: var(--box-shadow-sm);
   appearance: none;
 }
 
 .kit-range::-moz-range-thumb {
   width: 16px;
   height: 16px;
-  background: var(--fg);
-  border: 1px solid var(--line2);
+  background: var(--text-primary);
+  border: 1px solid var(--stroke-secondary);
   border-radius: var(--radius-full);
-  box-shadow: var(--shadow-sm);
+  box-shadow: var(--box-shadow-sm);
 }
 
 .kit-value {
   min-width: 2.5rem;
-  color: var(--fg2);
-  font-size: var(--type-label);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
   text-align: right;
 }
 
@@ -268,33 +268,33 @@
   height: 32px;
   min-width: 0;
   padding: 0 12px;
-  color: var(--fg);
+  color: var(--text-primary);
   font-size: 13.5px;
-  background: var(--active);
+  background: var(--bg-secondary);
   border: none;
-  border-radius: var(--radius-control);
+  border-radius: var(--radius-base);
   outline: none;
-  transition: box-shadow var(--dur-hover) var(--ease-kiko);
+  transition: box-shadow var(--duration-fast) var(--ease-sharp);
 }
 
 .kit-field:focus-visible {
-  box-shadow: inset 0 0 0 1.5px color-mix(in oklab, var(--fg) 35%, transparent);
+  box-shadow: inset 0 0 0 1.5px color-mix(in oklab, var(--text-primary) 35%, transparent);
 }
 
 .kit-field[aria-invalid="true"] {
-  box-shadow: inset 0 0 0 1.5px var(--bad);
-  animation: motion-shake 260ms var(--ease-kiko);
+  box-shadow: inset 0 0 0 1.5px var(--text-danger);
+  animation: motion-shake 260ms var(--ease-sharp);
 }
 
 .kit-field::placeholder {
-  color: var(--fg4);
+  color: var(--text-quaternary);
 }
 
 .kit-card {
   overflow: hidden;
-  background: var(--panel);
-  border-radius: var(--radius-card);
-  box-shadow: var(--edge);
+  background: var(--bg-editor);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--hairline);
 }
 
 .kit-empty {
@@ -312,14 +312,14 @@
   height: 88px;
   place-items: center;
   margin-bottom: 6px;
-  color: var(--fg);
-  background: var(--bg-000);
+  color: var(--text-primary);
+  background: var(--bg-elevated);
   border-radius: 16px;
-  box-shadow: var(--edge);
+  box-shadow: var(--hairline);
 }
 
 .kit-empty-title {
-  color: var(--fg);
+  color: var(--text-primary);
   font-size: 14.5px;
   line-height: 20px;
   font-weight: 500;
@@ -327,8 +327,8 @@
 
 .kit-empty-line {
   max-width: 320px;
-  color: var(--fg3);
-  font-size: var(--type-hint);
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
   line-height: 18px;
 }
 
@@ -366,7 +366,7 @@
 }
 
 .kit-tabs > .pill-indicator {
-  border-radius: var(--radius-row);
+  border-radius: var(--radius-base);
 }
 
 .kit-tab {
@@ -374,27 +374,27 @@
   z-index: 1;
   height: 34px;
   padding: 0 14px;
-  color: var(--fg2);
+  color: var(--text-secondary);
   font-size: 14px;
   font-weight: 500;
-  border-radius: var(--radius-row);
+  border-radius: var(--radius-base);
   cursor: pointer;
   outline: none;
   transition:
-    background var(--dur-hover) var(--ease-out),
-    color var(--dur-hover) var(--ease-out);
+    background var(--duration-fast) var(--ease-sharp),
+    color var(--duration-fast) var(--ease-sharp);
 }
 
 @media (hover: hover) and (pointer: fine) {
   .kit-tab:hover {
-    color: var(--fg);
-    background: var(--hover);
+    color: var(--text-primary);
+    background: var(--bg-tertiary);
   }
 }
 
 .kit-tab[aria-selected="true"] {
-  color: var(--fg);
-  background: var(--active);
+  color: var(--text-primary);
+  background: var(--bg-secondary);
 }
 
 .kit-tabs:has(> .pill-indicator) > .kit-tab[aria-selected="true"] {
@@ -403,12 +403,12 @@
 
 @keyframes kit-flash {
   from {
-    background-color: var(--hover);
+    background-color: var(--bg-tertiary);
   }
 }
 
 .kit-flash {
-  animation: kit-flash 400ms var(--ease-out);
+  animation: kit-flash 400ms var(--ease-sharp);
 }
 
 @media (prefers-reduced-motion: reduce) {

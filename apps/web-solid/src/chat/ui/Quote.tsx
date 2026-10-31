@@ -20,9 +20,9 @@ export function Quote(props: {
       class={cn(
         "relative flex w-full flex-row items-center gap-2 overflow-hidden",
         props.quote.gone ? "cursor-default opacity-70" : "cursor-pointer",
-        "mb-1 mt-0.5 py-1.5 ps-3.5 pe-3 text-start text-inherit text-label",
-        "rounded-row bg-[color-mix(in_oklab,var(--fg)_7%,transparent)] transition-colors duration-[120ms] hover:bg-[color-mix(in_oklab,var(--fg)_11%,transparent)]",
-        "before:absolute before:inset-y-2 before:start-2.5 before:w-[2px] before:rounded-full before:bg-[var(--fg4)] before:content-['']",
+        "mb-1 mt-0.5 py-1.5 ps-3.5 pe-3 text-start text-inherit text-sm",
+        "rounded-base bg-[color-mix(in_oklab,var(--text-primary)_7%,transparent)] transition-colors duration-[120ms] hover:bg-[color-mix(in_oklab,var(--text-primary)_11%,transparent)]",
+        "before:absolute before:inset-y-2 before:start-2.5 before:w-[2px] before:rounded-full before:bg-[var(--text-quaternary)] before:content-['']",
         props.class,
       )}
       onClick={() => !props.quote.gone && props.onOpenReplyTarget(props.quote.id, props.quote.seq)}
@@ -41,7 +41,7 @@ export function Quote(props: {
       >
         {(src) => (
           <img
-            class="chat-quote__thumb size-8 shrink-0 rounded-tail object-cover"
+            class="chat-quote__thumb size-8 shrink-0 rounded-base object-cover"
             src={src()}
             alt=""
             loading="lazy"
@@ -50,7 +50,7 @@ export function Quote(props: {
         )}
       </Show>
       <span class="chat-quote__body flex min-w-0 flex-1 flex-col">
-        <span class="chat-quote__label min-w-0 truncate font-semibold text-fg">{props.quote.label}</span>
+        <span class="chat-quote__label min-w-0 truncate font-semibold text-primary">{props.quote.label}</span>
         <span class="chat-quote__text min-w-0 truncate opacity-75">{summary().text}</span>
       </span>
     </Dynamic>

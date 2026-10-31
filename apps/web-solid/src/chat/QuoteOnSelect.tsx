@@ -52,7 +52,7 @@ export default function QuoteOnSelect(props: { onQuote: (messageId: string, text
       {(p) => (
         <button
           type="button"
-          class="fixed z-50 -translate-x-1/2 -translate-y-full rounded-full bg-(--popover) px-3 py-1 text-label text-fg shadow-popover"
+          class="fixed z-50 -translate-x-1/2 -translate-y-full rounded-full bg-(--bg-elevated) px-3 py-1 text-sm text-primary shadow-popup"
           style={{ left: `clamp(48px, ${p().x}px, calc(100vw - 48px))`, top: `${Math.max(48, p().y - 6)}px` }}
           data-action="quote-selection"
           onPointerDown={(e) => e.preventDefault()}

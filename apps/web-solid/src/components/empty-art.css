@@ -1,10 +1,10 @@
 .empty-art {
-  --ea-fill: color-mix(in oklab, var(--fg) 11.3%, var(--bg));
-  --ea-fill2: color-mix(in oklab, var(--fg) 8%, var(--bg));
+  --ea-fill: color-mix(in oklab, var(--text-primary) 11.3%, var(--bg-chrome));
+  --ea-fill2: color-mix(in oklab, var(--text-primary) 8%, var(--bg-chrome));
 }
 :root:not(.dark) .empty-art {
-  --ea-fill: color-mix(in oklab, var(--fg) 6.5%, var(--bg));
-  --ea-fill2: color-mix(in oklab, var(--fg) 4%, var(--bg));
+  --ea-fill: color-mix(in oklab, var(--text-primary) 6.5%, var(--bg-chrome));
+  --ea-fill2: color-mix(in oklab, var(--text-primary) 4%, var(--bg-chrome));
 }
 .empty-art .ea-fill {
   fill: var(--ea-fill);
@@ -13,7 +13,7 @@
   fill: var(--ea-fill2);
 }
 .empty-art .ea-line {
-  stroke: var(--fg);
+  stroke: var(--text-primary);
   stroke-width: 3.2;
   stroke-linecap: round;
   stroke-linejoin: round;
@@ -97,12 +97,12 @@
   animation: ea-scan 4s ease-in-out infinite;
 }
 .empty-art .ea-line.ea-accent {
-  stroke: var(--accent);
+  stroke: var(--text-accent);
 }
 
 .empty-art .ea-line.ea-fill2.ea-accent {
-  fill: var(--accent);
-  stroke: var(--accent);
+  fill: var(--text-accent);
+  stroke: var(--text-accent);
 }
 
 @keyframes ea-steam {

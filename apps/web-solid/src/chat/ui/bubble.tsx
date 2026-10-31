@@ -6,15 +6,15 @@ import "./bubble.css"
 export type BubbleVariant = "default" | "secondary" | "muted" | "tinted" | "outline" | "ghost" | "destructive"
 
 const VARIANTS: Record<BubbleVariant, string> = {
-  default: "[&>[data-slot=bubble-content]]:bg-me [&>[data-slot=bubble-content]]:text-fg",
-  secondary: "[&>[data-slot=bubble-content]]:bg-[var(--kiko-bubble)] [&>[data-slot=bubble-content]]:text-fg",
-  muted: "[&>[data-slot=bubble-content]]:bg-panel [&>[data-slot=bubble-content]]:text-fg",
-  tinted: "[&>[data-slot=bubble-content]]:bg-active [&>[data-slot=bubble-content]]:text-fg",
+  default: "[&>[data-slot=bubble-content]]:bg-quaternary [&>[data-slot=bubble-content]]:text-primary",
+  secondary: "[&>[data-slot=bubble-content]]:bg-[var(--bg-quinary)] [&>[data-slot=bubble-content]]:text-primary",
+  muted: "[&>[data-slot=bubble-content]]:bg-editor [&>[data-slot=bubble-content]]:text-primary",
+  tinted: "[&>[data-slot=bubble-content]]:bg-secondary [&>[data-slot=bubble-content]]:text-primary",
   outline:
-    "[&>[data-slot=bubble-content]]:bg-panel [&>[data-slot=bubble-content]]:text-fg [&>[data-slot=bubble-content]]:shadow-[inset_0_0_0_1px_var(--line2)]",
+    "[&>[data-slot=bubble-content]]:bg-editor [&>[data-slot=bubble-content]]:text-primary [&>[data-slot=bubble-content]]:shadow-[inset_0_0_0_1px_var(--stroke-secondary)]",
   ghost: "[&>[data-slot=bubble-content]]:bg-transparent [&>[data-slot=bubble-content]]:p-0",
   destructive:
-    "[&>[data-slot=bubble-content]]:bg-me [&>[data-slot=bubble-content]]:text-fg [&>[data-slot=bubble-content]]:shadow-[inset_0_0_0_1.5px_var(--bad)]",
+    "[&>[data-slot=bubble-content]]:bg-quaternary [&>[data-slot=bubble-content]]:text-primary [&>[data-slot=bubble-content]]:shadow-[inset_0_0_0_1.5px_var(--text-danger)]",
 }
 
 export type BubbleAlign = "start" | "end"

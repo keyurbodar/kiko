@@ -21,12 +21,12 @@
 
     pointer-events: none !important;
 
-    background: var(--popover);
-    border-radius: var(--radius-control);
-    box-shadow: var(--float-shadow);
+    background: var(--bg-elevated);
+    border-radius: var(--radius-base);
+    box-shadow: var(--popup-shadow);
 
     outline: none;
-    color: var(--fg);
+    color: var(--text-primary);
 
     -webkit-font-smoothing: auto;
     text-rendering: geometricPrecision;

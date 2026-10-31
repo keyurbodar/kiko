@@ -54,7 +54,7 @@ export default function DateCalendar(props: {
             <div class="flex min-h-9 w-full items-center gap-0.5">
               <button
                 type="button"
-                class="chat-calendar__title -ml-2 flex cursor-pointer items-center gap-1 rounded-row px-2 py-1 text-msg font-medium whitespace-nowrap text-info hover:bg-hover"
+                class="chat-calendar__title -ml-2 flex cursor-pointer items-center gap-1 rounded-base px-2 py-1 text-lg font-medium whitespace-nowrap text-accent hover:bg-tertiary"
                 aria-expanded={picking()}
                 onClick={() => setPicking((was) => !was)}
               >
@@ -64,7 +64,7 @@ export default function DateCalendar(props: {
               <div class="ml-auto flex items-center gap-0.5">
                 <button
                   type="button"
-                  class="grid size-7 cursor-pointer place-items-center rounded-full text-fg2 hover:bg-hover hover:text-fg"
+                  class="grid size-7 cursor-pointer place-items-center rounded-full text-secondary hover:bg-tertiary hover:text-primary"
                   aria-label={picking() ? "Previous year" : "Previous month"}
                   onClick={() => calendar.navigate(picking() ? "prev-year" : "prev-month")}
                 >
@@ -72,7 +72,7 @@ export default function DateCalendar(props: {
                 </button>
                 <button
                   type="button"
-                  class="grid size-7 cursor-pointer place-items-center rounded-full text-fg2 hover:bg-hover hover:text-fg"
+                  class="grid size-7 cursor-pointer place-items-center rounded-full text-secondary hover:bg-tertiary hover:text-primary"
                   aria-label={picking() ? "Next year" : "Next month"}
                   onClick={() => calendar.navigate(picking() ? "next-year" : "next-month")}
                 >
@@ -89,10 +89,10 @@ export default function DateCalendar(props: {
                       <button
                         type="button"
                         class={cn(
-                          "cursor-pointer rounded-row py-2 text-label",
-                          "hover:bg-[oklch(from_var(--fg)_l_c_h_/_6%)]",
-                          "aria-current:bg-[oklch(from_var(--info)_l_c_h_/_22%)]",
-                          "aria-current:font-bold aria-current:text-info",
+                          "cursor-pointer rounded-base py-2 text-sm",
+                          "hover:bg-[oklch(from_var(--text-primary)_l_c_h_/_6%)]",
+                          "aria-current:bg-[oklch(from_var(--text-accent)_l_c_h_/_22%)]",
+                          "aria-current:font-bold aria-current:text-accent",
                         )}
                         aria-current={day().getMonth() === calendar.month.getMonth() ? "true" : undefined}
                         onClick={() => {
@@ -112,7 +112,7 @@ export default function DateCalendar(props: {
                   <tr>
                     <Index each={calendar.weekdays}>
                       {(day) => (
-                        <Calendar.HeadCell class="h-7 text-center text-label font-medium text-fg2" scope="col">
+                        <Calendar.HeadCell class="h-7 text-center text-sm font-medium text-secondary" scope="col">
                           {WEEKDAY_SHORT.format(day()).slice(0, 2)}
                         </Calendar.HeadCell>
                       )}
@@ -130,12 +130,12 @@ export default function DateCalendar(props: {
                                 class={cn(
                                   "chat-calendar__day mx-auto grid size-9 place-items-center rounded-full p-0",
                                   "cursor-pointer",
-                                  "not-data-disabled:hover:bg-[oklch(from_var(--fg)_l_c_h_/_6%)]",
+                                  "not-data-disabled:hover:bg-[oklch(from_var(--text-primary)_l_c_h_/_6%)]",
                                   "active:not-data-disabled:scale-[0.92]",
-                                  "data-disabled:text-fg2 data-disabled:opacity-45",
-                                  "data-[today]:font-bold data-[today]:text-info",
-                                  "data-selected:font-bold data-selected:text-info",
-                                  "data-selected:bg-[oklch(from_var(--info)_l_c_h_/_22%)]",
+                                  "data-disabled:text-secondary data-disabled:opacity-45",
+                                  "data-[today]:font-bold data-[today]:text-accent",
+                                  "data-selected:font-bold data-selected:text-accent",
+                                  "data-selected:bg-[oklch(from_var(--text-accent)_l_c_h_/_22%)]",
                                 )}
                                 day={day()}
                               >

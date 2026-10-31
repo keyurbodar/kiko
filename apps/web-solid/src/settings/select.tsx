@@ -151,7 +151,7 @@ export function Select<T>(props: {
             active={open()}
             onDismiss={close}
             excludedElements={() => [trigger]}
-            class="motion-popover-in bg-[var(--popover)] pointer-events-auto fixed z-[80] flex max-w-[min(320px,calc(100vw-16px))] origin-top items-start overflow-y-auto rounded-control p-1 shadow-[var(--edge),var(--shadow-pop)]"
+            class="motion-popover-in bg-[var(--bg-elevated)] pointer-events-auto fixed z-[80] flex max-w-[min(320px,calc(100vw-16px))] origin-top items-start overflow-y-auto rounded-base p-1 shadow-[var(--hairline),var(--box-shadow-popup)]"
             style={place()}
             onKeyDown={onPanelKey}
             data-kb-top-layer=""
@@ -180,15 +180,15 @@ export function Select<T>(props: {
                       id={`${id}-${i()}`}
                       role="option"
                       aria-selected={selected()}
-                      class="flex min-h-7 min-w-0 cursor-pointer items-center gap-2 rounded-micro px-2 py-1 text-ui text-fg"
-                      classList={{ "bg-fill-hover": active() === i() }}
+                      class="flex min-h-7 min-w-0 cursor-pointer items-center gap-2 rounded-sm px-2 py-1 text-base text-primary"
+                      classList={{ "bg-quaternary": active() === i() }}
                       data-option={String(option.value)}
                       onPointerMove={() => setActive(i())}
                       onClick={() => pick(option.value)}
                     >
                       <span class="grid size-4 shrink-0 place-items-center" aria-hidden="true">
                         <Show when={selected()}>
-                          <span class="size-2 rounded-full bg-fg" />
+                          <span class="size-2 rounded-full bg-neutral" />
                         </Show>
                       </span>
                       <Show when={option.icon}>{option.icon}</Show>

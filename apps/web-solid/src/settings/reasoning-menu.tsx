@@ -59,7 +59,7 @@ export function ReasoningMenu(props: {
       <MenuV2 gutter={8} placement={props.placement ?? "top-start"}>
         <MenuV2.Trigger
           class={cn(
-            "reasoning-trigger flex h-7 shrink-0 items-center gap-1.5 rounded-control px-2 text-label text-fg2 hover:bg-hover hover:text-fg aria-expanded:bg-hover aria-expanded:text-fg",
+            "reasoning-trigger flex h-7 shrink-0 items-center gap-1.5 rounded-base px-2 text-sm text-secondary hover:bg-tertiary hover:text-primary aria-expanded:bg-tertiary aria-expanded:text-primary",
             props.class,
           )}
           aria-label="Reasoning"

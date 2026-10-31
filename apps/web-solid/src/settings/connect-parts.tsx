@@ -9,7 +9,7 @@ export function BrandTile(props: { children: JSX.Element; size?: "row" | "head" 
   return (
     <span
       class={cn(
-        "grid shrink-0 place-items-center overflow-hidden rounded-tile bg-[var(--raise)] text-[var(--fg2)]",
+        "grid shrink-0 place-items-center overflow-hidden rounded-xl bg-[var(--bg-elevated)] text-[var(--text-secondary)]",
         props.size === "head" ? "size-10" : "size-8",
       )}
       aria-hidden="true"
@@ -23,17 +23,17 @@ export function ConnectHead(props: { icon: JSX.Element; hint?: JSX.Element }): J
   return (
     <div class="flex items-center gap-3 pb-1" data-component="connect-head">
       <BrandTile size="head">{props.icon}</BrandTile>
-      <Show when={props.hint}>{(hint) => <p class="min-w-0 type-label text-[var(--fg3)]">{hint()}</p>}</Show>
+      <Show when={props.hint}>{(hint) => <p class="min-w-0 type-sm text-[var(--text-tertiary)]">{hint()}</p>}</Show>
     </div>
   )
 }
 
 export function OrDivider(props: { children: JSX.Element }): JSX.Element {
   return (
-    <div class="flex items-center gap-3 type-hint text-[var(--fg4)]" role="separator">
-      <span class="h-px flex-1 bg-line2" />
+    <div class="flex items-center gap-3 type-xs text-[var(--text-quaternary)]" role="separator">
+      <span class="h-px flex-1 bg-secondary" />
       {props.children}
-      <span class="h-px flex-1 bg-line2" />
+      <span class="h-px flex-1 bg-secondary" />
     </div>
   )
 }
@@ -41,7 +41,7 @@ export function OrDivider(props: { children: JSX.Element }): JSX.Element {
 export function KeyLink(props: { href: string; children?: JSX.Element }): JSX.Element {
   return (
     <a
-      class="link-grow inline-flex w-fit items-center gap-1 type-label text-fg2 hover:text-fg"
+      class="link-grow inline-flex w-fit items-center gap-1 type-sm text-secondary hover:text-primary"
       href={props.href}
       target="_blank"
       rel="noreferrer"
@@ -66,7 +66,7 @@ export function SecretInput(props: {
   const [shown, setShown] = createSignal(false)
   return (
     <div class="flex flex-col gap-1.5">
-      <label class="type-label text-[var(--fg3)]" for={props.id}>
+      <label class="type-sm text-[var(--text-tertiary)]" for={props.id}>
         {props.label}
       </label>
       <div class="relative flex items-center">
@@ -85,7 +85,7 @@ export function SecretInput(props: {
         />
         <button
           type="button"
-          class="absolute right-1 grid size-7 cursor-pointer place-items-center rounded-control text-[var(--fg3)] transition-colors duration-(--dur-hover) hover:bg-[var(--hover)] hover:text-fg aria-pressed:text-fg"
+          class="absolute right-1 grid size-7 cursor-pointer place-items-center rounded-base text-[var(--text-tertiary)] transition-colors duration-(--duration-fast) hover:bg-[var(--bg-tertiary)] hover:text-primary aria-pressed:text-primary"
           aria-label={shown() ? "Hide key" : "Show key"}
           aria-pressed={shown()}
           onClick={() => setShown(!shown())}
@@ -97,7 +97,7 @@ export function SecretInput(props: {
         {(error) => (
           <p
             id={`${props.id}-error`}
-            class="type-label text-[var(--danger)]"
+            class="type-sm text-[var(--text-danger)]"
             role="alert"
             data-component="connect-error"
           >

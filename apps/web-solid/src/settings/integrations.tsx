@@ -206,7 +206,7 @@ export function AppDetail(props: { id: AppId; api: Integrations }) {
         }
       >
         <div class="flex items-center justify-between gap-3">
-          <span class="type-ui text-ok">Connected</span>
+          <span class="type-base text-success">Connected</span>
           <Button
             variant="danger"
             data-action={`${props.id}-disconnect`}

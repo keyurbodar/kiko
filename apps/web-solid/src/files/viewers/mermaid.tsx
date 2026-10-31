@@ -115,21 +115,21 @@ export default function MermaidViewer(props: { name: string; src: string; size: 
 
   return (
     <div class="flex min-h-0 flex-1 flex-col" data-component="file-mermaid">
-      <div class="flex h-10 min-h-10 shrink-0 items-center gap-2 border-b border-[var(--border-100)] px-3">
-        <span class="min-w-0 flex-1 truncate text-hint text-fg3">{props.name}</span>
+      <div class="flex h-10 min-h-10 shrink-0 items-center gap-2 border-b border-[var(--stroke-tertiary)] px-3">
+        <span class="min-w-0 flex-1 truncate text-xs text-tertiary">{props.name}</span>
         <Show when={source()}>
           <Tabs value={rendered() ? "diagram" : "source"} onChange={(next: string) => setRendered(next === "diagram")}>
             <Tabs.List class="relative flex gap-1" aria-label="Show diagram as">
               <TabsPill />
               <Tabs.Trigger
                 value="diagram"
-                class="relative z-10 rounded-control px-2.5 py-1 text-hint text-fg2 data-[selected]:text-fg"
+                class="relative z-10 rounded-base px-2.5 py-1 text-xs text-secondary data-[selected]:text-primary"
               >
                 Diagram
               </Tabs.Trigger>
               <Tabs.Trigger
                 value="source"
-                class="relative z-10 rounded-control px-2.5 py-1 text-hint text-fg2 data-[selected]:text-fg"
+                class="relative z-10 rounded-base px-2.5 py-1 text-xs text-secondary data-[selected]:text-primary"
               >
                 Source
               </Tabs.Trigger>
@@ -145,7 +145,7 @@ export default function MermaidViewer(props: { name: string; src: string; size: 
           <SurfaceFailure message={error() ?? "This diagram could not be loaded."} />
         </Match>
         <Match when={!rendered()}>
-          <pre class="min-h-0 flex-1 overflow-auto p-4 font-mono text-hint whitespace-pre-wrap text-fg2">
+          <pre class="min-h-0 flex-1 overflow-auto p-4 font-mono text-xs whitespace-pre-wrap text-secondary">
             {source()}
           </pre>
         </Match>

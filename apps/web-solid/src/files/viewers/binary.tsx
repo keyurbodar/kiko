@@ -34,7 +34,7 @@ function HexView(props: { bytes: Uint8Array; size: number }): JSX.Element {
       </Show>
       <div
         ref={scroller}
-        class="min-h-0 flex-1 overflow-auto px-3 py-2 font-mono text-hint text-fg2"
+        class="min-h-0 flex-1 overflow-auto px-3 py-2 font-mono text-xs text-secondary"
         role="region"
         aria-label="File bytes"
         onScroll={(event) => setTop(event.currentTarget.scrollTop)}
@@ -49,13 +49,13 @@ function HexView(props: { bytes: Uint8Array; size: number }): JSX.Element {
                     class="flex whitespace-pre"
                     style={{ height: `${HEX_ROW_HEIGHT}px`, "line-height": `${HEX_ROW_HEIGHT}px` }}
                   >
-                    <span class="w-20 shrink-0 text-fg3 select-none" data-hex-offset={row().offset}>
+                    <span class="w-20 shrink-0 text-tertiary select-none" data-hex-offset={row().offset}>
                       {row().offset}
                     </span>
                     <span class="shrink-0" data-hex-bytes>
                       {row().hex}
                     </span>
-                    <span class="ml-4 shrink-0 text-fg3">{row().ascii}</span>
+                    <span class="ml-4 shrink-0 text-tertiary">{row().ascii}</span>
                   </div>
                 )
               }}
@@ -65,7 +65,7 @@ function HexView(props: { bytes: Uint8Array; size: number }): JSX.Element {
       </div>
       <div
         role="status"
-        class="flex h-8 shrink-0 items-center border-t border-[var(--border-100)] px-3 text-hint text-fg3"
+        class="flex h-8 shrink-0 items-center border-t border-[var(--stroke-tertiary)] px-3 text-xs text-tertiary"
       >
         {formatBytes(props.size)}
       </div>
@@ -81,30 +81,30 @@ function ArchiveList(props: { entries: readonly ArchiveEntry[]; size: number; na
   )
   return (
     <div class="flex min-h-0 flex-1 flex-col" data-component="file-archive">
-      <div class="flex h-10 min-h-10 shrink-0 items-center gap-2 border-b border-[var(--border-100)] px-3 text-hint text-fg3">
+      <div class="flex h-10 min-h-10 shrink-0 items-center gap-2 border-b border-[var(--stroke-tertiary)] px-3 text-xs text-tertiary">
         <span class="min-w-0 flex-1 truncate">{props.name}</span>
         <span class="shrink-0">
           {props.entries.length.toLocaleString()} entries, {formatBytes(props.size)}
         </span>
       </div>
       <div class="min-h-0 flex-1 overflow-auto">
-        <table class="w-full border-separate border-spacing-0 text-hint">
-          <thead class="sticky top-0 z-10 bg-panel text-fg3">
+        <table class="w-full border-separate border-spacing-0 text-xs">
+          <thead class="sticky top-0 z-10 bg-editor text-tertiary">
             <tr>
-              <th class="border-b border-[var(--line)] px-3 py-1.5 text-left font-medium">Name</th>
-              <th class="w-24 border-b border-[var(--line)] px-3 py-1.5 text-right font-medium">Size</th>
-              <th class="w-28 border-b border-[var(--line)] px-3 py-1.5 text-right font-medium">Modified</th>
+              <th class="border-b border-[var(--stroke-tertiary)] px-3 py-1.5 text-left font-medium">Name</th>
+              <th class="w-24 border-b border-[var(--stroke-tertiary)] px-3 py-1.5 text-right font-medium">Size</th>
+              <th class="w-28 border-b border-[var(--stroke-tertiary)] px-3 py-1.5 text-right font-medium">Modified</th>
             </tr>
           </thead>
           <tbody>
             <For each={sorted()}>
               {(entry) => (
-                <tr class="even:bg-active">
-                  <td class="max-w-0 truncate px-3 py-1.5 text-fg" title={entry.name}>
+                <tr class="even:bg-secondary">
+                  <td class="max-w-0 truncate px-3 py-1.5 text-primary" title={entry.name}>
                     {entry.name}
                   </td>
-                  <td class="px-3 py-1.5 text-right text-fg3">{formatBytes(entry.size)}</td>
-                  <td class="px-3 py-1.5 text-right text-fg3">
+                  <td class="px-3 py-1.5 text-right text-tertiary">{formatBytes(entry.size)}</td>
+                  <td class="px-3 py-1.5 text-right text-tertiary">
                     {entry.modified ? new Date(entry.modified).toLocaleDateString() : "—"}
                   </td>
                 </tr>

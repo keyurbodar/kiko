@@ -16,33 +16,33 @@
   padding: 4px 8px;
   gap: 6px;
 
-  background: var(--tooltip-bg);
-  border: 1px solid var(--tooltip-edge);
+  background: var(--bg-elevated);
+  border: 1px solid var(--stroke-secondary);
   box-shadow: 0 4px 12px rgb(0 0 0 / 18%);
-  border-radius: var(--radius-tail);
+  border-radius: var(--radius-base);
 
   font-style: normal;
   font-weight: 400;
   font-size: 12px;
   line-height: 16px;
-  color: var(--tooltip-fg);
+  color: var(--text-primary);
   text-wrap: balance;
   overflow-wrap: anywhere;
 
   transform-origin: var(--kb-tooltip-content-transform-origin);
-  animation: tooltip-v2-in 120ms var(--ease-kiko) both;
+  animation: tooltip-v2-in 120ms var(--ease-sharp) both;
 
   user-select: none;
   pointer-events: none;
 }
 
 [data-component="tooltip-v2"][data-closed] {
-  animation: tooltip-v2-out 80ms var(--ease-kiko) both;
+  animation: tooltip-v2-out 80ms var(--ease-sharp) both;
 }
 
 [data-component="tooltip-v2"] [data-component="keybind-v2"] {
   margin-right: -3px;
-  color: var(--tooltip-muted);
+  color: var(--text-tertiary);
 }
 
 [data-component="tooltip-v2"] [data-component="keybind-v2"] [data-slot="keybind-v2-key"] {

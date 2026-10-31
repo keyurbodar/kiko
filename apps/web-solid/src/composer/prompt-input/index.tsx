@@ -454,7 +454,7 @@ function Recipient(props: { recipient: Token; controller: PromptInputV2Interacti
                       data-action="add-someone"
                       onSelect={() => requestAnimationFrame(() => people().onAddingChange(true))}
                     >
-                      <RemixIcon icon={PlusIcon} size={16} class="text-fg2" />
+                      <RemixIcon icon={PlusIcon} size={16} class="text-secondary" />
                       <span class="truncate">Add someone…</span>
                     </MenuV2.Item>
                   </>

@@ -19,7 +19,7 @@ const Glide: Component = () => {
         [...menu.querySelectorAll<HTMLElement>(ITEM)].find(
           (item) => item.closest('[data-component="menu-v2-content"]') === menu,
         ),
-      tone: (item) => (item.matches(".text-bad, .text-error") ? "bad" : undefined),
+      tone: (item) => (item.matches(".text-danger, .text-error") ? "bad" : undefined),
     })
   })
   return <span ref={mark} data-slot="glide" data-hidden="" aria-hidden="true" />

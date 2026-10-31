@@ -1,28 +1,28 @@
 .rp-panel {
-  background: var(--bg);
+  background: var(--bg-chrome);
 }
 
 .rp-tab {
-  color: var(--text-300);
+  color: var(--text-tertiary);
   transition:
-    background-color var(--dur-hover) var(--ease-kiko),
-    color var(--dur-hover) var(--ease-kiko);
+    background-color var(--duration-fast) var(--ease-sharp),
+    color var(--duration-fast) var(--ease-sharp);
 }
 
 @media (hover: hover) and (pointer: fine) {
   .rp-tab:hover {
-    background: var(--fill-hover);
-    color: var(--text-000);
+    background: var(--bg-quaternary);
+    color: var(--text-primary);
   }
 
   .rp-tab-close:hover {
-    background: var(--fill-hover);
+    background: var(--bg-quaternary);
   }
 }
 
 .rp-tab[aria-selected="true"] {
-  background: var(--fill-selected);
-  color: var(--text-000);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
 }
 
 .rp-tab:focus-visible {
@@ -46,11 +46,11 @@
 }
 
 .rp-launch {
-  transition: background-color var(--dur-hover) var(--ease-kiko);
+  transition: background-color var(--duration-fast) var(--ease-sharp);
 }
 
 .rp-launch[data-highlighted] {
-  background: var(--fill);
+  background: var(--bg-tertiary);
 }
 
 .rp-tabs[data-fade~="start"] {
@@ -75,18 +75,18 @@
   height: 28px;
   flex-shrink: 0;
   place-items: center;
-  border-radius: var(--radius-control);
-  color: var(--text-300);
+  border-radius: var(--radius-base);
+  color: var(--text-tertiary);
   transition:
-    background-color var(--dur-hover) var(--ease-kiko),
-    color var(--dur-hover) var(--ease-kiko),
-    scale 120ms var(--ease-kiko);
+    background-color var(--duration-fast) var(--ease-sharp),
+    color var(--duration-fast) var(--ease-sharp),
+    scale 120ms var(--ease-sharp);
 }
 
 @media (hover: hover) and (pointer: fine) {
   .rp-control:hover {
-    background: var(--fill);
-    color: var(--text-000);
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
   }
 }
 
@@ -105,11 +105,11 @@
 }
 
 .rp-host {
-  background: var(--bg);
+  background: var(--bg-chrome);
 }
 
 .rp-host[data-maximized="false"] {
-  border-left: 1px solid var(--border-100);
+  border-left: 1px solid var(--stroke-tertiary);
 }
 
 .rp-resize {
@@ -132,18 +132,18 @@
   translate: -50% 0;
   background: transparent;
   pointer-events: none;
-  transition: background-color 150ms var(--ease-kiko);
+  transition: background-color 150ms var(--ease-sharp);
 }
 
 @media (hover: hover) and (pointer: fine) {
   .rp-resize:hover > span {
-    background: var(--border-300);
+    background: var(--stroke-primary);
   }
 }
 
 .rp-resize:focus-visible > span,
 .rp-host[data-dragging] .rp-resize > span {
-  background: color-mix(in oklab, var(--accent-fill) 60%, transparent);
+  background: color-mix(in oklab, var(--bg-accent) 60%, transparent);
 }
 
 .sidebar-shell .sidecar-overlay[data-mode="sheet"] {
@@ -158,7 +158,7 @@
   }
 
   .rp-host {
-    animation: rp-host-open 160ms var(--ease-kiko) backwards;
+    animation: rp-host-open 160ms var(--ease-sharp) backwards;
   }
 
   @keyframes rp-sheet-in {

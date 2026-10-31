@@ -9,8 +9,8 @@ const item = "h-auto items-start py-2"
 function Choice(props: { title: string; hint: string }) {
   return (
     <span class="flex flex-col gap-0.5 text-left">
-      <span class="type-ui font-medium text-fg">{props.title}</span>
-      <span class="type-label text-fg3">{props.hint}</span>
+      <span class="type-base font-medium text-primary">{props.title}</span>
+      <span class="type-sm text-tertiary">{props.hint}</span>
     </span>
   )
 }

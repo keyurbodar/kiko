@@ -68,7 +68,7 @@ export default function NewAgentDialog() {
       <div class="flex flex-col gap-4">
         <div class="flex items-start gap-4">
           <div class="flex shrink-0 flex-col items-center gap-2">
-            <span class="grid size-24 place-items-center rounded-hero bg-panel" data-part="preview">
+            <span class="grid size-24 place-items-center rounded-composer bg-editor" data-part="preview">
               {face(chosen(), 80)}
             </span>
             <Button variant="ghost" data-action="shuffle-avatar" onClick={shuffle}>
@@ -76,10 +76,10 @@ export default function NewAgentDialog() {
             </Button>
           </div>
           <div class="flex min-w-0 flex-1 flex-col gap-3">
-            <label class="flex flex-col gap-1.5 text-hint text-fg3">
+            <label class="flex flex-col gap-1.5 text-xs text-tertiary">
               Name
               <input
-                class={cn(fieldClass, issues().name && "shadow-[inset_0_0_0_1px_var(--bad)]")}
+                class={cn(fieldClass, issues().name && "shadow-[inset_0_0_0_1px_var(--text-danger)]")}
                 name="name"
                 placeholder="Scout"
                 ref={nameInput}
@@ -90,18 +90,18 @@ export default function NewAgentDialog() {
               />
               <Show when={issues().name}>
                 {(text) => (
-                  <span class="text-bad" data-part="name-problem">
+                  <span class="text-danger" data-part="name-problem">
                     {text()}
                   </span>
                 )}
               </Show>
             </label>
-            <label class="flex flex-col gap-1.5 text-hint text-fg3">
+            <label class="flex flex-col gap-1.5 text-xs text-tertiary">
               Handle
               <span class="flex items-center gap-1">
                 <span aria-hidden="true">@</span>
                 <input
-                  class={cn(fieldClass, "min-w-0 flex-1", issues().handle && "shadow-[inset_0_0_0_1px_var(--bad)]")}
+                  class={cn(fieldClass, "min-w-0 flex-1", issues().handle && "shadow-[inset_0_0_0_1px_var(--text-danger)]")}
                   name="handle"
                   autocomplete="off"
                   spellcheck={false}
@@ -115,7 +115,7 @@ export default function NewAgentDialog() {
               </span>
               <Show when={issues().handle}>
                 {(text) => (
-                  <span class="text-bad" data-part="handle-problem">
+                  <span class="text-danger" data-part="handle-problem">
                     {text()}
                   </span>
                 )}
@@ -131,7 +131,7 @@ export default function NewAgentDialog() {
                 role="radio"
                 aria-checked={chosen() === index()}
                 aria-label={index() === 0 ? "Face from the name" : `Face ${index() + 1}`}
-                class="grid aspect-square place-items-center rounded-pop outline-none transition-[background-color,transform] duration-[var(--dur-hover)] hover:bg-hover active:scale-[0.97] aria-checked:bg-active"
+                class="grid aspect-square place-items-center rounded-xl outline-none transition-[background-color,transform] duration-[var(--duration-fast)] hover:bg-tertiary active:scale-[0.97] aria-checked:bg-secondary"
                 onClick={() => setChosen(index())}
               >
                 {face(index(), 32)}
@@ -139,7 +139,7 @@ export default function NewAgentDialog() {
             )}
           </For>
         </div>
-        <label class="flex flex-col gap-1.5 text-hint text-fg3">
+        <label class="flex flex-col gap-1.5 text-xs text-tertiary">
           What should it do?
           <textarea
             class={cn(fieldClass, "min-h-24 resize-none")}

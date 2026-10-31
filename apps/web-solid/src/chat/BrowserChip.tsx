@@ -3,9 +3,9 @@ import { room } from "../state/room"
 import { browser, handBack, openLive, startBrowser } from "./browser"
 
 const button =
-  "h-7 shrink-0 rounded-control bg-[color-mix(in_oklab,var(--fg)_8%,transparent)] px-3 text-hint font-medium text-fg disabled:opacity-(--opacity-disabled)"
+  "h-7 shrink-0 rounded-base bg-[color-mix(in_oklab,var(--text-primary)_8%,transparent)] px-3 text-xs font-medium text-primary disabled:opacity-(--opacity-disabled)"
 const primary =
-  "h-7 shrink-0 rounded-control bg-[var(--fg)] px-3 text-hint font-medium text-[var(--on-fg)] disabled:opacity-(--opacity-disabled)"
+  "h-7 shrink-0 rounded-base bg-[var(--text-primary)] px-3 text-xs font-medium text-[var(--text-invert)] disabled:opacity-(--opacity-disabled)"
 
 function openAsk(): string | null {
   const messages = room.messages()
@@ -70,14 +70,14 @@ export default function BrowserChip(props: { slugs: readonly string[] }): JSX.El
   return (
     <Show when={mine().length > 0 || browser()?.takeover || ask() !== null}>
       <div
-        class="mx-1.5 mb-1.5 flex items-center gap-3 rounded-row bg-[color-mix(in_oklab,var(--fg)_3%,transparent)] py-1 pr-1 pl-3 text-label text-fg shadow-[inset_0_0_0_1px_color-mix(in_oklab,var(--fg)_10%,transparent)] backdrop-blur-sm"
+        class="mx-1.5 mb-1.5 flex items-center gap-3 rounded-base bg-[color-mix(in_oklab,var(--text-primary)_3%,transparent)] py-1 pr-1 pl-3 text-sm text-primary shadow-[inset_0_0_0_1px_color-mix(in_oklab,var(--text-primary)_10%,transparent)] backdrop-blur-sm"
         role="status"
         data-component="browser-chip"
         data-state={browser()?.switching ? "switching" : browser()?.takeover ? "takeover" : "idle"}
       >
         <span class="font-medium">Browser</span>
         <span
-          class="min-w-0 flex-1 truncate text-[color-mix(in_oklab,var(--fg)_60%,transparent)]"
+          class="min-w-0 flex-1 truncate text-[color-mix(in_oklab,var(--text-primary)_60%,transparent)]"
           data-field="browser-label"
         >
           {label()}

@@ -12,7 +12,7 @@ export function identityLook(seed: string): IdentityLook {
 }
 
 function inkColor(seed: string): string {
-  if (seed === KIKO) return "var(--info)"
+  if (seed === KIKO) return "var(--text-accent)"
   const grain = FLAVOURS[resolve(seed, pinsFor(seed)).flavour].grain
   return `light-dark(color-mix(in oklch, ${grain}, #000 45%), color-mix(in oklch, ${grain}, #fff 30%))`
 }

@@ -65,7 +65,7 @@ export function TopBar(props: { chatId: string | null; sidebarOpen: boolean; onT
           {(id) => <ChatAvatar faces={room.chatFaces(id)} size={22} />}
         </Show>
         <h1
-          class="min-w-0 shrink truncate font-sans text-[15px] leading-[19px] font-semibold text-[var(--text-100)]"
+          class="min-w-0 shrink truncate font-sans text-[15px] leading-[19px] font-semibold text-[var(--text-primary)]"
           data-component="top-bar-title"
         >
           {title()}
@@ -73,7 +73,7 @@ export function TopBar(props: { chatId: string | null; sidebarOpen: boolean; onT
         <Show when={chatId()}>
           <Show when={live()} fallback={<span class="hidden">{roster()}</span>}>
             {(text) => (
-              <span class="top-bar-sub chat-shimmer truncate text-label" data-component="top-bar-status">
+              <span class="top-bar-sub chat-shimmer truncate text-sm" data-component="top-bar-status">
                 {text()}
               </span>
             )}
@@ -82,7 +82,7 @@ export function TopBar(props: { chatId: string | null; sidebarOpen: boolean; onT
         <Show when={offline()}>
           {(message) => (
             <span
-              class={`min-w-0 truncate text-label ${long() ? "text-fg3" : "chat-shimmer"}`}
+              class={`min-w-0 truncate text-sm ${long() ? "text-tertiary" : "chat-shimmer"}`}
               role="status"
               data-component="connection-status"
             >

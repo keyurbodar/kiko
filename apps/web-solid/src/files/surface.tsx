@@ -170,7 +170,7 @@ export function FileWorkspace(props: {
         <FileBody chatId={props.chatId} path={props.path} file={props.file} kind={props.kind} view={props.view} />
         <Show when={aboutOpen()}>
           <aside
-            class="max-h-[36%] shrink-0 overflow-y-auto bg-side @min-[680px]/file:max-h-none @min-[680px]/file:w-[260px]"
+            class="max-h-[36%] shrink-0 overflow-y-auto bg-sidebar @min-[680px]/file:max-h-none @min-[680px]/file:w-[260px]"
             data-component="file-about-panel"
           >
             <FileAbout chatId={props.chatId} path={props.path} file={props.file} />

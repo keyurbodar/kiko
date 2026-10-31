@@ -4,8 +4,8 @@
 
 .page-tabs[data-settled] .page-tabs-pill {
   transition:
-    transform var(--dur-pop) var(--ease-kiko),
-    width var(--dur-pop) var(--ease-kiko);
+    transform var(--duration-normal) var(--ease-sharp),
+    width var(--duration-normal) var(--ease-sharp);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -15,11 +15,11 @@
 }
 
 .page-card {
-  box-shadow: var(--card-shadow);
+  box-shadow: none;
 }
 
 .page-swap {
-  animation: page-swap 160ms var(--ease-kiko);
+  animation: page-swap 160ms var(--ease-sharp);
 }
 
 @keyframes page-swap {

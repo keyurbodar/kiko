@@ -2,10 +2,10 @@
   width: min(1240px, calc(100vw - 48px));
   height: min(820px, calc(100dvh - 48px));
   overflow: hidden;
-  color: var(--fg);
-  background: var(--bg);
-  border-radius: var(--radius-hero);
-  box-shadow: var(--edge), var(--shadow-float);
+  color: var(--text-primary);
+  background: var(--bg-chrome);
+  border-radius: var(--radius-composer);
+  box-shadow: var(--hairline), var(--box-shadow-dialog);
 }
 
 [data-component="settings"] {
@@ -24,12 +24,12 @@
   padding: 22px 12px 14px;
   overflow-y: auto;
   overscroll-behavior: contain;
-  background: var(--side);
+  background: var(--bg-sidebar);
 }
 
 .settings-title {
   padding: 0 10px 14px;
-  color: var(--fg);
+  color: var(--text-primary);
   font-family: var(--font-family-sans);
   font-size: 18px;
   font-weight: 600;
@@ -38,7 +38,7 @@
 
 .settings-nav-heading {
   padding: 16px 10px 6px;
-  color: var(--fg3);
+  color: var(--text-tertiary);
   font-size: 12.5px;
 }
 
@@ -48,35 +48,35 @@
   gap: 8px;
   margin-top: auto;
   padding: 12px 10px 0;
-  color: var(--fg3);
+  color: var(--text-tertiary);
   font-size: 12px;
   line-height: 16px;
 }
 
 .settings-nav-foot [data-field="app-version"] {
-  color: var(--fg4);
+  color: var(--text-quaternary);
 }
 
 .settings-status-dot {
   width: 6px;
   height: 6px;
   flex-shrink: 0;
-  background: var(--ok);
+  background: var(--text-success);
   border-radius: 3px;
-  transition: background-color var(--dur-pop) var(--ease-out);
+  transition: background-color var(--duration-normal) var(--ease-sharp);
 }
 
 [data-health="waiting"] > .settings-status-dot {
-  background: var(--fg4);
+  background: var(--text-quaternary);
 }
 
 [data-health="unreachable"] > .settings-status-dot {
-  background: var(--bad);
+  background: var(--text-danger);
 }
 
 @media (prefers-reduced-motion: no-preference) {
   [data-health="waiting"] > .settings-status-dot {
-    animation: settings-dot-breathe var(--dur-shimmer) var(--ease-out) infinite;
+    animation: settings-dot-breathe var(--duration-2s) var(--ease-sharp) infinite;
   }
 }
 
@@ -109,38 +109,38 @@
   align-items: center;
   gap: 11px;
   padding: 0 10px;
-  color: var(--fg2);
+  color: var(--text-secondary);
   font-size: 14px;
-  border-radius: var(--radius-control);
+  border-radius: var(--radius-base);
   position: relative;
   z-index: 1;
   cursor: pointer;
   transition:
-    background var(--dur-hover) var(--ease-out),
-    color var(--dur-hover) var(--ease-out),
-    transform var(--dur-press) var(--ease-out);
+    background var(--duration-fast) var(--ease-sharp),
+    color var(--duration-fast) var(--ease-sharp),
+    transform var(--duration-fast) var(--ease-sharp);
 }
 
 .settings-nav-row:active {
   transform: scale(0.98);
-  transition-duration: var(--dur-hover), var(--dur-hover), 80ms;
+  transition-duration: var(--duration-fast), var(--duration-fast), 80ms;
 }
 
 @media (hover: hover) and (pointer: fine) {
   .settings-nav-row:hover {
-    color: var(--fg);
-    background: var(--hover);
+    color: var(--text-primary);
+    background: var(--bg-tertiary);
   }
 }
 
 .settings-nav-row[aria-current="page"] {
-  color: var(--fg);
-  background: var(--active);
+  color: var(--text-primary);
+  background: var(--bg-secondary);
 }
 
 .settings-nav-glide {
-  background: var(--active);
-  border-radius: var(--radius-control);
+  background: var(--bg-secondary);
+  border-radius: var(--radius-base);
 }
 
 @media (width >= 768px) {
@@ -158,9 +158,9 @@
 @media (prefers-reduced-motion: no-preference) {
   .settings-nav-glide:not([data-jump]) {
     transition:
-      transform var(--dur-pop) var(--ease-snap),
-      width var(--dur-pop) var(--ease-snap),
-      height var(--dur-pop) var(--ease-snap),
+      transform var(--duration-normal) var(--ease-drawer),
+      width var(--duration-normal) var(--ease-drawer),
+      height var(--duration-normal) var(--ease-drawer),
       opacity 80ms linear;
   }
 }
@@ -185,7 +185,7 @@
 
 .settings-nav-empty {
   padding: 24px 8px;
-  color: var(--fg4);
+  color: var(--text-quaternary);
   text-align: center;
 }
 
@@ -204,7 +204,7 @@
     width: auto;
     flex: 1;
     padding: 56px 16px 16px;
-    background: var(--bg);
+    background: var(--bg-chrome);
   }
 
   [data-view="page"] > .settings-nav,
@@ -214,8 +214,8 @@
 
   .settings-title {
     padding: 0 4px 16px;
-    font-size: var(--type-page);
-    line-height: var(--type-page-line);
+    font-size: var(--font-size-3xl);
+    line-height: var(--line-height-3xl);
   }
 
   .settings-search {
@@ -224,11 +224,11 @@
 
   .settings-nav-heading {
     display: flex;
-    height: var(--spacing-section-label);
+    height: var(--spacing-sidebar-group-label);
     align-items: center;
     padding: 12px 4px 0;
-    color: var(--fg3);
-    font-size: var(--type-label);
+    color: var(--text-tertiary);
+    font-size: var(--font-size-sm);
   }
 
   .settings-nav-group {
@@ -236,29 +236,29 @@
   }
 
   .settings-nav-row {
-    height: var(--spacing-chat-row);
+    height: var(--spacing-sidebar-row-tall);
     gap: 14px;
     padding: 0 12px;
-    color: var(--fg);
-    font-size: var(--type-ui);
-    border-radius: var(--radius-row);
+    color: var(--text-primary);
+    font-size: var(--font-size-base);
+    border-radius: var(--radius-base);
   }
 
   .settings-nav-row > svg:first-child {
     width: 18px;
     height: 18px;
-    color: var(--fg2);
+    color: var(--text-secondary);
   }
 
   .settings-nav-row:active,
   .settings-nav-row[aria-current="page"] {
-    background: var(--hover);
+    background: var(--bg-tertiary);
   }
 
   .settings-nav-chevron {
     display: block;
     flex-shrink: 0;
-    color: var(--fg4);
+    color: var(--text-quaternary);
   }
 
   .settings-nav-foot {
@@ -276,20 +276,20 @@
     gap: 4px;
     margin: 0 0 4px -4px;
     padding: 2px 4px;
-    color: var(--fg3);
+    color: var(--text-tertiary);
     font-size: 13px;
     line-height: 20px;
-    border-radius: var(--radius-row);
+    border-radius: var(--radius-base);
     cursor: pointer;
-    transition: color var(--dur-hover) var(--ease-kiko);
+    transition: color var(--duration-fast) var(--ease-sharp);
   }
 
   .settings-back:active {
-    color: var(--fg);
+    color: var(--text-primary);
   }
 
   .settings-page.motion-page-in {
-    animation: settings-push var(--dur-step) var(--ease-kiko) backwards;
+    animation: settings-push var(--duration-slower) var(--ease-sharp) backwards;
   }
 
   .settings-close {

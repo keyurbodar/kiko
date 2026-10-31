@@ -35,12 +35,12 @@ export default function FileDialog(props: {
       <ModalV2.Portal>
         <ModalV2.Overlay />
         <ModalV2.Content
-          class="h-[88vh] w-[min(64rem,92vw)] flex-col overflow-hidden rounded-hero bg-bg shadow-2xl"
+          class="h-[88vh] w-[min(64rem,92vw)] flex-col overflow-hidden rounded-composer bg-chrome shadow-2xl"
           data-component="file-dialog"
         >
           <div class={`${SUBHEADER} h-11 min-h-11`}>
             <FileIcon node={{ path: props.path, type: "file" }} class="size-5" />
-            <ModalV2.Title class="min-w-0 flex-1 truncate text-label font-medium text-fg">
+            <ModalV2.Title class="min-w-0 flex-1 truncate text-sm font-medium text-primary">
               {fileName(props.path)}
             </ModalV2.Title>
             <Show when={props.file} keyed>
@@ -51,7 +51,7 @@ export default function FileDialog(props: {
             <ModalV2.Close
               aria-label="Close full size file"
               data-action="close-file-dialog"
-              class="grid size-7 shrink-0 place-items-center rounded-control text-fg2 transition-colors duration-(--dur-hover) hover:bg-hover hover:text-fg"
+              class="grid size-7 shrink-0 place-items-center rounded-base text-secondary transition-colors duration-(--duration-fast) hover:bg-tertiary hover:text-primary"
             >
               <RemixIcon icon={CloseIcon} size={16} />
             </ModalV2.Close>

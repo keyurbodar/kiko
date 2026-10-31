@@ -63,7 +63,7 @@ export function ModelSheet(props: {
             <span class="model-sheet-handle" />
           </div>
           <div class="model-sheet-head">
-            <h2 class="type-row text-fg">Model</h2>
+            <h2 class="type-base text-primary">Model</h2>
             <button
               type="button"
               class="model-sheet-done"

@@ -20,14 +20,14 @@ const LABEL: Record<Status, string> = {
 }
 
 const PILL: Record<Status, string> = {
-  action: "bg-[color-mix(in_oklab,var(--warn)_18%,transparent)] text-warn",
-  working: "bg-[color-mix(in_oklab,var(--warn)_18%,transparent)] text-warn",
-  done: "bg-[color-mix(in_oklab,var(--ok)_16%,transparent)] text-ok",
-  offline: "bg-[color-mix(in_oklab,var(--fg)_8%,transparent)] text-fg2",
+  action: "bg-[color-mix(in_oklab,var(--text-warning)_18%,transparent)] text-warning",
+  working: "bg-[color-mix(in_oklab,var(--text-warning)_18%,transparent)] text-warning",
+  done: "bg-[color-mix(in_oklab,var(--text-success)_16%,transparent)] text-success",
+  offline: "bg-[color-mix(in_oklab,var(--text-primary)_8%,transparent)] text-secondary",
 }
 
 const button =
-  "h-9 shrink-0 cursor-pointer rounded-full px-4 text-ui font-medium whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-(--opacity-disabled)"
+  "h-9 shrink-0 cursor-pointer rounded-full px-4 text-base font-medium whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-(--opacity-disabled)"
 
 function Dot(): JSX.Element {
   return <span class="size-1.5 rounded-full bg-current" aria-hidden="true" />
@@ -68,9 +68,9 @@ export default function ComputerCard(props: { message: ChatMessage }): JSX.Eleme
       <Bubble variant="secondary" class="w-full max-w-[min(100%,30rem)]">
         <BubbleContent class="flex flex-col gap-2.5 p-3.5">
           <div class="flex items-center justify-between gap-3">
-            <span class="text-ui font-semibold">Computer</span>
+            <span class="text-base font-semibold">Computer</span>
             <span
-              class={cn("inline-flex h-7 items-center gap-1.5 rounded-full px-2.5 text-ui", PILL[status()])}
+              class={cn("inline-flex h-7 items-center gap-1.5 rounded-full px-2.5 text-base", PILL[status()])}
               data-field="status"
             >
               <Show when={open()} fallback={<Dot />}>
@@ -79,13 +79,13 @@ export default function ComputerCard(props: { message: ChatMessage }): JSX.Eleme
               {LABEL[status()]}
             </span>
           </div>
-          <p class="text-msg leading-snug" data-field="reason">
+          <p class="text-lg leading-snug" data-field="reason">
             {event().reason}
           </p>
           <Show when={watching()}>
             <button
               type="button"
-              class="relative block w-full cursor-pointer overflow-hidden rounded-pop bg-black/60 outline-none"
+              class="relative block w-full cursor-pointer overflow-hidden rounded-xl bg-black/60 outline-none"
               style={{ "aspect-ratio": String(ratio()) }}
               aria-label="Open the screen"
               data-action="computer-open"
@@ -99,14 +99,14 @@ export default function ComputerCard(props: { message: ChatMessage }): JSX.Eleme
               <Show
                 when={status() === "action"}
                 fallback={
-                  <button type="button" class={cn(button, "bg-bg text-fg")} onClick={() => openViewer(event().pc)}>
+                  <button type="button" class={cn(button, "bg-chrome text-primary")} onClick={() => openViewer(event().pc)}>
                     Open
                   </button>
                 }
               >
                 <button
                   type="button"
-                  class={cn(button, "bg-fg text-bg")}
+                  class={cn(button, "bg-neutral text-invert")}
                   data-action="computer-takeover"
                   disabled={!computer()?.online || computer()?.caps.input === false}
                   onClick={() => void takeOver(event().pc)}
@@ -116,14 +116,14 @@ export default function ComputerCard(props: { message: ChatMessage }): JSX.Eleme
               </Show>
               <button
                 type="button"
-                class={cn(button, "bg-[color-mix(in_oklab,var(--fg)_10%,transparent)] text-fg")}
+                class={cn(button, "bg-[color-mix(in_oklab,var(--text-primary)_10%,transparent)] text-primary")}
                 data-action="computer-done"
                 onClick={() => void release(event().pc)}
               >
                 I’m done
               </button>
               <Show when={status() === "working"}>
-                <span class="text-label text-fg2">{agentName()} is paused while you work.</span>
+                <span class="text-sm text-secondary">{agentName()} is paused while you work.</span>
               </Show>
             </div>
           </Show>

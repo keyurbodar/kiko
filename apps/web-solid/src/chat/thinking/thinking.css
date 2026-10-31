@@ -1,5 +1,5 @@
 .thinking {
-  --run-text: var(--fg2);
+  --run-text: var(--text-secondary);
   display: flex;
   min-width: 0;
   max-width: 100%;
@@ -14,8 +14,8 @@
   max-width: 100%;
   align-items: center;
   gap: 8px;
-  color: var(--fg2);
-  font-size: var(--type-ui);
+  color: var(--text-secondary);
+  font-size: var(--font-size-base);
   line-height: 22px;
 }
 
@@ -23,7 +23,7 @@
   display: block;
   min-width: 0;
   overflow: hidden;
-  color: var(--fg2);
+  color: var(--text-secondary);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -47,13 +47,13 @@
 .thought-head {
   cursor: pointer;
   user-select: none;
-  transition: color var(--dur-hover) var(--ease-kiko);
+  transition: color var(--duration-fast) var(--ease-sharp);
 }
 
 .thinking-time,
 .thinking-chevron {
   flex: none;
-  color: var(--fg4);
+  color: var(--text-quaternary);
 }
 .thinking-chevron[data-open] {
   transform: rotate(90deg);
@@ -69,10 +69,10 @@
   padding: 2px 0 2px 18px;
   overflow-y: auto;
   overflow-x: hidden;
-  border-left: 1px solid var(--line);
+  border-left: 1px solid var(--stroke-tertiary);
   scrollbar-width: thin;
-  color: var(--fg3);
-  font-size: var(--type-ui);
+  color: var(--text-tertiary);
+  font-size: var(--font-size-base);
   line-height: 22px;
   overflow-wrap: anywhere;
   user-select: text;
@@ -102,40 +102,40 @@
   align-items: center;
   gap: 9px;
   min-height: 30px;
-  color: var(--text-300);
-  font-size: var(--type-ui);
+  color: var(--text-tertiary);
+  font-size: var(--font-size-base);
   line-height: 20px;
 }
 
 .thinking-toggle:focus-visible,
 .thought-head:focus-visible {
-  border-radius: var(--radius-tail);
+  border-radius: var(--radius-base);
 }
 
 @media (hover: hover) and (pointer: fine) {
   .thinking-toggle:hover,
   .thought-head:hover {
-    color: var(--fg);
+    color: var(--text-primary);
   }
   .thinking-toggle:hover .thinking-chevron,
   .thought-head:hover .thinking-chevron {
-    color: var(--fg2);
+    color: var(--text-secondary);
   }
 }
 
 @media (prefers-reduced-motion: no-preference) {
   .thinking-live {
-    animation: thinking-slide 160ms var(--ease-kiko) backwards;
+    animation: thinking-slide 160ms var(--ease-sharp) backwards;
   }
   .thinking-live.motion-shine {
     animation:
-      thinking-slide 160ms var(--ease-kiko) backwards,
-      motion-shine var(--dur-shimmer) steps(30) infinite;
+      thinking-slide 160ms var(--ease-sharp) backwards,
+      motion-shine var(--duration-2s) steps(30) infinite;
     animation-play-state: running, var(--visible-animation-state, paused);
   }
   .thinking-leaving {
     visibility: visible;
-    animation: thinking-leave 160ms var(--ease-kiko) forwards;
+    animation: thinking-leave 160ms var(--ease-sharp) forwards;
   }
 }
 

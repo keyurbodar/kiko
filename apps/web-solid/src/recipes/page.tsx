@@ -25,14 +25,14 @@ import {
 import { RecipeTile } from "./tile"
 
 const tagTab =
-  "type-label h-chip shrink-0 cursor-pointer rounded-full px-3 text-fg3 transition-colors duration-(--dur-hover) hover:bg-hover hover:text-fg aria-selected:bg-active aria-selected:text-fg"
+  "type-sm h-control-lg shrink-0 cursor-pointer rounded-full px-3 text-tertiary transition-colors duration-(--duration-fast) hover:bg-tertiary hover:text-primary aria-selected:bg-secondary aria-selected:text-primary"
 const grid = "grid grid-cols-1 gap-x-4 gap-y-1 @min-[640px]/page:grid-cols-2"
 
 function Empty(props: { title: string; children?: JSX.Element }) {
   return (
     <div class="flex flex-col items-center gap-2 px-6 py-14 text-center" data-component="recipes-no-match">
       <EmptyArt name="search" />
-      <p class="type-ui text-fg2">{props.title}</p>
+      <p class="type-base text-secondary">{props.title}</p>
       {props.children}
     </div>
   )
@@ -100,13 +100,13 @@ export default function RecipesPage() {
                     fallback={
                       <Show when={!query()} fallback={<Empty title="Nothing of yours matches" />}>
                         <div
-                          class="flex flex-col items-center gap-4 rounded-card bg-panel px-6 py-10 text-center"
+                          class="flex flex-col items-center gap-4 rounded-xl bg-editor px-6 py-10 text-center"
                           data-component="recipes-empty"
                         >
                           <EmptyArt name="pot" size={140} />
                           <div class="flex flex-col gap-1">
-                            <p class="type-ui text-fg2">No recipes yet</p>
-                            <p class="type-label max-w-[320px] text-fg3">
+                            <p class="type-base text-secondary">No recipes yet</p>
+                            <p class="type-sm max-w-[320px] text-tertiary">
                               Recipes are jobs your team runs on a schedule or when something happens.
                             </p>
                           </div>
@@ -166,10 +166,10 @@ export default function RecipesPage() {
 
                   <Show when={broken().length}>
                     <div
-                      class="flex flex-col gap-1 type-label rounded-card bg-panel px-4 py-3 text-fg3"
+                      class="flex flex-col gap-1 type-sm rounded-xl bg-editor px-4 py-3 text-tertiary"
                       data-component="recipes-broken"
                     >
-                      <p class="font-medium text-fg">Some recipe files did not load</p>
+                      <p class="font-medium text-primary">Some recipe files did not load</p>
                       <For each={broken()}>{(why) => <p>{why}</p>}</For>
                     </div>
                   </Show>
