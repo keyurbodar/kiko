@@ -1,3 +1,5 @@
+@import "../composer-tokens.css";
+
 .composer-dock .composer-input p {
   margin: 0;
 }
@@ -39,46 +41,46 @@
 .composer-dock .composer-input blockquote {
   margin: 0.65rem 0;
   padding-inline-start: 0.8rem;
-  border-inline-start: 2px solid var(--stroke-primary);
+  border-inline-start: 2px solid var(--composer-line-strong);
   color: var(--text-primary);
 }
 
 .composer-dock .composer-input a {
-  margin: 0 -3px;
-  padding: 1px 3px;
-  color: var(--text-link);
+  color: var(--text-accent);
   text-decoration: none;
-  border-radius: var(--radius-sm);
-  box-decoration-break: clone;
-  transition: background-color var(--duration-normal) ease;
 }
 
 .composer-dock .composer-input a:focus-visible {
-  background: var(--bg-quaternary);
+  background-image: radial-gradient(circle, currentcolor 0.75px, transparent 1px);
+  background-position: left bottom;
+  background-repeat: repeat-x;
+  background-size: 4px 2px;
 }
 
 @media (hover: hover) and (pointer: fine) {
   .composer-dock .composer-input a:hover {
-    background: var(--bg-quaternary);
+    background-image: radial-gradient(circle, currentcolor 0.75px, transparent 1px);
+    background-position: left bottom;
+    background-repeat: repeat-x;
+    background-size: 4px 2px;
   }
 }
 
 .composer-dock .composer-input code {
-  padding: 1.5px 2px;
-  background: var(--bg-tertiary);
-  border-radius: 5px;
+  padding: 0.05em 0.25em;
+  background: color-mix(in oklab, var(--text-primary) 12%, transparent);
+  border-radius: 0.3em;
   font-family: var(--font-family-mono);
-  font-size: var(--font-size-code);
+  font-size: 0.92em;
 }
 
 .composer-dock .composer-input pre {
   margin: 0;
-  padding: 8px 12px;
-  background: var(--bg-tertiary);
-  border-radius: var(--radius-base);
+  padding: 0.5em 0.75em;
+  background: color-mix(in oklab, var(--text-primary) 7%, transparent);
+  border-radius: 8px;
   font-family: var(--font-family-mono);
-  font-size: var(--font-size-code);
-  line-height: var(--line-height-code);
+  font-size: 13px;
   white-space: pre-wrap;
 }
 
@@ -123,7 +125,7 @@
 .composer-dock .composer-input hr {
   margin: 0.65rem 0;
   border: 0;
-  border-top: 1px solid var(--stroke-secondary);
+  border-top: 1px solid var(--composer-line-strong);
 }
 
 .composer-dock .composer-input hr.ProseMirror-selectednode {
@@ -175,7 +177,8 @@
 }
 
 .composer-dock .composer-rich-marker {
-  color: var(--text-quaternary);
+  color: var(--text-tertiary);
+  opacity: 0.75;
   font-weight: 400;
   font-style: normal;
   text-decoration: none;

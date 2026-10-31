@@ -1,3 +1,5 @@
+@import "../composer-tokens.css";
+
 .question-header {
   display: flex;
   align-items: center;
@@ -17,7 +19,7 @@
 .question-body .question-hint {
   margin-top: 4px;
   color: var(--text-tertiary);
-  font-size: var(--font-size-xs);
+  font-size: 11.5px;
   line-height: 16px;
 }
 .question-options {
@@ -41,27 +43,27 @@
   width: 100%;
   align-items: center;
   gap: 8px;
-  border-radius: var(--radius-lg);
-  padding: 6px 6px 6px 10px;
-  background: var(--bg-tertiary);
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: var(--composer-panel);
   text-align: start;
   transition:
-    background var(--duration-fast),
-    transform var(--duration-fast) var(--ease-sharp);
+    background 120ms,
+    transform 120ms var(--composer-ease);
   outline: none;
-  color: var(--text-primary);
+  color: color-mix(in srgb, var(--text-primary) 85%, transparent);
   cursor: pointer;
 }
 @media (hover: hover) and (pointer: fine) {
   .question-option:hover {
-    background: var(--bg-secondary);
+    background: var(--composer-hover);
   }
 }
 .question-option:active {
-  transform: scale(var(--press-scale));
+  transform: scale(0.99);
 }
 .question-option[data-pressed] {
-  background: var(--bg-active);
+  background: var(--composer-active);
   color: var(--text-primary);
 }
 .question-option-copy {
@@ -70,34 +72,30 @@
   min-width: 0;
   flex-direction: column;
   gap: 2px;
-  font-size: var(--font-size-base);
-  line-height: var(--line-height-base);
-  font-weight: 400;
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 500;
 }
 .question-option-copy .question-description {
   color: var(--text-tertiary);
-  font-size: var(--font-size-xs);
+  font-size: 11.5px;
   line-height: 16px;
   font-weight: 400;
 }
 .question-option kbd {
-  display: inline-flex;
-  min-width: 18px;
-  height: 18px;
+  display: flex;
+  width: 20px;
+  height: 20px;
   flex: none;
   align-items: center;
   justify-content: center;
-  padding-inline: 5px;
-  color: var(--text-secondary);
-  background: var(--bg-quaternary);
-  border-radius: 3px;
-  font-family: inherit;
-  font-size: var(--font-size-sm);
-  line-height: var(--line-height-sm);
+  color: var(--text-tertiary);
+  font-size: 13px;
+  font-weight: 500;
 }
 .question-check {
-  width: 14px;
-  height: 14px;
+  width: 16px;
+  height: 16px;
   flex: none;
   color: var(--text-primary);
 }
@@ -136,8 +134,8 @@
   .question-previous {
     display: grid;
     place-items: center;
-    width: 28px;
-    height: 28px;
+    width: 32px;
+    height: 32px;
     padding: 0;
   }
 }
@@ -146,30 +144,29 @@
   display: flex;
   align-items: center;
   justify-content: end;
-  gap: 4px;
-  padding: 8px 0 0;
+  gap: 6px;
+  padding: 10px 4px 4px 0;
 }
 .question-submit,
 .question-previous {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  height: 28px;
-  gap: 6px;
-  padding: 0 10px;
-  border-radius: var(--radius-lg);
+  height: 32px;
+  gap: 4px;
+  padding: 0 14px;
+  border-radius: 8px;
   transition:
-    color var(--duration-fast) ease,
-    background-color var(--duration-fast) ease,
-    transform var(--duration-instant) var(--ease-sharp);
-  font-size: var(--font-size-base);
-  line-height: var(--line-height-base);
+    background 120ms,
+    opacity 120ms,
+    transform 120ms var(--composer-ease);
+  font-size: 12.5px;
+  font-weight: 500;
   cursor: pointer;
 }
 .question-submit {
-  color: var(--text-invert);
-  background: var(--bg-neutral);
-  font-weight: 500;
+  color: var(--bg-chrome);
+  background: var(--text-primary);
 }
 .question-previous {
   color: var(--text-secondary);
@@ -181,18 +178,14 @@
 @media (hover: hover) and (pointer: fine) {
   .question-previous:hover {
     color: var(--text-primary);
-    background: var(--bg-quaternary);
-  }
-  .question-submit:hover:not(:disabled) {
-    background: var(--bg-neutral-hover);
+    background: var(--composer-active);
   }
 }
 .question-submit:active:not(:disabled),
 .question-previous:active {
-  transform: scale(var(--press-scale));
+  transform: scale(0.97);
 }
 .question-submit:disabled {
-  color: var(--icon-quaternary);
-  background: var(--bg-tertiary);
+  opacity: 0.4;
   pointer-events: none;
 }

@@ -33,10 +33,10 @@ function tailRun(isRunStart: boolean, isRunEnd: boolean): "start" | "mid" | "bot
   return "mid"
 }
 
-const GROUP_GUTTER = "pl-[calc(1rem+36px)]"
+const GROUP_GUTTER = "pl-[calc(1rem+40px)]"
 
 const FAILED_ACTION =
-  "inline-flex h-control-sm shrink-0 cursor-pointer items-center rounded-base bg-tertiary px-1.5 type-sm text-primary transition-colors hover:bg-secondary active:scale-(--press-scale)"
+  "shrink-0 cursor-pointer rounded-full border border-[color-mix(in_oklab,var(--text-danger)_40%,transparent)] bg-chrome px-2 py-0.5 text-[11.5px] leading-[15px] font-medium text-primary hover:bg-(--bubble-hover)"
 
 export function MessageRow(props: {
   message: ChatMessage
@@ -108,7 +108,7 @@ export function MessageRow(props: {
         <RunAvatar seed={props.message.botId!} runKey={props.runKey ?? props.message.id} isRunEnd={props.isRunEnd} />
       </Show>
       <Show when={named() && !nameInBubble() && !props.jumboClass}>
-        <div class="truncate pb-1 pl-(--bubble-pad-x) type-base text-tertiary" data-component="chat-sender">
+        <div class="truncate pb-1 pl-1 text-[13px] leading-[18px] text-tertiary" data-component="chat-sender">
           {senderName()}
         </div>
       </Show>
@@ -134,7 +134,7 @@ export function MessageRow(props: {
           )}
         >
           <Show when={nameInBubble()}>
-            <div class="truncate pb-1 type-base text-tertiary" data-component="chat-sender">
+            <div class="truncate pb-1 text-[13px] leading-[18px] text-tertiary" data-component="chat-sender">
               {senderName()}
             </div>
           </Show>
@@ -143,7 +143,10 @@ export function MessageRow(props: {
           </Show>
           <Show when={props.message.initiative}>
             {(reason) => (
-              <div class="pb-1 type-base text-tertiary" data-component="noticed">
+              <div
+                class="px-(--bubble-pad-x) pt-1 text-[12.5px] leading-5 text-[color-mix(in_oklab,currentColor_55%,transparent)]"
+                data-component="noticed"
+              >
                 Noticed: {reason()}
               </div>
             )}
@@ -175,9 +178,9 @@ export function MessageRow(props: {
               data-component="chat-send-failed"
               role="alert"
             >
-              <RemixIcon icon={AlertCircleIcon} size={14} class="shrink-0 icon-danger" />
+              <RemixIcon icon={AlertCircleIcon} class="size-4 shrink-0 text-danger" />
               <span
-                class="min-w-0 flex-1 truncate type-sm text-secondary"
+                class="min-w-0 flex-1 truncate text-[11.5px] leading-[15px] font-medium"
                 title={failure() ?? undefined}
                 data-part="reason"
               >
