@@ -95,6 +95,15 @@ export default function Viewer(): JSX.Element {
       { defer: true },
     ),
   )
+  createEffect(
+    on(
+      () => pc()?.online,
+      (online, before) => {
+        if (online === true && before !== true && viewerFor()) void refresh(viewerFor() ?? "")
+      },
+      { defer: true },
+    ),
+  )
 
   const leave = (event: KeyboardEvent) => {
     if (event.key !== "Escape" || event.defaultPrevented || event.shiftKey !== interactive()) return
