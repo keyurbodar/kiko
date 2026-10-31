@@ -1,0 +1,493 @@
+{
+  "t3Version": "0.1.6",
+  "sourceSha": "79f1fadfc6020b820d541ca4691d2feebb15dd1b",
+  "tools": {
+    "html_preview": {
+      "description": "Check an HTML page before html_render. Returns PNG, contentHeight, and console output. If it says the browser is still installing, call again in a minute. Inline <style> and <script>. Local images as absolute paths are inlined. Remote URLs load as-is. Theme and layout rules are in html_render.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "html": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512000,
+            "description": "A complete, self-contained HTML document."
+          },
+          "width": {
+            "type": "integer",
+            "description": "CSS pixels, 240 to 1600. Default 728. Use about 390 for phones."
+          },
+          "appearance": {
+            "type": "string",
+            "enum": ["dark", "light"],
+            "description": "Default dark."
+          }
+        },
+        "required": ["html"]
+      }
+    },
+    "html_render": {
+      "description": "Show a finished HTML page (chart, diagram, mockup) inline in this thread, above your final reply. Do not announce or restate the page. Frame fits height to 20000px. On mobile, content past the given height scrolls. Frame width is reply width (728px desktop, about 360px phones), on the thread background. Leave html, body, and the outer element with no background color, no outer card, border, banner title, or side padding. This wins over any rule that sets a page background. T3 adds an overridable 8px html gutter for selection rings and shadows. Use fluid widths within it. A box that needs its own background gets 16px padding and var(--radius) corners. Give charts fixed pixel heights. Let content set the height. Do not use vh units or height:100% on html or body. Both are rejected or loop. Use theme CSS variables on :root, not fixed colors: --background, --foreground, --muted, --card, --popover, --secondary, --border, --ring, --primary, --accent, --destructive, --warning, --success, --info, --code-background (most have a matching -foreground; accent, destructive, and warning also have -surface), --chart-1 to --chart-6, --radius, --font-sans, --font-mono. The base sheet sets background, text, and font.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "html": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512000,
+            "description": "A complete, self-contained HTML document."
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "height": {
+            "type": "integer",
+            "description": "Frame height in CSS pixels, 80 to 2000. Use the contentHeight from html_preview."
+          }
+        },
+        "required": ["html", "title", "height"]
+      }
+    },
+    "preview_act": {
+      "description": "Act on the chosen tab. Target with `locator='aria-ref=<ref>'` from `preview_snapshot`; `x` and `y` go together. `timeoutMs` defaults to 15000. click: `button`, `clickCount` 1 to 3. type: literal `text`, `clear=true` replaces it. hover: shows menus or tooltips. select: `values` in one native <select>, by value or label; for a custom dropdown, click it open, then click the option. drag: `source` onto `target`. upload: absolute `paths` answer the file picker `preview_status` reports, [] cancels it, or a `locator` sets an <input type=file>. press: one `key`, such as 'Enter', with `modifiers`, to the focused element; click a field first to focus it. scroll: the tab, or one container with a locator; positive `deltaY` scrolls down, positive `deltaX` right.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": ["click", "type", "hover", "select", "drag", "upload", "press", "scroll"]
+          },
+          "tabId": {
+            "type": "string"
+          },
+          "locator": {
+            "type": "string"
+          },
+          "selector": {
+            "type": "string"
+          },
+          "x": {
+            "type": "number"
+          },
+          "y": {
+            "type": "number"
+          },
+          "button": {
+            "type": "string",
+            "enum": ["left", "right", "middle"]
+          },
+          "clickCount": {
+            "type": "integer"
+          },
+          "text": {
+            "type": "string"
+          },
+          "clear": {
+            "type": "boolean"
+          },
+          "values": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "source": {
+            "type": "string"
+          },
+          "target": {
+            "type": "string"
+          },
+          "paths": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "key": {
+            "type": "string"
+          },
+          "modifiers": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": ["Alt", "Control", "Meta", "Shift"]
+            }
+          },
+          "deltaX": {
+            "type": "number"
+          },
+          "deltaY": {
+            "type": "number"
+          },
+          "timeoutMs": {
+            "type": "integer"
+          }
+        },
+        "required": ["action"]
+      }
+    },
+    "preview_dialog": {
+      "description": "Accept or dismiss the dialog `preview_status` reports. Pass `promptText` to accept a prompt. Needs your own tab, or an unclaimed one. Desktop hosts may not support this.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "tabId": {
+            "type": "string"
+          },
+          "accept": {
+            "type": "boolean"
+          },
+          "promptText": {
+            "type": "string"
+          }
+        },
+        "required": ["accept"]
+      }
+    },
+    "preview_evaluate": {
+      "description": "Run JavaScript in the page. It can change page state. Returns `{value}`, up to 64 KB. Needs your tab, or an unclaimed one. To read a tab the user drives, use `preview_snapshot`. Page tools reached here: read data only, never create, save, or display. Show results with `html_render`.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "tabId": {
+            "type": "string"
+          },
+          "expression": {
+            "type": "string",
+            "pattern": "^\\S[\\s\\S]*\\S$|^\\S$|^$",
+            "minLength": 1,
+            "maxLength": 64000
+          },
+          "awaitPromise": {
+            "type": "boolean",
+            "description": "Default true."
+          },
+          "returnByValue": {
+            "type": "boolean",
+            "description": "False returns a ref. Default true."
+          }
+        },
+        "required": ["expression"]
+      }
+    },
+    "preview_navigate": {
+      "description": "Navigate the chosen tab. Pass `url` for a website, or `target:{kind:'environment-port',port}` for a dev server. Exactly one of `url` and `target`.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "tabId": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string",
+            "pattern": "^\\S[\\s\\S]*\\S$|^\\S$|^$",
+            "minLength": 1,
+            "maxLength": 2048,
+            "description": "Website URL. Absolute http(s) URL, or a bare host (https; http for loopback). For public pages."
+          },
+          "target": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": ["url", "environment-port"]
+              },
+              "url": {
+                "type": "string",
+                "pattern": "^\\S[\\s\\S]*\\S$|^\\S$|^$",
+                "minLength": 1,
+                "maxLength": 2048,
+                "description": "Website URL. Absolute http(s) URL, or a bare host (https; http for loopback)."
+              },
+              "port": {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "exclusiveMaximum": 65536,
+                "description": "Dev-server port here."
+              },
+              "protocol": {
+                "type": "string",
+                "enum": ["http", "https"],
+                "description": "Default http."
+              },
+              "path": {
+                "type": "string",
+                "description": "Path, query, and fragment, such as /settings?tab=account."
+              }
+            },
+            "required": ["kind"]
+          },
+          "readiness": {
+            "type": "string",
+            "enum": ["load", "domContentLoaded", "none"],
+            "description": "Default 'load'. 'none': return at once."
+          },
+          "timeoutMs": {
+            "type": "integer",
+            "maximum": 60000,
+            "exclusiveMinimum": 0,
+            "description": "Default 15000."
+          }
+        }
+      }
+    },
+    "preview_open": {
+      "description": "Open a preview tab in this thread and show it. `open=false` keeps it in the background. Reuses your current tab unless `tabId` or `reuseExistingTab=false` says otherwise. Parallel subagents in one session must each use `reuseExistingTab=false`, then their own returned `tabId`.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "tabId": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string",
+            "pattern": "^\\S[\\s\\S]*\\S$|^\\S$|^$",
+            "minLength": 1,
+            "maxLength": 2048,
+            "description": "First page URL. Absolute http(s) URL, or a bare host (https; http for loopback). Omit to open a blank tab."
+          },
+          "open": {
+            "type": "boolean",
+            "description": "Show the preview to the user. Default true. False for background only."
+          },
+          "show": {
+            "type": "boolean",
+            "description": "Old alias for `open`."
+          },
+          "reuseExistingTab": {
+            "type": "boolean",
+            "description": "Reuse `tabId`, or your current tab. Default true. False makes a new tab."
+          },
+          "profileId": {
+            "type": "string",
+            "description": "Profile id or name from preview_status, for a new tab. Default: the user's. A tab keeps its profile."
+          }
+        }
+      }
+    },
+    "preview_recording_start": {
+      "description": "Start recording the chosen tab.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "tabId": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "preview_recording_stop": {
+      "description": "Stop recording the chosen tab. Returns a local path to the recording file (max 50 MiB).",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "tabId": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "preview_resize": {
+      "description": "Resize the chosen tab: {mode:'fill'}, {mode:'freeform',width,height}, or {mode:'preset',preset,orientation}. Changes CSS size only, not the user agent.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "tabId": {
+            "type": "string"
+          },
+          "mode": {
+            "type": "string",
+            "enum": ["fill", "freeform", "preset"]
+          },
+          "preset": {
+            "type": "string",
+            "enum": [
+              "iphone-se",
+              "iphone-xr",
+              "iphone-12-pro",
+              "iphone-14-pro-max",
+              "pixel-7",
+              "samsung-galaxy-s8-plus",
+              "samsung-galaxy-s20-ultra",
+              "ipad-mini",
+              "ipad-air",
+              "ipad-pro",
+              "surface-pro-7",
+              "surface-duo",
+              "galaxy-z-fold-5",
+              "asus-zenbook-fold",
+              "samsung-galaxy-a51-71",
+              "nest-hub",
+              "nest-hub-max"
+            ]
+          },
+          "width": {
+            "type": "integer",
+            "minimum": 240,
+            "maximum": 3840
+          },
+          "height": {
+            "type": "integer",
+            "minimum": 240,
+            "maximum": 3840
+          },
+          "orientation": {
+            "type": "string",
+            "enum": ["portrait", "landscape"]
+          },
+          "timeoutMs": {
+            "type": "integer",
+            "maximum": 60000,
+            "exclusiveMinimum": 0,
+            "description": "Default 15000."
+          }
+        },
+        "required": ["mode"]
+      }
+    },
+    "preview_set_appearance": {
+      "description": "Set `prefers-color-scheme` for the chosen tab: 'dark', 'light', or 'system' to clear the override.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "tabId": {
+            "type": "string"
+          },
+          "colorScheme": {
+            "type": "string",
+            "enum": ["system", "light", "dark"]
+          }
+        },
+        "required": ["colorScheme"]
+      }
+    },
+    "preview_snapshot": {
+      "description": "Use it only when the current request asks for browser work, including checking an edit in the browser. Never use it unasked to verify your own edit, or to repeat a snapshot from an earlier turn. Works on a tab the user is driving. Returns page state, elements, diagnostics, and screenshot size. Target one element with `locator='aria-ref=<ref>'` from `accessibilityTree`, even in frames. Refs die on navigation, a new snapshot, or handoff. Text caps near 20 KB; on your own or an unclaimed tab, `preview_evaluate` reads more. To show a screenshot when asked: `save=true`, then embed ![alt](screenshotPath).",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "tabId": {
+            "type": "string"
+          },
+          "includeImage": {
+            "type": "boolean",
+            "description": "Default false. True only to see the page."
+          },
+          "save": {
+            "type": "boolean",
+            "description": "Write PNG, return `screenshotPath`."
+          }
+        }
+      }
+    },
+    "preview_status": {
+      "description": "Report preview tab state: owner, pending dialog, URL, title, loading, viewport, and size. `tabs` lists this thread's tabs. `profiles` lists logins for `preview_open`. Read any listed tab. Act only on your tab, or an unclaimed tab with no human in control.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "tabId": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "preview_wait_for": {
+      "description": "Wait until all given locator, selector, text, and URL conditions match in the chosen tab.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "tabId": {
+            "type": "string"
+          },
+          "selector": {
+            "type": "string"
+          },
+          "locator": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string",
+            "description": "Case counts."
+          },
+          "urlIncludes": {
+            "type": "string"
+          },
+          "timeoutMs": {
+            "type": "integer",
+            "maximum": 60000,
+            "exclusiveMinimum": 0,
+            "description": "Default 15000."
+          }
+        }
+      }
+    },
+    "t3_worktree_handoff": {
+      "description": "Move THIS thread into a new git worktree on a new branch. Runs the setup script by default. A separate agent in a worktree: `t3_thread_launch` with `workspaceStrategy`. Call last in your turn. The move ends the live session. `continuationPrompt` resumes work there next turn. Without it, the thread waits. The worktree stays after the thread is deleted. Fails if this thread has a worktree.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "branch": {
+            "type": "string"
+          },
+          "baseRef": {
+            "type": "string"
+          },
+          "startFromOrigin": {
+            "type": "boolean",
+            "description": "True: fetch, start from the remote ref; check `startedFromOrigin`. Default: server setting."
+          },
+          "runSetupScript": {
+            "type": "boolean",
+            "description": "Default true."
+          },
+          "continuationPrompt": {
+            "type": "string"
+          }
+        },
+        "required": ["branch"]
+      }
+    },
+    "t3_worktree_list": {
+      "description": "List branch refs and checkout paths for a thread's workspace. Omit `threadId` for this thread. Detached worktrees with no branch are left out.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "environmentId": {
+            "type": "string"
+          },
+          "threadId": {
+            "type": "string"
+          },
+          "query": {
+            "type": "string"
+          },
+          "cursor": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 200
+          },
+          "refKind": {
+            "type": "string",
+            "enum": ["all", "local", "remote"]
+          },
+          "includeMatchingRemoteRefs": {
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    "t3_worktree_status": {
+      "description": "Report this thread's worktree: attached or not, path, branch, project root, and the `startFromOrigin` default. Check before `t3_worktree_handoff`.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false
+      }
+    }
+  }
+}

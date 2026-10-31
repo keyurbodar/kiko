@@ -30,6 +30,9 @@
     "apps/computer": {
       "entry": ["scripts/*.ts"]
     },
+    "apps/bench": {
+      "entry": ["scripts/*.ts", "src/contenders/t3code.ts"]
+    },
     "apps/builder": {
       "entry": ["scripts/*.ts"]
     },

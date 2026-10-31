@@ -1,0 +1,84 @@
+name: bench-t3code
+
+on:
+  push:
+    branches:
+      - "t3/cu-*"
+    paths:
+      - "apps/bench/**"
+      - ".github/workflows/bench-t3code.yml"
+      - "bun.lock"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bench-t3code-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  config:
+    name: Read the pinned t3 run parameters
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      runners: ${{ steps.read.outputs.runners }}
+      version: ${{ steps.read.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: read
+        run: |
+          echo "runners=$(jq -c '.t3code.runners' apps/bench/ci.json)" >> "$GITHUB_OUTPUT"
+          echo "version=$(jq -r '.t3code.t3Version' apps/bench/ci.json)" >> "$GITHUB_OUTPUT"
+
+  verify:
+    name: t3code contender (${{ matrix.os }})
+    needs: config
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        os: ${{ fromJSON(needs.config.outputs.runners) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - name: Cache the pinned t3 release
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/kiko-bench/t3
+          key: t3-${{ runner.os }}-${{ runner.arch }}-${{ needs.config.outputs.version }}
+      - name: Install the pinned t3
+        id: t3
+        run: |
+          set -o pipefail
+          KIKO_BENCH_T3_BIN_FILE="$RUNNER_TEMP/t3-bin" bun apps/bench/scripts/install-t3code.ts | tee "$RUNNER_TEMP/install.log"
+          echo "bin=$(cat "$RUNNER_TEMP/t3-bin")" >> "$GITHUB_OUTPUT"
+      - name: Allow Chrome's sandbox and install its libraries
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libnss3 libglib2.0-0t64 libatk1.0-0t64 libatk-bridge2.0-0t64 \
+            libatspi2.0-0t64 libdbus-1-3 libx11-6 libxcb1 libxcomposite1 \
+            libxdamage1 libxext6 libxfixes3 libxrandr2 libxkbcommon0 libgbm1 \
+            libasound2t64 libexpat1 fontconfig fonts-liberation apparmor
+          sudo "${{ steps.t3.outputs.bin }}" browser setup
+      - name: Verify the t3code contender
+        env:
+          KIKO_BENCH_WORKDIR: ${{ runner.temp }}
+        run: |
+          set -o pipefail
+          bun apps/bench/scripts/verify-t3code.ts 2>&1 | tee "$RUNNER_TEMP/verify.log"
+      - name: Upload logs and results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bench-t3code-${{ matrix.os }}
+          path: |
+            ${{ runner.temp }}/install.log
+            ${{ runner.temp }}/verify.log
+            ${{ runner.temp }}/kiko-t3code-/*.json
+            ${{ runner.temp }}/kiko-t3code-/spawn.log
+          if-no-files-found: ignore

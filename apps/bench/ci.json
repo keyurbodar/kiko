@@ -1,0 +1,6 @@
+{
+  "t3code": {
+    "t3Version": "0.1.6",
+    "runners": ["ubuntu-24.04", "macos-15"]
+  }
+}
