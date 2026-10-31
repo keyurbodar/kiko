@@ -1,5 +1,5 @@
 import * as Schema from "effect/Schema"
-import { BrowserStatus, DriverCall, Permissions } from "./driver"
+import { BrowserStatus, DesktopInfo, Display, DriverCall, Permissions } from "./driver"
 
 export const PROTOCOL = 1
 
@@ -19,9 +19,6 @@ export const Caps = Schema.Struct({
 })
 export type Caps = typeof Caps.Type
 
-export const Display = Schema.Struct({ id: Id, width: Count, height: Count, scale: Schema.Number })
-export type Display = typeof Display.Type
-
 export const Hello = Schema.Struct({
   t: Schema.Literal("hello"),
   protocol: Count,
@@ -33,51 +30,10 @@ export const Hello = Schema.Struct({
   displays: Schema.Array(Display),
   access: Schema.optionalKey(Schema.Struct({ screen: Schema.Boolean, input: Schema.Boolean })),
   driver: Schema.optionalKey(Schema.Struct({ permissions: Permissions, browsers: Schema.Array(BrowserStatus) })),
+  desktop: Schema.optionalKey(DesktopInfo),
   note: Schema.optionalKey(Text),
 })
 export type Hello = typeof Hello.Type
-
-export const Control = Schema.Struct({
-  id: Count,
-  role: Text,
-  label: Text,
-  x: Count,
-  y: Count,
-  w: Count,
-  h: Count,
-})
-export type Control = typeof Control.Type
-
-export const View = Schema.Struct({
-  captureId: Id,
-  width: Count,
-  height: Count,
-  app: Schema.optionalKey(Text),
-  title: Schema.optionalKey(Text),
-  controls: Schema.Array(Control),
-  tree: Schema.optionalKey(Text),
-  image: Schema.optionalKey(Schema.Struct({ mime: Schema.Literals(["image/jpeg", "image/png"]), data: Text })),
-})
-export type View = typeof View.Type
-
-const Point = { id: Schema.optionalKey(Count), x: Schema.optionalKey(Count), y: Schema.optionalKey(Count) }
-
-export const Step = Schema.Union([
-  Schema.Struct({
-    op: Schema.Literal("click"),
-    ...Point,
-    button: Schema.optionalKey(Schema.Literals(["left", "right", "middle"])),
-    count: Schema.optionalKey(Count),
-  }),
-  Schema.Struct({ op: Schema.Literal("type"), ...Point, text: Text, submit: Schema.optionalKey(Schema.Boolean) }),
-  Schema.Struct({ op: Schema.Literal("key"), keys: Text }),
-  Schema.Struct({ op: Schema.Literal("scroll"), ...Point, dx: Schema.Int, dy: Schema.Int }),
-  Schema.Struct({ op: Schema.Literal("drag"), from: Schema.Tuple([Count, Count]), to: Schema.Tuple([Count, Count]) }),
-  Schema.Struct({ op: Schema.Literal("move"), x: Count, y: Count }),
-  Schema.Struct({ op: Schema.Literal("open"), app: Text }),
-  Schema.Struct({ op: Schema.Literal("wait"), ms: Count }),
-])
-export type Step = typeof Step.Type
 
 export const Calls = {
   shell: {
@@ -106,26 +62,6 @@ export const Calls = {
       append: Schema.optionalKey(Schema.Boolean),
     }),
     value: Schema.Struct({ size: Count }),
-  },
-  look: {
-    args: Schema.Struct({
-      display: Schema.optionalKey(Id),
-      controls: Schema.optionalKey(Schema.Boolean),
-      image: Schema.optionalKey(Schema.Boolean),
-      maxWidth: Schema.optionalKey(Count),
-      zoom: Schema.optionalKey(
-        Schema.Struct({ captureId: Schema.optionalKey(Id), x: Count, y: Count, width: Count, height: Count }),
-      ),
-    }),
-    value: View,
-  },
-  act: {
-    args: Schema.Struct({
-      captureId: Schema.optionalKey(Id),
-      steps: Schema.Array(Step),
-      image: Schema.optionalKey(Schema.Boolean),
-    }),
-    value: Schema.Struct({ done: Count, error: Schema.optionalKey(Text), view: View }),
   },
   driver: {
     args: DriverCall,
@@ -173,7 +109,7 @@ export const ToDaemon = Schema.Union([
   Schema.Struct({
     t: Schema.Literal("call"),
     id: Id,
-    op: Schema.Literals(["shell", "read", "write", "look", "act", "driver"]),
+    op: Schema.Literals(["shell", "read", "write", "driver"]),
     args: Schema.Unknown,
     deadlineMs: Count,
   }),

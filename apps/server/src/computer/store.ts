@@ -1,3 +1,4 @@
+import type { DesktopInfo } from "@kiko/computer/driver"
 import type { ComputerCaps } from "@kiko/protocol"
 import { getSetting, setSetting } from "../lib/settings"
 
@@ -65,6 +66,7 @@ export class ComputerStore {
   }
 
   remove(id: string): boolean {
+    this.sql.exec("DELETE FROM computer_desktop WHERE pc_id = ?", id)
     return this.sql.exec("DELETE FROM computers WHERE id = ?", id).rowsWritten > 0
   }
 
@@ -77,5 +79,29 @@ export class ComputerStore {
 
   caps(row: ComputerRow): ComputerCaps {
     return JSON.parse(row.caps_json) as ComputerCaps
+  }
+
+  desktop(pcId: string): DesktopInfo | null {
+    const row = this.sql.exec<{ info: string }>("SELECT info FROM computer_desktop WHERE pc_id = ?", pcId).toArray()[0]
+    if (!row) return null
+    try {
+      return JSON.parse(row.info) as DesktopInfo
+    } catch {
+      return null
+    }
+  }
+
+  saveDesktop(pcId: string, info: DesktopInfo): boolean {
+    const body = JSON.stringify(info)
+    const known = this.sql
+      .exec<{ info: string }>("SELECT info FROM computer_desktop WHERE pc_id = ?", pcId)
+      .toArray()[0]
+    if (known?.info === body) return false
+    this.sql.exec(
+      "INSERT INTO computer_desktop (pc_id, info) VALUES (?, ?) ON CONFLICT(pc_id) DO UPDATE SET info = excluded.info",
+      pcId,
+      body,
+    )
+    return true
   }
 }

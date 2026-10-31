@@ -12,7 +12,7 @@ import { VERSION } from "./platform"
 import { createUpdater, updateTarget, type Updater } from "./update"
 
 const REPAIR_POLL_MS = 30_000
-const ACCESS_POLL_MS = 30_000
+const DOCTOR_WAIT_MS = 3_000
 const WELCOMED = "the worker calls this machine"
 
 export async function serve(dir = configDir()): Promise<number> {
@@ -37,16 +37,19 @@ export async function serve(dir = configDir()): Promise<number> {
   }
   const policy = await loadPolicy(dir)
   let live: Live = emptyLive({ logger: log, setHolder })
-  let detection = detect(log, policy, dir)
-  if (policy.desktop) detection.backend?.requestAccess()
   let driver: Driver | null = null
+  let link: ReturnType<typeof runLink> | null = null
+  let detection = detect(log, policy, null, dir)
   let update: Updater | null = null
+  const refresh = () => {
+    detection = detect(log, policy, driver?.state() ?? null, dir)
+    link?.reconnect()
+  }
   const host: Host = {
     endpoint: { url: config.url, userId: config.userId, pcId: config.pcId, protocol: PROTOCOL },
     key,
     hello: () => JSON.stringify(helloPayload(detection, driver)),
     policy: () => loadPolicy(dir),
-    desktop: () => detection.desktop,
     driver: () => driver,
     paused: () => paused(dir),
     live: {
@@ -64,39 +67,32 @@ export async function serve(dir = configDir()): Promise<number> {
       update?.offer(version)
     },
     onOffline: () => void feed.connected(null),
-    onWorking: (app) => void feed.working(app),
     onIdle: () => {
       void feed.working(null)
       update?.idle()
     },
   }
-  const link = runLink(host)
   const driverPath = process.env.KIKO_DRIVER
-  if (driverPath) driver = startDriver({ path: driverPath, log, onChange: () => link.reconnect() })
+  if (driverPath) driver = startDriver({ path: driverPath, log, onChange: refresh })
+  refresh()
+  link = runLink(host)
   if (detection.caps.live) {
     live = await startLive({
       logger: log,
       setHolder,
-      send: (frame) => link.frame(frame),
-      sendBinary: (bytes) => link.binary(bytes),
+      send: (frame) => link?.frame(frame),
+      sendBinary: (bytes) => link?.binary(bytes),
       policy: () => policy,
       display: () => detection.displays[0],
       configDir: dir,
     })
-    if (!live.live) detection = { ...detection, caps: { ...detection.caps, live: false } }
+    refresh()
   }
-  const point = (next: Detection) => {
-    if (!next.desktop) return
-    next.desktop.pointer = (x, y) => live.agentCursor(x, y)
-    next.desktop.holder = () => holder
-  }
-  point(detection)
   const shutdown = () => {
     log.info("stopping")
-    link.stop()
+    link?.stop()
     driver?.close()
     void live.close()
-    detection.backend?.close()
     process.exit(0)
   }
   update = createUpdater({
@@ -104,7 +100,7 @@ export async function serve(dir = configDir()): Promise<number> {
     origin: config.url,
     running: VERSION,
     target: updateTarget(process.env),
-    busy: () => link.busy(),
+    busy: () => link?.busy() ?? false,
     restart: shutdown,
   })
   process.once("SIGINT", shutdown)
@@ -112,28 +108,13 @@ export async function serve(dir = configDir()): Promise<number> {
   log.info(
     `${config.name} connecting to ${config.url} with ${detection.caps.desktop ? "desktop tools" : "shell and files only"}`,
   )
-  const access = setInterval(() => {
-    const backend = detection.backend
-    if (!backend) return
-    const next = backend.access()
-    const current = detection.access
-    const granted = next.screen && next.input
-    if (current && current.screen === next.screen && current.input === next.input) {
-      if (granted) clearInterval(access)
-      return
-    }
-    detection = { ...detection, access: next }
-    if (granted) clearInterval(access)
-    link.reconnect()
-  }, ACCESS_POLL_MS)
   try {
     await link.loop()
   } finally {
-    clearInterval(access)
+    driver?.close()
   }
   if (!link.removed) return 0
   await live.close()
-  detection.backend?.close()
   await repaired(dir, config.pcId)
   log.info("paired again; restarting")
   return 0
@@ -179,7 +160,9 @@ export async function diagnose(dir = configDir()): Promise<{ checks: Check[]; de
     ok: true,
     detail: `shell ${policy.shell ? "on" : "off"}, desktop ${policy.desktop ? "on" : "off"}, files ${policy.files.allow.join(", ")}`,
   })
-  const detection = detect(log)
+  const driver = await reachDriver(log)
+  const detection = detect(log, { live: false, input: false }, driver?.state() ?? null, dir)
+  driver?.close()
   checks.push({ name: "desktop", ok: desktopOk(detection), detail: desktopDetail(detection) })
   checks.push({ name: "ffmpeg", ok: true, detail: Bun.which("ffmpeg") ?? "not installed; live video is off" })
   checks.push({
@@ -191,6 +174,23 @@ export async function diagnose(dir = configDir()): Promise<{ checks: Check[]; de
   return { checks, detection }
 }
 
+async function reachDriver(log: Logger): Promise<Driver | null> {
+  const path = process.env.KIKO_DRIVER
+  if (!path) return null
+  let driver: Driver | null = null
+  const ready = new Promise<void>((resolve) => {
+    driver = startDriver({
+      path,
+      log,
+      onChange: () => {
+        if (driver?.state()) resolve()
+      },
+    })
+  })
+  await Promise.race([ready, Bun.sleep(DOCTOR_WAIT_MS)])
+  return driver
+}
+
 function desktopOk(detection: Detection): boolean {
   if (!detection.caps.desktop) return false
   return detection.access === null || (detection.access.screen && detection.access.input)
@@ -199,7 +199,7 @@ function desktopOk(detection: Detection): boolean {
 function desktopDetail(detection: Detection): string {
   if (!detection.caps.desktop) return `${detection.reason ?? "desktop tools are off"}; shell and files still work`
   const access = detection.access
-  if (!access) return "the desktop backend is running"
+  if (!access) return "the desktop engine is running"
   const missing: string[] = []
   if (!access.screen) missing.push(`screen recording: ${screenFix()}`)
   if (!access.input) missing.push(`input: ${inputFix()}`)

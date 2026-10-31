@@ -1296,6 +1296,10 @@ export class User {
     return this.#pc.list()
   }
 
+  computerDesktop(pcId?: string): import("@kiko/computer/driver").DesktopInfo | null {
+    return this.#pc.desktop(pcId)
+  }
+
   async computerCall(
     agentId: string,
     roomId: string,

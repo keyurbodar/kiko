@@ -1,7 +1,6 @@
 import { parseArgs } from "node:util"
 import { configDir } from "./config"
 import { presence } from "./caps"
-import { preflightAccess } from "./desk/macos"
 import { CliError } from "./errors"
 import { pair } from "./pairing"
 import { exitWhenParentDies, parentPipeAsked } from "./parent"
@@ -32,7 +31,6 @@ export async function main(argv: string[]): Promise<number> {
   const dir = values.dir ?? configDir()
   const [command, ...rest] = positionals
   try {
-    if (command === "access") return runAccess()
     if (command === "pair") return await runPair(dir, rest, values.name ?? null)
     if (command === "doctor") return await runDoctor(dir)
     if (command === "run") {
@@ -47,12 +45,6 @@ export async function main(argv: string[]): Promise<number> {
   }
 }
 
-function runAccess(): number {
-  const access = process.platform === "darwin" ? preflightAccess() : { screen: true, input: true }
-  console.log(JSON.stringify(access))
-  return 0
-}
-
 async function runPair(dir: string, rest: string[], name: string | null): Promise<number> {
   const target = rest[0]
   if (!target) throw new CliError({ message: `pair needs the URL the web app copied\n\n${USAGE}` })
@@ -63,8 +55,7 @@ async function runPair(dir: string, rest: string[], name: string | null): Promis
 }
 
 async function runDoctor(dir: string): Promise<number> {
-  const { checks, detection } = await diagnose(dir)
-  detection?.backend?.close()
+  const { checks } = await diagnose(dir)
   for (const check of checks) console.log(`${check.ok ? "ok  " : "FAIL"} ${check.name}: ${check.detail}`)
   return checks.every((check) => check.ok) ? 0 : 1
 }

@@ -87,10 +87,12 @@ describe("computer list", () => {
 })
 
 const COMPUTERS = `CREATE TABLE computers (id TEXT PRIMARY KEY, name TEXT NOT NULL, public_key TEXT NOT NULL, os TEXT NOT NULL, arch TEXT NOT NULL, host TEXT NOT NULL, caps_json TEXT NOT NULL, pair_nonce TEXT NOT NULL UNIQUE, created_at INTEGER NOT NULL) WITHOUT ROWID`
+const DESKTOP = `CREATE TABLE computer_desktop (pc_id TEXT PRIMARY KEY, info TEXT NOT NULL) WITHOUT ROWID`
 
 function sqlite() {
   const db = new DatabaseSync(":memory:")
   db.exec(COMPUTERS)
+  db.exec(DESKTOP)
   let written = 0
   const sql = {
     exec: (query: string, ...bindings: SQLInputValue[]) => {
@@ -282,18 +284,19 @@ describe("leaving the viewer", () => {
       })
       const pc = pcSocket("pc-1")
       const computers = liveHub([viewing.ws], [pc.ws], ["pc-1"])
-      const desktop = { ...HELLO, caps: { ...CAPS, desktop: true } }
+      const desktop = { ...HELLO, caps: { ...CAPS, desktop: true, background: true } }
       await computers.message(pc.ws, JSON.stringify(desktop))
       assert.isTrue(computers.take("pc-1", viewing.ws))
 
-      const held = await computers.call("pc-1", "look", { maxWidth: "wide" })
+      const bad = { method: "desktop.call", params: { name: 5 } }
+      const held = await computers.call("pc-1", "driver", bad)
       assert.deepStrictEqual(held, { ok: false, code: "busy", message: "the human has control of box right now" })
 
       computers.leave(viewing.ws)
 
       assert.strictEqual(computers.holder("pc-1"), "agent")
-      const after = await computers.call("pc-1", "look", { maxWidth: "wide" })
-      assert.deepStrictEqual(after, { ok: false, code: "failed", message: "bad look arguments" })
+      const after = await computers.call("pc-1", "driver", bad)
+      assert.deepStrictEqual(after, { ok: false, code: "failed", message: "bad driver arguments" })
     }),
   )
 })
@@ -394,8 +397,8 @@ async function settle(computers: ReturnType<typeof liveHub>, ws: WebSocket, id: 
 }
 
 const foreground = (mode: "background" | "foreground") => ({
-  method: "act",
-  params: { window: "w-1", action: "press", mode },
+  method: "browser.act",
+  params: { tab: "t-1", ref: 1, action: "click", mode },
 })
 
 describe("driver desk", () => {

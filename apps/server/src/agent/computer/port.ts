@@ -1,14 +1,19 @@
 import * as Schema from "effect/Schema"
+import type { DesktopTool } from "@kiko/computer/driver"
 import type { Op } from "@kiko/computer/wire"
 import type { Holder } from "@kiko/computer/wire"
 import type { User } from "../../user/user-do"
 import type { ComputerCallOutcome, ComputerLinkOutcome, ComputerMode, ComputerSummary } from "./types"
 
-export type UserComputerRpc = Pick<User, "computerList" | "computerCall" | "computerLink" | "computerHolder">
+export type UserComputerRpc = Pick<
+  User,
+  "computerList" | "computerCall" | "computerLink" | "computerHolder" | "computerDesktop"
+>
 
 export interface ComputerPort {
   list(): Promise<ComputerSummary[]>
   resolve(pc?: string): Promise<ComputerSummary>
+  desktopTools(): Promise<readonly DesktopTool[]>
   call(pcId: string, op: Op, args: unknown, deadlineMs: number): Promise<ComputerCallOutcome>
   link(pcId: string, mode: ComputerMode, reason?: string): Promise<ComputerLinkOutcome>
   holder(pcId: string): Promise<Holder>
@@ -49,6 +54,7 @@ export function userComputer(user: () => UserComputerRpc, agentId: string, roomI
   }
   return {
     list: async () => user().computerList(),
+    desktopTools: async () => user().computerDesktop()?.tools ?? [],
     resolve,
     call: (pcId, op, args, deadlineMs) => user().computerCall(agentId, roomId, pcId, op, args, deadlineMs),
     link: (pcId, mode, reason) => user().computerLink(agentId, roomId, pcId, mode, reason),

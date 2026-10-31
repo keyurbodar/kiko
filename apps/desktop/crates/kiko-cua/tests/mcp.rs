@@ -3,7 +3,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use kiko_cua::{Cua, Error};
-use kiko_driver::{Grant, Permissions};
+use kiko_driver::{Display, Grant, Permissions};
 use serde_json::json;
 
 const READY: Duration = Duration::from_secs(20);
@@ -36,6 +36,15 @@ fn lists_the_driver_tools_with_their_schemas() {
         .expect("get_window_state listed");
     assert_eq!(window.description, "Snapshot a window");
     assert_eq!(window.input_schema["properties"]["window_id"]["type"], "integer");
+    assert_eq!(
+        cua.screens(),
+        vec![Display {
+            id: "primary".into(),
+            width: 1280,
+            height: 800,
+            scale: 2.0,
+        }]
+    );
     assert_eq!(
         cua.permissions(),
         Permissions {

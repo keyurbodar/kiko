@@ -5,6 +5,7 @@ import { ComputerStore } from "./store"
 const SCHEMA = [
   `CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)`,
   `CREATE TABLE computers (id TEXT PRIMARY KEY, name TEXT NOT NULL, public_key TEXT NOT NULL, os TEXT NOT NULL, arch TEXT NOT NULL, host TEXT NOT NULL, caps_json TEXT NOT NULL, pair_nonce TEXT NOT NULL UNIQUE, created_at INTEGER NOT NULL) WITHOUT ROWID`,
+  `CREATE TABLE computer_desktop (pc_id TEXT PRIMARY KEY, info TEXT NOT NULL) WITHOUT ROWID`,
 ]
 
 function sqlite() {

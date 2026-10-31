@@ -2,9 +2,11 @@ import { connect, type Socket } from "node:net"
 import * as Option from "effect/Option"
 import * as Schema from "effect/Schema"
 import {
+  DesktopInfo,
   DriverResponse,
   Status,
   type BrowserStatus,
+  type Display,
   type DriverCall,
   type Grant,
   type Permissions,
@@ -18,7 +20,12 @@ const MAX_BACKOFF_MS = 30_000
 const STATUS_POLL_MS = 30_000
 const STATUS_TIMEOUT_MS = 10_000
 
-export type DriverState = { permissions: Permissions; browsers: readonly BrowserStatus[] }
+export type DriverState = {
+  permissions: Permissions
+  browsers: readonly BrowserStatus[]
+  displays: readonly Display[]
+  desktop?: DesktopInfo
+}
 
 export type Scheduler = {
   after(ms: number, run: () => void): () => void
@@ -48,6 +55,7 @@ type Pending = {
 
 const decodeResponse = Schema.decodeUnknownOption(DriverResponse)
 const decodeStatus = Schema.decodeUnknownOption(Status)
+const decodeDesktop = Schema.decodeUnknownOption(DesktopInfo)
 
 const system: Scheduler = {
   after: (ms, run) => {
@@ -103,6 +111,7 @@ class Client implements Driver {
   private nextId = 1
   private pending = new Map<number, Pending>()
   private status: Status | null = null
+  private desktop: DesktopInfo | null = null
   private connected = false
   private attempt = 0
   private closed = false
@@ -121,7 +130,12 @@ class Client implements Driver {
 
   state(): DriverState | null {
     if (!this.status) return null
-    return { permissions: this.status.permissions, browsers: this.status.browsers }
+    return {
+      permissions: this.status.permissions,
+      browsers: this.status.browsers,
+      displays: this.status.displays,
+      ...(this.desktop ? { desktop: this.desktop } : {}),
+    }
   }
 
   background(): boolean {
@@ -173,6 +187,7 @@ class Client implements Driver {
     this.connected = false
     this.buffer = ""
     this.status = null
+    this.desktop = null
     this.stopPoll()
     this.rejectAll(new Fail({ code: "failed", message: "the kiko app stopped answering" }))
     this.schedule()
@@ -207,8 +222,17 @@ class Client implements Driver {
       const status = decodeStatus(value)
       if (Option.isSome(status)) this.status = status.value
     }
+    await this.loadDesktop()
     this.changed()
     this.syncPoll()
+  }
+
+  private async loadDesktop(): Promise<void> {
+    if (!this.connected) return
+    const value = await this.request({ method: "desktop.tools" }, STATUS_TIMEOUT_MS).catch(() => null)
+    if (!this.connected || value === null) return
+    const info = decodeDesktop(value)
+    if (Option.isSome(info)) this.desktop = info.value
   }
 
   private syncPoll(): void {

@@ -20,7 +20,8 @@ export function helloPayload(detection: Detection, driver: Driver | null): unkno
     },
     displays: detection.displays,
     ...(detection.access ? { access: detection.access } : {}),
-    ...(state ? { driver: state } : {}),
+    ...(state ? { driver: { permissions: state.permissions, browsers: state.browsers } } : {}),
+    ...(state?.desktop ? { desktop: state.desktop } : {}),
     ...(detection.reason ? { note: detection.reason } : {}),
   }
   return Schema.encodeSync(Hello)(hello)

@@ -581,7 +581,9 @@ export class Agent {
                 },
               }
             : {}),
-          ...(computersOn && home ? { computers: { port: () => this.computer(), acceptsImages: () => false } } : {}),
+          ...(computersOn && home
+            ? { computers: { port: () => this.computer(), acceptsImages: () => false, desktop: [] } }
+            : {}),
           routines: { port: () => this.routinesPort() },
           groups: this.groupsPort(),
           work: this.host.workers,
@@ -634,9 +636,12 @@ export class Agent {
         : undefined
     const picked = await this.picked()
     const computersOn = await this.computersOn()
+    const desktopTools = computersOn ? await this.computer().desktopTools() : []
     const built = buildAgent({
       ...(browser ? { browser } : {}),
-      ...(computersOn ? { computers: { port: () => this.computer(), acceptsImages: imageReader(user.models) } } : {}),
+      ...(computersOn
+        ? { computers: { port: () => this.computer(), acceptsImages: imageReader(user.models), desktop: desktopTools } }
+        : {}),
       testExtensions: [this.routineScheduler.extension],
       ...role,
       ...(picked.model ? { model: picked.model } : {}),

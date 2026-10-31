@@ -54,7 +54,6 @@ async function host(): Promise<Host> {
     key: await crypto.subtle.exportKey("jwk", pair.privateKey),
     hello: () => "{}",
     policy: async () => ({ shell: true, files: { allow: ["~"] }, desktop: false, live: false, input: false }),
-    desktop: () => null,
     driver: () => null,
     paused: () => false,
     live: { rtc() {}, live() {}, input() {}, control() {}, ack() {} },
@@ -190,13 +189,13 @@ describe("driver calls", () => {
     const { driver, calls } = fakeDriver()
     const { link, socket } = await openLink({ ...(await host()), driver: () => driver, policy: desktopOn })
     try {
-      sendDriver(socket, "c1", { method: "windows" })
+      sendDriver(socket, "c1", { method: "desktop.tools" })
 
       const result = await resultOf(socket, "c1")
 
       assert.isTrue(result.ok)
       assert.deepStrictEqual(result.value, { windows: [] })
-      assert.deepStrictEqual(calls, [{ method: "windows" }])
+      assert.deepStrictEqual(calls, [{ method: "desktop.tools" }])
     } finally {
       link.stop()
       reset()
@@ -212,7 +211,7 @@ describe("driver calls", () => {
       paused: () => true,
     })
     try {
-      sendDriver(socket, "c1", { method: "windows" })
+      sendDriver(socket, "c1", { method: "desktop.tools" })
 
       const result = await resultOf(socket, "c1")
 
@@ -236,7 +235,7 @@ describe("driver calls", () => {
       holder: () => "human",
     })
     try {
-      sendDriver(socket, "c1", { method: "windows" })
+      sendDriver(socket, "c1", { method: "desktop.tools" })
 
       const result = await resultOf(socket, "c1")
 
@@ -256,7 +255,7 @@ describe("driver calls", () => {
       policy: async () => ({ ...(await desktopOn()), desktop: false }),
     })
     try {
-      sendDriver(socket, "c1", { method: "windows" })
+      sendDriver(socket, "c1", { method: "desktop.tools" })
 
       const result = await resultOf(socket, "c1")
 
@@ -272,7 +271,7 @@ describe("driver calls", () => {
   it("refuses driver work when the kiko app is not there", async () => {
     const { link, socket } = await openLink({ ...(await host()), policy: desktopOn })
     try {
-      sendDriver(socket, "c1", { method: "windows" })
+      sendDriver(socket, "c1", { method: "desktop.tools" })
 
       const result = await resultOf(socket, "c1")
 
@@ -299,7 +298,7 @@ describe("driver calls", () => {
     }
     const { link, socket } = await openLink({ ...(await host()), driver: () => driver, policy: desktopOn })
     try {
-      sendDriver(socket, "c1", { method: "windows" })
+      sendDriver(socket, "c1", { method: "desktop.tools" })
       socket.emit("message", { data: JSON.stringify({ t: "cancel", id: "c1" }) })
 
       const result = await resultOf(socket, "c1")
@@ -332,7 +331,7 @@ describe("driver calls", () => {
       socket.emit("message", {
         data: JSON.stringify({ t: "rtc", session: "s", signal: { type: "offer", sdp: "not an sdp" } }),
       })
-      sendDriver(socket, "c1", { method: "windows" })
+      sendDriver(socket, "c1", { method: "desktop.tools" })
 
       const result = await resultOf(socket, "c1")
 
@@ -348,8 +347,7 @@ describe("driver input policy", () => {
   const inputOff = async () => ({ ...(await desktopOn()), input: false })
 
   const typing = [
-    { method: "act", params: { window: "w", action: "press", ref: 1 } },
-    { method: "open", params: { kind: "app", target: "Notes" } },
+    { method: "desktop.call", params: { name: "click", args: { x: 1, y: 2 } } },
     { method: "browser.act", params: { tab: "t", ref: 1, action: "click" } },
     { method: "browser.open", params: { url: "https://example.com" } },
   ]
@@ -377,16 +375,14 @@ describe("driver input policy", () => {
     }
   })
 
-  it("still shows the windows and looks around", async () => {
+  it("still lists the desktop tools with input off", async () => {
     const { driver, calls } = fakeDriver()
     const { link, socket } = await openLink({ ...(await host()), driver: () => driver, policy: inputOff })
     try {
-      sendDriver(socket, "c1", { method: "windows" })
-      sendDriver(socket, "c2", { method: "look", params: { window: "w" } })
+      sendDriver(socket, "c1", { method: "desktop.tools" })
 
       assert.isTrue((await resultOf(socket, "c1")).ok)
-      assert.isTrue((await resultOf(socket, "c2")).ok)
-      assert.strictEqual(calls.length, 2)
+      assert.strictEqual(calls.length, 1)
     } finally {
       link.stop()
       reset()

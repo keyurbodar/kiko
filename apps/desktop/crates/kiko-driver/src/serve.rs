@@ -21,6 +21,7 @@ pub fn dispatch(
         Call::Status => {
             let mut status = status.clone();
             status.permissions = desktop.permissions();
+            status.displays = desktop.screens();
             status.browsers = browser.status();
             value(Ok(status))
         }

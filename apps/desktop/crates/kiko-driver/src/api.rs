@@ -48,12 +48,21 @@ pub struct BrowserStatus {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Display {
+    pub id: String,
+    pub width: u32,
+    pub height: u32,
+    pub scale: f64,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Status {
     pub version: String,
     pub os: String,
     pub session: String,
     pub permissions: Permissions,
     pub browsers: Vec<BrowserStatus>,
+    pub displays: Vec<Display>,
 }
 
 pub type Ref = u32;

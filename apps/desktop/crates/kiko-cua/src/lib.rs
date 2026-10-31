@@ -8,7 +8,7 @@ use std::sync::{Arc, Condvar, Mutex, MutexGuard};
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 
-use kiko_driver::{Desktop, DesktopInfo, DesktopTool, DriverError, ErrorCode, Grant, Permissions};
+use kiko_driver::{Desktop, DesktopInfo, DesktopTool, Display, DriverError, ErrorCode, Grant, Permissions};
 use serde_json::{Value, json};
 
 const MIN_BACKOFF: Duration = Duration::from_secs(1);
@@ -67,6 +67,7 @@ struct Inner {
     version: String,
     tools: Vec<DesktopTool>,
     permissions: Permissions,
+    screens: Vec<Display>,
     connection: Option<Arc<Connection>>,
 }
 
@@ -99,7 +100,7 @@ impl Shared {
         self.changed.notify_all();
     }
 
-    fn ready(&self, version: String, tools: Vec<DesktopTool>, permissions: Permissions) {
+    fn ready(&self, version: String, tools: Vec<DesktopTool>, permissions: Permissions, screens: Vec<Display>) {
         {
             let mut inner = self.lock();
             inner.phase = Phase::Ready;
@@ -107,6 +108,7 @@ impl Shared {
             inner.version = version;
             inner.tools = tools;
             inner.permissions = permissions;
+            inner.screens = screens;
         }
         self.changed.notify_all();
     }
@@ -135,6 +137,7 @@ impl Cua {
                 version: String::new(),
                 tools: Vec::new(),
                 permissions: unknown(),
+                screens: Vec::new(),
                 connection: None,
             }),
             changed: Condvar::new(),
@@ -166,6 +169,10 @@ impl Cua {
 
     pub fn permissions(&self) -> Permissions {
         self.shared.lock().permissions.clone()
+    }
+
+    pub fn screens(&self) -> Vec<Display> {
+        self.shared.lock().screens.clone()
     }
 
     pub fn call(&self, name: &str, args: Value) -> Result<Value, Error> {
@@ -247,6 +254,10 @@ impl Desktop for Cua {
     fn permissions(&self) -> Permissions {
         Cua::permissions(self)
     }
+
+    fn screens(&self) -> Vec<Display> {
+        Cua::screens(self)
+    }
 }
 
 fn classify(message: &str) -> Error {
@@ -321,7 +332,7 @@ fn session(
     log_stderr(child.stderr.take(), log);
     let init = initialize(&connection, log);
     match init {
-        Ok((tools, permissions)) => shared.ready(version, tools, permissions),
+        Ok((tools, permissions, screens)) => shared.ready(version, tools, permissions, screens),
         Err(reason) => {
             let _ = child.kill();
             let _ = child.wait();
@@ -477,7 +488,10 @@ fn log_stderr(stream: Option<std::process::ChildStderr>, log: &Log) {
     });
 }
 
-fn initialize(connection: &Arc<Connection>, log: &Log) -> Result<(Vec<DesktopTool>, Permissions), String> {
+fn initialize(
+    connection: &Arc<Connection>,
+    log: &Log,
+) -> Result<(Vec<DesktopTool>, Permissions, Vec<Display>), String> {
     request(
         connection,
         "initialize",
@@ -492,7 +506,53 @@ fn initialize(connection: &Arc<Connection>, log: &Log) -> Result<(Vec<DesktopToo
     let tools = load_tools(connection)?;
     log(format!("cua-driver lists {} tools", tools.len()));
     let permissions = load_permissions(connection, &tools);
-    Ok((tools, permissions))
+    let screens = load_screens(connection, &tools);
+    Ok((tools, permissions, screens))
+}
+
+fn load_screens(connection: &Arc<Connection>, tools: &[DesktopTool]) -> Vec<Display> {
+    if !tools.iter().any(|tool| tool.name == "get_screen_size") {
+        return Vec::new();
+    }
+    let result = request(
+        connection,
+        "tools/call",
+        json!({ "name": "get_screen_size", "arguments": {} }),
+        PERMISSION_TIMEOUT,
+    );
+    let Ok(result) = result else {
+        return Vec::new();
+    };
+    let Some(report) = report_of(&result) else {
+        return Vec::new();
+    };
+    screens_of(&report)
+}
+
+fn screens_of(report: &Value) -> Vec<Display> {
+    if let Some(list) = report.get("screens").and_then(Value::as_array) {
+        return list
+            .iter()
+            .enumerate()
+            .filter_map(|(index, screen)| screen_of(screen, &index.to_string()))
+            .collect();
+    }
+    screen_of(report, "primary").into_iter().collect()
+}
+
+fn screen_of(value: &Value, id: &str) -> Option<Display> {
+    let width = value.get("width").and_then(Value::as_f64)?;
+    let height = value.get("height").and_then(Value::as_f64)?;
+    if width < 1.0 || height < 1.0 {
+        return None;
+    }
+    let scale = value.get("scale").and_then(Value::as_f64).unwrap_or(1.0);
+    Some(Display {
+        id: id.to_string(),
+        width: width.round() as u32,
+        height: height.round() as u32,
+        scale,
+    })
 }
 
 fn load_tools(connection: &Arc<Connection>) -> Result<Vec<DesktopTool>, String> {

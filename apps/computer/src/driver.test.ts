@@ -17,6 +17,7 @@ const STATUS = {
   session: "x11",
   permissions: { accessibility: "granted", screen: "granted", automation: "not_needed" },
   browsers: [{ name: "chrome", state: "connected" }],
+  displays: [{ id: "primary", width: 1280, height: 800, scale: 2 }],
 } as const
 
 const DENIED = {
@@ -119,20 +120,31 @@ function watcher() {
 describe("driver client", () => {
   it("sends a call to the driver and returns its value", async () => {
     const requests: Request[] = []
+    const tools = { version: "0.38.0", tools: [{ name: "list_windows", description: "List", inputSchema: {} }] }
     const fake = await fakeDriver((request) => {
       requests.push(request)
-      return request.method === "status" ? { ok: true, value: STATUS } : { ok: true, value: [{ id: "w-1" }] }
+      if (request.method === "status") return { ok: true, value: STATUS }
+      if (request.method === "desktop.tools") return { ok: true, value: tools }
+      return { ok: true, value: [{ id: "w-1" }] }
     })
     const changes = watcher()
     let driver: Driver | null = null
     try {
       driver = startDriver({ path: fake.path, log: quiet(), scheduler: manual().scheduler, onChange: changes.notify })
-      await changes.until(() => driver?.state() !== null)
+      await changes.until(() => driver?.state()?.desktop !== undefined)
 
-      const value = await driver.call({ method: "windows" }, deadline())
+      const value = await driver.call(
+        { method: "desktop.call", params: { name: "list_windows", args: {} } },
+        deadline(),
+      )
 
       expect(value).toEqual([{ id: "w-1" }])
-      expect(requests.find((request) => request.method === "windows")).toEqual({ id: 2, method: "windows" })
+      expect(requests.find((request) => request.method === "desktop.call")).toEqual({
+        id: 3,
+        method: "desktop.call",
+        params: { name: "list_windows", args: {} },
+      })
+      expect(driver.state()?.desktop?.tools[0]?.name).toBe("list_windows")
     } finally {
       driver?.close()
       await fake.close()
@@ -152,7 +164,7 @@ describe("driver client", () => {
       await changes.until(() => driver?.state() !== null)
 
       const failure = await driver
-        .call({ method: "act", params: { window: "w-1", action: "press", ref: 4 } }, deadline())
+        .call({ method: "desktop.call", params: { name: "press_key", args: { key: "enter" } } }, deadline())
         .catch((error: unknown) => error)
 
       expect(failure).toBeInstanceOf(Fail)

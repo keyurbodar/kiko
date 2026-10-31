@@ -93,8 +93,6 @@ const NAME_ICON: Record<string, StepIcon> = {
   computer_shell: "terminal",
   computer_read: "file-view",
   computer_write: "file-add",
-  computer_look: "monitor",
-  computer_act: "cursor",
   computer_link: "monitor",
   app_deploy: "deploy",
   app_list: "apps",
@@ -119,6 +117,7 @@ export function iconOf(
   if (step.status === "failed") return "alert-circle"
   const shell = commandOf(step)
   if (shell !== undefined) return shellLabel(shell)?.icon ?? "terminal"
+  if (step.name.startsWith("desktop_")) return "monitor"
   return NAME_ICON[step.name] ?? (step.app ? "app" : KIND_ICON[step.tool])
 }
 
@@ -290,8 +289,6 @@ const HUMAN: Record<string, (args: Args) => string> = {
   computer_shell: () => "Ran a command on the computer",
   computer_read: (a) => did("Read", said(a.path), "Read a file on the computer"),
   computer_write: (a) => did("Wrote", said(a.path), "Wrote a file on the computer"),
-  computer_look: () => "Looked at the screen",
-  computer_act: () => "Used the computer",
   computer_link: () => "Linked the computer",
   web_look: () => "Looked at the page",
   web_act: () => "Clicked through the page",
@@ -313,6 +310,8 @@ function humanLabel(step: Pick<RunStep, "name" | "label" | "input">): string {
   const described = shell === undefined ? undefined : shellLabel(shell)
   if (described) return described.label
   if (step.label !== `Used ${step.name}`) return step.label
+  if (step.name.startsWith("desktop_"))
+    return `Used the computer: ${step.name.slice("desktop_".length).replace(/_/g, " ")}`
   return HUMAN[step.name]?.(argsOf(step.input)) ?? `Used ${step.name.replace(/_/g, " ")}`
 }
 

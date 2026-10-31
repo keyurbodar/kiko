@@ -14,6 +14,7 @@ import {
   type ToDaemon,
 } from "@kiko/computer/wire"
 import { CONNECT_HEADERS, CONNECT_SKEW_MS, connectMessage, verify } from "@kiko/computer/sign"
+import type { DesktopInfo } from "@kiko/computer/driver"
 import { decodeFrame } from "@kiko/computer/frame"
 import type { AgentSlug, ComputerFrame, ComputerSummary, RoomId } from "@kiko/protocol"
 import type { Env } from "../index"
@@ -30,7 +31,7 @@ const BUSY_PUSH_MS = 500
 export const MAX_DEADLINE_MS = 10 * 60_000
 export const COMPUTER_WAKEUP = "computer_hold"
 
-const BUSY_OPS: ReadonlySet<Op> = new Set<Op>(["shell", "look", "act"])
+const BUSY_OPS: ReadonlySet<Op> = new Set<Op>(["shell"])
 const DESK_MS = 60_000
 const MAX_WAITERS = 8
 
@@ -95,7 +96,6 @@ function attachmentOf(ws: WebSocket): PcAttachment | null {
 }
 
 function claimsDesk(op: Op, args: unknown): boolean {
-  if (op === "act") return true
   if (op !== "driver") return false
   const call = args as { params?: { mode?: unknown } }
   return call.params?.mode === "foreground"
@@ -110,6 +110,7 @@ export class ComputerHub {
   private readonly desk = new Map<string, { user: string; name: string; until: number }>()
   private readonly relaying = new Set<string>()
   private readonly memory = new Map<string, PcHold>()
+  private readonly desktop = new Map<string, DesktopInfo>()
   private readonly running = new Map<string, number>()
   private readonly busyPushAt = new Map<string, number>()
   private readonly busyTimers = new Map<string, ReturnType<typeof setTimeout>>()
@@ -178,6 +179,19 @@ export class ComputerHub {
   helloOf(id: string): Hello | null {
     const ws = this.socket(id)
     return (ws && attachmentOf(ws)?.hello) ?? this.memory.get(id)?.hello ?? null
+  }
+
+  desktopInfo(id: string): DesktopInfo | null {
+    return this.desktop.get(id) ?? this.d.store.desktop(id)
+  }
+
+  private rememberDesktop(id: string, info: DesktopInfo | undefined): void {
+    if (!info) {
+      this.desktop.delete(id)
+      return
+    }
+    this.desktop.set(id, info)
+    this.d.store.saveDesktop(id, info)
   }
 
   holder(id: string): Holder {
@@ -373,6 +387,7 @@ export class ComputerHub {
     }
     ws.serializeAttachment({ ...saved, hello } satisfies PcAttachment)
     this.memory.set(saved.id, { ...saved, hello })
+    this.rememberDesktop(saved.id, hello.desktop)
     this.send(ws, { t: "welcome", id: saved.id, name: this.name(saved.id), version: BACKEND.version })
     this.tellHolder(saved.id, saved.holder)
     this.syncRelay(saved.id)
@@ -418,9 +433,7 @@ export class ComputerHub {
     } else if (!hello.caps[cap]) {
       return { ok: false, code: "unsupported", message: `${row.name} does not allow ${cap}` }
     }
-    if (op === "act" && !hello.caps.input)
-      return { ok: false, code: "unsupported", message: `${row.name} has input off` }
-    if ((op === "look" || op === "act" || op === "driver") && saved.holder === "human")
+    if (op === "driver" && saved.holder === "human")
       return { ok: false, code: "busy", message: `the human has control of ${row.name} right now` }
     let parsed: unknown
     try {
@@ -723,6 +736,7 @@ export class ComputerHub {
     this.relaying.delete(id)
     this.desk.delete(id)
     this.memory.delete(id)
+    this.desktop.delete(id)
   }
 
   ageHold(id: string, ms: number): boolean {

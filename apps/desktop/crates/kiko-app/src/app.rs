@@ -185,6 +185,7 @@ fn status() -> Status {
             automation: Grant::Unknown,
         },
         browsers: Vec::<BrowserStatus>::new(),
+        displays: Vec::new(),
     }
 }
 

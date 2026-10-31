@@ -8,6 +8,7 @@ const TOOLS: &[(&str, &str)] = &[
     ("get_window_state", "Snapshot a window"),
     ("type_text", "Type text into an element"),
     ("check_permissions", "Report permission status"),
+    ("get_screen_size", "Logical display size"),
     ("capture", "Capture the screen"),
     ("fail", "Always fails"),
     ("crash", "Stop the server"),
@@ -48,6 +49,10 @@ fn call(name: &str, arguments: &Value) -> Value {
         "check_permissions" => json!({
             "content": [{ "type": "text", "text": "{\"accessibility\":true,\"screen_recording\":false}" }],
             "structuredContent": { "accessibility": true, "screen_recording": false },
+        }),
+        "get_screen_size" => json!({
+            "content": [{ "type": "text", "text": "{\"width\":1280,\"height\":800,\"scale\":2}" }],
+            "structuredContent": { "width": 1280, "height": 800, "scale": 2 },
         }),
         "capture" => json!({
             "content": [

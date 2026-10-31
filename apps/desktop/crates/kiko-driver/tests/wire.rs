@@ -36,6 +36,15 @@ impl Desktop for Fake {
             automation: Grant::NotNeeded,
         }
     }
+
+    fn screens(&self) -> Vec<Display> {
+        vec![Display {
+            id: "primary".into(),
+            width: 1280,
+            height: 800,
+            scale: 2.0,
+        }]
+    }
 }
 
 fn run(lines: &str) -> Vec<serde_json::Value> {
@@ -49,6 +58,7 @@ fn run(lines: &str) -> Vec<serde_json::Value> {
             automation: Grant::Unknown,
         },
         browsers: vec![],
+        displays: vec![],
     };
     let mut out = Vec::new();
     serve(
@@ -75,6 +85,7 @@ fn answers_each_request_by_id() {
     assert_eq!(out[0]["value"]["tools"][0]["name"], "list_windows");
     assert_eq!(out[0]["value"]["tools"][0]["inputSchema"]["type"], "object");
     assert_eq!(out[1]["value"]["permissions"]["screen"], "denied");
+    assert_eq!(out[1]["value"]["displays"][0]["width"], 1280);
 }
 
 #[test]

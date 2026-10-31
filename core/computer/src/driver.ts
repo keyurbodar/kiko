@@ -10,9 +10,6 @@ export type Mode = typeof Mode.Type
 export const Grant = Schema.Literals(["granted", "denied", "unknown", "not_needed"])
 export type Grant = typeof Grant.Type
 
-export const PermissionKind = Schema.Literals(["accessibility", "screen", "automation", "browser"])
-export type PermissionKind = typeof PermissionKind.Type
-
 export const Permissions = Schema.Struct({
   accessibility: Grant,
   screen: Grant,
@@ -26,51 +23,21 @@ export type BrowserState = typeof BrowserState.Type
 export const BrowserStatus = Schema.Struct({ name: Text, state: BrowserState })
 export type BrowserStatus = typeof BrowserStatus.Type
 
+export const Display = Schema.Struct({ id: Text, width: Count, height: Count, scale: Schema.Number })
+export type Display = typeof Display.Type
+
 export const Status = Schema.Struct({
   version: Text,
   os: Text,
   session: Text,
   permissions: Permissions,
   browsers: Schema.Array(BrowserStatus),
+  displays: Schema.Array(Display),
 })
 export type Status = typeof Status.Type
 
 export const Rect = Schema.Struct({ x: Real, y: Real, w: Real, h: Real })
 export type Rect = typeof Rect.Type
-
-export const Point = Schema.Struct({ x: Real, y: Real })
-export type Point = typeof Point.Type
-
-export const Window = Schema.Struct({
-  id: Text,
-  pid: Count,
-  app: Text,
-  bundle: Schema.optionalKey(Text),
-  title: Text,
-  frame: Rect,
-  focused: Schema.Boolean,
-  minimized: Schema.Boolean,
-  on_screen: Schema.Boolean,
-})
-export type Window = typeof Window.Type
-
-export const ACTIONS = [
-  "press",
-  "focus",
-  "set_value",
-  "type",
-  "key",
-  "scroll",
-  "show_menu",
-  "select",
-  "toggle",
-  "expand",
-  "collapse",
-  "raise",
-] as const
-
-export const Action = Schema.Literals(ACTIONS)
-export type Action = typeof Action.Type
 
 export const Node = Schema.Struct({
   ref: Count,
@@ -79,7 +46,24 @@ export const Node = Schema.Struct({
   value: Schema.optionalKey(Text),
   frame: Schema.optionalKey(Rect),
   states: Schema.optionalKey(Schema.Array(Text)),
-  actions: Schema.optionalKey(Schema.Array(Action)),
+  actions: Schema.optionalKey(
+    Schema.Array(
+      Schema.Literals([
+        "press",
+        "focus",
+        "set_value",
+        "type",
+        "key",
+        "scroll",
+        "show_menu",
+        "select",
+        "toggle",
+        "expand",
+        "collapse",
+        "raise",
+      ]),
+    ),
+  ),
   children: Schema.optionalKey(Schema.Array(Count)),
 })
 export type Node = typeof Node.Type
@@ -93,13 +77,21 @@ export const Image = Schema.Struct({
 })
 export type Image = typeof Image.Type
 
-export const Look = Schema.Struct({
-  window: Window,
-  image: Schema.optionalKey(Image),
-  nodes: Schema.Array(Node),
-  outline: Text,
+export const DesktopTool = Schema.Struct({
+  name: Text,
+  description: Schema.optionalKey(Text),
+  inputSchema: Schema.optionalKey(Schema.Unknown),
 })
-export type Look = typeof Look.Type
+export type DesktopTool = typeof DesktopTool.Type
+
+export const DesktopInfo = Schema.Struct({ version: Text, tools: Schema.Array(DesktopTool) })
+export type DesktopInfo = typeof DesktopInfo.Type
+
+export const DesktopCallParams = Schema.Struct({
+  name: Text,
+  args: Schema.optionalKey(Schema.Unknown),
+})
+export type DesktopCallParams = typeof DesktopCallParams.Type
 
 export const Tab = Schema.Struct({
   id: Text,
@@ -125,34 +117,6 @@ export type Route = typeof Route.Type
 
 export const ActResult = Schema.Struct({ route: Route })
 export type ActResult = typeof ActResult.Type
-
-export const LookParams = Schema.Struct({
-  window: Text,
-  tree: Schema.optionalKey(Schema.Boolean),
-  image: Schema.optionalKey(Schema.Boolean),
-  max_width: Schema.optionalKey(Count),
-})
-export type LookParams = typeof LookParams.Type
-
-export const ActParams = Schema.Struct({
-  window: Text,
-  ref: Schema.optionalKey(Count),
-  point: Schema.optionalKey(Point),
-  action: Action,
-  text: Schema.optionalKey(Text),
-  keys: Schema.optionalKey(Text),
-  dx: Schema.optionalKey(Real),
-  dy: Schema.optionalKey(Real),
-  mode: Schema.optionalKey(Mode),
-})
-export type ActParams = typeof ActParams.Type
-
-export const OpenParams = Schema.Struct({
-  kind: Schema.Literals(["app", "url", "path"]),
-  target: Text,
-  mode: Schema.optionalKey(Mode),
-})
-export type OpenParams = typeof OpenParams.Type
 
 export const TabParams = Schema.Struct({ tab: Text })
 export type TabParams = typeof TabParams.Type
@@ -187,16 +151,10 @@ export type BrowserActParams = typeof BrowserActParams.Type
 export const BrowserEvalParams = Schema.Struct({ tab: Text, expression: Text })
 export type BrowserEvalParams = typeof BrowserEvalParams.Type
 
-export const PermissionParams = Schema.Struct({ kind: PermissionKind })
-export type PermissionParams = typeof PermissionParams.Type
-
 export const DriverCall = Schema.Union([
   Schema.Struct({ method: Schema.Literal("status") }),
-  Schema.Struct({ method: Schema.Literal("permissions.request"), params: PermissionParams }),
-  Schema.Struct({ method: Schema.Literal("windows") }),
-  Schema.Struct({ method: Schema.Literal("look"), params: LookParams }),
-  Schema.Struct({ method: Schema.Literal("act"), params: ActParams }),
-  Schema.Struct({ method: Schema.Literal("open"), params: OpenParams }),
+  Schema.Struct({ method: Schema.Literal("desktop.tools") }),
+  Schema.Struct({ method: Schema.Literal("desktop.call"), params: DesktopCallParams }),
   Schema.Struct({ method: Schema.Literal("browser.tabs") }),
   Schema.Struct({ method: Schema.Literal("browser.open"), params: BrowserOpenParams }),
   Schema.Struct({ method: Schema.Literal("browser.close"), params: TabParams }),

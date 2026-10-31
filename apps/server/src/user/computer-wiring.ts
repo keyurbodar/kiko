@@ -7,6 +7,7 @@ import {
   type ComputerSignal,
 } from "@kiko/protocol"
 import * as Effect from "effect/Effect"
+import type { DesktopInfo } from "@kiko/computer/driver"
 import type { Op } from "@kiko/computer/wire"
 import type { OwnerServices } from "../owner/services"
 import { MAX_DEADLINE_MS, type ComputerHub } from "../computer/hub"
@@ -128,6 +129,11 @@ export class ComputerWiring {
     if (mode === "control")
       await this.d.services.room(roomId).computerAsk(slug, { id: row.id, name: row.name }, why, `${Date.now()}`)
     return { ok: true }
+  }
+
+  desktop(pcId?: string): DesktopInfo | null {
+    const row = this.find(pcId)
+    return row ? this.hub.desktopInfo(row.id) : null
   }
 
   holder(pcId: string): "agent" | "human" {
