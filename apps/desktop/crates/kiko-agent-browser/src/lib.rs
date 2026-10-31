@@ -134,6 +134,7 @@ pub struct Engine {
     stop: Arc<AtomicBool>,
     worker: Mutex<Option<JoinHandle<()>>>,
     shot: PathBuf,
+    bound: Option<String>,
     refs: HashMap<String, HashSet<u32>>,
 }
 
@@ -158,6 +159,7 @@ impl Engine {
             stop,
             worker: Mutex::new(Some(worker)),
             shot,
+            bound: None,
             refs: HashMap::new(),
         }
     }
@@ -247,8 +249,13 @@ impl Engine {
         }
     }
 
-    fn bind(&self, tab: &str) -> Outcome<()> {
+    fn bind(&mut self, tab: &str) -> Outcome<()> {
+        if self.bound.as_deref() == Some(tab) {
+            return Ok(());
+        }
         self.tool("agent_browser_tab_switch", json!({ "tab": tab }))?;
+        self.bound = Some(tab.to_string());
+        self.refs.clear();
         Ok(())
     }
 
@@ -274,16 +281,23 @@ impl Engine {
             )?;
         }
         let tabs = self.list()?;
-        tabs.iter()
+        let tab = tabs
+            .iter()
             .find(|tab| tab.active)
             .or_else(|| tabs.last())
             .cloned()
-            .ok_or_else(|| Error::Failed("the browser did not open a tab".into()))
+            .ok_or_else(|| Error::Failed("the browser did not open a tab".into()))?;
+        self.bound = Some(tab.id.clone());
+        self.refs.clear();
+        Ok(tab)
     }
 
     fn close(&mut self, params: &TabParams) -> Outcome<()> {
         self.tool("agent_browser_tab_close", json!({ "tab": params.tab }))?;
         self.refs.remove(&params.tab);
+        if self.bound.as_deref() == Some(params.tab.as_str()) {
+            self.bound = None;
+        }
         Ok(())
     }
 
@@ -334,6 +348,7 @@ impl Engine {
     }
 
     fn act(&mut self, params: &BrowserActParams) -> Outcome<ActResult> {
+        self.bind(&params.tab)?;
         if !self
             .refs
             .get(&params.tab)
@@ -343,7 +358,6 @@ impl Engine {
                 "that ref is stale; read the page again".into(),
             ));
         }
-        self.bind(&params.tab)?;
         let selector = format!("@e{}", params.reference);
         let text = params.text.as_deref().unwrap_or_default();
         let route = match params.action {
@@ -532,7 +546,7 @@ fn classify(message: &str) -> Error {
     } else {
         message
     };
-    if text.contains("is stale") {
+    if text.contains("is stale") || text.contains("Unknown ref") {
         Error::Stale(text.to_string())
     } else if text.contains("timed out") || text.contains("timeout") {
         Error::Timeout(text.to_string())
