@@ -3,21 +3,19 @@ import { InputEvent, type Display, type Holder, type IceServer, type RtcSignal }
 import { encodeFrame } from "@kiko/computer/frame"
 import { findBinary, probeEncoders } from "./binary"
 import type { AccessUnit } from "./annexb"
-import { workingEncoders, type Screen } from "./capture"
+import { captureSize, workingEncoders, type Screen } from "./capture"
 import { startH264, startMjpeg, type H264Capture, type MjpegCapture } from "./captures"
 import type { Injected } from "./input"
 import { createSession, type Session } from "./session"
 import type { Control, Live, LiveDeps, LiveFrame } from "./types"
 
-const CURSOR_INTERVAL_MS = Math.round(1000 / 30)
-const CURSOR_EPSILON = 0.0008
-const RELAY_MAX_IN_FLIGHT = 2
+const RELAY_MAX_IN_FLIGHT = 1
 const RELAY_MIN_ACK_MS = 250
-const RELAY_FPS = 8
-const RELAY_WIDTH = 1280
-const RELAY_QUALITY = 60
+const RELAY_FPS = 15
+const RELAY_WIDTH = 1600
+const RELAY_QUALITY = 65
 const H264_FPS = 30
-const H264_WIDTH = 1920
+const H264_WIDTH = 2560
 const GOP_LIMIT = 90
 
 const decodeEvents = Schema.decodeUnknownOption(Schema.Array(InputEvent))
@@ -30,8 +28,6 @@ class Daemon implements Live {
   private holder: Holder = "agent"
   private holderSession: string | undefined
   private closed = false
-  private cursorTimer: ReturnType<typeof setInterval> | null = null
-  private cursorAt: { x: number; y: number } | null = null
   private h264: H264Capture | null = null
   private mjpeg: MjpegCapture | null = null
   private relay: Relay | null = null
@@ -88,10 +84,7 @@ class Daemon implements Live {
   onControl(control: Control): void {
     this.holder = control.holder
     this.holderSession = control.holder === "human" ? control.session : undefined
-    if (control.holder === "agent") {
-      this.input?.release()
-      this.broadcast([{ k: "cursor", who: "real", x: 0, y: 0 }])
-    }
+    if (control.holder === "agent") this.input?.release()
     this.deps.send({
       t: "held",
       holder: control.holder,
@@ -130,7 +123,6 @@ class Daemon implements Live {
         this.attach()
         this.replay(target)
       },
-      needKeyframe: () => this.requestKeyframe(),
     })
     this.sessions.set(id, created)
     return created
@@ -149,7 +141,6 @@ class Daemon implements Live {
 
   private attach(): void {
     this.startCapture()
-    this.startCursor()
   }
 
   private drop(id: string): void {
@@ -176,14 +167,14 @@ class Daemon implements Live {
   }
 
   private startCapture(): void {
-    if (this.h264 || this.mjpeg) return
+    if (this.h264) return
     const ffmpeg = this.ffmpeg()
     if (!ffmpeg) return
     this.h264 = startH264({
       ffmpeg,
       screen: this.screen,
       fps: H264_FPS,
-      maxWidth: Math.min(H264_WIDTH, Math.round(this.screen.width) || H264_WIDTH),
+      maxWidth: H264_WIDTH,
       encoders: this.encoders,
       handlers: {
         unit: (unit, timestamp) => {
@@ -195,28 +186,39 @@ class Daemon implements Live {
           this.stopWatching()
         },
       },
-      onRestart: () => this.requestKeyframe(),
     })
   }
 
   private startRelay(frame: LiveFrame): void {
-    if (this.relay) return
-    if (this.sessions.size === 0) this.stopCapture()
-    const ffmpeg = this.ffmpeg()
-    if (!ffmpeg) return
-    const fps = clamp(frame.fps, 1, 15, RELAY_FPS)
+    const profile = relayProfile(frame)
+    if (this.relay) {
+      if (sameProfile(this.relay.profile, profile)) return
+      this.relay.profile = profile
+      this.restartMjpeg(profile)
+      return
+    }
+    if (this.sessions.size === 0) this.stopRtc()
     this.relay = {
       inFlight: new Map(),
       latest: null,
       seq: 0,
-      ackMs: Math.max(RELAY_MIN_ACK_MS, Math.round(2000 / fps)),
+      ackMs: Math.max(RELAY_MIN_ACK_MS, Math.round(2000 / profile.fps)),
+      profile,
     }
+    this.restartMjpeg(profile)
+  }
+
+  private restartMjpeg(profile: RelayProfile): void {
+    const ffmpeg = this.ffmpeg()
+    if (!ffmpeg) return
+    this.mjpeg?.stop()
+    if (this.relay) this.relay.latest = null
     this.mjpeg = startMjpeg({
       ffmpeg,
       screen: this.screen,
-      fps,
-      maxWidth: clamp(frame.maxWidth, 320, 1920, RELAY_WIDTH),
-      quality: clamp(frame.quality, 10, 95, RELAY_QUALITY),
+      fps: profile.fps,
+      maxWidth: profile.maxWidth,
+      quality: profile.quality,
       handlers: {
         frame: (jpeg) => this.pushRelay(jpeg),
         failed: (reason) => {
@@ -225,7 +227,6 @@ class Daemon implements Live {
         },
       },
     })
-    this.startCursor()
   }
 
   private pushRelay(jpeg: Uint8Array): void {
@@ -244,37 +245,10 @@ class Daemon implements Live {
     relay.latest = null
     relay.seq += 1
     relay.inFlight.set(relay.seq, Date.now())
+    const size = captureSize(this.screen, relay.profile.maxWidth)
     this.deps.sendBinary(
-      encodeFrame(
-        {
-          kind: "jpeg",
-          width: Math.round(this.screen.width),
-          height: Math.round(this.screen.height),
-          seq: relay.seq,
-          cursor: this.input?.cursor() ?? null,
-        },
-        image,
-      ),
+      encodeFrame({ kind: "jpeg", width: size.width, height: size.height, seq: relay.seq, cursor: null }, image),
     )
-  }
-
-  private startCursor(): void {
-    if (this.cursorTimer) return
-    this.cursorTimer = setInterval(() => this.publishCursor(), CURSOR_INTERVAL_MS)
-  }
-
-  private publishCursor(): void {
-    if (this.sessions.size === 0) return
-    const at = this.input?.cursor()
-    if (!at) return
-    const previous = this.cursorAt
-    if (previous && Math.abs(previous.x - at.x) < CURSOR_EPSILON && Math.abs(previous.y - at.y) < CURSOR_EPSILON) return
-    this.cursorAt = at
-    this.broadcast([{ k: "cursor", who: "real", x: at.x, y: at.y }])
-  }
-
-  private requestKeyframe(): void {
-    this.h264?.requestKeyframe()
   }
 
   private stopRtc(): void {
@@ -299,13 +273,6 @@ class Daemon implements Live {
   private stopWatching(): void {
     this.stopCapture()
     this.relay = null
-    this.stopCursor()
-  }
-
-  private stopCursor(): void {
-    if (this.cursorTimer) clearInterval(this.cursorTimer)
-    this.cursorTimer = null
-    this.cursorAt = null
   }
 }
 
@@ -313,11 +280,26 @@ export function createLive(deps: LiveDeps): Live {
   return new Daemon(deps)
 }
 
+type RelayProfile = { fps: number; maxWidth: number; quality: number }
+
 type Relay = {
   seq: number
   inFlight: Map<number, number>
   latest: Uint8Array | null
   ackMs: number
+  profile: RelayProfile
+}
+
+function relayProfile(frame: LiveFrame): RelayProfile {
+  return {
+    fps: clamp(frame.fps, 1, 30, RELAY_FPS),
+    maxWidth: clamp(frame.maxWidth, 320, 2560, RELAY_WIDTH),
+    quality: clamp(frame.quality, 10, 95, RELAY_QUALITY),
+  }
+}
+
+function sameProfile(a: RelayProfile, b: RelayProfile): boolean {
+  return a.fps === b.fps && a.maxWidth === b.maxWidth && a.quality === b.quality
 }
 
 function clamp(value: number | undefined, min: number, max: number, fallback: number): number {
@@ -327,5 +309,5 @@ function clamp(value: number | undefined, min: number, max: number, fallback: nu
 
 function screenOf(display: Display | undefined): Screen | null {
   if (!display || display.width <= 0 || display.height <= 0) return null
-  return { width: display.width, height: display.height }
+  return { width: display.width, height: display.height, scale: display.scale }
 }

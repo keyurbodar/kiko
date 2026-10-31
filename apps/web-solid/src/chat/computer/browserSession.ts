@@ -1,14 +1,13 @@
-import { browserKey, type BrowserFeed, type BrowserSize } from "@kiko/client-runtime/state"
-import type { ComputerInput } from "@kiko/protocol"
-import * as AsyncResult from "effect/reactivity/AsyncResult"
-import { failureMessage, observe, owner, run, valueOf } from "../../state/runtime"
+import { decodeBrowserFrame } from "@kiko/computer/frame"
+import type { BrowserEvent, ComputerInput } from "@kiko/protocol"
+import { liveSocket, owner, run } from "../../state/runtime"
 
 export type BrowserStatus = "connecting" | "live" | "ended" | "error"
 
 export type BrowserHooks = {
   canvas: HTMLCanvasElement
-  onViewport(viewport: { width: number; height: number }): void
   onStatus(status: BrowserStatus, message?: string): void
+  onSize(width: number, height: number): void
 }
 
 export type BrowserSession = {
@@ -16,40 +15,72 @@ export type BrowserSession = {
   close(): void
 }
 
-type Frame = { data: string; mime: string; width: number; height: number }
+export type BrowserSize = { maxWidth: number; maxHeight: number }
+
+const QUALITY = 70
 
 export function startBrowser(pcId: string, tab: string, size: BrowserSize, hooks: BrowserHooks): BrowserSession {
-  const key = browserKey(pcId, tab, size)
+  const address = liveSocket(pcId)
+  const socket = new WebSocket(address.url, address.protocols)
+  socket.binaryType = "arraybuffer"
   const context = hooks.canvas.getContext("2d")
-  let seen = 0
-  let closed = false
+  const id = crypto.randomUUID()
+  let latest: ArrayBuffer | null = null
   let busy = false
-  let latest: Frame | null = null
+  let closed = false
+  let painted = 0
 
-  const paint = (bitmap: ImageBitmap, frame: Frame) => {
-    const { canvas } = hooks
-    if (canvas.width !== frame.width || canvas.height !== frame.height) {
-      canvas.width = frame.width
-      canvas.height = frame.height
-    }
-    context?.drawImage(bitmap, 0, 0, frame.width, frame.height)
+  const attach = () => {
+    if (closed || socket.readyState !== WebSocket.OPEN) return
+    socket.send(
+      JSON.stringify({
+        t: "browser",
+        on: true,
+        id,
+        tab,
+        maxWidth: size.maxWidth,
+        maxHeight: size.maxHeight,
+        quality: QUALITY,
+      }),
+    )
   }
 
-  const drain = async () => {
+  const read = (data: string) => {
+    let message: { t?: string; event?: BrowserEvent }
+    try {
+      message = JSON.parse(data) as { t?: string; event?: BrowserEvent }
+    } catch {
+      return
+    }
+    if (message.t !== "browser" || !message.event) return
+    const event = message.event
+    if (event.type === "start") hooks.onStatus("live")
+    else if (event.type === "error") hooks.onStatus("error", event.message)
+    else if (event.type === "end") hooks.onStatus("ended")
+  }
+
+  async function drain() {
     if (busy) return
     busy = true
     while (latest) {
-      const frame = latest
+      const raw = latest
       latest = null
       if (closed) break
+      const frame = decodeBrowserFrame(new Uint8Array(raw))
+      if (!frame || frame.header.seq <= painted) continue
+      painted = frame.header.seq
       try {
-        const raw = atob(frame.data)
-        const bytes = new Uint8Array(raw.length)
-        for (let index = 0; index < raw.length; index += 1) bytes[index] = raw.charCodeAt(index)
-        const bitmap = await createImageBitmap(new Blob([bytes], { type: frame.mime }))
+        const bitmap = await createImageBitmap(new Blob([frame.image], { type: "image/jpeg" }))
         if (!closed) {
-          paint(bitmap, frame)
-          void run(owner.commands.browserAck, { pcId, tab, bytes: bytes.byteLength })
+          const { canvas } = hooks
+          if (canvas.width !== frame.header.width || canvas.height !== frame.header.height) {
+            canvas.width = frame.header.width
+            canvas.height = frame.header.height
+          }
+          context?.drawImage(bitmap, 0, 0, frame.header.width, frame.header.height)
+          hooks.onSize(frame.header.viewportWidth, frame.header.viewportHeight)
+          if (socket.readyState === WebSocket.OPEN)
+            socket.send(JSON.stringify({ t: "browserAck", id, bytes: frame.image.byteLength }))
         }
         bitmap.close()
       } catch {}
@@ -57,33 +88,22 @@ export function startBrowser(pcId: string, tab: string, size: BrowserSize, hooks
     busy = false
   }
 
-  const read = (feed: BrowserFeed) => {
-    for (const item of feed.items) {
-      if (item.seq <= seen) continue
-      seen = item.seq
-      const event = item.event
-      if (event.type === "start") {
-        hooks.onViewport({ width: event.viewportWidth, height: event.viewportHeight })
-        hooks.onStatus("live")
-      } else if (event.type === "frame") {
-        latest = { data: event.data, mime: event.mime, width: event.width, height: event.height }
-        void drain()
-      } else if (event.type === "error") hooks.onStatus("error", event.message)
-      else hooks.onStatus("ended")
-    }
-  }
-
-  const drainFeed = (result: AsyncResult.AsyncResult<BrowserFeed, unknown>) => {
+  socket.addEventListener("open", attach)
+  socket.addEventListener("message", (event) => {
     if (closed) return
-    if (AsyncResult.isFailure(result)) {
-      hooks.onStatus("error", failureMessage(result.cause, "Kiko could not open this browser tab."))
+    if (event.data instanceof ArrayBuffer) {
+      latest = event.data
+      void drain()
       return
     }
-    const feed = valueOf(result)
-    if (feed) read(feed)
-  }
-
-  const stop = observe(owner.browserAtom(key), drainFeed, { immediate: true })
+    if (typeof event.data === "string") read(event.data)
+  })
+  socket.addEventListener("close", () => {
+    if (!closed) hooks.onStatus("ended")
+  })
+  socket.addEventListener("error", () => {
+    if (!closed) hooks.onStatus("error")
+  })
 
   return {
     send(events) {
@@ -93,7 +113,8 @@ export function startBrowser(pcId: string, tab: string, size: BrowserSize, hooks
     close() {
       closed = true
       latest = null
-      stop()
+      if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ t: "browser", on: false, id }))
+      socket.close()
     },
   }
 }

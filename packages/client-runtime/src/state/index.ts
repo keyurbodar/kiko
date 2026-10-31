@@ -1,12 +1,5 @@
 export { createOwnerAtoms } from "./atoms"
-export {
-  browserKey,
-  setTerminalSize,
-  terminalKey,
-  type BrowserFeed,
-  type BrowserSize,
-  type TerminalFeed,
-} from "./computer"
+export { setTerminalSize, terminalKey, type TerminalFeed } from "./computer"
 export type { SendMessageInput, SentMessage } from "./commands"
 export type { RoomState } from "./roomState"
 export { layerBrowser, type OwnerRuntimeOptions, type OwnerRuntimeServices } from "./runtime"

@@ -1,42 +1,46 @@
 import { encodeBrowserFrame } from "@kiko/computer/frame"
 import type { FromDaemon, Holder, ToDaemon } from "@kiko/computer/wire"
-import { openCdp, type Cdp } from "./cdp"
 import { applyInput, createInputState, type InputState, type Viewport } from "./input"
+import { jpegSize } from "./jpeg"
 
-const VIEW_WINDOW = 256 * 1024
-const MAX_DPR = 2
-const DEFAULT_QUALITY = 65
-const MIN_WIDTH = 320
-const MAX_WIDTH = 4096
+const MAX_FPS = 30
+const DEFAULT_VIEWPORT: Viewport = { width: 1280, height: 800 }
 
 type Open = Extract<ToDaemon, { t: "browser" }>
 type Input = Extract<ToDaemon, { t: "browserInput" }>
 type Ack = Extract<ToDaemon, { t: "browserAck" }>
 type Event = Extract<FromDaemon, { t: "browser" }>["event"]
 
-type Metadata = { deviceWidth?: unknown; deviceHeight?: unknown }
+export type StreamSocket = {
+  readyState: number
+  send(data: string): void
+  close(): void
+  addEventListener(type: string, handler: (event: { data?: unknown }) => void): void
+}
+
+const OPEN = 1
+
+type Frame = { image: Uint8Array; seq: number; width: number; height: number }
 
 type Attach = {
   id: string
   tab: string
-  session: string
-  cdp: Cdp
+  socket: StreamSocket
   viewport: Viewport
   state: InputState
   seq: number
-  pending: number
-  latest: Uint8Array | null
-  meta: Metadata
-  stop: () => void
+  awaiting: { seq: number; bytes: number } | null
+  latest: Frame | null
+  started: boolean
 }
 
 export type BrowserLiveDeps = {
-  cdpUrl: () => Promise<string>
+  stream: (tab: string) => Promise<string>
   send(frame: FromDaemon): void
   sendBinary(bytes: Uint8Array<ArrayBuffer>): void
   holder: () => Holder
   warn(message: string): void
-  connect?: (url: string) => Promise<Cdp>
+  open?: (url: string) => StreamSocket
 }
 
 export type BrowserLive = {
@@ -50,44 +54,17 @@ function messageOf(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
 }
 
-function clamp(value: number | undefined, min: number, max: number, fallback: number): number {
-  if (value === undefined || !Number.isFinite(value)) return fallback
-  return Math.min(max, Math.max(min, Math.round(value)))
-}
-
 function record(value: unknown): Record<string, unknown> {
   return typeof value === "object" && value !== null ? (value as Record<string, unknown>) : {}
 }
 
-function viewportOf(metrics: unknown): Viewport {
-  const source = record(metrics)
-  const view = record(source.cssVisualViewport ?? source.cssLayoutViewport)
-  const width = typeof view.clientWidth === "number" ? view.clientWidth : 0
-  const height = typeof view.clientHeight === "number" ? view.clientHeight : 0
-  return width > 0 && height > 0 ? { width, height } : { width: 1280, height: 800 }
+function number(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined
 }
 
 export function createBrowserLive(deps: BrowserLiveDeps): BrowserLive {
   const attaches = new Map<string, Attach>()
-  let connection: Promise<Cdp> | null = null
-  let connected: Cdp | null = null
   let closed = false
-
-  const connect = (): Promise<Cdp> => {
-    if (!connection) {
-      connection = deps
-        .cdpUrl()
-        .then((url) => (deps.connect ?? openCdp)(url))
-        .then((next) => {
-          connected = next
-          return next
-        })
-      connection.catch(() => {
-        connection = null
-      })
-    }
-    return connection
-  }
 
   const event = (id: string, next: Event) => deps.send({ t: "browser", id, event: next })
 
@@ -95,160 +72,169 @@ export function createBrowserLive(deps: BrowserLiveDeps): BrowserLive {
     const attach = attaches.get(id)
     if (!attach) return false
     attaches.delete(id)
-    attach.stop()
+    try {
+      attach.socket.close()
+    } catch {}
     return true
   }
 
-  const release = () => {
-    if (attaches.size > 0) return
-    connected?.close()
-    connected = null
-    connection = null
-  }
-
-  const stop = (id: string) => {
-    if (!detach(id)) return
-    event(id, { type: "end" })
-    release()
-  }
-
-  const paint = (attach: Attach, image: Uint8Array) => {
+  const paint = (attach: Attach, frame: Frame) => {
     attach.seq += 1
-    attach.pending += image.byteLength
-    const width = typeof attach.meta.deviceWidth === "number" ? attach.meta.deviceWidth : attach.viewport.width
-    const height = typeof attach.meta.deviceHeight === "number" ? attach.meta.deviceHeight : attach.viewport.height
+    attach.awaiting = { seq: frame.seq, bytes: frame.image.byteLength }
     deps.sendBinary(
       encodeBrowserFrame(
         {
           id: attach.id,
           tab: attach.tab,
           seq: attach.seq,
-          width: Math.round(width),
-          height: Math.round(height),
+          width: frame.width,
+          height: frame.height,
           viewportWidth: Math.round(attach.viewport.width),
           viewportHeight: Math.round(attach.viewport.height),
         },
-        image,
+        frame.image,
       ),
     )
   }
 
-  const receive = (attach: Attach, params: Record<string, unknown>) => {
-    const frameId = typeof params.sessionId === "number" ? params.sessionId : undefined
-    if (frameId !== undefined)
-      void attach.cdp.send("Page.screencastFrameAck", { sessionId: frameId }, attach.session).catch(() => {})
-    if (typeof params.data !== "string" || !params.data) return
-    const image = new Uint8Array(Buffer.from(params.data, "base64"))
-    if (image.byteLength === 0) return
-    attach.meta = record(params.metadata)
-    if (attach.pending >= VIEW_WINDOW) {
-      attach.latest = image
-      return
-    }
-    paint(attach, image)
+  const start = (attach: Attach) => {
+    if (attach.started) return
+    attach.started = true
+    event(attach.id, {
+      type: "start",
+      tab: attach.tab,
+      width: Math.round(attach.viewport.width),
+      height: Math.round(attach.viewport.height),
+      viewportWidth: Math.round(attach.viewport.width),
+      viewportHeight: Math.round(attach.viewport.height),
+    })
   }
 
-  const start = async (id: string, tab: string, frame: Open) => {
-    const cdp = await connect()
-    if (closed) return
-    const attached = record(await cdp.send("Target.attachToTarget", { targetId: tab, flatten: true }))
-    const session = typeof attached.sessionId === "string" ? attached.sessionId : ""
-    if (!session) throw new Error("the browser would not open a live session for that tab")
-    if (closed) {
-      void cdp.send("Target.detachFromTarget", { sessionId: session }).catch(() => {})
+  const frameMessage = (attach: Attach, message: Record<string, unknown>) => {
+    const data = typeof message.data === "string" ? message.data : ""
+    const seq = number(message.seq)
+    if (!data || seq === undefined) return
+    const image = new Uint8Array(Buffer.from(data, "base64"))
+    if (image.byteLength === 0) return
+    const meta = record(message.metadata)
+    const width = number(meta.deviceWidth)
+    const height = number(meta.deviceHeight)
+    if (width && height) attach.viewport = { width, height }
+    const size = jpegSize(image) ?? { width: width ?? 0, height: height ?? 0 }
+    if (size.width <= 0 || size.height <= 0) return
+    start(attach)
+    const frame = { image, seq, width: size.width, height: size.height }
+    if (attach.awaiting) {
+      attach.latest = frame
       return
     }
-    const viewport = viewportOf(await cdp.send("Page.getLayoutMetrics", {}, session))
-    const scale = Math.min(MAX_DPR, Math.max(0.25, (frame.maxWidth ?? viewport.width) / viewport.width))
-    const attach: Attach = {
-      id,
-      tab,
-      session,
-      cdp,
-      viewport,
-      state: createInputState(),
-      seq: 0,
-      pending: 0,
-      latest: null,
-      meta: {},
-      stop: cdp.on("Page.screencastFrame", (params, from) => {
-        if (from === session) receive(attach, params)
-      }),
+    paint(attach, frame)
+  }
+
+  const statusMessage = (attach: Attach, message: Record<string, unknown>) => {
+    const width = number(message.viewportWidth)
+    const height = number(message.viewportHeight)
+    if (width && height) attach.viewport = { width, height }
+    if (message.connected === false) {
+      event(attach.id, { type: "error", message: "the browser is not connected" })
+      return
     }
-    attaches.set(id, attach)
-    cdp.onClose(() => {
-      if (!detach(id)) return
-      release()
-      event(id, { type: "error", message: "the browser's devtools socket closed" })
-    })
-    event(id, {
-      type: "start",
-      tab,
-      width: Math.round(viewport.width),
-      height: Math.round(viewport.height),
-      viewportWidth: Math.round(viewport.width),
-      viewportHeight: Math.round(viewport.height),
-    })
-    await cdp.send(
-      "Page.startScreencast",
-      {
-        format: "jpeg",
-        quality: clamp(frame.quality, 20, 90, DEFAULT_QUALITY),
-        maxWidth: clamp(viewport.width * scale, MIN_WIDTH, MAX_WIDTH, viewport.width),
-        maxHeight: Math.max(1, Math.round(viewport.height * scale)),
-        everyNthFrame: 1,
-      },
-      session,
-    )
+    if (message.screencasting === true) start(attach)
+  }
+
+  const receive = (attach: Attach, data: unknown) => {
+    if (typeof data !== "string") return
+    let message: Record<string, unknown>
+    try {
+      message = record(JSON.parse(data))
+    } catch {
+      return
+    }
+    if (message.type === "frame") frameMessage(attach, message)
+    else if (message.type === "status") statusMessage(attach, message)
   }
 
   const fail = (id: string, error: unknown) => {
     if (closed) return
     detach(id)
-    release()
     const message = `the browser live view could not start: ${messageOf(error)}`
     deps.warn(message)
     event(id, { type: "error", message })
   }
 
+  const run = async (id: string, tab: string) => {
+    const url = await deps.stream(tab)
+    if (closed) return
+    const socket = (deps.open ?? ((target: string) => new WebSocket(target) as unknown as StreamSocket))(url)
+    const attach: Attach = {
+      id,
+      tab,
+      socket,
+      viewport: DEFAULT_VIEWPORT,
+      state: createInputState(),
+      seq: 0,
+      awaiting: null,
+      latest: null,
+      started: false,
+    }
+    attaches.set(id, attach)
+    socket.addEventListener("open", () => {
+      if (attaches.get(id) !== attach) return
+      try {
+        socket.send(JSON.stringify({ type: "config", pacing: "ack", maxFps: MAX_FPS }))
+      } catch {}
+    })
+    socket.addEventListener("message", (event) => {
+      if (attaches.get(id) === attach) receive(attach, event.data)
+    })
+    socket.addEventListener("close", () => {
+      if (!detach(id)) return
+      event(id, { type: "error", message: "the browser stream closed" })
+    })
+    socket.addEventListener("error", () => {
+      if (!detach(id)) return
+      event(id, { type: "error", message: "the browser stream failed" })
+    })
+  }
+
   return {
     open(frame) {
       detach(frame.id)
-      if (!frame.on || closed) {
-        release()
-        return
-      }
+      if (!frame.on || closed) return
       if (!frame.tab) {
         event(frame.id, { type: "error", message: "pick a browser tab to watch" })
         return
       }
-      void start(frame.id, frame.tab, frame).catch((error: unknown) => fail(frame.id, error))
+      void run(frame.id, frame.tab).catch((error: unknown) => fail(frame.id, error))
     },
     input(frame) {
       if (closed || deps.holder() !== "human") return
       const attach = attaches.get(frame.id)
-      if (!attach) return
-      applyInput(frame.events, attach.viewport, attach.state, (method, params) => {
-        void attach.cdp
-          .send(method, params, attach.session)
-          .catch((error: unknown) => deps.warn(`browser input failed: ${messageOf(error)}`))
+      if (!attach || attach.socket.readyState !== OPEN) return
+      applyInput(frame.events, attach.viewport, attach.state, (message) => {
+        try {
+          attach.socket.send(JSON.stringify(message))
+        } catch (error) {
+          deps.warn(`browser input failed: ${messageOf(error)}`)
+        }
       })
     },
     ack(frame) {
       const attach = attaches.get(frame.id)
-      if (!attach) return
-      attach.pending = Math.max(0, attach.pending - frame.bytes)
-      if (attach.pending >= VIEW_WINDOW || !attach.latest) return
-      const image = attach.latest
+      if (!attach || !attach.awaiting) return
+      const awaiting = attach.awaiting
+      attach.awaiting = null
+      try {
+        attach.socket.send(JSON.stringify({ type: "ack", seq: awaiting.seq }))
+      } catch {}
+      if (!attach.latest) return
+      const latest = attach.latest
       attach.latest = null
-      paint(attach, image)
+      paint(attach, latest)
     },
     close() {
       closed = true
-      for (const id of [...attaches.keys()]) stop(id)
-      connected?.close()
-      connected = null
-      connection = null
+      for (const id of [...attaches.keys()]) detach(id)
     },
   }
 }

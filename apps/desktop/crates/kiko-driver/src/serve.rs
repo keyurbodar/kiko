@@ -35,7 +35,7 @@ pub fn dispatch(
         Call::BrowserRead(p) => value(browser.read(&p)),
         Call::BrowserAct(p) => value(browser.act(&p)),
         Call::BrowserEval(p) => value(browser.eval(&p)),
-        Call::BrowserCdp => value(browser.cdp()),
+        Call::BrowserStream(p) => value(browser.stream(&p).map(|url| serde_json::json!({ "url": url }))),
     }
 }
 

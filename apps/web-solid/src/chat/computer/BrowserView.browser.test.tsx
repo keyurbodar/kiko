@@ -1,62 +1,87 @@
-import type { BrowserEvent } from "@kiko/protocol"
+import { encodeBrowserFrame } from "@kiko/computer/frame"
 import { createSignal } from "solid-js"
-import { describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { userEvent } from "vitest/browser"
 import { render, type Screen } from "../../../test/render"
 import BrowserView from "./BrowserView"
 
-type Feed = { seq: number; items: { seq: number; event: BrowserEvent }[] }
-
 const fakes = vi.hoisted(() => ({
-  feeds: [] as ((feed: Feed) => void)[],
   sent: [] as { command: string; input: Record<string, unknown> }[],
-  pending: false,
+  frame: 0,
+  setPending: (_pending: boolean) => {},
 }))
 
-vi.mock("../computers", () => ({ takePending: () => fakes.pending }))
+vi.mock("../computers", async () => {
+  const { createSignal } = await import("solid-js")
+  const [pending, setPending] = createSignal(false)
+  fakes.setPending = setPending
+  return { takePending: () => pending() }
+})
 
 vi.mock("../../state/runtime", () => ({
-  observe: (_atom: unknown, callback: (feed: Feed) => void) => {
-    fakes.feeds.push(callback)
-    queueMicrotask(() => callback({ seq: 0, items: [] }))
-    return () => {}
-  },
-  valueOf: (value: unknown) => value,
-  failureMessage: () => "",
+  liveSocket: () => ({ url: "ws://live/pc-1", protocols: ["kiko"] }),
   run: async (command: string, input: Record<string, unknown>) => {
     fakes.sent.push({ command, input })
     return { _tag: "Success", value: undefined }
   },
-  owner: {
-    commands: { browserInput: "browser.input", browserAck: "browser.ack" },
-    browserAtom: (key: string) => key,
-  },
+  owner: { commands: { browserInput: "browser.input" } },
 }))
 
-let feed: Feed = { seq: 0, items: [] }
+class FakeSocket {
+  static OPEN = 1
+  static all: FakeSocket[] = []
+  readonly sent: string[] = []
+  readyState = 1
+  binaryType = "blob"
+  private readonly listeners = new Map<string, ((event: { data?: unknown }) => void)[]>()
 
-const reset = () => {
-  fakes.feeds = []
-  fakes.sent = []
-  fakes.pending = false
-  feed = { seq: 0, items: [] }
+  constructor(
+    readonly url: string,
+    readonly protocols?: string[],
+  ) {
+    FakeSocket.all.push(this)
+    queueMicrotask(() => this.emit("open"))
+  }
+
+  addEventListener(type: string, handler: (event: { data?: unknown }) => void) {
+    this.listeners.set(type, [...(this.listeners.get(type) ?? []), handler])
+  }
+
+  send(data: string) {
+    this.sent.push(data)
+  }
+
+  close() {
+    this.readyState = 3
+    this.emit("close")
+  }
+
+  emit(type: string, event: { data?: unknown } = {}) {
+    for (const handler of this.listeners.get(type) ?? []) handler(event)
+  }
+
+  pushJson(value: unknown) {
+    this.emit("message", { data: JSON.stringify(value) })
+  }
+
+  pushFrame(bytes: Uint8Array<ArrayBuffer>) {
+    this.emit("message", { data: bytes.buffer })
+  }
+
+  json(): { t?: string; on?: boolean; id?: string; tab?: string }[] {
+    return this.sent.flatMap((text) => {
+      try {
+        return [JSON.parse(text) as { t?: string; on?: boolean; id?: string; tab?: string }]
+      } catch {
+        return []
+      }
+    })
+  }
 }
 
-const emit = (event: BrowserEvent) => {
-  feed = { seq: feed.seq + 1, items: [...feed.items, { seq: feed.seq + 1, event }].slice(-4) }
-  for (const callback of fakes.feeds) callback(feed)
-}
+const socket = () => FakeSocket.all.at(-1) as FakeSocket
 
-const START: BrowserEvent = {
-  type: "start",
-  tab: "T1",
-  width: 400,
-  height: 250,
-  viewportWidth: 1000,
-  viewportHeight: 625,
-}
-
-function picture(color: string): string {
+function picture(color: string): Uint8Array<ArrayBuffer> {
   const canvas = document.createElement("canvas")
   canvas.width = 8
   canvas.height = 5
@@ -65,20 +90,21 @@ function picture(color: string): string {
     context.fillStyle = color
     context.fillRect(0, 0, canvas.width, canvas.height)
   }
-  return canvas.toDataURL("image/jpeg", 0.95).split(",")[1] ?? ""
+  fakes.frame += 1
+  return new Uint8Array(
+    encodeBrowserFrame(
+      { id: "a", tab: "T1", seq: fakes.frame, width: 8, height: 5, viewportWidth: 1000, viewportHeight: 625 },
+      jpegBytes(canvas),
+    ),
+  )
 }
 
-const frame = (data: string, seq = 1): BrowserEvent => ({
-  type: "frame",
-  seq,
-  tab: "T1",
-  mime: "image/jpeg",
-  width: 8,
-  height: 5,
-  viewportWidth: 1000,
-  viewportHeight: 625,
-  data,
-})
+function jpegBytes(canvas: HTMLCanvasElement): Uint8Array {
+  const raw = atob(canvas.toDataURL("image/jpeg", 0.95).split(",")[1] ?? "")
+  const bytes = new Uint8Array(raw.length)
+  for (let index = 0; index < raw.length; index += 1) bytes[index] = raw.charCodeAt(index)
+  return bytes
+}
 
 const pixel = (screen: Screen): [number, number, number] => {
   const canvas = screen.container.querySelector("canvas") as HTMLCanvasElement
@@ -88,25 +114,58 @@ const pixel = (screen: Screen): [number, number, number] => {
 }
 
 const sentInputs = () => fakes.sent.filter((entry) => entry.command === "browser.input")
-const acks = () => fakes.sent.filter((entry) => entry.command === "browser.ack").length
+const allEvents = () =>
+  sentInputs().flatMap(
+    (entry) =>
+      entry.input.events as {
+        k: string
+        x?: number
+        y?: number
+        b?: number
+        s?: string
+        key?: string
+        down?: boolean
+      }[],
+  )
+const acks = () =>
+  socket()
+    .json()
+    .filter((message) => message.t === "browserAck").length
 const stage = (screen: Screen) => screen.container.querySelector('[data-part="stage"]') as HTMLElement
 const sink = (screen: Screen) => screen.container.querySelector('[data-part="sink"]') as HTMLTextAreaElement
 
 async function mount(interactive: () => boolean) {
   const container = document.createElement("div")
-  container.style.cssText = "width:800px;height:500px"
-  reset()
+  container.style.cssText = "width:320px;height:200px"
+  fakes.sent = []
+  fakes.frame = 0
+  fakes.setPending(false)
+  FakeSocket.all = []
   const screen = await render(() => <BrowserView pcId="pc-1" tab="T1" interactive={interactive()} />, { container })
-  await expect.poll(() => fakes.feeds.length).toBeGreaterThan(0)
+  await expect
+    .poll(() =>
+      socket()
+        ?.json()
+        .some((message) => message.t === "browser"),
+    )
+    .toBe(true)
   return screen
 }
 
 describe("browser view", () => {
-  it("paints the first frame the daemon sends once the owner attaches", async () => {
+  beforeEach(() => {
+    vi.stubGlobal("WebSocket", FakeSocket)
+  })
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it("attaches to one tab and paints the first frame the daemon sends", async () => {
     await using screen = await mount(() => false)
 
-    emit(START)
-    emit(frame(picture("#ff0000")))
+    expect(socket().json()[0]).toMatchObject({ t: "browser", on: true, tab: "T1" })
+    socket().pushJson({ t: "browser", event: { type: "start", tab: "T1" } })
+    socket().pushFrame(picture("#ff0000"))
 
     await expect.poll(() => acks()).toBe(1)
     const [red, green, blue] = pixel(screen)
@@ -118,11 +177,11 @@ describe("browser view", () => {
   it("paints each live frame after the first", async () => {
     await using screen = await mount(() => false)
 
-    emit(START)
-    emit(frame(picture("#ff0000")))
+    socket().pushJson({ t: "browser", event: { type: "start", tab: "T1" } })
+    socket().pushFrame(picture("#ff0000"))
     await expect.poll(() => acks()).toBe(1)
 
-    emit(frame(picture("#0000ff"), 2))
+    socket().pushFrame(picture("#0000ff"))
     await expect.poll(() => acks()).toBe(2)
     const [red, , blue] = pixel(screen)
     expect(blue).toBeGreaterThan(150)
@@ -132,7 +191,6 @@ describe("browser view", () => {
   it("sends nothing while watching, and a click reaches the page after the owner takes over", async () => {
     const [mine, setMine] = createSignal(false)
     await using screen = await mount(mine)
-    emit(START)
 
     await userEvent.click(stage(screen))
     expect(sentInputs()).toEqual([])
@@ -140,11 +198,8 @@ describe("browser view", () => {
     setMine(true)
     await userEvent.click(stage(screen))
 
-    await expect.poll(() => sentInputs().length).toBe(1)
-    const events = sentInputs().flatMap(
-      (entry) => entry.input.events as { k: string; x?: number; y?: number; b?: number }[],
-    )
-    const down = events.find((event) => event.k === "down")
+    await expect.poll(() => allEvents().some((event) => event.k === "down")).toBe(true)
+    const down = allEvents().find((event) => event.k === "down")
     expect(down?.b).toBe(0)
     expect(down?.x).toBeCloseTo(0.5, 1)
     expect(down?.y).toBeCloseTo(0.5, 1)
@@ -153,40 +208,36 @@ describe("browser view", () => {
   it("holds a click in the takeover gap and sends it once control lands", async () => {
     const [mine, setMine] = createSignal(false)
     await using screen = await mount(mine)
-    emit(START)
-    fakes.pending = true
+    fakes.setPending(true)
     setMine(true)
 
     await userEvent.click(stage(screen))
     expect(sentInputs()).toEqual([])
 
-    fakes.pending = false
-    await expect.poll(() => sentInputs().length).toBe(1)
+    fakes.setPending(false)
+    await expect.poll(() => allEvents().some((event) => event.k === "down")).toBe(true)
   })
 
   it("types into the page's focused input once the owner has control", async () => {
     await using screen = await mount(() => true)
-    emit(START)
     sink(screen).focus()
 
     await userEvent.keyboard("hi")
 
-    await expect.poll(() => sentInputs().length).toBe(1)
-    const events = sentInputs().flatMap((entry) => entry.input.events as { k: string; key?: string; s?: string }[])
-    expect(events.some((event) => event.k === "text" && event.s === "h")).toBe(true)
-    expect(events.some((event) => event.k === "text" && event.s === "i")).toBe(true)
+    await expect.poll(() => allEvents().some((event) => event.k === "key" && event.key === "i")).toBe(true)
+    expect(allEvents().some((event) => event.k === "key" && event.key === "h" && event.down)).toBe(true)
   })
 
   it("sends nothing more once the owner hands control back", async () => {
     const [mine, setMine] = createSignal(true)
     await using screen = await mount(mine)
-    emit(START)
 
     await userEvent.click(stage(screen))
-    await expect.poll(() => sentInputs().length).toBe(1)
+    await expect.poll(() => allEvents().some((event) => event.k === "down")).toBe(true)
 
     setMine(false)
+    const before = sentInputs().length
     await userEvent.click(stage(screen))
-    expect(sentInputs().length).toBe(1)
+    expect(sentInputs().length).toBe(before)
   })
 })

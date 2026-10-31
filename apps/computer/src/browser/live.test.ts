@@ -1,111 +1,124 @@
 import { decodeBrowserFrame } from "@kiko/computer/frame"
 import type { FromDaemon, ToDaemon } from "@kiko/computer/wire"
 import { describe, expect, it, vi } from "vitest"
-import type { Cdp } from "./cdp"
-import { createBrowserLive } from "./live"
+import { createBrowserLive, type StreamSocket } from "./live"
 
-type Sent = { method: string; params: Record<string, unknown>; sessionId?: string }
+class FakeSocket implements StreamSocket {
+  static all: FakeSocket[] = []
+  readyState = 1
+  readonly sent: string[] = []
+  private readonly listeners = new Map<string, ((event: { data?: unknown }) => void)[]>()
 
-function fakeCdp(metrics = { cssVisualViewport: { clientWidth: 1000, clientHeight: 500 } }) {
-  const sent: Sent[] = []
-  const handlers = new Map<string, (params: Record<string, unknown>, sessionId?: string) => void>()
-  const closes: (() => void)[] = []
-  let gone = false
-  const cdp: Cdp = {
-    send: (method, params = {}, sessionId) => {
-      sent.push({ method, params, ...(sessionId ? { sessionId } : {}) })
-      if (method === "Target.attachToTarget") return Promise.resolve({ sessionId: "S1" })
-      if (method === "Page.getLayoutMetrics") return Promise.resolve(metrics)
-      return Promise.resolve({})
-    },
-    on: (method, handler) => {
-      handlers.set(method, handler)
-      return () => handlers.delete(method)
-    },
-    onClose: (handler) => closes.push(handler),
-    close: () => {
-      gone = true
-    },
+  constructor(readonly url: string) {
+    FakeSocket.all.push(this)
   }
-  return {
-    cdp,
-    sent,
-    gone: () => gone,
-    emit: (method: string, params: Record<string, unknown>, sessionId = "S1") =>
-      handlers.get(method)?.(params, sessionId),
-    close: () => {
-      for (const handler of closes) handler()
-    },
+
+  send(data: string) {
+    this.sent.push(data)
+  }
+
+  close() {
+    this.readyState = 3
+  }
+
+  addEventListener(type: string, handler: (event: { data?: unknown }) => void) {
+    this.listeners.set(type, [...(this.listeners.get(type) ?? []), handler])
+  }
+
+  emit(type: string, event: { data?: unknown } = {}) {
+    for (const handler of this.listeners.get(type) ?? []) handler(event)
+  }
+
+  open() {
+    this.emit("open")
+  }
+
+  push(value: unknown) {
+    this.emit("message", { data: JSON.stringify(value) })
+  }
+
+  json(): Record<string, unknown>[] {
+    return this.sent.map((text) => JSON.parse(text) as Record<string, unknown>)
   }
 }
 
-function image(size: number): string {
-  return Buffer.from(new Uint8Array(size).fill(7)).toString("base64")
+function jpeg(width: number, height: number): Uint8Array {
+  const bytes = new Uint8Array([0xff, 0xd8, 0xff, 0xc0, 0x00, 0x11, 0x08, 0, 0, 0, 0, 0x03, 0, 0, 0, 0, 0, 0, 0, 0])
+  bytes[7] = height >> 8
+  bytes[8] = height & 0xff
+  bytes[9] = width >> 8
+  bytes[10] = width & 0xff
+  return bytes
 }
 
-function harness(options: { holder?: "agent" | "human"; cdp?: ReturnType<typeof fakeCdp> } = {}) {
-  const cdp = options.cdp ?? fakeCdp()
+const frame = (seq: number, width = 1000, height = 500) => ({
+  type: "frame",
+  seq,
+  data: Buffer.from(jpeg(width, height)).toString("base64"),
+  metadata: { deviceWidth: 1000, deviceHeight: 500 },
+})
+
+function harness(options: { holder?: "agent" | "human"; stream?: () => Promise<string> } = {}) {
   const frames: FromDaemon[] = []
   const binaries: Uint8Array<ArrayBuffer>[] = []
-  let connects = 0
+  const tabs: string[] = []
+  FakeSocket.all = []
   const live = createBrowserLive({
-    cdpUrl: () => Promise.resolve("ws://browser/devtools"),
+    stream: (tab) => {
+      tabs.push(tab)
+      return (options.stream ?? (() => Promise.resolve("ws://127.0.0.1:9223")))()
+    },
     send: (frame) => frames.push(frame),
     sendBinary: (bytes) => binaries.push(bytes),
     holder: () => options.holder ?? "agent",
     warn: () => {},
-    connect: () => {
-      connects += 1
-      return Promise.resolve(cdp.cdp)
-    },
+    open: (url) => new FakeSocket(url),
   })
-  const open = (frame: Partial<Extract<ToDaemon, { t: "browser" }>>) =>
-    live.open({ t: "browser", on: true, id: "a1", tab: "T1", ...frame })
-  return { live, cdp, frames, binaries, open, connects: () => connects }
+  const open = (extra: Partial<Extract<ToDaemon, { t: "browser" }>> = {}) =>
+    live.open({ t: "browser", on: true, id: "a1", tab: "T1", ...extra })
+  const socket = () => FakeSocket.all.at(-1) as FakeSocket
+  return { live, frames, binaries, tabs, open, socket }
 }
 
 describe("browser live", () => {
-  it("opens one screencast per viewer and costs nothing until then", async () => {
-    const { cdp, frames, open, connects, live } = harness()
+  it("opens one stream for the watched tab and closes it when the viewer leaves", async () => {
+    const { live, frames, tabs, open, socket } = harness()
+    expect(FakeSocket.all).toHaveLength(0)
 
-    expect(connects()).toBe(0)
+    open()
+    await vi.waitFor(() => expect(FakeSocket.all).toHaveLength(1))
+    expect(tabs).toEqual(["T1"])
+    expect(socket().url).toBe("ws://127.0.0.1:9223")
 
-    open({ maxWidth: 4000 })
+    socket().open()
+    expect(socket().json()[0]).toEqual({ type: "config", pacing: "ack", maxFps: 30 })
 
-    await vi.waitFor(() => expect(cdp.sent.some((call) => call.method === "Page.startScreencast")).toBe(true))
-    expect(cdp.sent.find((call) => call.method === "Target.attachToTarget")?.params).toEqual({
-      targetId: "T1",
-      flatten: true,
+    socket().push({
+      type: "status",
+      connected: true,
+      screencasting: true,
+      viewportWidth: 1000,
+      viewportHeight: 500,
     })
-    const start = cdp.sent.find((call) => call.method === "Page.startScreencast")
-    expect(start?.sessionId).toBe("S1")
-    expect(start?.params).toMatchObject({ format: "jpeg", everyNthFrame: 1, maxWidth: 2000, maxHeight: 1000 })
     expect(frames[0]).toEqual({
       t: "browser",
       id: "a1",
       event: { type: "start", tab: "T1", width: 1000, height: 500, viewportWidth: 1000, viewportHeight: 500 },
     })
 
-    const before = frames.length
     live.open({ t: "browser", on: false, id: "a1" })
-    expect(cdp.gone()).toBe(true)
-    expect(frames.length).toBe(before)
+    expect(socket().readyState).toBe(3)
   })
 
-  it("sends a frame as one binary header plus jpeg and acks the browser", async () => {
-    const { cdp, binaries, open } = harness()
-    open({})
-    await vi.waitFor(() => expect(cdp.sent.some((call) => call.method === "Page.startScreencast")).toBe(true))
+  it("forwards a stream frame as one binary frame with the picture's own size", async () => {
+    const { binaries, open, socket } = harness()
+    open()
+    await vi.waitFor(() => expect(FakeSocket.all).toHaveLength(1))
 
-    cdp.emit("Page.screencastFrame", {
-      data: image(2048),
-      metadata: { deviceWidth: 1000, deviceHeight: 500 },
-      sessionId: 9,
-    })
+    socket().push(frame(7))
 
     await vi.waitFor(() => expect(binaries.length).toBe(1))
-    const decoded = decodeBrowserFrame(binaries[0] as Uint8Array)
-    expect(decoded?.header).toEqual({
+    expect(decodeBrowserFrame(binaries[0] as Uint8Array)?.header).toEqual({
       id: "a1",
       tab: "T1",
       seq: 1,
@@ -114,71 +127,81 @@ describe("browser live", () => {
       viewportWidth: 1000,
       viewportHeight: 500,
     })
-    expect(decoded?.image.byteLength).toBe(2048)
-    expect(cdp.sent.find((call) => call.method === "Page.screencastFrameAck")?.params).toEqual({ sessionId: 9 })
   })
 
-  it("keeps one frame waiting and paints the newest once the viewer acks", async () => {
-    const { cdp, binaries, open, live } = harness()
-    open({})
-    await vi.waitFor(() => expect(cdp.sent.some((call) => call.method === "Page.startScreencast")).toBe(true))
+  it("keeps one frame in flight and acknowledges the stream once the viewer paints", async () => {
+    const { binaries, open, socket, live } = harness()
+    open()
+    await vi.waitFor(() => expect(FakeSocket.all).toHaveLength(1))
 
-    cdp.emit("Page.screencastFrame", { data: image(300_000), metadata: {}, sessionId: 1 })
-    cdp.emit("Page.screencastFrame", { data: image(60_000), metadata: {}, sessionId: 2 })
-    cdp.emit("Page.screencastFrame", { data: image(20_000), metadata: {}, sessionId: 3 })
+    socket().push(frame(4))
     await vi.waitFor(() => expect(binaries.length).toBe(1))
 
-    live.ack({ t: "browserAck", id: "a1", bytes: 300_000 })
+    socket().push(frame(5))
+    socket().push(frame(6))
+    expect(binaries.length).toBe(1)
+
+    live.ack({ t: "browserAck", id: "a1", bytes: 19 })
     await vi.waitFor(() => expect(binaries.length).toBe(2))
-    expect(decodeBrowserFrame(binaries[1] as Uint8Array)?.image.byteLength).toBe(20_000)
     expect(decodeBrowserFrame(binaries[1] as Uint8Array)?.header.seq).toBe(2)
+    const acks = socket()
+      .json()
+      .filter((message) => message.type === "ack")
+    expect(acks).toEqual([{ type: "ack", seq: 4 }])
   })
 
-  it("drops input from the owner until the daemon sees the hold", async () => {
+  it("drops owner input until the daemon sees the hold, then maps it to the stream's messages", async () => {
     const agent = harness()
-    agent.open({})
-    await vi.waitFor(() => expect(agent.cdp.sent.some((call) => call.method === "Page.startScreencast")).toBe(true))
-
+    agent.open()
+    await vi.waitFor(() => expect(FakeSocket.all).toHaveLength(1))
     agent.live.input({ t: "browserInput", id: "a1", events: [{ k: "down", x: 0.5, y: 0.5, b: 0 }] })
-    expect(agent.cdp.sent.some((call) => call.method === "Input.dispatchMouseEvent")).toBe(false)
+    expect(agent.socket().json()).toEqual([])
 
     const mine = harness({ holder: "human" })
-    mine.open({})
-    await vi.waitFor(() => expect(mine.cdp.sent.some((call) => call.method === "Page.startScreencast")).toBe(true))
+    mine.open()
+    await vi.waitFor(() => expect(FakeSocket.all).toHaveLength(1))
+    mine.socket().push({
+      type: "status",
+      connected: true,
+      screencasting: true,
+      viewportWidth: 1000,
+      viewportHeight: 500,
+    })
     mine.live.input({
       t: "browserInput",
       id: "a1",
       events: [
         { k: "move", x: 0.5, y: 0.25 },
+        { k: "down", x: 0.5, y: 0.25, b: 0 },
         { k: "text", s: "hi" },
       ],
     })
-    const calls = mine.cdp.sent.filter((call) => call.method.startsWith("Input."))
-    expect(calls.map((call) => call.method)).toEqual(["Input.dispatchMouseEvent", "Input.insertText"])
-    expect(calls[0]?.params).toMatchObject({ type: "mouseMoved", x: 500, y: 125 })
-    expect(calls[0]?.sessionId).toBe("S1")
+    const sent = mine.socket().json()
+    expect(sent[0]).toEqual({ type: "input_mouse", eventType: "mouseMoved", x: 500, y: 125, button: "none" })
+    expect(sent[1]).toMatchObject({
+      type: "input_mouse",
+      eventType: "mousePressed",
+      x: 500,
+      y: 125,
+      button: "left",
+    })
+    expect(sent[2]).toEqual({ type: "input_keyboard", eventType: "char", text: "hi" })
   })
 
-  it("reports why a tab could not be opened and forgets it", async () => {
-    const cdp = fakeCdp()
-    const broken: Cdp = { ...cdp.cdp, send: () => Promise.reject(new Error("no such target")) }
-    const frames: FromDaemon[] = []
-    const live = createBrowserLive({
-      cdpUrl: () => Promise.resolve("ws://browser/devtools"),
-      send: (frame) => frames.push(frame),
-      sendBinary: () => {},
-      holder: () => "agent",
-      warn: () => {},
-      connect: () => Promise.resolve(broken),
-    })
-
-    live.open({ t: "browser", on: true, id: "a2", tab: "T9" })
-
+  it("reports why a stream could not be opened and forgets the tab", async () => {
+    const { frames, open } = harness({ stream: () => Promise.reject(new Error("no stream")) })
+    open()
     await vi.waitFor(() => expect(frames.length).toBeGreaterThan(0))
-    expect(frames.at(-1)).toMatchObject({
-      t: "browser",
-      id: "a2",
-      event: { type: "error" },
-    })
+    expect(frames.at(-1)).toMatchObject({ t: "browser", id: "a1", event: { type: "error" } })
+  })
+
+  it("tells the viewer when the stream drops", async () => {
+    const { frames, open, socket } = harness()
+    open()
+    await vi.waitFor(() => expect(FakeSocket.all).toHaveLength(1))
+
+    socket().emit("close")
+
+    expect(frames.at(-1)).toMatchObject({ t: "browser", id: "a1", event: { type: "error" } })
   })
 })

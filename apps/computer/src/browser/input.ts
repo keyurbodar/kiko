@@ -4,10 +4,9 @@ export type Viewport = { width: number; height: number }
 
 export type InputState = { buttons: Set<number>; point: { x: number; y: number } }
 
-export type Send = (method: string, params: Record<string, unknown>) => void
+export type Send = (message: Record<string, unknown>) => void
 
 const BUTTONS = ["left", "middle", "right"] as const
-const MASKS = [1, 4, 2] as const
 
 const VIRTUAL: Readonly<Record<string, number>> = {
   Enter: 13,
@@ -54,6 +53,15 @@ const VIRTUAL: Readonly<Record<string, number>> = {
 }
 
 const TEXT: Readonly<Record<string, string>> = { Enter: "\r", Tab: "\t" }
+const CHORD = 2 | 4 | 8
+
+function typed(event: Extract<InputEvent, { k: "key" }>): string | undefined {
+  if (!event.down) return undefined
+  const fixed = TEXT[event.key]
+  if (fixed !== undefined) return fixed
+  if (event.mods & CHORD) return undefined
+  return event.key.length === 1 ? event.key : undefined
+}
 
 export function createInputState(): InputState {
   return { buttons: new Set(), point: { x: 0, y: 0 } }
@@ -73,12 +81,6 @@ export function modifiers(mods: number): number {
   return (mods & 4 ? 1 : 0) | (mods & 2 ? 2 : 0) | (mods & 8 ? 4 : 0) | (mods & 1 ? 8 : 0)
 }
 
-function held(state: InputState): number {
-  let mask = 0
-  for (const button of state.buttons) mask |= MASKS[button] ?? 0
-  return mask
-}
-
 function at(state: InputState, viewport: Viewport, x: number, y: number): { x: number; y: number } {
   state.point = { x: x * viewport.width, y: y * viewport.height }
   return state.point
@@ -88,13 +90,7 @@ export function applyInput(events: readonly InputEvent[], viewport: Viewport, st
   for (const event of events) {
     if (event.k === "move") {
       const point = at(state, viewport, event.x, event.y)
-      send("Input.dispatchMouseEvent", {
-        type: "mouseMoved",
-        x: point.x,
-        y: point.y,
-        button: "none",
-        buttons: held(state),
-      })
+      send({ type: "input_mouse", eventType: "mouseMoved", x: point.x, y: point.y, button: "none" })
       continue
     }
     if (event.k === "down" || event.k === "up") {
@@ -102,46 +98,44 @@ export function applyInput(events: readonly InputEvent[], viewport: Viewport, st
       const button = BUTTONS[event.b] ?? "left"
       if (event.k === "down") state.buttons.add(event.b)
       else state.buttons.delete(event.b)
-      send("Input.dispatchMouseEvent", {
-        type: event.k === "down" ? "mousePressed" : "mouseReleased",
+      send({
+        type: "input_mouse",
+        eventType: event.k === "down" ? "mousePressed" : "mouseReleased",
         x: point.x,
         y: point.y,
         button,
-        buttons: held(state),
         clickCount: 1,
       })
       continue
     }
     if (event.k === "wheel") {
       const point = at(state, viewport, event.x, event.y)
-      send("Input.dispatchMouseEvent", {
-        type: "mouseWheel",
+      send({
+        type: "input_mouse",
+        eventType: "mouseWheel",
         x: point.x,
         y: point.y,
         button: "none",
-        buttons: held(state),
         deltaX: event.dx,
         deltaY: event.dy,
       })
       continue
     }
     if (event.k === "key") {
-      const virtual = virtualKey(event.code, event.key)
-      send("Input.dispatchKeyEvent", {
-        type: event.down ? "keyDown" : "keyUp",
+      const text = typed(event)
+      send({
+        type: "input_keyboard",
+        eventType: event.down ? "keyDown" : "keyUp",
         key: event.key,
         code: event.code,
-        windowsVirtualKeyCode: virtual,
-        nativeVirtualKeyCode: virtual,
+        windowsVirtualKeyCode: virtualKey(event.code, event.key),
         modifiers: modifiers(event.mods),
-        ...(event.down && TEXT[event.key] !== undefined
-          ? { text: TEXT[event.key], unmodifiedText: TEXT[event.key] }
-          : {}),
+        ...(text === undefined ? {} : { text }),
       })
       continue
     }
     if (event.k === "text") {
-      if (event.s) send("Input.insertText", { text: event.s })
+      if (event.s) send({ type: "input_keyboard", eventType: "char", text: event.s })
     }
   }
 }

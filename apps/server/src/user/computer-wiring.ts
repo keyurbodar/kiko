@@ -14,10 +14,9 @@ import { MAX_DEADLINE_MS, type ComputerHub } from "../computer/hub"
 import { mintPairCode } from "../computer/pairing"
 import type { ComputerLinkResult, PcCallOutcome, PcReleased, PcTaken } from "../computer/types"
 import type { Env } from "../index"
-import type { Attachment } from "./socket-frames"
 import { subscribe } from "../owner/socket"
-import { frameStream } from "../computer/frames"
 import type { RequestId } from "../rpc/wire"
+import type { Attachment } from "./socket-frames"
 
 const missing = () => new NotFoundError({ resource: "computer", message: "there is no such computer" })
 
@@ -168,19 +167,8 @@ export class ComputerWiring {
     },
   )
 
-  readonly frames = Effect.fn("Computers.frames")(
-    { self: this },
-    function* (socket: WebSocket, requestId: RequestId, pcId: string) {
-      const row = yield* this.row(pcId)
-      subscribe(socket, { requestId, stream: frameStream(row.id), cursor: 0 })
-      this.hub.syncRelay(row.id, true)
-    },
-  )
-
   ended(stream: string): void {
-    if (stream.startsWith("pc:")) this.hub.syncRelay(stream.slice("pc:".length))
-    else if (stream.startsWith("term:")) this.hub.endTerminal(stream)
-    else if (stream.startsWith("browser:")) this.hub.endBrowser(stream)
+    if (stream.startsWith("term:")) this.hub.endTerminal(stream)
   }
 
   readonly take = Effect.fn("Computers.take")({ self: this }, function* (socket: WebSocket, pcId: string) {
@@ -213,11 +201,6 @@ export class ComputerWiring {
       this.hub.input(row.id, this.hub.session(socket), events)
     },
   )
-
-  readonly ack = Effect.fn("Computers.ack")({ self: this }, function* (pcId: string, seq: number) {
-    const row = yield* this.row(pcId)
-    this.hub.ack(row.id, seq)
-  })
 
   readonly terminalList = Effect.fn("Terminals.list")({ self: this }, function* (pcId: string) {
     const row = yield* this.row(pcId)
@@ -285,42 +268,12 @@ export class ComputerWiring {
     }))
   })
 
-  readonly browserLive = Effect.fn("Browser.live")(
-    { self: this },
-    function* (
-      socket: WebSocket,
-      requestId: RequestId,
-      pcId: string,
-      tab: string,
-      maxWidth?: number,
-      maxHeight?: number,
-      quality?: number,
-    ) {
-      const row = yield* this.row(pcId)
-      const out = this.hub.attachBrowser(socket, requestId, row.id, tab, {
-        ...(maxWidth === undefined ? {} : { maxWidth }),
-        ...(maxHeight === undefined ? {} : { maxHeight }),
-        ...(quality === undefined ? {} : { quality }),
-      })
-      if (!out.ok) return yield* new RefusedError({ reason: out.code, message: out.message })
-      subscribe(socket, { requestId, stream: out.value, cursor: 0 })
-    },
-  )
-
   readonly browserInput = Effect.fn("Browser.input")(
     { self: this },
     function* (socket: WebSocket, pcId: string, tab: string, events: readonly ComputerInput[]) {
       const row = yield* this.row(pcId)
       const out = this.hub.browserInput(socket, row.id, tab, events)
       if (!out.ok) return yield* new RefusedError({ reason: out.code, message: out.message })
-    },
-  )
-
-  readonly browserAck = Effect.fn("Browser.ack")(
-    { self: this },
-    function* (socket: WebSocket, pcId: string, tab: string, bytes: number) {
-      const row = yield* this.row(pcId)
-      this.hub.browserAck(socket, row.id, tab, bytes)
     },
   )
 

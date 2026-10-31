@@ -79,6 +79,13 @@ fn data(name: &str, arguments: &Value) -> Result<Value, String> {
         }
         "agent_browser_tab_close" => Ok(json!({ "closed": true })),
         "agent_browser_get_cdp_url" => Ok(json!({ "cdpUrl": "ws://127.0.0.1:9222/devtools/browser/fake" })),
+        "agent_browser_stream_status" => Ok(json!({ "enabled": false, "port": null, "connected": true })),
+        "agent_browser_stream_enable" => Ok(json!({
+            "enabled": true,
+            "port": 9223,
+            "connected": true,
+            "screencasting": false,
+        })),
         "agent_browser_snapshot" => {
             snapshot_refs();
             Ok(snapshot())

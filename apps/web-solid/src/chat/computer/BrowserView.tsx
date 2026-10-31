@@ -42,7 +42,15 @@ export default function BrowserView(props: {
   }
 
   onMount(() => {
-    const observer = new ResizeObserver(() => setEpoch((n) => n + 1))
+    let last = ""
+    const observer = new ResizeObserver(() => {
+      const rect = host.getBoundingClientRect()
+      const size = `${Math.round(rect.width)}x${Math.round(rect.height)}`
+      if (size === last) return
+      const first = last === ""
+      last = size
+      if (!first) setEpoch((n) => n + 1)
+    })
     observer.observe(host)
     onCleanup(() => observer.disconnect())
   })
@@ -57,7 +65,7 @@ export default function BrowserView(props: {
       }
       const next = startBrowser(pcId ?? "", tab ?? "", size, {
         canvas,
-        onViewport: (next) => setViewport({ w: next.width, h: next.height }),
+        onSize: (width, height) => setViewport({ w: width, h: height }),
         onStatus: (state, detail) => {
           setStatus(state)
           setMessage(detail)
@@ -101,8 +109,8 @@ export default function BrowserView(props: {
   return (
     <div
       ref={host}
-      class={cn("relative size-full overflow-hidden", props.class)}
-      style={{ "container-type": "size" }}
+      class={cn("relative overflow-hidden", props.class)}
+      style={{ width: "100%", height: "100%", "container-type": "size" }}
       data-component="computer-browser"
       data-status={status()}
       data-interactive={props.interactive ? "" : undefined}
