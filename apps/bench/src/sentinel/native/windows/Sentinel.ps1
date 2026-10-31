@@ -141,7 +141,7 @@ function Get-Above {
   $handle = [KikoSentinelNative]::GetTopWindow([IntPtr]::Zero)
   while ($handle -ne [IntPtr]::Zero -and $handle -ne $script:form.Handle) {
     if ([KikoSentinelNative]::IsWindowVisible($handle)) {
-      $owner = 0
+      [uint32]$owner = 0
       [KikoSentinelNative]::GetWindowThreadProcessId($handle, [ref]$owner) | Out-Null
       $style = [KikoSentinelNative]::GetWindowLong($handle, -20)
       $rect = New-Object KikoSentinelNative+RECT
@@ -158,7 +158,7 @@ function Get-Above {
     }
     $handle = [KikoSentinelNative]::GetWindow([IntPtr]$handle, 2)
   }
-  return ,$names.ToArray()
+  return $names.ToArray()
 }
 
 $form = New-Object System.Windows.Forms.Form
@@ -215,10 +215,18 @@ $sampler.Add_Tick({
   $front = [KikoSentinelNative]::GetForegroundWindow()
   $isSelf = $front -eq $script:form.Handle
   $position = [System.Windows.Forms.Cursor]::Position
+  try {
+    $above = @(Get-Above)
+  } catch {
+    $script:sampler.Stop()
+    $script:ticker.Stop()
+    Write-Event "error" @{ message = $_.Exception.Message }
+    return
+  }
   Write-Event "sample" @{
     front = $(if ($isSelf) { "self" } else { "other" })
     key = $isSelf
-    above = @(Get-Above)
+    above = $above
     pointer = @($position.X, $position.Y)
   }
 })

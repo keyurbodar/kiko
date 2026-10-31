@@ -55,7 +55,7 @@ function macBinary(m: Machine): Promise<string> {
     const out = join(m.workdir, ".sentinel", "Sentinel")
     const mkdir = await m.exec(["mkdir", "-p", join(m.workdir, ".sentinel")])
     if (mkdir.code !== 0) throw new Error(`sentinel: mkdir failed: ${mkdir.stderr}`)
-    const build = await m.exec(["swiftc", "-O", sentinelSource("macos", SOURCE_DIR), "-o", out], {
+    const build = await m.exec(["swiftc", "-O", "-parse-as-library", sentinelSource("macos", SOURCE_DIR), "-o", out], {
       timeoutMs: BUILD_TIMEOUT_MS,
     })
     if (build.code !== 0) throw new Error(`sentinel: swiftc failed: ${build.stderr}`)

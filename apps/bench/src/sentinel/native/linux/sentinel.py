@@ -6,7 +6,7 @@ import select
 import sys
 import time
 
-from Xlib import X, XK, Xatom, display, protocol
+from Xlib import X, Xatom, display, protocol
 from Xlib.ext import xtest
 
 
@@ -38,8 +38,9 @@ class Sentinel:
         self.atom_delete = self.atom("WM_DELETE_WINDOW")
         self.atom_protocols = self.atom("WM_PROTOCOLS")
         self.window = self.build_window()
-        self.keycode = self.display.keysym_to_keycode(XK.string_to_keysym("a"))
+        self.keycode = self.display.keysym_to_keycode(0x61)
         self.keys_received = 0
+        self.stray_keys = 0
         self.ticks = 0
         self.pending = None
         self.stopping = False
@@ -94,8 +95,12 @@ class Sentinel:
     def pump(self):
         while self.display.pending_events() > 0:
             event = self.display.next_event()
-            if event.type == X.KeyPress and event.window.id == self.window.id:
-                self.keys_received += 1
+            if event.type == X.KeyPress:
+                if event.window.id == self.window.id:
+                    self.keys_received += 1
+                elif self.stray_keys < 3:
+                    self.stray_keys += 1
+                    self.log.emit("stray_key", window=event.window.id)
             if event.type == X.ClientMessage and event.data[1][0] == self.atom_delete:
                 self.begin_stop()
 
@@ -188,7 +193,7 @@ class Sentinel:
         if not self.focused():
             self.log.emit("error", message="window did not take the focus")
             return 3
-        self.log.emit("ready", pid=os.getpid())
+        self.log.emit("ready", pid=os.getpid(), keycode=self.keycode)
         next_sample = time.time()
         next_tick = time.time() + 1.0
         while not self.stopping:

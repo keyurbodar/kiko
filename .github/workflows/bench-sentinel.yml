@@ -52,7 +52,7 @@ jobs:
         run: |
           set -euo pipefail
           sudo apt-get update -qq
-          sudo apt-get install -y -qq xvfb openbox x11-utils xdotool python3-xlib
+          sudo apt-get install -y -qq xvfb openbox x11-utils python3-xlib
           Xvfb :99 -screen 0 1280x800x24 -nolisten tcp &
           sleep 1
           DISPLAY=:99 openbox &
@@ -65,8 +65,8 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/kiko-sentinel"
-          swiftc -O apps/bench/src/sentinel/native/macos/Sentinel.swift -o "$RUNNER_TEMP/kiko-sentinel/Sentinel"
-          swiftc -O apps/bench/fixtures/sentinel/macos/OtherWindow.swift -o "$RUNNER_TEMP/kiko-sentinel/OtherWindow"
+          swiftc -O -parse-as-library apps/bench/src/sentinel/native/macos/Sentinel.swift -o "$RUNNER_TEMP/kiko-sentinel/Sentinel"
+          swiftc -O -parse-as-library apps/bench/fixtures/sentinel/macos/OtherWindow.swift -o "$RUNNER_TEMP/kiko-sentinel/OtherWindow"
           echo "KIKO_SENTINEL_BIN=$RUNNER_TEMP/kiko-sentinel/Sentinel" >> "$GITHUB_ENV"
           echo "KIKO_OTHER_WINDOW_BIN=$RUNNER_TEMP/kiko-sentinel/OtherWindow" >> "$GITHUB_ENV"
           database="/Library/Application Support/com.apple.TCC/TCC.db"

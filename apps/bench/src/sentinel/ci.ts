@@ -85,9 +85,12 @@ async function otherWindowBinary(m: Machine): Promise<string> {
   const fromEnv = process.env.KIKO_OTHER_WINDOW_BIN
   if (fromEnv) return fromEnv
   const out = join(m.workdir, "OtherWindow")
-  const build = await m.exec(["swiftc", "-O", join(FIXTURES, "macos", "OtherWindow.swift"), "-o", out], {
-    timeoutMs: 300_000,
-  })
+  const build = await m.exec(
+    ["swiftc", "-O", "-parse-as-library", join(FIXTURES, "macos", "OtherWindow.swift"), "-o", out],
+    {
+      timeoutMs: 300_000,
+    },
+  )
   if (build.code !== 0) throw new Error(`other window build failed: ${build.stderr}`)
   return out
 }
@@ -114,21 +117,11 @@ async function stealFocus(m: Machine): Promise<Cleanup> {
       return () => other.stop()
     }
     case "linux": {
-      const other = await m.spawn(["xmessage", "-buttons", "OK:0", "-center", "other window"], {
+      const script = join(FIXTURES, "linux", "other_window.py")
+      const other = await m.spawn(["python3", "-u", script, "--seconds", "12"], {
         cwd: m.workdir,
       })
-      await delay(800)
-      const activated = await m.exec([
-        "xdotool",
-        "search",
-        "--sync",
-        "--name",
-        "other window",
-        "windowactivate",
-        "--sync",
-      ])
-      if (activated.code !== 0) throw new Error(`xdotool failed: ${activated.stderr}`)
-      await delay(1200)
+      await delay(2000)
       return () => other.stop()
     }
     default: {
@@ -155,7 +148,7 @@ interface CaseResult {
   readonly case: CaseName
   readonly pass: boolean
   readonly failures: readonly string[]
-  readonly background: Background
+  readonly background: Background | null
   readonly keysSent: number
   readonly keysReceived: number
   readonly samples: number
@@ -187,6 +180,7 @@ function judge(name: CaseName, result: Witness, seconds: number): string[] {
     failures.push("pointer move was not witnessed")
   }
   if (!result.ready) failures.push("sentinel never reported ready")
+  if (result.samples < seconds * 5) failures.push(`only ${result.samples} samples in ${seconds}s`)
   return failures
 }
 
@@ -198,8 +192,9 @@ async function runCase(
   action: (m: Machine) => Promise<Cleanup>,
 ): Promise<CaseResult> {
   const workdir = await mkdtemp(join(tmpdir(), "kiko-sentinel-"))
+  const m = new LocalMachine(workdir)
+  const log = join(workdir, "sentinel.jsonl")
   try {
-    const m = new LocalMachine(workdir)
     const seconds = name === "idle" ? idleSeconds : caseSeconds
     const sentinel = await startSentinel(m)
     let cleanup: Cleanup = noop
@@ -210,7 +205,7 @@ async function runCase(
       await sentinel.stop()
       await cleanup()
     }
-    const raw = (await m.readText(join(workdir, "sentinel.jsonl"))) ?? ""
+    const raw = (await m.readText(log)) ?? ""
     await writeFile(join(logs, `${name}.jsonl`), raw)
     const events = parseEvents(raw)
     const result = witness(events)
@@ -224,8 +219,34 @@ async function runCase(
       keysReceived: result.keysReceived,
       samples: result.samples,
     }
+  } catch (error) {
+    const raw = (await m.readText(log)) ?? ""
+    await writeFile(join(logs, `${name}.jsonl`), raw)
+    throw error
   } finally {
     await rm(workdir, { recursive: true, force: true })
+  }
+}
+
+async function attempt(
+  name: CaseName,
+  idleSeconds: number,
+  caseSeconds: number,
+  logs: string,
+  action: (m: Machine) => Promise<Cleanup>,
+): Promise<CaseResult> {
+  try {
+    return await runCase(name, idleSeconds, caseSeconds, logs, action)
+  } catch (error) {
+    return {
+      case: name,
+      pass: false,
+      failures: [error instanceof Error ? error.message : String(error)],
+      background: null,
+      keysSent: 0,
+      keysReceived: 0,
+      samples: 0,
+    }
   }
 }
 
@@ -244,15 +265,15 @@ async function main(): Promise<void> {
   await mkdir(logs, { recursive: true })
   const os: Os = process.platform === "darwin" ? "macos" : process.platform === "win32" ? "windows" : "linux"
   const cases: CaseResult[] = []
-  cases.push(await runCase("idle", idleSeconds, caseSeconds, logs, async () => noop))
-  cases.push(await runCase("steal", idleSeconds, caseSeconds, logs, stealFocus))
+  cases.push(await attempt("idle", idleSeconds, caseSeconds, logs, async () => noop))
+  cases.push(await attempt("steal", idleSeconds, caseSeconds, logs, stealFocus))
   cases.push(
-    await runCase("pointer", idleSeconds, caseSeconds, logs, async (m) => {
+    await attempt("pointer", idleSeconds, caseSeconds, logs, async (m) => {
       await movePointer(m, 160, 120)
       return noop
     }),
   )
-  cases.push(await runCase("file", idleSeconds, caseSeconds, logs, writeFileElsewhere))
+  cases.push(await attempt("file", idleSeconds, caseSeconds, logs, writeFileElsewhere))
   const pass = cases.every((entry) => entry.pass)
   const report = { os, machine: `ci-${os}`, idleSeconds, pass, cases }
   const text = JSON.stringify(report, null, 2)
