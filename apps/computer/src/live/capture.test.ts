@@ -30,9 +30,14 @@ describe("capture plans", () => {
   })
 
   it("asks ffmpeg to draw the real cursor", () => {
-    const flag = platform() === "macos" ? "-capture_cursor" : "-draw_mouse"
-    assert.isTrue(plans[0]?.includes(flag))
-    assert.strictEqual(plans[0]?.[(plans[0]?.indexOf(flag) ?? -1) + 1], "1")
+    const args = plans[0] ?? []
+    if (platform() === "macos") {
+      assert.isTrue(args.includes("-capture_cursor"))
+      assert.strictEqual(args[args.indexOf("-capture_cursor") + 1], "1")
+      return
+    }
+    const drawn = args.join(" ")
+    assert.isTrue(drawn.includes("-draw_mouse 1") || drawn.includes("draw_mouse=1"))
   })
 
   it("forces a keyframe every second instead of restarting the encoder", () => {

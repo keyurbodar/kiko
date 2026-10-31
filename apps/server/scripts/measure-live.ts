@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises"
 import { createServer } from "node:net"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { chromium, type Browser, type Page } from "playwright"
+import { chromium, type Browser } from "playwright"
 import { mintPairCode } from "../src/computer/pairing"
 
 const SERVER_PORT = 8899
