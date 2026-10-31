@@ -52,12 +52,6 @@ console.log(chosen)`,
 
 const expectedMode = (seed: number): string => pick(mulberry32(seed + 7), ["strict", "loose"])
 
-const alive = async (m: Machine, pid: number): Promise<boolean> => {
-  if (!Number.isFinite(pid) || pid <= 0) return false
-  const result = await bun(m, "try { process.kill(" + pid + ", 0); process.exit(1) } catch { process.exit(0) }")
-  return result.code !== 0
-}
-
 export const service500: Task = {
   id: "terminal-102-service-500",
   track: "terminal",
@@ -102,17 +96,17 @@ export const service500: Task = {
     } catch (error) {
       body = String(error)
     }
-    const pid = Number((await readText(m, "service.pid"))?.trim())
     const mode = expectedMode(seed)
     const config = (await readText(m, "config.json")) ?? ""
     const log = (await readText(m, "service.log")) ?? ""
+    const ready = (await readText(m, "ready.txt"))?.trim() ?? ""
     return verdict([
       check(
         "health ok",
         status === 200 && body.trim() === `ok ${mode}`,
         `GET ${url} -> ${status} ${JSON.stringify(body)}`,
       ),
-      check("service running", await alive(m, pid), `pid ${pid} is not running`),
+      check("service restarted", ready === `ok ${mode}`, `ready.txt was ${JSON.stringify(ready)}`),
       check("config intact", config.includes('"port"'), `config.json was ${JSON.stringify(config.slice(0, 200))}`),
       check("no error in log", !log.includes("not a valid widget mode"), `service.log was ${JSON.stringify(log)}`),
     ])
