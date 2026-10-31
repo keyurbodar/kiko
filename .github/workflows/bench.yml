@@ -27,11 +27,14 @@ jobs:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup
       - name: Display
-        run: sudo apt-get update && sudo apt-get install -y xvfb xauth openbox
+        run: sudo apt-get update && sudo apt-get install -y xvfb xauth openbox || true
       - name: Bench
-        run: >-
-          xvfb-run -a -s "-screen 0 1280x800x24"
-          sh -c 'openbox >/dev/null 2>&1 & bun run bench run --ci --machine gha-ubuntu-24.04-x11 --results results'
+        run: |
+          if command -v xvfb-run >/dev/null; then
+            xvfb-run -a -s "-screen 0 1280x800x24" sh -c 'openbox >/dev/null 2>&1 & exec bun run bench run --ci --machine gha-ubuntu-24.04-x11 --results results'
+          else
+            bun run bench run --ci --machine gha-ubuntu-24.04-x11 --results results
+          fi
       - uses: actions/upload-artifact@v4
         if: always()
         with:
