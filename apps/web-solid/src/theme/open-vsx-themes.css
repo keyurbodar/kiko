@@ -80,7 +80,7 @@
 .theme-variant-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px 12px;
+  gap: 12px;
 }
 
 @container themes (min-width: 460px) {
@@ -113,7 +113,7 @@
 
 @media (hover: hover) and (pointer: fine) {
   .theme-row-hover:hover {
-    background: var(--bg-tertiary);
+    background: var(--bg-quaternary);
   }
 
   .group\/variant:hover .theme-variant-remove {
@@ -121,9 +121,7 @@
   }
 
   .theme-preview-hover:hover {
-    box-shadow:
-      0 0 0 2px var(--bg-elevated),
-      0 0 0 3.5px var(--stroke-secondary);
+    box-shadow: 0 0 0 1px var(--stroke-primary);
   }
 }
 

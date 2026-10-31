@@ -107,7 +107,7 @@ function KeyRow(props: { command: Command }) {
       <div class="flex items-center gap-1">
         <button
           type="button"
-          class="flex min-h-12 min-w-0 flex-1 cursor-pointer items-center gap-6 rounded-base px-3 py-2 text-left outline-none transition-[background-color,transform] duration-(--duration-fast) ease-[var(--ease-sharp)] hover:bg-[var(--bg-tertiary)] active:scale-[0.99]"
+          class="flex min-h-12 min-w-0 flex-1 cursor-pointer items-center gap-6 rounded-base px-3 py-2 text-left outline-none transition-[background-color,transform] duration-(--duration-fast) ease-[var(--ease-sharp)] hover:bg-quaternary active:scale-(--press-scale)"
           aria-label={
             recorder.isRecording()
               ? `Press the new shortcut for ${props.command.title}`
@@ -119,7 +119,7 @@ function KeyRow(props: { command: Command }) {
           onBlur={() => recorder.isRecording() && recorder.cancelRecording()}
         >
           <span class="flex min-w-0 flex-1 flex-col">
-            <span class="truncate text-base leading-5 font-medium text-primary">{props.command.title}</span>
+            <span class="truncate text-base leading-5 text-primary">{props.command.title}</span>
             <Show
               when={recorder.isRecording()}
               fallback={

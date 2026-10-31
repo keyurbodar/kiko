@@ -30,7 +30,7 @@ function AgentRow(props: { slug: AgentSlug; name: string }) {
           ref !== current()?.model && room.setAgentModel(props.slug, { ref, levels, name })
         }
         title={`Choose model for ${props.name}`}
-        class="flex h-8 max-w-[240px] min-w-0 items-center gap-1.5 rounded-base bg-[var(--bg-elevated)] px-3 text-sm text-primary transition-colors duration-[var(--duration-fast)] hover:bg-[var(--bg-secondary)] aria-expanded:bg-[var(--bg-secondary)] active:scale-[0.98]"
+        class="flex h-8 max-w-[240px] min-w-0 items-center gap-1.5 rounded-base bg-[var(--bg-elevated)] px-3 text-sm text-primary transition-colors duration-[var(--duration-fast)] hover:bg-[var(--bg-secondary)] aria-expanded:bg-[var(--bg-secondary)] active:scale-(--press-scale)"
       >
         <Show when={current()?.model.split("/")[0]}>
           {(provider) => <ProviderIcon id={provider()} width="13" height="13" />}

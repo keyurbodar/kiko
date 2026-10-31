@@ -20,7 +20,9 @@ function Glyph(props: { entry: Entry }): JSX.Element {
     <span class="grid size-8 shrink-0 place-items-center rounded-base bg-[var(--bg-elevated)] text-[var(--text-secondary)]">
       <Show
         when={APPS[props.entry.id].icon}
-        fallback={<span class="text-base font-semibold text-primary">{props.entry.name.slice(0, 1).toUpperCase()}</span>}
+        fallback={
+          <span class="text-base font-semibold text-primary">{props.entry.name.slice(0, 1).toUpperCase()}</span>
+        }
       >
         {(Icon) => {
           const I = Icon()
@@ -98,7 +100,7 @@ export default function Tools(): JSX.Element {
           {(entry) => (
             <button
               type="button"
-              class="group flex min-h-12 w-full cursor-pointer items-center gap-3 rounded-base px-2.5 py-2 text-left transition-[background-color,transform] duration-(--duration-fast) ease-sharp hover:bg-[var(--bg-tertiary)] active:scale-[0.99]"
+              class="group flex min-h-12 w-full cursor-pointer items-center gap-3 rounded-base px-2.5 py-2 text-left transition-[background-color,transform] duration-(--duration-fast) ease-sharp hover:bg-quaternary active:scale-(--press-scale)"
               data-tool={entry.key}
               onClick={() => setOpenId(entry.id)}
             >
@@ -121,7 +123,10 @@ export default function Tools(): JSX.Element {
                 }
               >
                 <span
-                  class={cn("shrink-0 type-sm", entry.state === "Key rejected" ? "text-[var(--text-danger)]" : "text-success")}
+                  class={cn(
+                    "shrink-0 type-sm",
+                    entry.state === "Key rejected" ? "text-[var(--text-danger)]" : "text-success",
+                  )}
                   data-field="tool-state"
                 >
                   {entry.state}

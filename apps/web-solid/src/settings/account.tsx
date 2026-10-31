@@ -42,7 +42,12 @@ const BUSY: Record<string, string> = { Updating: "Updating your backend", Restar
 
 function Shine(props: { children: JSX.Element; [data: `data-${string}`]: string | undefined }) {
   return (
-    <span class="motion-shine type-sm text-[var(--text-tertiary)]" style={SHINE} role="status" data-part={props["data-part"]}>
+    <span
+      class="motion-shine type-sm text-[var(--text-tertiary)]"
+      style={SHINE}
+      role="status"
+      data-part={props["data-part"]}
+    >
       {props.children}
     </span>
   )
@@ -258,12 +263,15 @@ function Server() {
   onMount(() => void refreshBackend().then(() => refreshLatest()))
   return (
     <Group title="Your Kiko server" data-component="account-backend">
-      <div class="flex items-center gap-3 px-4 py-3 shadow-[inset_0_-1px_0_var(--stroke-tertiary)]" data-setting="backend">
+      <div
+        class="flex items-center gap-3 px-4 py-3 shadow-[inset_0_-1px_0_var(--stroke-tertiary)]"
+        data-setting="backend"
+      >
         <span class="grid size-8 shrink-0 place-items-center rounded-base bg-[#fff] text-[#f38020]">
           <ProviderIcon id="cloudflare-workers-ai" width="18" height="18" />
         </span>
         <span class="flex min-w-0 flex-1 flex-col">
-          <span class="truncate type-base font-medium text-primary">Running on your Cloudflare</span>
+          <span class="truncate type-base text-primary">Running on your Cloudflare</span>
           <span class="truncate type-sm text-[var(--text-tertiary)]">Your chats never leave your account</span>
         </span>
         <Health />

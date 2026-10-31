@@ -44,7 +44,7 @@ export default function LiveBrowser(props: { icon: JSX.Element }) {
               <For each={b().tabs}>
                 {(tab) => (
                   <li class="flex gap-2">
-                    <span class="font-medium">{tab.agent}</span>
+                    <span class="text-primary">{tab.agent}</span>
                     <span class="text-secondary">{tab.host}</span>
                   </li>
                 )}

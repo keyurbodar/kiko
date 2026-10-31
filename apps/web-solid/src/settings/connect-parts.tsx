@@ -9,8 +9,8 @@ export function BrandTile(props: { children: JSX.Element; size?: "row" | "head" 
   return (
     <span
       class={cn(
-        "grid shrink-0 place-items-center overflow-hidden rounded-xl bg-[var(--bg-elevated)] text-[var(--text-secondary)]",
-        props.size === "head" ? "size-10" : "size-8",
+        "grid shrink-0 place-items-center overflow-hidden bg-tertiary icon-secondary",
+        props.size === "head" ? "size-10 rounded-xl" : "size-7 rounded-lg",
       )}
       aria-hidden="true"
     >
@@ -85,12 +85,12 @@ export function SecretInput(props: {
         />
         <button
           type="button"
-          class="absolute right-1 grid size-7 cursor-pointer place-items-center rounded-base text-[var(--text-tertiary)] transition-colors duration-(--duration-fast) hover:bg-[var(--bg-tertiary)] hover:text-primary aria-pressed:text-primary"
+          class="absolute right-1 grid size-6 cursor-pointer place-items-center rounded-base icon-secondary transition-colors duration-(--duration-fast) hover:bg-tertiary hover:icon-primary aria-pressed:icon-primary"
           aria-label={shown() ? "Hide key" : "Show key"}
           aria-pressed={shown()}
           onClick={() => setShown(!shown())}
         >
-          <RemixIcon icon={EyeIcon} size={16} />
+          <RemixIcon icon={EyeIcon} size={13} />
         </button>
       </div>
       <Show when={props.error}>

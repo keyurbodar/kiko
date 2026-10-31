@@ -62,7 +62,7 @@ function Pairing(props: { pair: PairCode; onNew: () => void; onClose: () => void
   return (
     <div class="flex flex-col gap-3 px-4 py-3.5" data-component="computer-pairing">
       <div class="flex flex-wrap items-center justify-between gap-2">
-        <span class="type-base font-medium text-primary">Run this on the computer you want to add</span>
+        <span class="type-base text-primary">Run this on the computer you want to add</span>
         <Segmented<Shell>
           label="Operating system"
           value={shell()}
@@ -94,7 +94,7 @@ function Pairing(props: { pair: PairCode; onNew: () => void; onClose: () => void
           <button
             type="button"
             aria-label={copied() ? "Copied" : "Copy the command"}
-            class="absolute top-2 right-2 flex h-7 cursor-pointer items-center gap-1.5 rounded-base px-2 type-sm text-secondary transition-[background-color,color,transform] duration-(--duration-fast) ease-sharp hover:bg-[var(--bg-tertiary)] hover:text-primary active:scale-[0.96]"
+            class="absolute top-2 right-2 flex h-7 cursor-pointer items-center gap-1.5 rounded-base px-2 type-sm text-secondary transition-[background-color,color,transform] duration-(--duration-fast) ease-sharp hover:bg-[var(--bg-tertiary)] hover:text-primary active:scale-(--press-scale)"
             data-action="computer-copy"
             data-copied={copied() ? "" : undefined}
             onClick={() => void copy()}

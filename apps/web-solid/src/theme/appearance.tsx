@@ -42,7 +42,10 @@ function Preview(props: { palette: Palette }) {
         <span class="h-[18px] w-1/2 rounded-base" style={{ background: tint(6) }} />
         <span class="h-[5px] w-[70%] self-start rounded-sm" style={{ background: tint(60) }} />
         <span class="h-[5px] w-[45%] self-start rounded-sm" style={{ background: tint(36) }} />
-        <span class="mt-auto h-[14px] w-full rounded-base" style={{ background: p().editor, "box-shadow": `inset 0 0 0 1px ${tint(12)}` }}>
+        <span
+          class="mt-auto h-[14px] w-full rounded-base"
+          style={{ background: p().editor, "box-shadow": `inset 0 0 0 1px ${tint(12)}` }}
+        >
           <span class="mt-[3px] mr-[3px] ml-auto block size-2 rounded-full" style={{ background: p().accent }} />
         </span>
       </div>
@@ -63,27 +66,27 @@ function ThemeCard(props: {
         type="button"
         role="radio"
         aria-checked={props.selected}
-        class="flex w-full flex-col gap-2 text-left outline-none transition-transform duration-[var(--duration-fast)] ease-[var(--ease-sharp)] active:scale-[0.98]"
+        class="flex w-full flex-col gap-2 text-left outline-none transition-transform duration-(--duration-instant) ease-sharp active:scale-(--press-scale)"
         data-theme-card={props.name}
         onClick={props.onPick}
       >
         <span
-          class="relative block rounded-xl transition-shadow duration-(--duration-normal) ease-sharp"
+          class="relative block rounded-xl transition-shadow duration-(--duration-fast) ease-sharp"
           classList={{
-            "shadow-[0_0_0_2px_var(--bg-chrome),0_0_0_4px_var(--bg-accent)]": props.selected,
-            "hover:shadow-[0_0_0_1px_var(--stroke-secondary)]": !props.selected,
+            "shadow-[0_0_0_2px_var(--bg-accent)]": props.selected,
+            "hover:shadow-[0_0_0_1px_var(--stroke-primary)]": !props.selected,
           }}
         >
           <Preview palette={props.palette} />
           <Show when={props.selected}>
-            <span class="absolute top-2 right-2 grid size-[18px] place-items-center rounded-full bg-(--bg-accent) text-(--text-on-accent)">
+            <span class="absolute top-2 right-2 grid size-4 place-items-center rounded-full bg-accent text-on-accent">
               <RemixIcon icon={CheckIcon} size={12} />
             </span>
           </Show>
         </span>
         <span
-          class="truncate type-base"
-          classList={{ "font-semibold text-primary": props.selected, "text-secondary": !props.selected }}
+          class="truncate px-0.5 type-base"
+          classList={{ "text-primary": props.selected, "text-secondary": !props.selected }}
         >
           {props.name}
         </span>
@@ -91,7 +94,7 @@ function ThemeCard(props: {
       <Show when={props.onRemove}>
         <button
           type="button"
-          class="absolute top-1.5 left-1.5 grid size-5 place-items-center rounded-base bg-elevated text-secondary opacity-0 shadow-popup group-hover/theme:opacity-100 hover:text-danger focus-visible:opacity-100"
+          class="absolute top-1.5 left-1.5 grid size-5 place-items-center rounded-sm bg-elevated icon-secondary opacity-0 shadow-(--popup-shadow) transition-opacity duration-(--duration-fast) group-hover/theme:opacity-100 hover:icon-danger focus-visible:opacity-100"
           aria-label={`Remove ${props.name}`}
           title="Remove"
           onClick={props.onRemove}
@@ -124,7 +127,7 @@ function pickedFor(appearance: ThemeAppearance): string {
   return appearance === "dark" ? look().darkTheme : look().lightTheme
 }
 
-const gridClass = "grid grid-cols-2 gap-x-3 gap-y-5 @min-[560px]/settings:grid-cols-3"
+const gridClass = "grid grid-cols-2 gap-x-3 gap-y-4 @min-[560px]/settings:grid-cols-3"
 
 function ThemeGrid(props: { appearance: ThemeAppearance; more?: () => void }) {
   return (
@@ -146,11 +149,11 @@ function ThemeGrid(props: { appearance: ThemeAppearance; more?: () => void }) {
         {(more) => (
           <button
             type="button"
-            class="flex h-[104px] cursor-pointer flex-col items-center justify-center gap-1 rounded-xl bg-editor type-base text-secondary transition-[background-color,color,transform] duration-(--duration-fast) ease-sharp hover:bg-tertiary hover:text-primary active:scale-[0.98]"
+            class="flex h-[104px] cursor-pointer flex-col items-center justify-center gap-1.5 rounded-xl border border-dashed border-secondary type-base text-secondary transition-[background-color,color,transform] duration-(--duration-fast) ease-sharp hover:bg-quaternary hover:text-primary active:scale-(--press-scale)"
             data-action="browse-themes"
             onClick={() => more()()}
           >
-            <RemixIcon icon={PlusIcon} size={16} />
+            <RemixIcon icon={PlusIcon} size={14} class="icon-secondary" />
             More themes
           </button>
         )}
@@ -184,7 +187,7 @@ function ThemeSection(props: { onMore: () => void }) {
           <h3 class="flex items-center gap-2 px-1 type-sm text-tertiary">
             Light
             <Show when={shown() === "light"}>
-              <span class="type-xs text-quaternary">Showing now</span>
+              <span class="type-sm text-quaternary">Showing now</span>
             </Show>
           </h3>
           <ThemeGrid appearance="light" />
@@ -193,7 +196,7 @@ function ThemeSection(props: { onMore: () => void }) {
           <h3 class="flex items-center gap-2 px-1 type-sm text-tertiary">
             Dark
             <Show when={shown() === "dark"}>
-              <span class="type-xs text-quaternary">Showing now</span>
+              <span class="type-sm text-quaternary">Showing now</span>
             </Show>
           </h3>
           <ThemeGrid appearance="dark" more={props.onMore} />

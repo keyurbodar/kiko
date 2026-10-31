@@ -80,7 +80,7 @@ function VariantCard(props: { theme: ImportedTheme; label: string; onRemove?: ()
     <div class="group/variant relative min-w-0">
       <button
         type="button"
-        class="flex w-full cursor-pointer flex-col gap-1.5 text-left outline-none transition-transform duration-(--duration-fast) ease-sharp active:scale-[0.98]"
+        class="flex w-full cursor-pointer flex-col gap-1.5 text-left outline-none transition-transform duration-(--duration-fast) ease-sharp active:scale-(--press-scale)"
         aria-pressed={isShowing(props.theme)}
         aria-label={`Use ${props.theme.name}`}
         title={props.theme.name}
@@ -88,9 +88,9 @@ function VariantCard(props: { theme: ImportedTheme; label: string; onRemove?: ()
         onClick={() => wear(props.theme)}
       >
         <span
-          class="relative block rounded-xl transition-shadow duration-(--duration-normal) ease-sharp"
+          class="relative block rounded-xl transition-shadow duration-(--duration-fast) ease-sharp"
           classList={{
-            "shadow-[0_0_0_2px_var(--bg-elevated),0_0_0_3.5px_var(--text-secondary)]": isShowing(props.theme),
+            "shadow-[0_0_0_2px_var(--bg-accent)]": isShowing(props.theme),
             "theme-preview-hover": !isShowing(props.theme),
           }}
         >
@@ -105,8 +105,8 @@ function VariantCard(props: { theme: ImportedTheme; label: string; onRemove?: ()
           </Show>
         </span>
         <span
-          class="truncate type-sm"
-          classList={{ "font-semibold text-primary": isShowing(props.theme), "text-secondary": !isShowing(props.theme) }}
+          class="truncate px-0.5 type-sm"
+          classList={{ "text-primary": isShowing(props.theme), "text-secondary": !isShowing(props.theme) }}
         >
           {props.label}
         </span>
@@ -115,7 +115,7 @@ function VariantCard(props: { theme: ImportedTheme; label: string; onRemove?: ()
         {(onRemove) => (
           <button
             type="button"
-            class="theme-variant-remove absolute top-1.5 left-1.5 grid size-5 cursor-pointer place-items-center rounded-base bg-elevated text-secondary shadow-popup hover:text-danger"
+            class="theme-variant-remove absolute top-1.5 left-1.5 grid size-5 cursor-pointer place-items-center rounded-sm bg-elevated icon-secondary shadow-(--popup-shadow) hover:icon-danger"
             aria-label={`Remove ${props.theme.name}`}
             title="Remove"
             onClick={() => onRemove()()}
@@ -148,7 +148,7 @@ function VariantGrid(props: { themes: ImportedTheme[]; removable?: boolean; clas
 function ExtensionIcon(props: { item: OpenVsxItem }): JSX.Element {
   const [broken, setBroken] = createSignal(false)
   return (
-    <span class="grid size-10 shrink-0 place-items-center overflow-hidden rounded-xl bg-editor" aria-hidden="true">
+    <span class="grid size-8 shrink-0 place-items-center overflow-hidden rounded-lg bg-tertiary" aria-hidden="true">
       <Show
         when={props.item.icon && !broken()}
         fallback={<span class="type-base text-tertiary">{props.item.displayName.slice(0, 1).toUpperCase()}</span>}
@@ -175,7 +175,7 @@ function ResultRow(props: { item: OpenVsxItem; state?: Install; onInstall: () =>
   const busy = () => props.state?.phase === "installing"
   return (
     <li
-      class="flex flex-col gap-3 rounded-base px-2.5 py-2.5 transition-colors duration-(--duration-fast) ease-sharp theme-row-hover"
+      class="flex flex-col gap-3 rounded-lg px-2.5 py-2 transition-colors duration-(--duration-fast) ease-sharp theme-row-hover"
       data-item={keyOf(props.item)}
       data-state={installed().length > 0 ? "installed" : (props.state?.phase ?? "available")}
     >
@@ -208,7 +208,7 @@ function ResultRow(props: { item: OpenVsxItem; state?: Install; onInstall: () =>
       </div>
       <Show when={failed()}>
         {(state) => (
-          <p role="alert" class="pl-[52px] type-sm text-danger" data-slot="install-error">
+          <p role="alert" class="pl-11 type-sm text-danger" data-slot="install-error">
             {state().message}
           </p>
         )}
@@ -224,8 +224,8 @@ function SkeletonRows(): JSX.Element {
   return (
     <For each={[0, 1, 2, 3]}>
       {() => (
-        <li class="flex items-center gap-3 px-2.5 py-2.5" aria-hidden="true">
-          <Skeleton class="size-10 rounded-xl" />
+        <li class="flex items-center gap-3 px-2.5 py-2" aria-hidden="true">
+          <Skeleton class="size-8 rounded-lg" />
           <div class="flex flex-1 flex-col gap-1.5">
             <Skeleton class="h-3.5 w-2/5" />
             <Skeleton class="h-3 w-1/4" />
@@ -238,11 +238,9 @@ function SkeletonRows(): JSX.Element {
 
 function Message(props: { title: string; children?: JSX.Element }): JSX.Element {
   return (
-    <div class="flex flex-col items-center gap-3 px-6 py-12 text-center" data-slot="message">
-      <span class="grid size-10 place-items-center rounded-full bg-editor text-tertiary">
-        <RemixIcon icon={SearchIcon} size={24} class="opacity-(--opacity-icon-secondary)" />
-      </span>
-      <p class="type-base text-secondary">{props.title}</p>
+    <div class="mx-auto flex max-w-sm flex-col items-center gap-4 px-6 py-12 text-center" data-slot="message">
+      <RemixIcon icon={SearchIcon} size={20} class="mb-2 icon-tertiary" />
+      <p class="type-base text-balance text-secondary">{props.title}</p>
       {props.children}
     </div>
   )
@@ -259,7 +257,7 @@ function Installed(props: { onSuggest: (query: string) => void }): JSX.Element {
               {(name) => (
                 <button
                   type="button"
-                  class="h-7 cursor-pointer rounded-full bg-editor px-3 type-sm text-secondary transition-[background-color,color,transform] duration-(--duration-fast) ease-sharp hover:bg-tertiary hover:text-primary active:scale-[0.97]"
+                  class="h-6 cursor-pointer rounded-full bg-tertiary px-2.5 type-base text-secondary transition-[background-color,color,transform] duration-(--duration-fast) ease-sharp hover:bg-secondary hover:text-primary active:scale-(--press-scale)"
                   onClick={() => props.onSuggest(name)}
                 >
                   {name}

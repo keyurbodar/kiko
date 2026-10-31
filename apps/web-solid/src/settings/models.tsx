@@ -210,7 +210,7 @@ function PopularProviders(props: {
             {({ provider, note }) => (
               <button
                 type="button"
-                class="group flex cursor-pointer items-center gap-3 rounded-xl bg-editor p-3 text-left transition-[background-color,transform] duration-(--duration-fast) ease-sharp hover:bg-[var(--bg-tertiary)] active:scale-[0.99]"
+                class="group flex cursor-pointer items-center gap-3 rounded-xl border border-tertiary bg-editor p-3 text-left transition-[background-color,transform] duration-(--duration-fast) ease-sharp hover:bg-quaternary active:scale-(--press-scale)"
                 data-provider={provider.id}
                 data-action="connect"
                 onClick={() => props.onPick(provider)}
@@ -224,8 +224,8 @@ function PopularProviders(props: {
                 </span>
                 <RemixIcon
                   icon={ChevronRightIcon}
-                  size={16}
-                  class="shrink-0 text-[var(--text-quaternary)] transition-[color,transform] duration-(--duration-fast) group-hover:translate-x-0.5 group-hover:text-secondary"
+                  size={12}
+                  class="shrink-0 icon-tertiary transition-[color,transform] duration-(--duration-fast) group-hover:translate-x-0.5 group-hover:icon-secondary"
                 />
               </button>
             )}
@@ -251,7 +251,7 @@ function ProviderList(props: {
       <For each={props.providers}>{(provider) => <ProviderRow provider={provider} onManage={props.onManage} />}</For>
       <button
         type="button"
-        class="group flex h-12 w-full cursor-pointer items-center gap-3 px-4 text-left transition-colors duration-(--duration-fast) hover:bg-[var(--bg-tertiary)]"
+        class="group flex h-12 w-full cursor-pointer items-center gap-3 px-4 text-left transition-colors duration-(--duration-fast) hover:bg-quaternary"
         data-action="view-all-providers"
         onClick={() => props.onAdd()}
       >
@@ -290,7 +290,7 @@ function ProviderRow(props: { provider: CatalogProvider; onManage: (provider: Ca
         <ProviderIcon id={props.provider.id} width="16" height="16" />
       </BrandTile>
       <div class="flex min-w-0 flex-1 flex-col">
-        <span class="truncate type-base font-medium text-primary">{props.provider.name}</span>
+        <span class="truncate type-base text-primary">{props.provider.name}</span>
         <span
           class={cn("truncate type-sm", info()?.problem ? "text-[var(--text-danger)]" : "text-[var(--text-tertiary)]")}
           data-part="provider-status"
@@ -429,7 +429,7 @@ function PickerModelRow(props: { row: PickerRow; hidden: boolean; showProvider: 
   const label = () => `Show ${props.row.model.name} in the model picker`
   return (
     <div
-      class="flex h-[46px] cursor-pointer items-center gap-3 px-4 outline-none transition-colors duration-(--duration-fast) hover:bg-[var(--bg-tertiary)] focus-visible:bg-[var(--bg-tertiary)]"
+      class="flex h-[46px] cursor-pointer items-center gap-3 px-4 outline-none transition-colors duration-(--duration-fast) hover:bg-quaternary focus-visible:bg-quaternary"
       role="switch"
       tabIndex={0}
       aria-checked={!props.hidden}
@@ -474,7 +474,7 @@ function PickerModelRow(props: { row: PickerRow; hidden: boolean; showProvider: 
 }
 
 function ProviderSkeletons() {
-  return <For each={[0, 1, 2, 3]}>{() => <Skeleton class="h-top-bar-height rounded-xl" />}</For>
+  return <For each={[0, 1, 2, 3]}>{() => <Skeleton class="h-[54px] rounded-xl" />}</For>
 }
 
 function CheckAgain(props: { id: string }) {
@@ -591,14 +591,14 @@ export function AddProviderDialog(props: {
             <li data-provider={provider.id}>
               <button
                 type="button"
-                class="flex h-12 w-full cursor-pointer items-center gap-3 rounded-base px-2 text-left outline-none transition-[background-color,transform] duration-(--duration-fast) ease-sharp hover:bg-[var(--bg-tertiary)] focus-visible:bg-[var(--bg-tertiary)] active:scale-[0.99]"
+                class="flex h-12 w-full cursor-pointer items-center gap-3 rounded-base px-2 text-left outline-none transition-[background-color,transform] duration-(--duration-fast) ease-sharp hover:bg-quaternary focus-visible:bg-quaternary active:scale-(--press-scale)"
                 data-action="connect"
                 onClick={() => props.onPick(provider)}
               >
                 <BrandTile>
                   <ProviderIcon id={provider.id} width="16" height="16" />
                 </BrandTile>
-                <span class="min-w-0 flex-1 truncate type-base font-medium text-primary">{provider.name}</span>
+                <span class="min-w-0 flex-1 truncate type-base text-primary">{provider.name}</span>
                 <span class="shrink-0 type-xs text-[var(--text-quaternary)]">
                   {provider.models.length} {provider.models.length === 1 ? "model" : "models"}
                 </span>
@@ -609,14 +609,14 @@ export function AddProviderDialog(props: {
         <li data-provider="custom">
           <button
             type="button"
-            class="flex h-12 w-full cursor-pointer items-center gap-3 rounded-base px-2 text-left outline-none transition-[background-color,transform] duration-(--duration-fast) ease-sharp hover:bg-[var(--bg-tertiary)] focus-visible:bg-[var(--bg-tertiary)] active:scale-[0.99]"
+            class="flex h-12 w-full cursor-pointer items-center gap-3 rounded-base px-2 text-left outline-none transition-[background-color,transform] duration-(--duration-fast) ease-sharp hover:bg-quaternary focus-visible:bg-quaternary active:scale-(--press-scale)"
             data-action="custom-provider"
             onClick={() => setCustom(true)}
           >
             <BrandTile>
               <RemixIcon icon={PlusIcon} size={16} />
             </BrandTile>
-            <span class="min-w-0 flex-1 truncate type-base font-medium text-primary">Custom provider</span>
+            <span class="min-w-0 flex-1 truncate type-base text-primary">Custom provider</span>
             <span class="shrink-0 type-xs text-[var(--text-quaternary)]">OpenAI or Anthropic compatible</span>
           </button>
         </li>
