@@ -19,6 +19,8 @@
     "@corvu/calendar": "0.1.2",
     "@corvu/resizable": "0.2.5",
     "@effect/atom-solid": "4.0.6",
+    "@fontsource-variable/geist": "5.3.0",
+    "@fontsource-variable/geist-mono": "5.3.0",
     "@kiko/avatar": "workspace:*",
     "@kiko/client-runtime": "workspace:*",
     "@kiko/protocol": "workspace:*",
