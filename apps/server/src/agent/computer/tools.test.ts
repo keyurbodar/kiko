@@ -2,6 +2,7 @@ import { describe, expect, it } from "@effect/vitest"
 import type { Context } from "@earendil-works/chord"
 import type { ToolExecutionApi } from "@earendil-works/pi-durable"
 import type { DesktopTool, DriverCall, Page, Tab } from "@kiko/computer/driver"
+import { afterEach, beforeEach, vi } from "vitest"
 import type { ComputerPort } from "./port"
 import { computerExtension, computerInfoExtension } from "./tools"
 import type { ComputerCallOutcome, ComputerSummary } from "./types"
@@ -87,7 +88,12 @@ const context = {} as Context
 const textOf = (out: { output?: readonly { type: string; text?: string }[] }) =>
   (out.output ?? []).map((part) => part.text ?? "").join("")
 
+const LIST_NOW = Date.parse("2026-10-31T12:00:00.000Z")
+
 describe("computer_list", () => {
+  beforeEach(() => vi.useFakeTimers({ now: LIST_NOW }))
+  afterEach(() => vi.useRealTimers())
+
   it("lists every computer with its daemon version and why the offline one dropped", async () => {
     const online = summary({ version: "3.1.0" })
     const offline = summary({
@@ -96,7 +102,7 @@ describe("computer_list", () => {
       os: "linux",
       online: false,
       version: "3.0.0",
-      lastSeenAt: Date.now() - 60_000,
+      lastSeenAt: LIST_NOW - 60_000,
       lastCloseReason: "the network dropped",
     })
     const port: ComputerPort = {

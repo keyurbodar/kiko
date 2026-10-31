@@ -504,6 +504,7 @@ describe("computer calls", () => {
       const pc = pcSocket("pc-1")
       pcs.push(pc.ws)
       yield* Effect.promise(() => computers.message(pc.ws, JSON.stringify(HELLO)))
+      yield* Effect.yieldNow
       const id = callIds(pc)[0]
       assert.ok(id)
       yield* Effect.promise(() => settle(computers, pc.ws, id))

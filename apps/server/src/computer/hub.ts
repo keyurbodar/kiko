@@ -93,6 +93,8 @@ export type PcAttachment = {
   at: number
 }
 
+type CallTarget = { ws: WebSocket; saved: PcAttachment; hello: Hello }
+
 export type CallOutcome = { ok: true; value: unknown } | { ok: false; code: FailCode; message: string }
 
 export type PcReleased = { pcId: string; name: string; waiters: PcAgent[]; expired: boolean }
@@ -517,6 +519,23 @@ export class ComputerHub {
     return true
   }
 
+  private target(pcId: string): CallTarget | null {
+    const ws = this.socket(pcId)
+    const saved = ws && attachmentOf(ws)
+    if (!ws || !saved || !saved.hello) return null
+    return { ws, saved, hello: saved.hello }
+  }
+
+  private async wakeAndTarget(pcId: string, deadlineMs: number): Promise<CallTarget | null> {
+    await this.waitForArrival(pcId, Math.min(OFFLINE_WAIT_MS, deadlineMs))
+    if (!this.online(pcId)) return null
+    return this.target(pcId)
+  }
+
+  private offline(row: ComputerRow): CallOutcome {
+    return { ok: false, code: "failed", message: this.offlineMessage(row) }
+  }
+
   async call(
     pcId: string,
     op: Op,
@@ -526,14 +545,10 @@ export class ComputerHub {
     const row = this.d.store.get(pcId)
     if (!row) return { ok: false, code: "unsupported", message: "there is no such computer" }
     const deadlineMs = Math.min(Math.max(1_000, Number(options.deadlineMs ?? DEFAULT_DEADLINE_MS)), MAX_DEADLINE_MS)
-    if (!this.online(pcId)) {
-      await this.waitForArrival(pcId, Math.min(OFFLINE_WAIT_MS, deadlineMs))
-      if (!this.online(pcId)) return { ok: false, code: "failed", message: this.offlineMessage(row) }
-    }
-    const ws = this.socket(pcId)
-    const saved = ws && attachmentOf(ws)
-    const hello = saved?.hello
-    if (!ws || !saved || !hello) return { ok: false, code: "failed", message: this.offlineMessage(row) }
+    let target = this.target(pcId)
+    if (!this.online(pcId)) target = await this.wakeAndTarget(pcId, deadlineMs)
+    if (!target) return this.offline(row)
+    const { ws, saved, hello } = target
     const cap = TERMINAL_OPS.has(op)
       ? "terminal"
       : op === "shell"
