@@ -90,7 +90,10 @@ export function seeFailure(outcome: { code: FailCode; message: string }, pc: Com
 }
 
 export const PC = Type.Optional(
-  Type.String({ description: "the computer's name or id. leave it out when the owner has one computer" }),
+  Type.String({
+    description:
+      "the computer's name or id. computer_list shows every computer, what it can do and whether it is online. leave it out when the owner has one computer",
+  }),
 )
 
 export function run(tool: string, call: () => Promise<ComputerResult>): Promise<ComputerResult> {
@@ -106,8 +109,8 @@ export function run(tool: string, call: () => Promise<ComputerResult>): Promise<
 export function baseReady(deps: ComputerToolDeps) {
   return async (which?: string): Promise<Ready> => {
     const pc = await deps.port().resolve(which)
+    if (!pc.online) return { ok: true, pc }
     if ((await deps.port().holder(pc.id)) === "human") return { ok: false, result: text(paused(pc)) }
-    if (!pc.online) return { ok: false, result: text(offline(pc), true) }
     return { ok: true, pc }
   }
 }

@@ -4,6 +4,7 @@ import { declareEffect } from "@kiko/agent/effects"
 import type { DesktopTool } from "@kiko/computer/driver"
 import type { Value } from "@kiko/computer/wire"
 import { browserTools } from "./browser"
+import { computerListText } from "./inventory"
 import { terminalTools } from "./terminal"
 import {
   CALL_DEADLINE_MS,
@@ -242,6 +243,15 @@ export function computerExtension(deps: ComputerToolDeps): Extension {
 }
 
 export function computerInfoExtension(deps: ComputerToolDeps): Extension {
+  const list = defineTool({
+    name: "computer_list",
+    description:
+      "every computer paired with kiko, what each can do, whether it is online, when it was last seen and why its last connection ended. use it to pick the pc for every other computer tool.",
+    parameters: Type.Object({}),
+    replay: "safe",
+    execute: () => run("computer_list", async () => text(computerListText(await deps.port().list()))),
+  })
+
   const link = defineTool({
     name: "computer_link",
     description:
@@ -279,6 +289,6 @@ export function computerInfoExtension(deps: ComputerToolDeps): Extension {
 
   return defineExtension({
     name: COMPUTER_INFO_EXT,
-    tools: [declareEffect("message", link)],
+    tools: [declareEffect("read", list), declareEffect("message", link)],
   })
 }

@@ -45,8 +45,15 @@ export function userComputer(user: () => UserComputerRpc, agentId: string, roomI
       })
     }
     const lower = want.toLowerCase()
-    const found = all.find((pc) => pc.id === want) ?? all.find((pc) => pc.name.toLowerCase() === lower)
-    if (found) return found
+    const byId = all.find((pc) => pc.id === want)
+    if (byId) return byId
+    const named = all.filter((pc) => pc.name.toLowerCase() === lower)
+    if (named.length === 1 && named[0]) return named[0]
+    if (named.length > 1)
+      throw new NoComputer({
+        reason: "ambiguous",
+        message: `${named.length} computers are called ${want}: ${named.map((pc) => `${pc.name} (${pc.id})`).join(", ")}. pass the id of the one you mean in pc.`,
+      })
     throw new NoComputer({
       reason: "unknown",
       message: `there is no computer called ${want}. the computers are: ${names(all)}.`,

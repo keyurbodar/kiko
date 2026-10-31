@@ -1,6 +1,8 @@
 import { assert, describe, it } from "@effect/vitest"
 import { PROTOCOL } from "@kiko/computer/wire"
+import * as Clock from "effect/Clock"
 import * as Effect from "effect/Effect"
+import * as TestClock from "effect/testing/TestClock"
 import { DatabaseSync, type SQLInputValue } from "node:sqlite"
 import { ComputerHub, type HubDeps } from "./hub"
 import { ComputerStore, type ComputerRow, type NewComputer } from "./store"
@@ -150,7 +152,7 @@ describe("pairing again", () => {
         replaces: "pc-old",
       })
 
-      assert.isTrue(paired)
+      assert.isTrue(paired.ok)
       assert.deepStrictEqual(
         hub.rows().map((row) => row.id),
         ["pc-new"],
@@ -165,7 +167,7 @@ describe("pairing again", () => {
       const { hub } = realHub([])
       hub.pair({ id: "pc-a", name: "box", publicKey: "a", pairNonce: "n1", hello: HELLO })
 
-      hub.pair({ id: "pc-b", name: "box", publicKey: "b", pairNonce: "n2", hello: HELLO, replaces: "pc-gone" })
+      hub.pair({ id: "pc-b", name: "crate", publicKey: "b", pairNonce: "n2", hello: HELLO, replaces: "pc-gone" })
 
       assert.deepStrictEqual(
         hub.rows().map((row) => row.id),
@@ -188,7 +190,7 @@ describe("pairing again", () => {
         replaces: "pc-old",
       })
 
-      assert.isFalse(paired)
+      assert.isFalse(paired.ok)
       assert.deepStrictEqual(
         hub.rows().map((row) => row.id),
         ["pc-old"],
@@ -214,7 +216,12 @@ function pcSocket(id: string, holder: "agent" | "human" = "agent") {
   return { ws, sent }
 }
 
-function liveHub(tabs: readonly WebSocket[], pcs: readonly WebSocket[], ids: readonly string[] = []) {
+function liveHub(
+  tabs: readonly WebSocket[],
+  pcs: readonly WebSocket[],
+  ids: readonly string[] = [],
+  sleep?: (ms: number) => Promise<void>,
+) {
   const store = {
     get: (id: string) => ({ id, name: "box" }),
     list: () => ids.map((id) => ({ id, name: "box" })),
@@ -229,9 +236,52 @@ function liveHub(tabs: readonly WebSocket[], pcs: readonly WebSocket[], ids: rea
     ownerId: "owner",
     released: () => {},
     wakeup: { set: () => Promise.resolve(), clear: () => Promise.resolve() },
+    ...(sleep ? { sleep } : {}),
   } as unknown as HubDeps
   return new ComputerHub(deps)
 }
+
+describe("unique names", () => {
+  it.effect("refuses a second computer with a name another one already has", () =>
+    Effect.sync(() => {
+      const open = tab()
+      const { hub, written } = realHub([open.ws])
+      hub.pair({ id: "pc-a", name: "Box", publicKey: "a", pairNonce: "n1", hello: HELLO })
+      const before = { pushes: open.sent.length, written: written() }
+
+      const paired = hub.pair({ id: "pc-b", name: "box", publicKey: "b", pairNonce: "n2", hello: HELLO })
+
+      assert.isFalse(paired.ok)
+      if (paired.ok) return
+      assert.match(paired.error, /pc-a/)
+      assert.deepStrictEqual(
+        hub.rows().map((row) => row.id),
+        ["pc-a"],
+      )
+      assert.strictEqual(open.sent.length, before.pushes)
+      assert.strictEqual(written(), before.written)
+    }),
+  )
+
+  it.effect("refuses a rename to a name another computer already has", () =>
+    Effect.sync(() => {
+      const { hub } = realHub([])
+      hub.pair({ id: "pc-a", name: "box", publicKey: "a", pairNonce: "n1", hello: HELLO })
+      hub.pair({ id: "pc-b", name: "crate", publicKey: "b", pairNonce: "n2", hello: HELLO })
+
+      const renamed = hub.rename("pc-b", "BOX")
+
+      assert.isFalse(renamed.ok)
+      if (renamed.ok) return
+      assert.strictEqual(renamed.reason, "taken")
+      assert.match(renamed.error, /pc-a/)
+      assert.deepStrictEqual(
+        hub.rows().map((row) => row.name),
+        ["box", "crate"],
+      )
+    }),
+  )
+})
 
 describe("daemon reconnect", () => {
   it.effect("tells a reconnecting daemon who holds the screen", () =>
@@ -434,15 +484,73 @@ describe("relay fallback", () => {
   )
 })
 
+const onClock =
+  (clock: Clock.Clock) =>
+  (ms: number): Promise<void> =>
+    Effect.runPromise(Effect.sleep(ms).pipe(Effect.provideService(Clock.Clock, clock)))
+
 describe("computer calls", () => {
-  it.effect("answers at once when the daemon is no longer answering", () =>
-    Effect.promise(async () => {
+  it.effect("waits for a computer that comes back, then runs the call", () =>
+    Effect.gen(function* () {
+      const clock = yield* Clock.Clock
+      const pcs: WebSocket[] = []
+      const computers = liveHub([], pcs, ["pc-1"], onClock(clock))
+
+      const pending = computers.call("pc-1", "shell", { command: "true" })
+      yield* Effect.yieldNow
+      yield* TestClock.adjust("2 seconds")
+
       const pc = pcSocket("pc-1")
-      const computers = liveHub([], [pc.ws])
+      pcs.push(pc.ws)
+      yield* Effect.promise(() => computers.message(pc.ws, JSON.stringify(HELLO)))
+      const id = callIds(pc)[0]
+      assert.ok(id)
+      yield* Effect.promise(() => settle(computers, pc.ws, id))
 
-      const outcome = await computers.call("pc-1", "shell", { command: "true" })
+      assert.deepStrictEqual(yield* Effect.promise(() => pending), { ok: true, value: {} })
+    }),
+  )
 
-      assert.deepStrictEqual(outcome, { ok: false, code: "unsupported", message: "box is not connected" })
+  it.effect("says when a computer was last seen and why its connection ended", () =>
+    Effect.gen(function* () {
+      const clock = yield* Clock.Clock
+      const pcs: WebSocket[] = []
+      const computers = liveHub([], pcs, ["pc-1"], onClock(clock))
+      const pc = pcSocket("pc-1")
+      pcs.push(pc.ws)
+      yield* Effect.promise(() => computers.message(pc.ws, JSON.stringify({ ...HELLO, version: "2.5.0" })))
+      yield* Effect.promise(() => computers.close(pc.ws, 1006))
+      pcs.splice(0)
+
+      const pending = computers.call("pc-1", "shell", { command: "true" })
+      yield* Effect.yieldNow
+      yield* TestClock.adjust("5 seconds")
+      const outcome = yield* Effect.promise(() => pending)
+
+      assert.isFalse(outcome.ok)
+      if (outcome.ok) return
+      assert.strictEqual(outcome.code, "failed")
+      assert.match(outcome.message, /box is offline/)
+      assert.match(outcome.message, /last seen just now/)
+      assert.match(outcome.message, /the network dropped/)
+      assert.match(outcome.message, /2\.5\.0/)
+    }),
+  )
+
+  it.effect("says a computer never connected when it has not said hello yet", () =>
+    Effect.gen(function* () {
+      const clock = yield* Clock.Clock
+      const computers = liveHub([], [], ["pc-1"], onClock(clock))
+
+      const pending = computers.call("pc-1", "shell", { command: "true" })
+      yield* Effect.yieldNow
+      yield* TestClock.adjust("5 seconds")
+      const outcome = yield* Effect.promise(() => pending)
+
+      assert.isFalse(outcome.ok)
+      if (outcome.ok) return
+      assert.match(outcome.message, /has not connected since it was paired/)
+      assert.match(outcome.message, /daemon version is unknown/)
     }),
   )
 

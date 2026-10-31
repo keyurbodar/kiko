@@ -312,6 +312,9 @@ export const ComputerSummary = Schema.Struct({
   background: Schema.Boolean,
   browsers: Schema.Array(ComputerBrowser),
   note: Schema.optionalKey(Schema.String),
+  version: Schema.optionalKey(Schema.String),
+  lastSeenAt: Schema.optionalKey(Schema.Number),
+  lastCloseReason: Schema.optionalKey(Schema.String),
 })
 export type ComputerSummary = typeof ComputerSummary.Type
 

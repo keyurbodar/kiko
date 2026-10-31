@@ -19,6 +19,7 @@ import type { DesktopInfo } from "@kiko/computer/driver"
 import { decodeFrame } from "@kiko/computer/frame"
 import type { AgentSlug, ComputerFrame, ComputerSummary, RoomId } from "@kiko/protocol"
 import type { Env } from "../index"
+import { ago } from "../lib/ago"
 import { encodeBase64 } from "../lib/base64"
 import { BACKEND } from "../lib/version"
 import { dropStreams, socketView } from "../owner/socket"
@@ -42,6 +43,24 @@ const TURN_CACHE_MS = 30 * 60_000
 const TURN_TIMEOUT_MS = 5_000
 const RELAY = { fps: 8, maxWidth: 1280, quality: 60 } as const
 const CLOSE = { replaced: 4000, notReady: 1008, protocol: 4001 } as const
+const OFFLINE_WAIT_MS = 5_000
+
+const CLOSE_TEXT: Readonly<Record<number, string>> = {
+  1000: "it closed normally",
+  1001: "it went away",
+  1006: "the network dropped",
+  1008: "it was not ready",
+  1011: "it hit an internal error",
+  4000: "it was replaced by a newer connection",
+  4001: "its daemon speaks a different protocol version",
+}
+
+function closeText(code?: number, reason?: string): string {
+  const sent = reason?.trim()
+  if (sent) return sent
+  if (code === undefined) return "the connection ended"
+  return CLOSE_TEXT[code] ?? `it closed with code ${code}`
+}
 
 const decodeDaemon = Schema.decodeUnknownSync(FromDaemonSchema)
 
@@ -55,6 +74,12 @@ type PcHold = {
   waiters?: PcAgent[]
   hello?: Hello
 }
+
+type PcMark = { seenAt?: number; reason?: string; version?: string }
+
+type PairOutcome = { ok: true } | { ok: false; error: string }
+
+type RenameOutcome = { ok: true } | { ok: false; reason: "missing" | "taken"; error: string }
 
 export type PcAttachment = {
   kind: "pc"
@@ -90,6 +115,7 @@ export type HubDeps = {
   released: (out: PcReleased) => void
   wakeup: { set(at: number): Promise<void>; clear(): Promise<void> }
   fetch?: typeof fetch
+  sleep?: (ms: number) => Promise<void>
 }
 
 function attachmentOf(ws: WebSocket): PcAttachment | null {
@@ -113,6 +139,8 @@ export class ComputerHub {
   private readonly relaying = new Set<string>()
   private readonly memory = new Map<string, PcHold>()
   private readonly desktop = new Map<string, DesktopInfo>()
+  private readonly marks = new Map<string, PcMark>()
+  private readonly arrivals = new Map<string, Set<() => void>>()
   private readonly running = new Map<string, number>()
   private readonly busyPushAt = new Map<string, number>()
   private readonly busyTimers = new Map<string, ReturnType<typeof setTimeout>>()
@@ -135,6 +163,11 @@ export class ComputerHub {
     const all = this.rows()
     const wanted = nameOrId.trim().toLowerCase()
     return all.find((row) => row.id === nameOrId) ?? all.find((row) => row.name.toLowerCase() === wanted) ?? null
+  }
+
+  nameOwner(name: string, except?: string): ComputerRow | null {
+    const wanted = name.trim().toLowerCase()
+    return this.rows().find((row) => row.id !== except && row.name.toLowerCase() === wanted) ?? null
   }
 
   private sockets(id: string): WebSocket[] {
@@ -212,6 +245,48 @@ export class ComputerHub {
     return false
   }
 
+  private pause(ms: number): Promise<void> {
+    if (this.d.sleep) return this.d.sleep(ms)
+    return new Promise((resolve) => setTimeout(resolve, ms))
+  }
+
+  private waitForArrival(id: string, ms: number): Promise<void> {
+    return new Promise((resolve) => {
+      let done = false
+      const finish = () => {
+        if (done) return
+        done = true
+        const waiters = this.arrivals.get(id)
+        waiters?.delete(finish)
+        if (waiters?.size === 0) this.arrivals.delete(id)
+        resolve()
+      }
+      const waiters = this.arrivals.get(id) ?? new Set<() => void>()
+      waiters.add(finish)
+      this.arrivals.set(id, waiters)
+      void this.pause(ms).then(finish)
+    })
+  }
+
+  private arrived(id: string): void {
+    const waiters = this.arrivals.get(id)
+    if (!waiters) return
+    this.arrivals.delete(id)
+    for (const wake of waiters) wake()
+  }
+
+  private offlineMessage(row: ComputerRow): string {
+    const mark = this.marks.get(row.id) ?? {}
+    const version = mark.version ?? this.helloOf(row.id)?.version
+    const seen =
+      mark.seenAt === undefined
+        ? `${row.name} is offline: it has not connected since it was paired`
+        : `${row.name} is offline: last seen ${ago(Date.now() - mark.seenAt)}`
+    const why = mark.reason ? `, the last connection ended because ${mark.reason}` : ""
+    const daemon = version ? `its daemon is ${version}.` : "its daemon version is unknown."
+    return `${seen}${why}. ${daemon}`
+  }
+
   private sessionOf(tab: WebSocket): string | undefined {
     const saved = tab.deserializeAttachment() as TabAttachment | null
     return saved?.pcSession ?? saved?.user?.pcSession
@@ -222,6 +297,8 @@ export class ComputerHub {
     return this.rows().map((row) => {
       const hold = this.hold(row.id)
       const hello = this.helloOf(row.id)
+      const mark = this.marks.get(row.id) ?? {}
+      const version = mark.version ?? hello?.version
       const heldBy = tab && hold.heldBy ? (mine === hold.heldBy ? "you" : "other") : undefined
       return {
         id: row.id,
@@ -238,6 +315,9 @@ export class ComputerHub {
         background: hello?.caps.background ?? false,
         browsers: hello?.driver?.browsers ?? [],
         ...(hello?.note ? { note: hello.note } : {}),
+        ...(version ? { version } : {}),
+        ...(mark.seenAt === undefined ? {} : { lastSeenAt: mark.seenAt }),
+        ...(mark.reason ? { lastCloseReason: mark.reason } : {}),
       }
     })
   }
@@ -256,6 +336,10 @@ export class ComputerHub {
       if (!(ws.deserializeAttachment() as { user?: { ready?: boolean } } | null)?.user?.ready) continue
       this.sendState(socketView(ws))
     }
+  }
+
+  private nameTaken(name: string, owner: ComputerRow): string {
+    return `${name} is already the name of another computer (${owner.os}, ${owner.id}). rename that one first, or pair this machine with a different name.`
   }
 
   private busy(id: string): boolean {
@@ -291,16 +375,19 @@ export class ComputerHub {
 
   pair(
     input: Omit<NewComputer, "os" | "arch" | "host" | "caps" | "at"> & { hello: Hello; replaces?: string },
-  ): boolean {
+  ): PairOutcome {
     const { hello, replaces, ...rest } = input
+    const owner = this.nameOwner(rest.name, replaces)
+    if (owner) return { ok: false, error: this.nameTaken(rest.name, owner) }
     const inserted = this.d.store.insert(
       { ...rest, os: hello.os, arch: hello.arch, host: hello.host, caps: hello.caps, at: Date.now() },
       replaces,
     )
-    if (!inserted) return false
+    if (!inserted) return { ok: false, error: "that pairing code was already used" }
+    this.marks.set(rest.id, { version: hello.version })
     if (replaces) this.forget(replaces)
     this.push()
-    return true
+    return { ok: true }
   }
 
   async connect(request: Request): Promise<Response> {
@@ -389,6 +476,8 @@ export class ComputerHub {
     ws.serializeAttachment({ ...saved, hello } satisfies PcAttachment)
     this.memory.set(saved.id, { ...saved, hello })
     this.rememberDesktop(saved.id, hello.desktop)
+    this.marks.set(saved.id, { version: hello.version })
+    this.arrived(saved.id)
     this.send(ws, { t: "welcome", id: saved.id, name: this.name(saved.id), version: BACKEND.version })
     this.tellHolder(saved.id, saved.holder)
     this.syncRelay(saved.id)
@@ -435,12 +524,15 @@ export class ComputerHub {
   ): Promise<CallOutcome> {
     const row = this.d.store.get(pcId)
     if (!row) return { ok: false, code: "unsupported", message: "there is no such computer" }
-    if (!this.online(pcId)) return { ok: false, code: "unsupported", message: `${row.name} is not connected` }
+    const deadlineMs = Math.min(Math.max(1_000, Number(options.deadlineMs ?? DEFAULT_DEADLINE_MS)), MAX_DEADLINE_MS)
+    if (!this.online(pcId)) {
+      await this.waitForArrival(pcId, Math.min(OFFLINE_WAIT_MS, deadlineMs))
+      if (!this.online(pcId)) return { ok: false, code: "failed", message: this.offlineMessage(row) }
+    }
     const ws = this.socket(pcId)
-    if (!ws) return { ok: false, code: "unsupported", message: `${row.name} is not connected` }
-    const saved = attachmentOf(ws)
+    const saved = ws && attachmentOf(ws)
     const hello = saved?.hello
-    if (!saved || !hello) return { ok: false, code: "unsupported", message: `${row.name} is not ready yet` }
+    if (!ws || !saved || !hello) return { ok: false, code: "failed", message: this.offlineMessage(row) }
     const cap = TERMINAL_OPS.has(op)
       ? "terminal"
       : op === "shell"
@@ -466,7 +558,6 @@ export class ComputerHub {
     } catch {
       return { ok: false, code: "failed", message: `bad ${op} arguments` }
     }
-    const deadlineMs = Math.min(Math.max(1_000, Number(options.deadlineMs ?? DEFAULT_DEADLINE_MS)), MAX_DEADLINE_MS)
     const user = options.user
     const claims = user !== undefined && claimsDesk(op, parsed)
     const taken = claims && user ? this.claimDesk(pcId, user, deadlineMs) : null
@@ -742,7 +833,7 @@ export class ComputerHub {
     return released
   }
 
-  async close(ws: WebSocket): Promise<void> {
+  async close(ws: WebSocket, code?: number, reason?: string): Promise<void> {
     const saved = attachmentOf(ws)
     this.unwatch(ws)
     if (!saved) return
@@ -750,6 +841,11 @@ export class ComputerHub {
     if (!replaced) {
       this.relaying.delete(saved.id)
       this.memory.set(saved.id, { ...saved, hello: saved.hello ?? this.memory.get(saved.id)?.hello })
+      this.marks.set(saved.id, {
+        ...this.marks.get(saved.id),
+        seenAt: Date.now(),
+        reason: closeText(code, reason),
+      })
     }
     this.push()
   }
@@ -771,6 +867,7 @@ export class ComputerHub {
     this.desk.delete(id)
     this.memory.delete(id)
     this.desktop.delete(id)
+    this.marks.delete(id)
   }
 
   ageHold(id: string, ms: number): boolean {
@@ -781,12 +878,13 @@ export class ComputerHub {
     return true
   }
 
-  rename(id: string, name: string): boolean {
-    const changed = this.d.store.rename(id, name)
-    if (!changed) return false
+  rename(id: string, name: string): RenameOutcome {
+    const owner = this.nameOwner(name, id)
+    if (owner) return { ok: false, reason: "taken", error: this.nameTaken(name, owner) }
+    if (!this.d.store.rename(id, name)) return { ok: false, reason: "missing", error: "there is no such computer" }
     const ws = this.socket(id)
     if (ws) this.send(ws, { t: "welcome", id, name })
     this.push()
-    return true
+    return { ok: true }
   }
 }

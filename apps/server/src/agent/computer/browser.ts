@@ -126,7 +126,7 @@ export function browserTools(deps: ComputerToolDeps) {
   const base = baseReady(deps)
   const ready = async (which?: string): Promise<Ready> => {
     const target = await base(which)
-    if (!target.ok) return target
+    if (!target.ok || !target.pc.online) return target
     const blocked = browserBlocked(target.pc)
     if (blocked) return { ok: false, result: blocked }
     return target

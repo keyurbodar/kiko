@@ -66,6 +66,7 @@ import type { Batch } from "@kiko/agent/input"
 import type { Work } from "@kiko/agent/workers"
 import { BROWSER_IDLE_WAKEUP, BrowserConnection } from "./browser/connection"
 import { type LeasePort, type UserBrowserRpc, userLease } from "./browser/lease"
+import { computersContext } from "./computer/inventory"
 import { userComputer } from "./computer/port"
 import type { ComputerPort } from "./computer/port"
 
@@ -694,7 +695,8 @@ export class Agent {
         const integrations = integrationNote(composio, browserOn)
         const learned = Array.isArray(composio) ? learnedNote(composio) : undefined
         const routines = await this.routineContext()
-        return [clock, integrations, down, learned, quiet, routines].filter(Boolean).join("\n\n")
+        const computers = this.computerContext()
+        return [clock, integrations, down, learned, quiet, routines, computers].filter(Boolean).join("\n\n")
       },
       ...(home
         ? {
@@ -1080,6 +1082,15 @@ export class Agent {
       return this.services.user().computerList().length > 0
     } catch {
       return false
+    }
+  }
+
+  private computerContext(): string | undefined {
+    if (!this.home()) return undefined
+    try {
+      return computersContext(this.services.user().computerList())
+    } catch {
+      return undefined
     }
   }
 

@@ -60,7 +60,7 @@ export function terminalTools(deps: ComputerToolDeps): ToolRegistration[] {
 
   const target = async (which?: string): Promise<Ready> => {
     const found = await ready(which)
-    if (!found.ok) return found
+    if (!found.ok || !found.pc.online) return found
     if (found.pc.caps.terminal === undefined)
       return {
         ok: false,

@@ -3,7 +3,7 @@ import type { Context } from "@earendil-works/chord"
 import type { ToolExecutionApi } from "@earendil-works/pi-durable"
 import type { DesktopTool, DriverCall, Page, Tab } from "@kiko/computer/driver"
 import type { ComputerPort } from "./port"
-import { computerExtension } from "./tools"
+import { computerExtension, computerInfoExtension } from "./tools"
 import type { ComputerCallOutcome, ComputerSummary } from "./types"
 
 type Answer = (call: DriverCall) => ComputerCallOutcome
@@ -86,6 +86,39 @@ const context = {} as Context
 
 const textOf = (out: { output?: readonly { type: string; text?: string }[] }) =>
   (out.output ?? []).map((part) => part.text ?? "").join("")
+
+describe("computer_list", () => {
+  it("lists every computer with its daemon version and why the offline one dropped", async () => {
+    const online = summary({ version: "3.1.0" })
+    const offline = summary({
+      id: "pc-2",
+      name: "build-box",
+      os: "linux",
+      online: false,
+      version: "3.0.0",
+      lastSeenAt: Date.now() - 60_000,
+      lastCloseReason: "the network dropped",
+    })
+    const port: ComputerPort = {
+      list: async () => [online, offline],
+      resolve: async () => online,
+      call: async () => ({ ok: true, value: undefined }),
+      link: async () => ({ ok: true }),
+      holder: async () => "agent",
+    }
+    const tools = computerInfoExtension({ port: () => port, acceptsImages: () => false }).tools ?? []
+    const list = tools.find((entry) => entry.name === "computer_list")
+    if (!list) throw new Error("no computer_list tool")
+
+    const out = await list.execute({}, api, context)
+
+    expect(textOf(out)).toContain("Mac (id pc-1): macos, online")
+    expect(textOf(out)).toContain("daemon 3.1.0.")
+    expect(textOf(out)).toContain("build-box (id pc-2): linux, offline")
+    expect(textOf(out)).toContain("last seen 1 minute ago.")
+    expect(textOf(out)).toContain("the last connection ended because the network dropped.")
+  })
+})
 
 describe("desktop tools", () => {
   it("passes the daemon's tool list through with the desktop_ prefix", () => {

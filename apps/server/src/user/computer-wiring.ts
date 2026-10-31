@@ -88,9 +88,7 @@ export class ComputerWiring {
   }) {
     const id = crypto.randomUUID()
     const created = this.hub.pair({ ...input, id })
-    return created
-      ? { ok: true as const, id, name: input.name }
-      : { ok: false as const, error: "that pairing code was already used" }
+    return created.ok ? { ok: true as const, id, name: input.name } : { ok: false as const, error: created.error }
   }
 
   call(
@@ -160,7 +158,10 @@ export class ComputerWiring {
     const row = yield* this.row(pcId)
     const clean = name.trim().slice(0, NAME_MAX)
     if (!clean) return yield* new RefusedError({ reason: "name", message: "a name is required" })
-    if (!this.hub.rename(row.id, clean)) return yield* missing()
+    const renamed = this.hub.rename(row.id, clean)
+    if (renamed.ok) return
+    if (renamed.reason === "missing") return yield* missing()
+    return yield* new RefusedError({ reason: "name", message: renamed.error })
   })
 
   readonly watch = Effect.fn("Computers.watch")(
