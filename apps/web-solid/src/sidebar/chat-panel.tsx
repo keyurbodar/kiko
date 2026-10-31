@@ -1,7 +1,7 @@
 import { RemixIcon } from "@kiko/ui/remix-icon"
 import { ChevronDownIcon, PlusIcon } from "@kiko/ui/icons"
 import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
-import { createMemo, createSignal, For, type JSX, onCleanup, onMount, Show } from "solid-js"
+import { createMemo, createSignal, For, type JSX, onCleanup, onMount, Show, untrack } from "solid-js"
 import { runCommand } from "../commands/registry"
 import type { RosterBot } from "../lib/types"
 import { room } from "../state/room"
@@ -16,6 +16,8 @@ import { type Folded, loadFolded, saveFolded, type Section } from "./folded"
 import { type Need, needsOf } from "./needs"
 
 const SKELETON_ROWS = [62, 48, 70, 54, 66, 44]
+
+type Sections = { needed: ReadonlySet<string>; lifted: ReadonlySet<string> }
 
 const sameIds = (a: readonly string[], b: readonly string[]) => a.length === b.length && a.every((id, i) => id === b[i])
 
@@ -81,11 +83,16 @@ export function ChatSections(props: ChatSectionsProps): JSX.Element {
       (row) => row.unread > 0 || markedUnread(row.id) || props.needs.has(row.id),
     ),
   )
-  const liftedIds = createMemo<ReadonlySet<string>>(
-    (before) => new Set([...props.needs.keys()].filter((id) => id !== props.activeId || before.has(id))),
-    new Set(),
+  const sections = createMemo<Sections>(
+    (before) => {
+      const needed = new Set(props.needs.keys())
+      const activeId = untrack(() => props.activeId)
+      const keep = (id: string) => (before.needed.has(id) ? before.lifted.has(id) : id !== activeId)
+      return { needed, lifted: new Set([...needed].filter(keep)) }
+    },
+    { needed: new Set(), lifted: new Set() },
   )
-  const lifted = (bot: RosterBot) => liftedIds().has(bot.id)
+  const lifted = (bot: RosterBot) => sections().lifted.has(bot.id)
   const asking = createMemo(() => shown().filter(lifted))
   const calm = createMemo(() => shown().filter((bot) => !lifted(bot)))
   const working = createMemo(() => calm().filter(isLive))

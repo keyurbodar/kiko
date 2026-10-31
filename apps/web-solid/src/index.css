@@ -752,9 +752,13 @@
   summary
 ):focus-visible {
   background-color: var(--fill-hover);
-  border-radius: inherit;
   outline: 1.5px solid var(--accent);
   outline-offset: 1px;
+}
+
+html[data-input="pointer"] :focus-visible {
+  outline: none;
+  background-color: revert-layer;
 }
 
 @media (hover: none) {

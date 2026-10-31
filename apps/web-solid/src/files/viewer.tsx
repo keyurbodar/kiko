@@ -1,5 +1,17 @@
 import { fileName, type FileRef } from "@kiko/protocol"
-import { createEffect, createMemo, createSignal, lazy, Match, on, Show, Suspense, Switch, type JSX } from "solid-js"
+import {
+  createEffect,
+  createMemo,
+  createSignal,
+  lazy,
+  Match,
+  on,
+  Show,
+  Suspense,
+  Switch,
+  untrack,
+  type JSX,
+} from "solid-js"
 import { fileSrc } from "../state/room"
 import { NoPreview, SurfaceFailure, SurfaceLoading } from "./chrome"
 import type { EditorState } from "./editor"
@@ -33,7 +45,9 @@ export function FileViewer(props: {
   reveal: { line: number; n: number } | null
   onEditorState?: (state: EditorState) => void
 }) {
-  const opened = createMemo<FileRef | undefined>((prev) => (props.file ? (prev ?? props.file) : undefined), undefined)
+  const target = createMemo(() => ({ roomId: props.roomId, path: props.path }), undefined, {
+    equals: (a, b) => a.roomId === b.roomId && a.path === b.path,
+  })
   const src = (f: FileRef) => fileSrc(props.roomId, f.id)
   return (
     <div
@@ -67,13 +81,13 @@ export function FileViewer(props: {
                 <LargeTextView name={fileName(ref().name)} src={src(ref())} size={ref().size} delimiter={null} />
               </Match>
               <Match when={TEXT_KINDS.has(props.kind)}>
-                <Show when={opened()} keyed>
-                  {(initial) => (
+                <Show when={target()} keyed>
+                  {(at) => (
                     <TextEditor
-                      roomId={props.roomId}
-                      path={props.path}
+                      roomId={at.roomId}
+                      path={at.path}
                       file={props.file}
-                      initial={initial}
+                      initial={untrack(ref)}
                       wrap={props.wrap}
                       reveal={props.reveal}
                       onState={props.onEditorState}

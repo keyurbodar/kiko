@@ -58,7 +58,7 @@ describe("chat sections", () => {
     expect(retry).toHaveBeenCalledOnce()
   })
 
-  it("keeps the open chat in place when its send fails and lifts it once the owner leaves", async () => {
+  it("keeps the open chat in place when its send fails, and after the owner leaves", async () => {
     const [active, setActive] = createSignal<string | null>("b")
     const [needs, setNeeds] = createSignal<ReadonlyMap<string, Need>>(new Map())
     await using screen = await render(() => (
@@ -75,7 +75,10 @@ describe("chat sections", () => {
     expect(names(screen.container)).toEqual(["Alpha", "Beta", "Gamma"])
     expect(screen.container.querySelector('[data-chat-id="b"]')?.textContent).toContain("Not sent: rate limited")
     setActive("a")
-    expect(sectionOf(screen.container, "b")).toBe("needs")
+    expect(screen.container.querySelector('[data-component="sidebar-needs"]')).toBeNull()
+    expect(names(screen.container)).toEqual(["Alpha", "Beta", "Gamma"])
+    setNeeds(new Map([["c", { kind: "failed", text: "Not sent: offline" }], ...needs()]))
+    expect(sectionOf(screen.container, "c")).toBe("needs")
   })
 
   it("keeps a chat in Needs you while the owner opens it", async () => {

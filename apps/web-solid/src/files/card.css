@@ -197,7 +197,7 @@
   height: 28px;
   place-items: center;
   border-radius: var(--radius-control);
-  background: color-mix(in oklab, var(--raise) 86%, transparent);
+  background: var(--raise);
   box-shadow: 0 1px 3px rgb(0 0 0 / 0.18);
   color: var(--fg);
   opacity: 0;
@@ -208,7 +208,6 @@
     opacity var(--dur-pop) var(--ease-kiko),
     transform var(--dur-pop) var(--ease-kiko),
     background-color var(--dur-hover) var(--ease-kiko);
-  backdrop-filter: blur(8px);
 }
 
 .file-card[data-compact] .file-card-action {

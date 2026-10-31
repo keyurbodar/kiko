@@ -2,6 +2,7 @@ const AUTH_KEY = "kiko:auth"
 export const RUNTIME_DATABASE = "kiko:client-runtime"
 export const COMPOSER_DATABASE = "kiko-composer"
 export const PREVIEW_DATABASE = "kiko:file-previews"
+export const THOUGHTS_DATABASE = "kiko:thoughts"
 
 const SIGNING_OUT_KEY = "kiko:signing-out"
 const SCHEMA_KEY = "kiko:schema"
@@ -52,7 +53,9 @@ async function deleteDatabases(): Promise<void> {
   if (typeof indexedDB === "undefined") return
   const listed = await indexedDB.databases().catch(() => [])
   const legacy = listed.map((database) => database.name ?? "").filter((name) => LEGACY_DATABASE.test(name))
-  await Promise.all([RUNTIME_DATABASE, COMPOSER_DATABASE, PREVIEW_DATABASE, ...legacy].map(deleteDatabase))
+  await Promise.all(
+    [RUNTIME_DATABASE, COMPOSER_DATABASE, PREVIEW_DATABASE, THOUGHTS_DATABASE, ...legacy].map(deleteDatabase),
+  )
 }
 
 export async function purge(): Promise<void> {

@@ -10,11 +10,9 @@
 .td-card {
   isolation: isolate;
   contain: paint;
-  background: color-mix(in srgb, var(--popover) 18%, color-mix(in srgb, var(--popover) 80%, transparent));
+  background: var(--popover);
   border: 1px solid color-mix(in srgb, var(--fg) 10%, transparent);
   border-radius: var(--radius-card);
-  -webkit-backdrop-filter: blur(12px) saturate(1.14);
-  backdrop-filter: blur(12px) saturate(1.14);
 }
 
 .td-pop .td-card {
@@ -396,12 +394,12 @@
   transform-origin: top right;
 }
 
-.td-row-enter {
+[data-settled] .td-row-enter {
   animation: td-row-in 120ms var(--ease-kiko) both;
   animation-delay: calc(var(--td-i, 0) * 20ms);
 }
 
-.td-count {
+[data-settled] .td-count {
   animation: td-count-in 120ms var(--ease-kiko) both;
 }
 
@@ -472,5 +470,11 @@
 }
 
 .details-reserve[data-on] {
-  padding-right: clamp(0px, calc(640px - 100cqw + min(100cqw, var(--chat-content-max-width))), 324px);
+  --details-reserve: clamp(0px, calc(640px - 100cqw + min(100cqw, var(--chat-content-max-width))), 324px);
+  padding-right: var(--details-reserve);
+}
+
+.details-reserve[data-on] [data-component="chat-scroll"] {
+  margin-right: calc(-1 * var(--details-reserve));
+  padding-right: var(--details-reserve);
 }

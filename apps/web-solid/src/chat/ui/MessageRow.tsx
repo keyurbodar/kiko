@@ -112,7 +112,6 @@ export function MessageRow(props: {
           {senderName()}
         </div>
       </Show>
-      <Show when={windowKey() ? undefined : thought()}>{(found) => <ThoughtRow thought={found()} />}</Show>
       <Bubble
         variant={failed() ? "destructive" : props.jumboClass ? "ghost" : own() ? "default" : "secondary"}
         align={own() ? "end" : "start"}
@@ -218,6 +217,7 @@ export function MessageRow(props: {
           />
         </Show>
       </Bubble>
+      <Show when={windowKey() ? undefined : thought()}>{(found) => <ThoughtRow thought={found()} />}</Show>
       <Show when={finishedKey()}>
         {(key) => (
           <RunTree

@@ -165,8 +165,8 @@
 }
 
 @media (hover: hover) and (pointer: fine) {
-  .tpl:hover .tpl-glyph,
-  .tpl:focus-within .tpl-glyph {
+  .tpl:hover .tpl-tile:has(.tpl-plus) .tpl-glyph,
+  .tpl:focus-within .tpl-tile:has(.tpl-plus) .tpl-glyph {
     opacity: 0;
     transform: scale(0.8);
   }

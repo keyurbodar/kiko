@@ -1,4 +1,4 @@
-import { createEffect, createSignal, onCleanup, onMount, Show } from "solid-js"
+import { createEffect, createSignal, on, onCleanup, onMount, Show } from "solid-js"
 import { room } from "../../state/room"
 import ThreadDetails from "./thread-details"
 import { setThreadDetailsOpen, threadDetailsOpen } from "./thread-details-state"
@@ -45,6 +45,19 @@ export default function ThreadDetailsLayer(props: { chatId: string; inline: bool
   const open = () => threadDetailsOpenFor(props.chatId)
   const popover = () => !props.inline
   const place = () => setAnchor(headerRect() ?? null)
+  const [settled, setSettled] = createSignal<string | null>(null)
+  createEffect(
+    on(
+      () => props.chatId,
+      (chatId) => {
+        let frame = requestAnimationFrame(() => {
+          frame = requestAnimationFrame(() => setSettled(chatId))
+        })
+        onCleanup(() => cancelAnimationFrame(frame))
+      },
+    ),
+  )
+  const settledHere = () => (settled() === props.chatId ? "" : undefined)
   onMount(() => {
     place()
     window.addEventListener("resize", place)
@@ -83,7 +96,7 @@ export default function ThreadDetailsLayer(props: { chatId: string; inline: bool
       <Show
         when={popover()}
         fallback={
-          <div class="td-inline td-enter" data-mode="inline">
+          <div class="td-inline td-enter" data-mode="inline" data-settled={settledHere()}>
             <ThreadDetails chatId={props.chatId} />
           </div>
         }

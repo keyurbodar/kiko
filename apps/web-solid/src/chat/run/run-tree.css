@@ -1,6 +1,6 @@
 .run-tree {
   --run-rail: color-mix(in oklab, var(--fg) 20%, var(--bg));
-  --run-inset: 16px;
+  --run-inset: var(--bubble-pad-x);
   --run-icon: 16px;
   --run-space: 9px;
   --run-indent: calc(var(--run-icon) + var(--run-space));
@@ -17,7 +17,7 @@
   line-height: 20px;
 }
 .run-tree:not([data-live]) {
-  margin-top: calc(var(--run-gap) + var(--row-gap));
+  margin-top: calc(var(--row-gap) * 2);
   padding-bottom: 4px;
 }
 
@@ -36,7 +36,6 @@
 .run-tree-head[data-live] {
   display: flex;
   align-self: stretch;
-  cursor: default;
   color: var(--text-200);
 }
 .run-tree-head[data-live] .run-tree-clock-slot {

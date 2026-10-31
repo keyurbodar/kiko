@@ -100,6 +100,28 @@ export const settledThoughts = (
     ]),
   )
 
+export const finishedThoughts = (
+  all: Readonly<Record<string, readonly Thought[]>>,
+): Readonly<Record<string, readonly Thought[]>> =>
+  Object.fromEntries(
+    Object.entries(all)
+      .map(([slug, list]) => [slug, list.filter((thought) => thought.over)] as const)
+      .filter(([, list]) => list.length > 0),
+  )
+
+function restoredThoughts(
+  saved: Readonly<Record<string, readonly Thought[]>>,
+  current: Readonly<Record<string, readonly Thought[]>>,
+): Readonly<Record<string, readonly Thought[]>> {
+  const out: Record<string, readonly Thought[]> = { ...current }
+  for (const [slug, list] of Object.entries(saved)) {
+    const heard = current[slug] ?? []
+    const known = new Set(heard.map((thought) => thought.runId))
+    out[slug] = [...list.filter((thought) => !known.has(thought.runId)), ...heard].slice(-KEPT)
+  }
+  return out
+}
+
 export function createThoughts() {
   const [all, setAll] = createSignal<Readonly<Record<string, readonly Thought[]>>>({})
   const latest = (slug: string) => all()[slug]?.at(-1)
@@ -123,5 +145,8 @@ export function createThoughts() {
       setAll((current) => settledThoughts(current, Date.now()))
     },
     clear: () => setAll({}),
+    restore(saved: Readonly<Record<string, readonly Thought[]>>) {
+      setAll((current) => restoredThoughts(saved, current))
+    },
   }
 }

@@ -89,7 +89,8 @@
   flex-direction: column;
   align-items: flex-start;
   gap: 2px;
-  padding: 0 0 4px 2px;
+  margin-top: calc(var(--row-gap) * 2);
+  padding: 0 var(--bubble-pad-x) 4px;
 }
 .thought .thinking-stream {
   margin-left: 7px;
@@ -99,9 +100,9 @@
 .thought-head {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  min-height: 26px;
-  color: var(--fg3);
+  gap: 9px;
+  min-height: 30px;
+  color: var(--text-300);
   font-size: var(--type-ui);
   line-height: 20px;
 }

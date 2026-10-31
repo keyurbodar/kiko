@@ -59,7 +59,7 @@ export function DateChip(props: {
           "flex w-max max-w-full flex-col items-stretch overflow-clip text-fg",
           open()
             ? "w-[320px] max-w-full rounded-sheet bg-raise shadow-popover"
-            : "rounded-full bg-bg/80 shadow-[0_6px_16px_-6px_oklch(0%_0_none/0.22),0_0_0_1px_color-mix(in_oklab,var(--fg)_6%,transparent)] backdrop-blur-sm",
+            : "rounded-full bg-bg shadow-[0_6px_16px_-6px_oklch(0%_0_none/0.22),0_0_0_1px_color-mix(in_oklab,var(--fg)_6%,transparent)]",
         )}
         excludedElements={() => [trigger]}
         onDismiss={close}

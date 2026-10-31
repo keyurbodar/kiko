@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest"
-import { endedThought, heardThought, partMs, thoughtMs, thoughtText, type ThinkingSignal } from "./thoughts"
+import {
+  createThoughts,
+  endedThought,
+  finishedThoughts,
+  heardThought,
+  partMs,
+  thoughtMs,
+  thoughtText,
+  type ThinkingSignal,
+} from "./thoughts"
 
 const signal = (more: Partial<ThinkingSignal> = {}): ThinkingSignal => ({
   slug: "kiko",
@@ -13,6 +22,21 @@ const signal = (more: Partial<ThinkingSignal> = {}): ThinkingSignal => ({
 })
 
 describe("thoughts", () => {
+  it("brings back a finished thought after the room is left and reopened", () => {
+    const before = createThoughts()
+    before.hear(signal({ text: "Quiet first.", done: true }), 7)
+    before.idle("kiko")
+    before.hear(signal({ runId: "run-2", text: "Still going" }), 9)
+    const saved = finishedThoughts(before.all())
+    expect(saved["kiko"]?.map((thought) => thought.runId)).toEqual(["run-1"])
+
+    const after = createThoughts()
+    after.hear(signal({ runId: "run-3", text: "Newer" }), 11)
+    after.restore(saved)
+    expect(after.all()["kiko"]?.map((thought) => thought.runId)).toEqual(["run-1", "run-3"])
+    expect(thoughtText(after.all()["kiko"]![0]!)).toBe("Quiet first.")
+  })
+
   it("appends each window a long thought arrives in, without replacing what it already shows", () => {
     let thought = heardThought(undefined, signal({ text: "Quiet first. " }), 2_000, 7)
     thought = heardThought(thought, signal({ offset: 13, text: "Then price." }), 3_000, 7)
