@@ -293,7 +293,7 @@ function RowMore(props: { id: string; name: string; onOpenChange: (open: boolean
   return (
     <MenuV2 gutter={4} placement="bottom-start" onOpenChange={props.onOpenChange}>
       <MenuV2.Trigger class="chat-more" data-action="chat-row-menu" aria-label={`More for ${props.name}`}>
-        <RemixIcon icon={MoreIcon} size={16} />
+        <RemixIcon icon={MoreIcon} size={13} />
       </MenuV2.Trigger>
       <MenuV2.Portal>
         <MenuV2.Content data-component="sidebar-chat-menu" onCloseAutoFocus={(e: Event) => e.preventDefault()}>

@@ -1,5 +1,5 @@
 import { Link, useLocation } from "@tanstack/solid-router"
-import { Suspense } from "solid-js"
+import { type JSX, Suspense } from "solid-js"
 import { RemixIcon } from "@kiko/ui/remix-icon"
 import { HelpIcon, SearchIcon, SettingsIcon, SidebarLeftIcon } from "@kiko/ui/icons"
 import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
@@ -32,11 +32,12 @@ export function Sidebar(props: SidebarProps) {
     >
       <header class="panel-header">
         <Link to="/chat" class="panel-brand" data-component="sidebar-brand" aria-label="Chats">
+          <img src="/kiko.svg" alt="" draggable={false} class="panel-logo" />
           Kiko
         </Link>
         <span class="flex-1" aria-hidden="true" />
-        <HeaderSearch />
         <SidebarToggle open onToggle={props.onToggle} />
+        <HeaderSearch />
       </header>
 
       <SidebarNav />
@@ -62,13 +63,13 @@ function HeaderSearch() {
         aria-label="Search"
         onClick={() => runCommand("palette.open")}
       >
-        <RemixIcon icon={SearchIcon} size={16} />
+        <RemixIcon icon={SearchIcon} size={13} />
       </button>
     </TooltipV2>
   )
 }
 
-export function SidebarToggle(props: { open: boolean; onToggle: () => void; class?: string; iconSize?: 18 | 20 }) {
+export function SidebarToggle(props: { open: boolean; onToggle: () => void; class?: string; children?: JSX.Element }) {
   return (
     <TooltipV2 placement="bottom" openDelay={500} value={props.open ? "Hide sidebar" : "Show sidebar"}>
       <button
@@ -81,7 +82,7 @@ export function SidebarToggle(props: { open: boolean; onToggle: () => void; clas
         data-hint="view.toggle-sidebar"
         onClick={() => props.onToggle()}
       >
-        <RemixIcon icon={SidebarLeftIcon} size={props.iconSize ?? 18} />
+        {props.children ?? <RemixIcon icon={SidebarLeftIcon} size={13} />}
       </button>
     </TooltipV2>
   )
@@ -108,7 +109,7 @@ function Foot() {
           aria-haspopup="dialog"
           onClick={() => openSettings("account")}
         >
-          <IdentityAvatar seed={user()?.id ?? "you"} size={28} class="panel-me-avatar" />
+          <IdentityAvatar seed={user()?.id ?? "you"} size={20} class="panel-me-avatar" />
           <span class="panel-me-name">{profile()?.name ?? user()?.name ?? "You"}</span>
         </button>
         <TooltipV2 placement="top" openDelay={500} value="Keyboard shortcuts">
@@ -119,7 +120,7 @@ function Foot() {
             aria-label="Help and shortcuts"
             onClick={() => openSettings("keyboard")}
           >
-            <RemixIcon icon={HelpIcon} size={18} />
+            <RemixIcon icon={HelpIcon} size={13} />
           </button>
         </TooltipV2>
         <TooltipV2 placement="top" openDelay={500} value="Settings">
@@ -135,7 +136,7 @@ function Foot() {
             aria-label="Settings"
             onClick={() => openSettings()}
           >
-            <RemixIcon icon={SettingsIcon} size={18} />
+            <RemixIcon icon={SettingsIcon} size={13} />
           </button>
         </TooltipV2>
       </footer>

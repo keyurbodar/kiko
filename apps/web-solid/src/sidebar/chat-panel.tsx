@@ -194,7 +194,7 @@ export function ChatSections(props: ChatSectionsProps): JSX.Element {
             aria-label="New chat"
             onClick={() => runCommand("chat.new")}
           >
-            <RemixIcon icon={PlusIcon} size={16} />
+            <RemixIcon icon={PlusIcon} size={14} />
           </button>
         </TooltipV2>
       </SectionLabel>
