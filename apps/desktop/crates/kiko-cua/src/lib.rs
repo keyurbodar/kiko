@@ -21,6 +21,7 @@ const START_TIMEOUT: Duration = Duration::from_secs(30);
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(120);
 const LIST_TIMEOUT: Duration = Duration::from_secs(30);
 const PERMISSION_TIMEOUT: Duration = Duration::from_secs(15);
+const REFRESH_TIMEOUT: Duration = Duration::from_secs(5);
 const PROTOCOL_VERSION: &str = "2025-06-18";
 const NEVER_EXPOSE: &[&str] = &["install_extension"];
 
@@ -202,8 +203,8 @@ impl Cua {
         let Some(connection) = connection else {
             return;
         };
-        let permissions = load_permissions(&connection, &tools);
-        let screens = load_screens(&connection, &tools);
+        let permissions = load_permissions(&connection, &tools, REFRESH_TIMEOUT);
+        let screens = load_screens(&connection, &tools, REFRESH_TIMEOUT);
         let mut inner = self.shared.lock();
         inner.permissions = permissions;
         inner.screens = screens;
@@ -540,12 +541,16 @@ fn initialize(
     notify(connection, "notifications/initialized")?;
     let tools = load_tools(connection)?;
     log(format!("cua-driver lists {} tools", tools.len()));
-    let permissions = load_permissions(connection, &tools);
-    let screens = load_screens(connection, &tools);
+    let permissions = load_permissions(connection, &tools, PERMISSION_TIMEOUT);
+    let screens = load_screens(connection, &tools, PERMISSION_TIMEOUT);
     Ok((tools, permissions, screens))
 }
 
-fn load_screens(connection: &Arc<Connection>, tools: &[DesktopTool]) -> Vec<Display> {
+fn load_screens(
+    connection: &Arc<Connection>,
+    tools: &[DesktopTool],
+    timeout: Duration,
+) -> Vec<Display> {
     if !tools.iter().any(|tool| tool.name == "get_screen_size") {
         return Vec::new();
     }
@@ -553,7 +558,7 @@ fn load_screens(connection: &Arc<Connection>, tools: &[DesktopTool]) -> Vec<Disp
         connection,
         "tools/call",
         json!({ "name": "get_screen_size", "arguments": {} }),
-        PERMISSION_TIMEOUT,
+        timeout,
     );
     let Ok(result) = result else {
         return Vec::new();
@@ -620,7 +625,11 @@ fn load_tools(connection: &Arc<Connection>) -> Result<Vec<DesktopTool>, String> 
     }
 }
 
-fn load_permissions(connection: &Arc<Connection>, tools: &[DesktopTool]) -> Permissions {
+fn load_permissions(
+    connection: &Arc<Connection>,
+    tools: &[DesktopTool],
+    timeout: Duration,
+) -> Permissions {
     if !tools.iter().any(|tool| tool.name == "check_permissions") {
         return unknown();
     }
@@ -628,7 +637,7 @@ fn load_permissions(connection: &Arc<Connection>, tools: &[DesktopTool]) -> Perm
         connection,
         "tools/call",
         json!({ "name": "check_permissions", "arguments": {} }),
-        PERMISSION_TIMEOUT,
+        timeout,
     );
     let Ok(result) = result else {
         return unknown();
