@@ -9,6 +9,7 @@ import { login } from "./browser/007-login"
 import { searchFilter } from "./browser/008-search-filter"
 import { pagination } from "./browser/009-pagination"
 import { modalDelete } from "./browser/010-modal-delete"
+import { crossTasks } from "./cross/registry"
 import { desktopForm } from "./desktop/001-set-field"
 import { desktopSettings } from "./desktop/002-toggle-settings"
 import { desktopMenu } from "./desktop/003-menu-pick"
@@ -53,4 +54,5 @@ export const TASKS: readonly Task[] = [
   desktopTree,
   desktopWindows,
   ...terminalTasksC,
+  ...crossTasks,
 ]
