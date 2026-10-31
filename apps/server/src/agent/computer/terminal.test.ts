@@ -53,7 +53,6 @@ function harness(pc: ComputerSummary, answer: Answer) {
       return answer(op, args as Record<string, unknown>)
     },
     link: async () => ({ ok: true }),
-    holder: async () => pc.holder,
     desktopTools: async () => [],
   }
   const tools: ToolRegistration[] = terminalTools({ port: () => port, acceptsImages: () => false, desktop: [] })
@@ -138,6 +137,58 @@ describe("terminal_send", () => {
     expect(calls).toHaveLength(0)
     expect(out.isError).toBe(true)
     expect(textOf(out)).toContain("needs text or keys")
+  })
+
+  it("sends and waits in one call when until is given", async () => {
+    const { calls, tool } = harness(summary(), () =>
+      reply({ id: "t-1", bytes: 5, matched: true, timedOut: false, exited: false, text: "done\n" }),
+    )
+
+    const out = await tool("terminal_send").execute(
+      { id: "t-1", text: "make", keys: ["enter"], until: "done" },
+      api,
+      context,
+    )
+
+    expect(calls[0]).toMatchObject({
+      op: "terminal_send",
+      args: { id: "t-1", text: "make", keys: ["enter"], until: "done", timeoutMs: 30_000 },
+    })
+    expect(textOf(out)).toContain('sent 5 bytes to t-1 on Mac and found "done"')
+    expect(textOf(out)).toContain("done")
+  })
+
+  it("says when the send waited and timed out", async () => {
+    const { tool } = harness(summary(), () =>
+      reply({ id: "t-1", bytes: 1, matched: false, timedOut: true, exited: false, text: "partial" }),
+    )
+
+    const out = await tool("terminal_send").execute(
+      { id: "t-1", text: "x", until: "done", timeoutMs: 5_000 },
+      api,
+      context,
+    )
+
+    expect(textOf(out)).toContain('waited 5 s and did not see "done"')
+    expect(textOf(out)).toContain("partial")
+  })
+
+  it("says when the computer's app cannot wait yet", async () => {
+    const { tool } = harness(summary(), () => reply({ id: "t-1", bytes: 4 }))
+
+    const out = await tool("terminal_send").execute({ id: "t-1", text: "make", until: "done" }, api, context)
+
+    expect(textOf(out)).toContain("cannot wait yet")
+  })
+
+  it("refuses an empty until", async () => {
+    const { calls, tool } = harness(summary(), () => reply({ id: "t-1", bytes: 1 }))
+
+    const out = await tool("terminal_send").execute({ id: "t-1", text: "x", until: "  " }, api, context)
+
+    expect(calls).toHaveLength(0)
+    expect(out.isError).toBe(true)
+    expect(textOf(out)).toContain("until needs some text")
   })
 })
 

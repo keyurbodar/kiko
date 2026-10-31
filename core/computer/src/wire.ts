@@ -3,7 +3,8 @@ import { BrowserStatus, DesktopInfo, Display, DriverCall, Permissions } from "./
 
 export { Display }
 
-export const PROTOCOL = 1
+export const PROTOCOL = 2
+export const OLDEST_PROTOCOL = 1
 
 const Text = Schema.String
 const Id = Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(64))
@@ -132,8 +133,18 @@ export const Calls = {
       id: Id,
       text: Schema.optionalKey(Text),
       keys: Schema.optionalKey(Schema.Array(Text)),
+      until: Schema.optionalKey(Text),
+      regex: Schema.optionalKey(Schema.Boolean),
+      timeoutMs: Schema.optionalKey(Count),
     }),
-    value: Schema.Struct({ id: Id, bytes: Count }),
+    value: Schema.Struct({
+      id: Id,
+      bytes: Count,
+      matched: Schema.optionalKey(Schema.Boolean),
+      timedOut: Schema.optionalKey(Schema.Boolean),
+      exited: Schema.optionalKey(Schema.Boolean),
+      text: Schema.optionalKey(Text),
+    }),
   },
   terminal_read: {
     args: Schema.Struct({ id: Id, mode: Schema.Literals(["screen", "tail"]), lines: Schema.optionalKey(Lines) }),
@@ -287,3 +298,12 @@ export const FromDaemon = Schema.Union([
   Schema.Struct({ t: Schema.Literal("terminal"), id: Id, event: TerminalStream }),
 ])
 export type FromDaemon = typeof FromDaemon.Type
+
+export const BinaryResult = Schema.Struct({
+  t: Schema.Literal("result"),
+  id: Id,
+  ok: Schema.Literal(true),
+  value: Schema.Unknown,
+  parts: Schema.Array(Schema.Struct({ mime: Text, length: Count })),
+})
+export type BinaryResult = typeof BinaryResult.Type

@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest"
 import { CONNECT_HEADERS } from "@kiko/computer/sign"
+import { OLDEST_PROTOCOL, PROTOCOL as VERSION } from "@kiko/computer/wire"
 import type { Env } from "../index"
 import { computerRoute } from "./route"
 
 const CONNECT = "https://kiko.example/api/pc/connect"
-const PROTOCOL = "1"
+const PROTOCOL = String(VERSION)
 
 function env(touched: () => void): Env {
   return {
@@ -52,6 +53,31 @@ describe("computer connect", () => {
     )
     expect(response?.status).toBe(200)
     expect(reached).toBe(true)
+  })
+
+  it("forwards a daemon that has not updated past the oldest protocol", async () => {
+    let reached = false
+    const response = await computerRoute(
+      connect({
+        [CONNECT_HEADERS.protocol]: String(OLDEST_PROTOCOL),
+        [CONNECT_HEADERS.id]: "pc1",
+        [CONNECT_HEADERS.ts]: "1",
+        [CONNECT_HEADERS.sig]: "sig",
+      }),
+      env(() => {
+        reached = true
+      }),
+    )
+    expect(response?.status).toBe(200)
+    expect(reached).toBe(true)
+  })
+
+  it("refuses a protocol newer than it knows", async () => {
+    const response = await computerRoute(
+      connect({ [CONNECT_HEADERS.protocol]: String(VERSION + 1) }),
+      env(() => {}),
+    )
+    expect(response?.status).toBe(426)
   })
 })
 

@@ -66,7 +66,6 @@ function harness(pc: ComputerSummary, answer: Answer, desktop: readonly DesktopT
       return answer(call)
     },
     link: async () => ({ ok: true }),
-    holder: async () => pc.holder,
   }
   const tools = computerExtension({ port: () => port, acceptsImages: () => sees, desktop }).tools ?? []
   const tool = (name: string) => {
@@ -110,7 +109,6 @@ describe("computer_list", () => {
       resolve: async () => online,
       call: async () => ({ ok: true, value: undefined }),
       link: async () => ({ ok: true }),
-      holder: async () => "agent",
       desktopTools: async () => [],
     }
     const tools = computerInfoExtension({ port: () => port, acceptsImages: () => false, desktop: [] }).tools ?? []
@@ -199,6 +197,24 @@ describe("desktop tools", () => {
     ])
   })
 
+  it("base64-encodes the bytes of a binary image exactly once for the model", async () => {
+    const bytes = new Uint8Array([0xff, 0xd8, 0x00, 0x10])
+    const { tool } = harness(
+      summary(),
+      () => ({
+        ok: true,
+        value: { content: [{ type: "image", data: bytes, mimeType: "image/jpeg" }] },
+      }),
+      DESKTOP,
+      true,
+    )
+
+    const out = await tool("desktop_list_windows").execute({}, api, context)
+    const part = out.output?.[1] as { type: string; data: string; mimeType: string }
+
+    expect(part).toEqual({ type: "image", data: btoa(String.fromCharCode(...bytes)), mimeType: "image/jpeg" })
+  })
+
   it("keeps a tool's own error flag", async () => {
     const { tool } = harness(summary(), () => ({
       ok: true,
@@ -253,9 +269,29 @@ describe("browser_read", () => {
 
     const out = await tool("browser_read").execute({ tab: "t-1" }, api, context)
 
-    expect(calls).toEqual([{ method: "browser.read", params: { tab: "t-1", image: false, max_width: 1280 } }])
+    expect(calls).toEqual([{ method: "browser.read", params: { tab: "t-1", image: false, max_width: 960 } }])
     expect(textOf(out)).toContain("Inbox — https://mail.example/ (tab t-1, read in the background)")
     expect(textOf(out)).toContain('[2] link "Compose"')
+  })
+
+  it("uses the page image bytes a binary result carried", async () => {
+    const bytes = new Uint8Array([1, 2, 3])
+    const { tool } = harness(
+      summary(),
+      () => ({
+        ok: true,
+        value: {
+          ...PAGE,
+          image: { mime: "image/png", data: bytes, width: 4, height: 4, covers: { x: 0, y: 0, w: 1, h: 1 } },
+        },
+      }),
+      DESKTOP,
+      true,
+    )
+
+    const out = await tool("browser_read").execute({ tab: "t-1", image: true }, api, context)
+
+    expect(out.output?.[1]).toEqual({ type: "image", data: "AQID", mimeType: "image/png" })
   })
 })
 

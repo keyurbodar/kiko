@@ -1,5 +1,6 @@
 import { assert, describe, it } from "@effect/vitest"
-import { PROTOCOL } from "@kiko/computer/wire"
+import { encodeBinary, IMAGE_REF } from "@kiko/computer/frame"
+import { OLDEST_PROTOCOL, PROTOCOL } from "@kiko/computer/wire"
 import type { AgentSlug, RoomId } from "@kiko/protocol"
 import * as Clock from "effect/Clock"
 import * as Effect from "effect/Effect"
@@ -300,6 +301,20 @@ describe("unique names", () => {
 })
 
 describe("daemon reconnect", () => {
+  it.effect("welcomes a daemon that has not updated past the oldest protocol", () =>
+    Effect.promise(async () => {
+      const pc = pcSocket("pc-1")
+      const computers = liveHub([], [pc.ws])
+
+      await computers.message(pc.ws, JSON.stringify({ ...HELLO, protocol: OLDEST_PROTOCOL }))
+
+      assert.deepStrictEqual(
+        pc.sent.map((frame) => frame.t),
+        ["welcome", "control"],
+      )
+    }),
+  )
+
   it.effect("tells a reconnecting daemon who holds the screen", () =>
     Effect.promise(async () => {
       const pc = pcSocket("pc-1", "human")
@@ -847,6 +862,34 @@ describe("TURN credentials", () => {
 })
 
 const BACKGROUND = { ...HELLO, caps: { ...CAPS, background: true } }
+
+describe("binary results", () => {
+  it.effect("settles a call from a binary frame with the image bytes attached", () =>
+    Effect.promise(async () => {
+      const pc = pcSocket("pc-1")
+      const computers = liveHub([], [pc.ws], ["pc-1"])
+      await computers.message(pc.ws, JSON.stringify(HELLO))
+      const outcome = computers.call("pc-1", "shell", { command: "shot" })
+      const id = callIds(pc)[0]!
+      const image = new Uint8Array([0xff, 0xd8, 1, 2])
+      const header = {
+        t: "result",
+        id,
+        ok: true,
+        value: { content: [{ type: "image", data: { [IMAGE_REF]: 0 }, mimeType: "image/jpeg" }] },
+        parts: [{ mime: "image/jpeg", length: image.byteLength }],
+      }
+
+      await computers.message(pc.ws, encodeBinary(header, image).buffer as ArrayBuffer)
+
+      const result = await outcome
+      assert.isTrue(result.ok)
+      if (!result.ok) return
+      const content = (result.value as { content: { data: Uint8Array }[] }).content
+      assert.deepStrictEqual(content[0]?.data, image)
+    }),
+  )
+})
 
 type CallFrame = { t: string; id?: string; op?: string }
 

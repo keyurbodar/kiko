@@ -145,7 +145,7 @@ export class TerminalManager {
     return this.info(created)
   }
 
-  send(args: Args<"terminal_send">): Value<"terminal_send"> {
+  send(args: Args<"terminal_send">, signal?: AbortSignal): Promise<Value<"terminal_send">> {
     const session = this.get(args.id)
     const text = args.text ?? ""
     const keys = args.keys ?? []
@@ -161,10 +161,17 @@ export class TerminalManager {
         })
       pressed += bytes
     }
+    const matcher = args.until === undefined ? null : matcherFor(args.until, args.regex === true)
     if (text) session.pty.write(text)
     if (pressed) session.pty.write(pressed)
     this.scheduleIdle(session)
-    return { id: session.id, bytes: Buffer.byteLength(text + pressed) }
+    const bytes = Buffer.byteLength(text + pressed)
+    if (!matcher) return Promise.resolve({ id: session.id, bytes })
+    return this.settleOn(session, matcher, args.timeoutMs, signal).then((waited) => ({
+      id: session.id,
+      bytes,
+      ...waited,
+    }))
   }
 
   async read(args: Args<"terminal_read">): Promise<Value<"terminal_read">> {
@@ -211,7 +218,16 @@ export class TerminalManager {
   wait(args: Args<"terminal_wait">, signal?: AbortSignal): Promise<Value<"terminal_wait">> {
     const session = this.get(args.id)
     const matcher = matcherFor(args.until, args.regex === true)
-    const timeoutMs = Math.min(Math.max(args.timeoutMs ?? WAIT_DEFAULT_MS, 1_000), WAIT_MAX_MS)
+    return this.settleOn(session, matcher, args.timeoutMs, signal).then((waited) => ({ id: session.id, ...waited }))
+  }
+
+  private settleOn(
+    session: Session,
+    matcher: (text: string) => boolean,
+    timeoutMs: number | undefined,
+    signal?: AbortSignal,
+  ): Promise<{ matched: boolean; timedOut: boolean; exited: boolean; text: string }> {
+    const budget = Math.min(Math.max(timeoutMs ?? WAIT_DEFAULT_MS, 1_000), WAIT_MAX_MS)
     this.scheduleIdle(session)
     return new Promise((resolve, reject) => {
       let timer: Timer | undefined
@@ -221,13 +237,13 @@ export class TerminalManager {
         session.waiters.delete(waiter)
         if (timer) clearTimeout(timer)
         signal?.removeEventListener("abort", abort)
-        resolve({ id: session.id, matched, timedOut, exited, text: plainTail(session.history.value()) })
+        resolve({ matched, timedOut, exited, text: plainTail(session.history.value()) })
       }
       waiter = {
         test: (screen, tail) => matcher(screen) || matcher(tail),
         settle: (matched, timedOut, exited) => finish(matched, timedOut, exited),
       }
-      timer = setTimeout(() => finish(false, true, false), timeoutMs)
+      timer = setTimeout(() => finish(false, true, false), budget)
       unref(timer)
       abort = () => {
         session.waiters.delete(waiter)

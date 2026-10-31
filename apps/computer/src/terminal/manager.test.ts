@@ -129,11 +129,11 @@ describe("terminal_open", () => {
 })
 
 describe("terminal_send", () => {
-  it("writes the text and then the keys as separate input", () => {
+  it("writes the text and then the keys as separate input", async () => {
     const { fake, manager } = harness()
     const opened = manager.open({})
 
-    const sent = manager.send({ id: opened.id, text: "ls", keys: ["enter"] })
+    const sent = await manager.send({ id: opened.id, text: "ls", keys: ["enter"] })
 
     expect(fake.writes).toEqual(["ls", "\r"])
     expect(sent.bytes).toBe(3)
@@ -158,6 +158,53 @@ describe("terminal_send", () => {
     const opened = manager.open({})
 
     expect(() => manager.send({ id: "nope", text: "x" })).toThrow(new RegExp(`the open terminals are ${opened.id}`))
+  })
+
+  it("waits for the output in the same call when until is given", async () => {
+    const { fake, manager } = harness()
+    const opened = manager.open({})
+    const sent = manager.send({ id: opened.id, text: "echo hi", keys: ["enter"], until: "hi" })
+
+    fake.emit("echo hi\r\nhi\r\n")
+
+    await expect(Promise.resolve(sent)).resolves.toMatchObject({
+      id: opened.id,
+      bytes: 8,
+      matched: true,
+      timedOut: false,
+    })
+    expect((await sent).text).toContain("hi")
+  })
+
+  it("resolves at once when the text is already on screen", async () => {
+    const { fake, manager } = harness()
+    const opened = manager.open({})
+    fake.emit("ready\n")
+
+    await expect(Promise.resolve(manager.send({ id: opened.id, text: "x", until: "ready" }))).resolves.toMatchObject({
+      matched: true,
+    })
+  })
+
+  it("times the wait out without polling", async () => {
+    vi.useFakeTimers()
+    const { manager } = harness()
+    const opened = manager.open({})
+    const sent = manager.send({ id: opened.id, text: "x", until: "never", timeoutMs: 5_000 })
+
+    await vi.advanceTimersByTimeAsync(5_000)
+
+    await expect(Promise.resolve(sent)).resolves.toMatchObject({ matched: false, timedOut: true, exited: false })
+  })
+
+  it("refuses a bad regular expression before typing", () => {
+    const { fake, manager } = harness()
+    const opened = manager.open({})
+
+    expect(() => manager.send({ id: opened.id, text: "x", until: "(", regex: true })).toThrow(
+      /not a valid regular expression/,
+    )
+    expect(fake.writes).toEqual([])
   })
 })
 

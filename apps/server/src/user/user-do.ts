@@ -1324,7 +1324,7 @@ export class User {
   }
 
   computerHolder(pcId: string): "agent" | "human" {
-    return this.#pc.holder(pcId)
+    return this.computerList().find((pc) => pc.id === pcId)?.holder ?? "agent"
   }
 
   async computerPair(input: {

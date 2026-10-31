@@ -104,9 +104,7 @@ export class ComputerWiring {
     const slug = slugOf(agentId)
     if (!isAgentSlug(slug) || !isRoomId(roomId))
       return Promise.resolve({ ok: false, code: "failed", message: "Unknown room or agent" })
-    const row = this.find(pcId)
-    if (!row) return Promise.resolve({ ok: false, code: "unsupported", message: "there is no such computer" })
-    return this.hub.call(row.id, op, args, {
+    return this.hub.call(pcId, op, args, {
       deadlineMs: Math.min(Number(deadlineMs ?? MAX_DEADLINE_MS), MAX_DEADLINE_MS),
       user: { key: `${roomId}:${agentId}`, name: slug },
     })
@@ -134,11 +132,6 @@ export class ComputerWiring {
   desktop(pcId?: string): DesktopInfo | null {
     const row = pcId ? this.find(pcId) : (this.hub.rows()[0] ?? null)
     return row ? this.hub.desktopInfo(row.id) : null
-  }
-
-  holder(pcId: string): "agent" | "human" {
-    const row = this.find(pcId)
-    return row ? this.hub.holder(row.id) : "agent"
   }
 
   onTabHello(ws: WebSocket): void {

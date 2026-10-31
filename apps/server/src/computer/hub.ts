@@ -1,5 +1,6 @@
 import { Schema } from "effect"
 import {
+  BinaryResult,
   Calls,
   type FailCode,
   type FromDaemon,
@@ -9,6 +10,7 @@ import {
   type IceServer,
   type InputEvent,
   type Op,
+  OLDEST_PROTOCOL,
   PROTOCOL,
   type RtcSignal,
   TERMINAL_OPS,
@@ -16,13 +18,14 @@ import {
 } from "@kiko/computer/wire"
 import { CONNECT_HEADERS, CONNECT_SKEW_MS, connectMessage, verify } from "@kiko/computer/sign"
 import type { DesktopInfo } from "@kiko/computer/driver"
-import { decodeFrame } from "@kiko/computer/frame"
+import { decodeBinary, decodeFrame } from "@kiko/computer/frame"
 import type { AgentSlug, ComputerSummary, RoomId, TerminalEvent } from "@kiko/protocol"
 import type { Env } from "../index"
 import { ago } from "../lib/ago"
 import { BACKEND } from "../lib/version"
 import { socketView } from "../owner/socket"
 import type { RequestId } from "../rpc/wire"
+import { joinImages } from "./binary"
 import type { ComputerRow, ComputerStore, NewComputer } from "./store"
 import { terminalStream, terminalText } from "./terminals"
 import type { PcTaken } from "./types"
@@ -441,7 +444,7 @@ export class ComputerHub {
     const sig = request.headers.get(CONNECT_HEADERS.sig) ?? ""
     const protocol = Number(request.headers.get(CONNECT_HEADERS.protocol) ?? "")
     if (!id || user !== this.d.ownerId || !sig) return new Response("bad connect", { status: 401 })
-    if (protocol !== PROTOCOL)
+    if (protocol < OLDEST_PROTOCOL || protocol > PROTOCOL)
       return new Response("protocol mismatch", {
         status: 426,
         headers: { [CONNECT_HEADERS.protocol]: String(PROTOCOL) },
@@ -488,7 +491,10 @@ export class ComputerHub {
     this.heard.set(ws, Date.now())
     this.marks.set(saved.id, { ...this.marks.get(saved.id), seenAt: Date.now() })
     if (typeof raw !== "string") {
-      this.relayFrame(saved.id, new Uint8Array(raw))
+      const bytes = new Uint8Array(raw)
+      const binary = decodeBinary(bytes)
+      if (binary) return this.binaryResult(binary.header, binary.data)
+      this.relayFrame(saved.id, bytes)
       return
     }
     let frame: FromDaemon
@@ -517,7 +523,7 @@ export class ComputerHub {
       ws.close(CLOSE.notReady, "duplicate hello")
       return
     }
-    if (hello.protocol !== PROTOCOL) {
+    if (hello.protocol < OLDEST_PROTOCOL || hello.protocol > PROTOCOL) {
       ws.close(CLOSE.protocol, "protocol mismatch")
       return
     }
@@ -552,6 +558,16 @@ export class ComputerHub {
       frame.id,
       frame.ok ? { ok: true, value: frame.value } : { ok: false, code: frame.error.code, message: frame.error.message },
     )
+  }
+
+  private binaryResult(header: Record<string, unknown>, data: Uint8Array): void {
+    let decoded: BinaryResult
+    try {
+      decoded = Schema.decodeUnknownSync(BinaryResult)(header)
+    } catch {
+      return
+    }
+    this.settle(decoded.id, { ok: true, value: joinImages(decoded.value, decoded.parts, data) })
   }
 
   private settle(callId: string, outcome: CallOutcome): boolean {
