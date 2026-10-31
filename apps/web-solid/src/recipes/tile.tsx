@@ -2,7 +2,6 @@ import type { RecipeCard } from "@kiko/protocol"
 import { RemixIcon } from "@kiko/ui/remix-icon"
 import { ClockIcon, PlusIcon } from "@kiko/ui/icons"
 import { For, Show } from "solid-js"
-import { IdentityAvatar } from "../lib/IdentityAvatar"
 import { AppLogo } from "./icon"
 import { installStatus, localizeWhen, nextRunLabel } from "./model"
 import { installsFor } from "./state"
@@ -62,30 +61,6 @@ export function RecipeTile(props: { recipe: RecipeCard; onOpen: () => void; onAd
         data-action="add-recipe"
         onClick={() => props.onAdd()}
       />
-      <span class="tpl-peek" aria-hidden="true">
-        <span class="type-sm flex items-center gap-1.5 text-primary">
-          <IdentityAvatar seed={props.recipe.agent.handle} size={16} />
-          <span class="truncate">{props.recipe.agent.name}</span>
-        </span>
-        <span class="mt-2 flex items-center gap-1.5">
-          <span class="tpl-peek-check on">
-            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path
-                d="M5 14L8.5 17.5L19 6.5"
-                stroke="currentColor"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="1.5"
-              />
-            </svg>
-          </span>
-          <span class="h-[5px] w-2/3 rounded-full bg-secondary" />
-        </span>
-        <span class="mt-1.5 flex items-center gap-1.5">
-          <span class="tpl-peek-check" />
-          <span class="h-[5px] w-1/2 rounded-full bg-secondary" />
-        </span>
-      </span>
     </article>
   )
 }
