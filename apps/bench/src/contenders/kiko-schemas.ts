@@ -11,7 +11,8 @@ export const KIKO_TOOLS: readonly ToolSpec[] = [
       properties: {
         pc: {
           type: "string",
-          description: "the computer's name or id. leave it out when the owner has one computer",
+          description:
+            "the computer's name or id. computer_list shows every computer, what it can do and whether it is online. leave it out when the owner has one computer",
         },
         command: {
           type: "string",
@@ -38,7 +39,8 @@ export const KIKO_TOOLS: readonly ToolSpec[] = [
       properties: {
         pc: {
           type: "string",
-          description: "the computer's name or id. leave it out when the owner has one computer",
+          description:
+            "the computer's name or id. computer_list shows every computer, what it can do and whether it is online. leave it out when the owner has one computer",
         },
         path: {
           type: "string",
@@ -61,7 +63,8 @@ export const KIKO_TOOLS: readonly ToolSpec[] = [
       properties: {
         pc: {
           type: "string",
-          description: "the computer's name or id. leave it out when the owner has one computer",
+          description:
+            "the computer's name or id. computer_list shows every computer, what it can do and whether it is online. leave it out when the owner has one computer",
         },
         path: {
           type: "string",
