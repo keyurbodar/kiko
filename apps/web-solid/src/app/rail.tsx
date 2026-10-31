@@ -58,7 +58,9 @@ export function Rail(props: { onExpand: () => void }) {
       <div class="flex h-full w-sidebar-width-collapsed shrink-0 flex-col items-center gap-[5px] pb-3">
         <div class="grid h-top-bar-height w-full shrink-0 place-items-center">
           <SidebarToggle open={false} onToggle={props.onExpand} class={`rail-toggle ${ITEM}`}>
-            <img src="/kiko.svg" alt="" draggable={false} class="rail-logo" />
+            <span class="rail-logo" aria-hidden="true">
+              K
+            </span>
             <RemixIcon icon={SidebarLeftIcon} size={14} class="rail-toggle-icon" />
           </SidebarToggle>
         </div>

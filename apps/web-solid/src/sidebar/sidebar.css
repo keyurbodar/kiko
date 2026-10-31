@@ -47,23 +47,25 @@
 
 .sidebar-shell .panel-brand {
   display: flex;
-  height: var(--spacing-control-md);
+  height: var(--spacing-control-xl);
   align-items: center;
-  gap: 8px;
-  padding: 0 6px 0 4px;
+  padding: 0 6px;
   color: var(--text-primary);
-  font-size: var(--font-size-base);
-  font-weight: 600;
-  letter-spacing: var(--letter-spacing-base);
-  line-height: var(--line-height-base);
+  font-family: var(--font-family-serif);
+  font-size: 21px;
+  font-weight: 400;
+  letter-spacing: -0.3px;
+  line-height: 1;
   text-decoration: none;
   border-radius: var(--radius-base);
 }
 
-.sidebar-shell :is(.panel-logo, .rail-logo) {
-  width: 20px;
-  height: 20px;
-  border-radius: var(--radius-base);
+.sidebar-shell .rail-logo {
+  display: block;
+  color: var(--text-primary);
+  font-family: var(--font-family-serif);
+  font-size: 20px;
+  line-height: 1;
 }
 
 .sidebar-shell .rail-toggle .rail-toggle-icon,

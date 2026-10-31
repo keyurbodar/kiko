@@ -23,7 +23,7 @@ export function EmptyState(props: { working?: boolean }) {
           <Mochi size={32} />
         </span>
       </Show>
-      <h1 class="type-3xl font-semibold text-primary">{greeting(profile()?.name, new Date())}</h1>
+      <h1 class="type-display-lg text-primary">{greeting(profile()?.name, new Date())}</h1>
     </div>
   )
 }

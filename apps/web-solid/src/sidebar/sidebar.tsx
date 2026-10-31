@@ -32,7 +32,6 @@ export function Sidebar(props: SidebarProps) {
     >
       <header class="panel-header">
         <Link to="/chat" class="panel-brand" data-component="sidebar-brand" aria-label="Chats">
-          <img src="/kiko.svg" alt="" draggable={false} class="panel-logo" />
           Kiko
         </Link>
         <span class="flex-1" aria-hidden="true" />

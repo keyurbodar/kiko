@@ -27,7 +27,7 @@ const LAYOUT = {
   "conversation-block-gap": 10,
 } as const
 
-type Face = "sans" | "mono"
+type Face = "sans" | "serif" | "mono"
 type Type = Readonly<{ size: number; line: number; tracking: number; face: Face; scales: boolean }>
 
 const BASE = 14
@@ -41,6 +41,10 @@ const TYPE = {
   "2xl": { size: 20, line: 22, tracking: -0.46, face: "sans", scales: false },
   "3xl": { size: 22, line: 26, tracking: -0.26, face: "sans", scales: false },
   code: { size: 12, line: 18, tracking: 0, face: "mono", scales: true },
+  "display-sm": { size: 18, line: 24, tracking: -0.1, face: "serif", scales: false },
+  display: { size: 24, line: 30, tracking: -0.3, face: "serif", scales: false },
+  "display-lg": { size: 30, line: 36, tracking: -0.5, face: "serif", scales: false },
+  "display-xl": { size: 36, line: 42, tracking: -0.7, face: "serif", scales: false },
 } as const satisfies Record<string, Type>
 
 type TypeName = keyof typeof TYPE
@@ -68,6 +72,7 @@ const LAYER = { dropdown: 1600, modal: 3000, popover: 4000, toast: 5000, tooltip
 
 export const SANS_STACK =
   '"Geist Variable", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji"'
+const SERIF_STACK = '"Geist Serif", ui-serif, Georgia, "Times New Roman", serif'
 export const MONO_STACK =
   '"Geist Mono Variable", ui-monospace, SFMono-Regular, "Roboto Mono", Menlo, Monaco, "Liberation Mono", "DejaVu Sans Mono", "Courier New", monospace'
 
@@ -85,6 +90,7 @@ export function typeVars(base: number): Record<string, string> {
 
 const FACES: Record<Face, string> = {
   sans: "var(--font-family-sans)",
+  serif: "var(--font-family-serif)",
   mono: "var(--font-family-mono)",
 }
 
@@ -96,6 +102,7 @@ export function systemCss(): string {
     ...Object.entries(DURATION).map(([k, v]) => `  --duration-${k}: ${v}ms;`),
     ...Object.entries(LAYER).map(([k, v]) => `  --layer-${k}: ${v};`),
     `  --font-family-sans: ${SANS_STACK};`,
+    `  --font-family-serif: ${SERIF_STACK};`,
     `  --font-family-mono: ${MONO_STACK};`,
     "  --press-scale: 0.98;",
   ]
@@ -112,7 +119,7 @@ export function systemCss(): string {
   ])
   const utilities = (Object.entries(TYPE) as [TypeName, Type][]).map(
     ([name, t]) =>
-      `@utility type-${name} {\n  font-family: ${FACES[t.face]};\n  font-size: var(--font-size-${name});\n  line-height: var(--line-height-${name});\n  letter-spacing: var(--letter-spacing-${name});\n}`,
+      `@utility type-${name} {\n  font-family: ${FACES[t.face]};\n  font-size: var(--font-size-${name});\n  line-height: var(--line-height-${name});\n  letter-spacing: var(--letter-spacing-${name});${t.face === "serif" ? "\n  font-weight: 400;" : ""}\n}`,
   )
   return [
     "/* system:start */",

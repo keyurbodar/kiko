@@ -18,6 +18,14 @@
 
 @import "./styles/motion.css";
 
+@font-face {
+  font-family: "Geist Serif";
+  src: url("/fonts/geist-serif.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
   --shimmer-duration: 2.2s;
   --chat-content-max-width: 720px;
@@ -159,12 +167,10 @@
   --shadow-secondary: #0000001f;
   --shadow-tertiary: #0000000f;
   --box-shadow-sm: 0 2px 8px 0 #0000001f;
-  --box-shadow-base:
-    0 0 0 1px color-mix(in oklab, #f0f0f0 8%, transparent), 0 0 4px 0 #0000001f, 0 8px 24px -2px #0000001f;
+  --box-shadow-base: 0 0 0 1px color-mix(in oklab, #f0f0f0 8%, transparent), 0 0 4px 0 #0000001f, 0 8px 24px -2px #0000001f;
   --box-shadow-popup: 0 10px 15px -3px #00000066, 0 4px 6px -2px #0000004d;
   --box-shadow-lg: 0 0 4px 0 rgb(255 255 255 / 0.05) inset, 0 0 3px 0 #0000001f, 0 16px 24px 0 #0000000f;
-  --box-shadow-dialog:
-    0 0 0 1px color-mix(in oklab, #f0f0f0 8%, transparent), 0 0 2px 0 #00000066, 0 6px 16px 0 #00000066;
+  --box-shadow-dialog: 0 0 0 1px color-mix(in oklab, #f0f0f0 8%, transparent), 0 0 2px 0 #00000066, 0 6px 16px 0 #00000066;
   --box-shadow-command: 0 25px 50px -12px #00000080, 0 12px 24px -8px #00000066;
   --syntax-foreground: #d6d6dd;
   --syntax-keyword: #82d2ce;
@@ -302,12 +308,10 @@
   --shadow-secondary: #00000009;
   --shadow-tertiary: #00000005;
   --box-shadow-sm: 0 2px 8px 0 #00000009;
-  --box-shadow-base:
-    0 0 0 1px color-mix(in oklab, #1c1c1c 8%, transparent), 0 0 4px 0 #00000009, 0 8px 24px -2px #00000009;
+  --box-shadow-base: 0 0 0 1px color-mix(in oklab, #1c1c1c 8%, transparent), 0 0 4px 0 #00000009, 0 8px 24px -2px #00000009;
   --box-shadow-popup: 0 10px 15px -3px #0000001a, 0 4px 6px -2px #0000000d;
   --box-shadow-lg: 0 0 4px 0 rgb(255 255 255 / 0.05) inset, 0 0 3px 0 #00000009, 0 16px 24px 0 #00000005;
-  --box-shadow-dialog:
-    0 0 0 1px color-mix(in oklab, #1c1c1c 8%, transparent), 0 0 2px 0 #0000000f, 0 6px 16px 0 #0000000f;
+  --box-shadow-dialog: 0 0 0 1px color-mix(in oklab, #1c1c1c 8%, transparent), 0 0 2px 0 #0000000f, 0 6px 16px 0 #0000000f;
   --box-shadow-command: 0 25px 50px -12px #00000040, 0 12px 24px -8px #00000026;
   --syntax-foreground: #141414eb;
   --syntax-keyword: #b3003f;
@@ -775,6 +779,7 @@
   --font-weight-medium: 500;
   --font-weight-semibold: 600;
   --font-sans: var(--font-family-sans);
+  --font-serif: var(--font-family-serif);
   --font-mono: var(--font-family-mono);
   --default-font-family: var(--font-family-sans);
   --default-mono-family: var(--font-family-mono);
@@ -799,6 +804,14 @@
   --line-height-3xl: 26px;
   --font-size-code: 12px;
   --line-height-code: 18px;
+  --font-size-display-sm: 18px;
+  --line-height-display-sm: 24px;
+  --font-size-display: 24px;
+  --line-height-display: 30px;
+  --font-size-display-lg: 30px;
+  --line-height-display-lg: 36px;
+  --font-size-display-xl: 36px;
+  --line-height-display-xl: 42px;
   --letter-spacing-xs: 0.07px;
   --letter-spacing-sm: 0px;
   --letter-spacing-base: -0.08px;
@@ -807,6 +820,10 @@
   --letter-spacing-2xl: -0.46px;
   --letter-spacing-3xl: -0.26px;
   --letter-spacing-code: 0px;
+  --letter-spacing-display-sm: -0.1px;
+  --letter-spacing-display: -0.3px;
+  --letter-spacing-display-lg: -0.5px;
+  --letter-spacing-display-xl: -0.7px;
   --duration-instant: 50ms;
   --duration-fast: 100ms;
   --duration-normal: 150ms;
@@ -821,6 +838,7 @@
   --layer-toast: 5000;
   --layer-tooltip: 100000;
   --font-family-sans: "Geist Variable", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+  --font-family-serif: "Geist Serif", ui-serif, Georgia, "Times New Roman", serif;
   --font-family-mono: "Geist Mono Variable", ui-monospace, SFMono-Regular, "Roboto Mono", Menlo, Monaco, "Liberation Mono", "DejaVu Sans Mono", "Courier New", monospace;
   --press-scale: 0.98;
 }
@@ -883,6 +901,18 @@
   --text-code: var(--font-size-code);
   --text-code--line-height: var(--line-height-code);
   --text-code--letter-spacing: var(--letter-spacing-code);
+  --text-display-sm: var(--font-size-display-sm);
+  --text-display-sm--line-height: var(--line-height-display-sm);
+  --text-display-sm--letter-spacing: var(--letter-spacing-display-sm);
+  --text-display: var(--font-size-display);
+  --text-display--line-height: var(--line-height-display);
+  --text-display--letter-spacing: var(--letter-spacing-display);
+  --text-display-lg: var(--font-size-display-lg);
+  --text-display-lg--line-height: var(--line-height-display-lg);
+  --text-display-lg--letter-spacing: var(--letter-spacing-display-lg);
+  --text-display-xl: var(--font-size-display-xl);
+  --text-display-xl--line-height: var(--line-height-display-xl);
+  --text-display-xl--letter-spacing: var(--letter-spacing-display-xl);
 }
 
 @utility type-xs {
@@ -939,6 +969,38 @@
   font-size: var(--font-size-code);
   line-height: var(--line-height-code);
   letter-spacing: var(--letter-spacing-code);
+}
+
+@utility type-display-sm {
+  font-family: var(--font-family-serif);
+  font-size: var(--font-size-display-sm);
+  line-height: var(--line-height-display-sm);
+  letter-spacing: var(--letter-spacing-display-sm);
+  font-weight: 400;
+}
+
+@utility type-display {
+  font-family: var(--font-family-serif);
+  font-size: var(--font-size-display);
+  line-height: var(--line-height-display);
+  letter-spacing: var(--letter-spacing-display);
+  font-weight: 400;
+}
+
+@utility type-display-lg {
+  font-family: var(--font-family-serif);
+  font-size: var(--font-size-display-lg);
+  line-height: var(--line-height-display-lg);
+  letter-spacing: var(--letter-spacing-display-lg);
+  font-weight: 400;
+}
+
+@utility type-display-xl {
+  font-family: var(--font-family-serif);
+  font-size: var(--font-size-display-xl);
+  line-height: var(--line-height-display-xl);
+  letter-spacing: var(--letter-spacing-display-xl);
+  font-weight: 400;
 }
 
 /* system:end */
