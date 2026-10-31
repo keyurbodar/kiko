@@ -56,6 +56,7 @@ import { desktopHidpi } from "./desktop/desktop-110-hidpi"
 import { desktopGermanKeyboard } from "./desktop/desktop-111-german-keyboard"
 import { desktopNotification } from "./desktop/desktop-112-notification"
 import { desktopOwnerTyping } from "./desktop/desktop-113-owner-typing"
+import { envTasks } from "./env"
 
 export const TASKS: readonly Task[] = [
   ...terminalTasksA,
@@ -115,4 +116,5 @@ export const TASKS: readonly Task[] = [
   datePicker,
   fileUpload,
   hiddenTabSurvey,
+  ...envTasks,
 ]

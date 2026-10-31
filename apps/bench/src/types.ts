@@ -1,5 +1,5 @@
 export type Os = "macos" | "linux"
-export type Track = "terminal" | "browser" | "desktop" | "mixed" | "cross"
+export type Track = "terminal" | "browser" | "desktop" | "mixed" | "cross" | "environment"
 export type Kind = "real" | "long" | "edge"
 export type Condition = "foreground" | "background"
 export type Need = "display" | "chrome" | "electron" | "network" | "docker" | "libreoffice"
@@ -39,6 +39,7 @@ export interface Task {
   readonly os: readonly Os[]
   readonly needs: readonly Need[]
   readonly heldOut: boolean
+  readonly contenders?: readonly string[]
   readonly kind: Kind
   readonly prompt: string
   readonly limits: { readonly turns: number; readonly seconds: number }
@@ -60,6 +61,8 @@ export interface ToolResult {
   readonly text: string
   readonly images: readonly Image[]
   readonly isError: boolean
+  readonly opMs?: number
+  readonly transportMs?: number
 }
 
 export interface Contender {
