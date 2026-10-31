@@ -44,7 +44,6 @@ class Sentinel:
         self.ticks = 0
         self.pending = None
         self.stopping = False
-        self.seen_types = 0
 
     def build_window(self):
         window = self.root.create_window(
@@ -103,19 +102,19 @@ class Sentinel:
             elif self.stray_keys < 3:
                 self.stray_keys += 1
                 self.log.emit("stray_key", window=event.window.id)
-        elif event.type != X.Expose and self.seen_types < 20:
-            self.seen_types += 1
-            self.log.emit("event", type=event.type, send=bool(getattr(event, "send_event", 0)))
         if event.type == X.ClientMessage and event.data[1][0] == self.atom_delete:
             self.begin_stop()
 
     def pump(self):
+        while self.display.pending_events() > 0:
+            self.handle(self.display.next_event())
         while select.select([self.display.fileno()], [], [], 0)[0]:
             self.handle(self.display.next_event())
         while self.display.pending_events() > 0:
             self.handle(self.display.next_event())
 
     def wait(self, seconds):
+        self.pump()
         readable, _, _ = select.select([self.display.fileno()], [], [], seconds)
         if readable:
             self.pump()
@@ -170,7 +169,6 @@ class Sentinel:
         xtest.fake_input(self.display, X.KeyPress, self.keycode)
         xtest.fake_input(self.display, X.KeyRelease, self.keycode)
         self.display.sync()
-        self.log.emit("sent", keycode=self.keycode, focus=self.focus_id(), win=self.window.id)
 
     def resolve_pending(self):
         if self.pending is None:

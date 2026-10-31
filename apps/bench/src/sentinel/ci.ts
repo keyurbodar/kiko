@@ -284,14 +284,17 @@ async function main(): Promise<void> {
   const os: Os = process.platform === "darwin" ? "macos" : process.platform === "win32" ? "windows" : "linux"
   const cases: CaseResult[] = []
   cases.push(await attempt("idle", idleSeconds, caseSeconds, logs, async () => noop))
-  cases.push(await attempt("steal", idleSeconds, caseSeconds, logs, stealFocus))
-  cases.push(
-    await attempt("pointer", idleSeconds, caseSeconds, logs, async (m) => {
-      await movePointer(m, 160, 120)
-      return noop
-    }),
-  )
-  cases.push(await attempt("file", idleSeconds, caseSeconds, logs, writeFileElsewhere))
+  const nullRun = cases[0]
+  if (nullRun.keysReceived === nullRun.keysSent && nullRun.keysSent > 0) {
+    cases.push(await attempt("steal", idleSeconds, caseSeconds, logs, stealFocus))
+    cases.push(
+      await attempt("pointer", idleSeconds, caseSeconds, logs, async (m) => {
+        await movePointer(m, 160, 120)
+        return noop
+      }),
+    )
+    cases.push(await attempt("file", idleSeconds, caseSeconds, logs, writeFileElsewhere))
+  }
   const pass = cases.every((entry) => entry.pass)
   const report = { os, machine: `ci-${os}`, idleSeconds, pass, cases }
   const text = JSON.stringify(report, null, 2)
