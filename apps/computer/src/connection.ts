@@ -341,6 +341,8 @@ class Link {
         return this.liveFrame(() => this.host.live.rtc(frame))
       case "ack":
         return this.liveFrame(() => this.host.live.ack(frame))
+      case "screen":
+        return this.liveFrame(() => this.host.live.screen(frame))
       case "terminal":
         return this.terminalFrame(() => this.host.terminals.open(frame))
       case "terminalInput":

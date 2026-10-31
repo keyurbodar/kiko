@@ -1,5 +1,6 @@
 import { dlopen, FFIType, ptr } from "bun:ffi"
 import type { Native } from "./contract"
+import { keyOf } from "./contract"
 import { macKeyCode } from "../keymap"
 
 const FRAMEWORKS = "/System/Library/Frameworks"
@@ -212,6 +213,14 @@ export function macNative(): Native | null {
     },
     text(value) {
       for (const char of value) core.unicode(char, flags)
+    },
+    chord(code, mods) {
+      const keycode = macKeyCode(code, keyOf(code))
+      if (keycode === 0xffff) return
+      const flag =
+        (mods & 1 ? SHIFT : 0) | (mods & 2 ? CONTROL : 0) | (mods & 4 ? ALTERNATE : 0) | (mods & 8 ? COMMAND : 0)
+      core.keyboard(keycode, true, flags | flag)
+      core.keyboard(keycode, false, flags | flag)
     },
     cursor() {
       return core.cursor()

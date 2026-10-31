@@ -4,6 +4,7 @@ import type { Native } from "./native/contract"
 import { linuxNative } from "./native/linux"
 import { macNative } from "./native/macos"
 import { windowsNative } from "./native/windows"
+import { place } from "./place"
 
 const BUTTONS = new Map<number, number>([
   [0, 0],
@@ -13,6 +14,7 @@ const BUTTONS = new Map<number, number>([
 
 export type Injected = {
   apply(events: readonly InputEvent[]): void
+  chord(code: string, mods: number): void
   screen(): Screen | null
   release(): void
 }
@@ -26,20 +28,16 @@ function createNative(): Native | null {
   return linuxNative()
 }
 
-export function createInput(screen: Screen | null, gate: Gate): Injected | null {
-  const native = createNative()
+export function createInput(area: () => Screen | null, gate: Gate, native = createNative()): Injected | null {
   if (!native) return null
-  const area = screen ?? native.screen()
-  const scale = (x: number, y: number): { x: number; y: number } => ({
-    x: Math.round((area?.width ?? 1) * x) + (screen?.originX ?? 0),
-    y: Math.round((area?.height ?? 1) * y) + (screen?.originY ?? 0),
-  })
+  const bounds = () => area() ?? native.screen()
+  const scale = (x: number, y: number) => place(area(), bounds(), x, y)
 
   return {
     apply(events) {
       if (!gate.allowed() || gate.holder() !== "human") return
       for (const event of events) {
-        if (event.k === "cursor") continue
+        if (event.k === "cursor" || event.k === "paste") continue
         if (event.k === "text") native.text(event.s)
         else if (event.k === "key") native.key(event.code, event.key, event.down)
         else if (event.k === "move") {
@@ -53,6 +51,10 @@ export function createInput(screen: Screen | null, gate: Gate): Injected | null 
           if (event.dx) native.wheel(Math.round(event.dx), true)
         }
       }
+    },
+    chord(code, mods) {
+      if (!gate.allowed() || gate.holder() !== "human") return
+      native.chord(code, mods)
     },
     screen() {
       return native.screen()

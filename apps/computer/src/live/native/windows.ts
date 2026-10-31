@@ -1,5 +1,6 @@
 import { dlopen, FFIType } from "bun:ffi"
 import type { Native } from "./contract"
+import { keyOf } from "./contract"
 import { EXTENDED, SCAN, windowsVirtualKey } from "../keymap"
 
 const INPUT_MOUSE = 0
@@ -155,6 +156,14 @@ export function windowsNative(): Native | null {
           send(units.length)
         }
       }
+    },
+    chord(code, mods) {
+      const modifier = mods & 2 ? "ControlLeft" : mods & 8 ? "MetaLeft" : null
+      if (modifier) keyInput(input, 0, windowsVirtualKey(modifier, modifier), SCAN.get(modifier) ?? 0)
+      keyInput(input, 0, windowsVirtualKey(code, keyOf(code)), SCAN.get(code) ?? 0)
+      keyInput(input, KEYEVENTF_KEYUP, windowsVirtualKey(code, keyOf(code)), SCAN.get(code) ?? 0)
+      if (modifier) keyInput(input, KEYEVENTF_KEYUP, windowsVirtualKey(modifier, modifier), SCAN.get(modifier) ?? 0)
+      send(modifier ? 4 : 2)
     },
     cursor() {
       if (!user32.GetCursorPos(point as never)) return null

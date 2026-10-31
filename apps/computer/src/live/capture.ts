@@ -10,7 +10,14 @@ const MAX_LONG_EDGE = 2560
 const KEYFRAME_SECONDS = 1
 const VAAPI_DEVICE = "/dev/dri/renderD128"
 
-export type Screen = { width: number; height: number; scale?: number; originX?: number; originY?: number }
+export type Screen = {
+  width: number
+  height: number
+  scale?: number
+  originX?: number
+  originY?: number
+  index?: number
+}
 
 export type CaptureOptions = {
   ffmpeg: string
@@ -20,7 +27,6 @@ export type CaptureOptions = {
   maxWidth: number
   quality: number
   encoders: readonly string[]
-  screenIndex?: number
 }
 
 type Encoder = { name: string; args: readonly string[] }
@@ -111,7 +117,7 @@ function windowsSources(screen: Screen, fps: number): string[][] {
 
 function sources(options: CaptureOptions): string[][] {
   const name = platform()
-  if (name === "macos") return macSources(options.fps, options.screenIndex ?? 0)
+  if (name === "macos") return macSources(options.fps, options.screen.index ?? 0)
   if (name === "windows") return windowsSources(options.screen, options.fps)
   return linuxSources(options.screen, options.fps)
 }

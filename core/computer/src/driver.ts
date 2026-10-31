@@ -23,7 +23,14 @@ export type BrowserState = typeof BrowserState.Type
 export const BrowserStatus = Schema.Struct({ name: Text, state: BrowserState })
 export type BrowserStatus = typeof BrowserStatus.Type
 
-export const Display = Schema.Struct({ id: Text, width: Count, height: Count, scale: Schema.Number })
+export const Display = Schema.Struct({
+  id: Text,
+  width: Count,
+  height: Count,
+  scale: Schema.Number,
+  originX: Schema.optionalKey(Schema.Int),
+  originY: Schema.optionalKey(Schema.Int),
+})
 export type Display = typeof Display.Type
 
 export const Status = Schema.Struct({

@@ -1,5 +1,6 @@
 import { dlopen, FFIType, ptr, toArrayBuffer } from "bun:ffi"
 import type { Native } from "./contract"
+import { keyOf } from "./contract"
 import { notches } from "./wheel"
 import { spareKeycode, unicodeKeysym } from "./keysym"
 
@@ -7,6 +8,12 @@ const WHEEL_NOTCH_PX = 50
 const MAX_NOTCHES = 60
 const REMAP_SETTLE_MS = 40
 const X_BUTTONS = [1, 3, 2]
+const MODIFIERS: readonly (readonly [number, number])[] = [
+  [1, 0xffe1],
+  [2, 0xffe3],
+  [4, 0xffe9],
+  [8, 0xffeb],
+]
 
 const NAMED = new Map<string, number>([
   ["Escape", 0xff1b],
@@ -327,6 +334,19 @@ export function linuxNative(): Native | null {
       if (isDown) down.set(code, keycode)
       else down.delete(code)
       symbols.keycodeDown(keycode, isDown)
+      symbols.flush()
+    },
+    chord(code, mods) {
+      const held = MODIFIERS.filter(([bit]) => mods & bit)
+        .map(([, keysym]) => symbols.keycode(keysym))
+        .filter((keycode) => keycode !== 0)
+      for (const keycode of held) symbols.keycodeDown(keycode, true)
+      const keycode = symbols.keycode(symbols.keysym(code, keyOf(code)))
+      if (keycode) {
+        symbols.keycodeDown(keycode, true)
+        symbols.keycodeDown(keycode, false)
+      }
+      for (const keycode of held.reverse()) symbols.keycodeDown(keycode, false)
       symbols.flush()
     },
     text(value) {

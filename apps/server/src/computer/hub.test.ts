@@ -1,5 +1,5 @@
 import { assert, describe, it } from "@effect/vitest"
-import { encodeBinary, IMAGE_REF } from "@kiko/computer/frame"
+import { encodeBinary, encodeFrame, IMAGE_REF } from "@kiko/computer/frame"
 import { OLDEST_PROTOCOL, PROTOCOL } from "@kiko/computer/wire"
 import type { AgentSlug, RoomId } from "@kiko/protocol"
 import * as Clock from "effect/Clock"
@@ -486,14 +486,18 @@ describe("leaving the viewer", () => {
   )
 })
 
-function liveSocket(pcId: string) {
-  const attachment = { kind: "live", pcId }
+function liveSocket(pcId: string, want = true) {
+  let attachment: { kind: "live"; pcId: string; want?: boolean } = { kind: "live", pcId, want }
+  const sent: string[] = []
   return {
-    send: () => {},
-    serializeAttachment: () => {},
-    deserializeAttachment: () => attachment,
+    send: (text: string) => sent.push(text),
+    serializeAttachment: (value: unknown) => {
+      attachment = structuredClone(value) as typeof attachment
+    },
+    deserializeAttachment: () => structuredClone(attachment),
     readyState: WebSocket.OPEN,
-  } as unknown as WebSocket
+    sent,
+  } as unknown as WebSocket & { sent: string[] }
 }
 
 const onClock =
@@ -724,6 +728,68 @@ describe("relay fallback", () => {
       assert.deepStrictEqual(
         pc.sent.filter((frame) => frame.t === "ack").map((frame) => frame.seq),
         [7],
+      )
+    }),
+  )
+
+  it.effect("keeps the socket for control and silence once the viewer has video", () =>
+    Effect.promise(async () => {
+      const pc = pcSocket("pc-1")
+      const lives: WebSocket[] = []
+      const computers = liveHub([], [pc.ws], ["pc-1"], undefined, lives)
+      await computers.message(pc.ws, JSON.stringify(HELLO))
+
+      const viewer = liveSocket("pc-1", false)
+      lives.push(viewer)
+      computers.liveMessage(viewer, JSON.stringify({ t: "live", maxWidth: 2000 }))
+      computers.liveMessage(viewer, JSON.stringify({ t: "live", on: false }))
+
+      assert.deepStrictEqual(
+        pc.sent.filter((frame) => frame.t === "live").map((frame) => frame.on),
+        [true, false],
+      )
+
+      computers.liveMessage(viewer, JSON.stringify({ t: "screen", id: "right" }))
+      assert.deepStrictEqual(
+        pc.sent.filter((frame) => frame.t === "screen"),
+        [{ t: "screen", id: "right" }],
+      )
+
+      computers.liveMessage(viewer, JSON.stringify({ t: "live", maxWidth: 1280 }))
+      assert.strictEqual(pc.sent.filter((frame) => frame.t === "live").at(-1)?.on, true)
+      assert.strictEqual(computers.liveClosed(viewer), true)
+      assert.strictEqual(pc.sent.filter((frame) => frame.t === "live").at(-1)?.on, false)
+    }),
+  )
+
+  it.effect("sends relay frames only to the viewers that asked for them", () =>
+    Effect.promise(async () => {
+      const pc = pcSocket("pc-1")
+      const watching = liveSocket("pc-1", true)
+      const video = liveSocket("pc-1", false)
+      const computers = liveHub([], [pc.ws], ["pc-1"], undefined, [watching, video])
+      await computers.message(pc.ws, JSON.stringify(HELLO))
+
+      const frame = encodeFrame({ kind: "jpeg", width: 2, height: 2, seq: 1, cursor: null }, new Uint8Array([1, 2, 3]))
+      await computers.message(pc.ws, frame.buffer as ArrayBuffer)
+
+      assert.strictEqual(watching.sent.length, 1)
+      assert.strictEqual(video.sent.length, 0)
+    }),
+  )
+
+  it.effect("shows the computer clipboard to every viewer that is open", () =>
+    Effect.promise(async () => {
+      const pc = pcSocket("pc-1")
+      const viewer = liveSocket("pc-1", false)
+      const computers = liveHub([], [pc.ws], ["pc-1"], undefined, [viewer])
+      await computers.message(pc.ws, JSON.stringify(HELLO))
+
+      await computers.message(pc.ws, JSON.stringify({ t: "clipboard", text: "copied on the computer" }))
+
+      assert.deepStrictEqual(
+        viewer.sent.map((text) => JSON.parse(text)),
+        [{ t: "clipboard", text: "copied on the computer" }],
       )
     }),
   )

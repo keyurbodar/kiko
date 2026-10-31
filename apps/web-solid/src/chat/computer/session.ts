@@ -13,9 +13,10 @@ export type Hooks = {
   onMode(mode: Mode): void
   onSize(width: number, height: number): void
   onCursor(cursor: Cursor): void
+  onClipboard(text: string): void
 }
 
-export type Session = { send(events: readonly ComputerInput[]): void; close(): void }
+export type Session = { send(events: readonly ComputerInput[]): void; pick(id: string): void; close(): void }
 
 const STUN = "stun:stun.cloudflare.com:3478"
 const ICE_WAIT_MS = 350
@@ -217,6 +218,18 @@ function frameHeader(raw: ArrayBuffer): { width: number; height: number; seq: nu
   return { width: view.getUint16(2, true), height: view.getUint16(4, true), seq: view.getUint32(6, true) }
 }
 
+function readClipboard(data: string, onClipboard: (text: string) => void): void {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(data)
+  } catch {
+    return
+  }
+  if (typeof parsed !== "object" || parsed === null) return
+  const { t, text } = parsed as Record<string, unknown>
+  if (t === "clipboard" && typeof text === "string") onClipboard(text)
+}
+
 function startRelay(pcId: string, hooks: Hooks, on: { frame(): void; fail(): void }) {
   const context = hooks.canvas.getContext("2d")
   const address = liveSocket(pcId)
@@ -227,14 +240,25 @@ function startRelay(pcId: string, hooks: Hooks, on: { frame(): void; fail(): voi
   let latest: ArrayBuffer | null = null
   let busy = false
   let closed = false
+  let wants = true
+  let picked: string | null = null
   let painted = -1
   let bytes = 0
   let changedAt = 0
 
+  const control = (message: object) => {
+    if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify(message))
+  }
+
+  const announce = () => {
+    if (!wants) return
+    control({ t: "live", ...profile })
+  }
+
   const request = (next: Profile) => {
     profile = next
     changedAt = performance.now()
-    if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ t: "live", ...next }))
+    announce()
   }
 
   const adapt = (size: number) => {
@@ -278,10 +302,17 @@ function startRelay(pcId: string, hooks: Hooks, on: { frame(): void; fail(): voi
   }
 
   socket.addEventListener("open", () => {
-    if (!closed) socket.send(JSON.stringify({ t: "live", ...profile }))
+    if (closed) return
+    announce()
+    if (picked) control({ t: "screen", id: picked })
   })
   socket.addEventListener("message", (event) => {
-    if (closed || !(event.data instanceof ArrayBuffer)) return
+    if (closed) return
+    if (typeof event.data === "string") {
+      readClipboard(event.data, hooks.onClipboard)
+      return
+    }
+    if (!(event.data instanceof ArrayBuffer)) return
     latest = event.data
     void drain()
   })
@@ -293,6 +324,19 @@ function startRelay(pcId: string, hooks: Hooks, on: { frame(): void; fail(): voi
   })
 
   return {
+    pick(id: string) {
+      picked = id
+      control({ t: "screen", id })
+    },
+    silence() {
+      wants = false
+      latest = null
+      control({ t: "live", on: false })
+    },
+    resume() {
+      wants = true
+      announce()
+    },
     close() {
       closed = true
       latest = null
@@ -307,6 +351,7 @@ export function startSession(pcId: string, hooks: Hooks): Session {
   let rtc: Rtc | null = null
   let relay: ReturnType<typeof startRelay> | null = null
   let silent: ReturnType<typeof setTimeout> | undefined
+  let picked: string | null = null
 
   const setMode = (next: Mode) => {
     if (closed || mode === next) return
@@ -333,6 +378,7 @@ export function startSession(pcId: string, hooks: Hooks): Session {
         if (mode !== "rtc") setMode("stalled")
       },
     })
+    if (picked) relay.pick(picked)
     silent = setTimeout(() => {
       if (!closed && mode !== "rtc") setMode("stalled")
     }, RELAY_SILENT_MS)
@@ -347,13 +393,14 @@ export function startSession(pcId: string, hooks: Hooks): Session {
   rtc = startRtc(pcId, hooks, {
     live: () => {
       if (closed) return
-      stopRelay()
+      relay?.silence()
       setMode("rtc")
     },
     fail: () => {
       stopRtc()
       if (closed) return
-      openRelay()
+      if (relay) relay.resume()
+      else openRelay()
       if (mode === "rtc") setMode("connecting")
     },
   })
@@ -362,6 +409,10 @@ export function startSession(pcId: string, hooks: Hooks): Session {
     send(events) {
       if (rtc?.send(events)) return
       void run(owner.commands.pcInput, { pcId, events })
+    },
+    pick(id) {
+      picked = id
+      relay?.pick(id)
     },
     close() {
       closed = true

@@ -255,7 +255,14 @@ export const ComputerBrowser = Schema.Struct({
 })
 export type ComputerBrowser = typeof ComputerBrowser.Type
 
-export const ComputerDisplay = Schema.Struct({ id: Id, width: Count, height: Count, scale: Schema.Number })
+export const ComputerDisplay = Schema.Struct({
+  id: Id,
+  width: Count,
+  height: Count,
+  scale: Schema.Number,
+  originX: Schema.optionalKey(Schema.Int),
+  originY: Schema.optionalKey(Schema.Int),
+})
 export type ComputerDisplay = typeof ComputerDisplay.Type
 
 export const ComputerSignal = Schema.Struct({

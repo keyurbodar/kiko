@@ -5,6 +5,7 @@ type Point = { x: number; y: number }
 export type InputTarget = {
   stage: HTMLElement
   sink: HTMLTextAreaElement
+  pasteMods(): number
   send(events: readonly ComputerInput[]): void
 }
 
@@ -96,15 +97,19 @@ export function escapeEvents(event: KeyboardEvent): ComputerInput[] {
 function keyHandlers(target: InputTarget) {
   const { sink, send } = target
   const down = new Map<string, { key: string; mods: number }>()
+  let composing = false
 
   const typed = (text: string) => {
     sink.value = ""
     if (text) send([{ k: "text", s: text }])
   }
 
+  const composingKey = (event: KeyboardEvent) =>
+    composing || event.isComposing || event.key === "Process" || event.key === "Unidentified" || event.key === "Dead"
+
   return {
     keydown(event: KeyboardEvent) {
-      if (event.isComposing || event.key === "Process" || event.key === "Unidentified") return
+      if (composingKey(event)) return
       if (isPasteChord(event)) return
       if (event.key === "Escape") {
         if (event.shiftKey) return
@@ -124,14 +129,25 @@ function keyHandlers(target: InputTarget) {
       down.delete(event.code)
       send([{ k: "key", code: event.code, key: held.key, down: false, mods: modsOf(event) }])
     },
-    input(event: Event) {
-      const { isComposing, data } = event as InputEvent
-      if (isComposing) return
-      typed(data ?? "")
+    compositionStart() {
+      composing = true
+      down.clear()
+    },
+    compositionEnd(event: CompositionEvent) {
+      composing = false
+      typed(event.data ?? "")
+    },
+    beforeInput(event: InputEvent) {
+      if (composing || event.isComposing) return
+      if (event.inputType === "insertFromPaste" || event.inputType === "insertFromPasteAsQuotation") return
+      if (event.inputType !== "insertText" && event.inputType !== "insertReplacementText") return
+      typed(event.data ?? "")
     },
     paste(event: ClipboardEvent) {
       event.preventDefault()
-      typed(event.clipboardData?.getData("text/plain") ?? "")
+      const text = event.clipboardData?.getData("text/plain") ?? ""
+      if (!text) return
+      send([{ k: "paste", s: text, code: "KeyV", mods: target.pasteMods() }])
     },
     releaseAll() {
       for (const [code, held] of down) send([{ k: "key", code, key: held.key, down: false, mods: 0 }])
@@ -162,7 +178,9 @@ export function bindInput(target: InputTarget): () => void {
   const sinkEvents = {
     keydown: keys.keydown,
     keyup: keys.keyup,
-    input: keys.input,
+    beforeinput: keys.beforeInput,
+    compositionstart: keys.compositionStart,
+    compositionend: keys.compositionEnd,
     paste: keys.paste,
     blur: release,
   } as const

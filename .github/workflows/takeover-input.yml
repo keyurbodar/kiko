@@ -1,0 +1,166 @@
+name: takeover-input
+
+on:
+  push:
+    branches: ["t3/cu-*"]
+    paths:
+      - "apps/computer/src/live/**"
+      - "apps/computer/src/caps.ts"
+      - "apps/computer/src/serve.ts"
+      - "apps/server/scripts/measure-input.ts"
+      - "apps/server/src/computer/**"
+      - "apps/web-solid/src/chat/computer/**"
+      - "core/computer/src/wire.ts"
+      - ".github/workflows/takeover-input.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: takeover-input-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+  BUN_VERSION: "1.3.14"
+
+jobs:
+  linux:
+    name: paste and display pick on Linux
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - name: Install the desktop, clipboard and X tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ffmpeg openbox x11-utils x11-xserver-utils xclip xvfb
+      - name: Install Chromium
+        run: node apps/server/node_modules/playwright/cli.js install --with-deps chromium
+      - name: Paste a Unicode string and pick a display
+        run: |
+          set -euo pipefail
+          Xvfb :99 -screen 0 2304x1024x24 -nolisten tcp >/dev/null 2>&1 &
+          export DISPLAY=:99
+          for _ in $(seq 1 100); do
+            if xdpyinfo >/dev/null 2>&1; then break; fi
+            sleep 0.1
+          done
+          xrandr --setmonitor LEFT 1280/340x1024/271+0+0 none
+          xrandr --setmonitor RIGHT 1024/271x768/203+1280+0 none
+          xrandr --listmonitors
+          openbox --sm-disable >/dev/null 2>&1 &
+          bun apps/server/scripts/measure-input.ts --out input-proof.json
+      - name: Upload the proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: takeover-input-linux-${{ github.run_id }}
+          path: input-proof.json
+          if-no-files-found: warn
+
+  macos:
+    name: paste and click on macOS
+    runs-on: macos-15
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop
+      - name: Build kiko
+        working-directory: apps/desktop
+        run: |
+          rustup target add aarch64-apple-darwin
+          cargo build --release --locked --target aarch64-apple-darwin -p kiko-app
+      - name: Build the daemon
+        timeout-minutes: 20
+        run: |
+          bun install --frozen-lockfile --ignore-scripts
+          bun apps/computer/scripts/build.ts darwin-arm64
+      - name: Install ffmpeg and Chromium
+        run: |
+          command -v ffmpeg >/dev/null || brew install ffmpeg
+          node apps/server/node_modules/playwright/cli.js install chromium
+      - name: Fetch the desktop engine
+        run: |
+          cua="$(bash apps/desktop/scripts/fetch-cua-driver.sh darwin-universal "$RUNNER_TEMP/cua")"
+          echo "CUA_BIN=$cua" >> "$GITHUB_ENV"
+      - name: Fetch the browser engine
+        run: |
+          browser="$(bash apps/desktop/scripts/fetch-agent-browser.sh darwin-arm64 "$RUNNER_TEMP/browser")"
+          echo "BROWSER_BIN=$browser" >> "$GITHUB_ENV"
+      - name: Import the signing identity
+        env:
+          CERT: ${{ secrets.KIKO_MACOS_CERT_P12 }}
+          PASSWORD: ${{ secrets.KIKO_MACOS_CERT_PASSWORD }}
+        run: |
+          PASSWORD="$(printf '%s' "$PASSWORD" | tr -d '\r\n')"
+          KEYCHAIN="$RUNNER_TEMP/kiko.keychain-db"
+          security create-keychain -p "$PASSWORD" "$KEYCHAIN"
+          security set-keychain-settings -lut 3600 "$KEYCHAIN"
+          security unlock-keychain -p "$PASSWORD" "$KEYCHAIN"
+          printf '%s' "$CERT" | base64 -d > "$RUNNER_TEMP/kiko.p12"
+          security import "$RUNNER_TEMP/kiko.p12" -k "$KEYCHAIN" -P "$PASSWORD" -T /usr/bin/codesign -T /usr/bin/security
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$PASSWORD" "$KEYCHAIN" >/dev/null
+          security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr -d '"')
+          openssl pkcs12 -in "$RUNNER_TEMP/kiko.p12" -clcerts -nokeys -passin "pass:$PASSWORD" -out "$RUNNER_TEMP/kiko.pem"
+          sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain "$RUNNER_TEMP/kiko.pem"
+          rm -f "$RUNNER_TEMP/kiko.p12" "$RUNNER_TEMP/kiko.pem"
+      - name: Bundle and sign
+        env:
+          KIKO_BIN: ${{ github.workspace }}/apps/desktop/target/aarch64-apple-darwin/release/kiko
+          KIKO_CORE_BIN: ${{ github.workspace }}/apps/computer/dist/kiko-computer-darwin-arm64
+          KIKO_CUA_BIN: ${{ env.CUA_BIN }}
+          KIKO_AGENT_BROWSER_BIN: ${{ env.BROWSER_BIN }}
+        run: bash apps/desktop/scripts/bundle-macos.sh arm64 dist kiko
+      - name: Grant input and capture to the app, the engine and the daemon
+        env:
+          APP: ${{ github.workspace }}/dist/kiko.app/Contents/MacOS/kiko
+          DRIVER: ${{ github.workspace }}/dist/kiko.app/Contents/MacOS/cua-driver
+        run: |
+          set -euo pipefail
+          database="/Library/Application Support/com.apple.TCC/TCC.db"
+          now=$(date +%s)
+          for client in $APP $DRIVER $(which bun) "$RUNNER_TEMP/cua-driver"; do
+            if [ ! -e "$client" ]; then continue; fi
+            for service in kTCCServiceAccessibility kTCCServiceScreenCapture; do
+              sudo sqlite3 "$database" \
+                "INSERT OR REPLACE INTO access(service,client,client_type,auth_value,auth_reason,auth_version,csreq,policy_id,indirect_object_identifier_type,indirect_object_identifier,indirect_object_code_identity,flags,last_modified) \
+                 VALUES('${service}','${client}',1,2,4,1,NULL,NULL,0,'UNUSED',NULL,0,${now});"
+            done
+          done
+          sudo killall tccd 2>/dev/null || true
+          sleep 2
+          pgrep -lx tccd || sudo launchctl kickstart -k system/com.apple.tccd || true
+          sudo sqlite3 "$database" "SELECT service, client, auth_value FROM access WHERE client LIKE '%bun%' OR client LIKE '%kiko%' OR client LIKE '%cua%';"
+      - name: Paste a Unicode string and click on the macOS display
+        env:
+          APP_DIR: ${{ runner.temp }}/kiko-app
+        run: |
+          set -euo pipefail
+          mkdir -p "$APP_DIR"
+          KIKO_APP_DIR="$APP_DIR" \
+          KIKO_CUA="${{ github.workspace }}/dist/kiko.app/Contents/MacOS/cua-driver" \
+          "${{ github.workspace }}/dist/kiko.app/Contents/MacOS/kiko" >"$APP_DIR/kiko.log" 2>&1 &
+          for _ in $(seq 1 120); do
+            if [ -S "$APP_DIR/driver.sock" ]; then break; fi
+            sleep 1
+          done
+          ls -la "$APP_DIR"
+          KIKO_DRIVER="$APP_DIR/driver.sock" bun apps/server/scripts/measure-input.ts --single --out input-proof.json
+      - name: Upload the proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: takeover-input-macos-${{ github.run_id }}
+          path: |
+            input-proof.json
+            ${{ runner.temp }}/kiko-app/kiko.log
+          if-no-files-found: warn
