@@ -19,7 +19,7 @@
     },
     "windows-arm64": {
       "asset": "cua-driver-rs-0.38.0-windows-arm64-binary.zip",
-      "sha256": "c442872360cbb819e288b9f30daa7e3d2693d5945495d1400bcd90af5bd16402"
+      "sha256": "d25c8ebfffb34e4c095ea170baf47b87c35dc0d1116f42e46b39df2bcbff8700"
     }
   }
 }

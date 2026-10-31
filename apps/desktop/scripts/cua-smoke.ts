@@ -172,6 +172,19 @@ function windowsOf(value: unknown): CuaWindow[] {
   return windows
 }
 
+const TEXT_ROLES = new Set([
+  "entry",
+  "text",
+  "text area",
+  "text field",
+  "textfield",
+  "text box",
+  "textbox",
+  "textarea",
+  "edit",
+  "document",
+])
+
 function tokenOf(text: string): string | undefined {
   const snapshot = text.match(/snapshot_id=([A-Za-z0-9]+)/)?.[1]
   if (!snapshot) return undefined
@@ -179,8 +192,7 @@ function tokenOf(text: string): string | undefined {
     const row = line.match(/^\s*- \[(\d+)\] (.+)$/)
     if (!row) continue
     const role = (row[2] ?? "").split('"')[0]?.trim().toLowerCase() ?? ""
-    if (["entry", "text field", "textfield", "text box", "textbox", "textarea", "edit"].includes(role))
-      return `${snapshot}:${row[1]}`
+    if (TEXT_ROLES.has(role)) return `${snapshot}:${row[1]}`
   }
   return undefined
 }
@@ -192,13 +204,16 @@ async function command(args: string[]): Promise<string> {
   return out.trim()
 }
 
+async function macFrontmost(): Promise<string> {
+  const front = await command(["lsappinfo", "front"])
+  if (!front) throw new Error("lsappinfo does not name a front application")
+  const info = await command(["lsappinfo", "info", "-only", "name", front])
+  const match = info.match(/"LSDisplayName"="([^"]+)"/) ?? info.match(/"name"="([^"]+)"/)
+  return match?.[1] ?? info.trim()
+}
+
 async function frontmost(): Promise<string> {
-  if (process.platform === "darwin")
-    return command([
-      "osascript",
-      "-e",
-      'tell application "System Events" to get name of first application process whose frontmost is true',
-    ])
+  if (process.platform === "darwin") return macFrontmost()
   if (process.platform === "win32")
     return command([
       "powershell",
@@ -221,17 +236,31 @@ async function frontAwayFrom(fixture: Fixture): Promise<string> {
   }
 }
 
+async function linuxFocus(title: string): Promise<void> {
+  const found = await command(["xdotool", "search", "--name", title])
+  const id = found
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .at(-1)
+  if (id) await command(["xdotool", "windowactivate", "--sync", id])
+}
+
 async function focusDecoy(decoy: string): Promise<void> {
   try {
-    if (process.platform === "darwin") await command(["osascript", "-e", 'tell application "Finder" to activate'])
+    if (process.platform === "darwin") await command(["open", "-a", decoy])
     else if (process.platform === "win32")
       await command([
         "powershell",
         "-NoProfile",
-        "-Command",
-        `(New-Object -ComObject WScript.Shell).AppActivate('${decoy.replace(/'/g, "''")}')`,
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        join(import.meta.dir, "fixtures", "activate-window.ps1"),
+        "-Title",
+        decoy,
       ])
-    else await command(["xdotool", "search", "--name", decoy, "windowactivate", "--sync"])
+    else await linuxFocus(decoy)
   } catch {
     return
   }
@@ -256,13 +285,7 @@ async function macFixture(dir: string): Promise<Fixture> {
   await Bun.write(file, "seed")
   Bun.spawn(["open", "-g", "-a", "TextEdit", file], { stdout: "ignore", stderr: "ignore" })
   Bun.spawn(["open", "-g", "-a", "Finder", dir], { stdout: "ignore", stderr: "ignore" })
-  return {
-    title: basename(file),
-    decoy: "Finder",
-    stop: async () => {
-      await command(["osascript", "-e", 'tell application "TextEdit" to quit saving no']).catch(() => "")
-    },
-  }
+  return { title: basename(file), decoy: "Finder", stop: async () => {} }
 }
 
 async function windowsFixture(dir: string): Promise<Fixture> {
