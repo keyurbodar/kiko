@@ -50,7 +50,7 @@ html,body{margin:0;height:100%;background:#111;color:#eee;font:16px system-ui}
 window.__name = ${JSON.stringify(name)}
 window.__events = []
 addEventListener("pointerdown", (event) => {
-  window.__events.push({ t: Date.now(), x: event.clientX / innerWidth, y: event.clientY / innerHeight })
+  window.__events.push({ t: Date.now(), x: event.clientX / innerWidth, y: event.clientY / innerHeight, screenX: event.screenX, screenY: event.screenY })
 })
 document.getElementById("field").focus()
 </script>`
@@ -299,15 +299,18 @@ async function main(): Promise<void> {
       await stageClick(0.5, 0.5)
       await until("the click on the only display", async () => (await events(leftPage)) > 0, 10_000)
       const landed = (await leftPage.evaluate(() => {
-        const log = window as unknown as { __events: { x: number; y: number }[] }
+        const log = window as unknown as { __events: { x: number; y: number; screenX: number; screenY: number }[] }
         return log.__events.at(-1)
-      })) as { x: number; y: number }
+      })) as { x: number; y: number; screenX: number; screenY: number }
       result.click = landed
       await page.evaluate((text) => navigator.clipboard.writeText(text), TEXT)
       await page.keyboard.press(process.platform === "darwin" ? "Meta+v" : "Control+v")
       await until("the pasted text", async () => (await leftPage.inputValue("#field")) === TEXT, 30_000)
       result.pasted = await leftPage.inputValue("#field")
-      const centred = Math.abs(landed.x - 0.5) < 0.05 && Math.abs(landed.y - 0.5) < 0.05
+      const centred =
+        area !== null &&
+        Math.abs(landed.screenX - area.width / 2) < 80 &&
+        Math.abs(landed.screenY - area.height / 2) < 80
       const exact = result.pasted === TEXT
       result.pass = { exact, centred }
       failed = !exact || !centred
@@ -317,9 +320,9 @@ async function main(): Promise<void> {
       await stageClick(0.5, 0.5)
       await until("the click on the right display", async () => (await events(rightPage)) > before.right, 10_000)
       const landed = (await rightPage.evaluate(() => {
-        const log = window as unknown as { __events: { x: number; y: number }[] }
+        const log = window as unknown as { __events: { x: number; y: number; screenX: number; screenY: number }[] }
         return log.__events.at(-1)
-      })) as { x: number; y: number }
+      })) as { x: number; y: number; screenX: number; screenY: number }
       result.rightClick = landed
       result.leftUnaffected = (await events(leftPage)) === before.left
 
@@ -333,15 +336,15 @@ async function main(): Promise<void> {
       await stageClick(0.5, 0.5)
       await until("the click on the left display", async () => (await events(leftPage)) > 0, 10_000)
       const leftClick = (await leftPage.evaluate(() => {
-        const log = window as unknown as { __events: { x: number; y: number }[] }
+        const log = window as unknown as { __events: { x: number; y: number; screenX: number; screenY: number }[] }
         return log.__events.at(-1)
-      })) as { x: number; y: number }
+      })) as { x: number; y: number; screenX: number; screenY: number }
       result.leftClick = leftClick
       result.rightStayed = (await events(rightPage)) === switched.right
 
       const exact = result.pasted === TEXT
-      const rightCenter = Math.abs(landed.x - 0.5) < 0.02 && Math.abs(landed.y - 0.5) < 0.02
-      const leftCenter = Math.abs(leftClick.x - 0.5) < 0.02 && Math.abs(leftClick.y - 0.5) < 0.02
+      const rightCenter = Math.abs(landed.screenX - 1792) < 80 && Math.abs(landed.screenY - 384) < 80
+      const leftCenter = Math.abs(leftClick.screenX - 640) < 80 && Math.abs(leftClick.screenY - 512) < 80
       result.pass = {
         exact,
         rightCenter,
