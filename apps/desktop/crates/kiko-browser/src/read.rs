@@ -309,7 +309,7 @@ pub async fn read(state: &mut State, params: &BrowserReadParams) -> Result<Page>
     }
     let tab = tabs::one(state, &link, &slug, &target).await?;
     let tree = fetch(&link, &session, None).await?;
-    let tree = with_frames(&link, &session, tree).await;
+    let tree = with_frames(state, &slug, &link, &session, tree).await;
     let mut refs = std::mem::take(state.refs(&params.tab));
     let mut nodes = nodes_of(&tree, &mut refs);
     fill_boxes(&link, &session, &mut nodes, &refs).await;
@@ -343,7 +343,13 @@ async fn fetch(link: &Link, session: &str, frame: Option<&str>) -> Result<Tree> 
     Ok(Tree::parse(&result["nodes"]))
 }
 
-async fn with_frames(link: &Link, session: &str, mut tree: Tree) -> Tree {
+async fn with_frames(
+    state: &mut State,
+    slug: &str,
+    link: &Link,
+    session: &str,
+    mut tree: Tree,
+) -> Tree {
     let iframes = tree.iframes();
     if iframes.is_empty() {
         return tree;
@@ -354,14 +360,21 @@ async fn with_frames(link: &Link, session: &str, mut tree: Tree) -> Tree {
         let Some(frame) = describe_frame(link, session, backend).await else {
             continue;
         };
-        if frames.contains(&frame) {
-            if let Ok(child) = fetch(link, session, Some(&frame)).await {
-                tree.graft(&anchor, &frame, child);
+        let child = if targets.contains(&frame) {
+            let fetched = match state.session(slug, &frame).await {
+                Ok((_, iframe_session)) => fetch(link, &iframe_session, None).await.ok(),
+                Err(_) => None,
+            };
+            if fetched.is_none() {
+                state.forget_session(slug, &frame);
             }
-        } else if targets.contains(&frame)
-            && let Ok(iframe_session) = crate::state::attach(link, &frame).await
-            && let Ok(child) = fetch(link, &iframe_session, None).await
-        {
+            fetched
+        } else if frames.contains(&frame) {
+            fetch(link, session, Some(&frame)).await.ok()
+        } else {
+            None
+        };
+        if let Some(child) = child {
             tree.graft(&anchor, &frame, child);
         }
     }

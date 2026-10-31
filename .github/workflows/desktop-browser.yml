@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - "t3/bg-*"
+      - "t3/cu-fix-oopif"
   pull_request:
     paths:
       - "apps/desktop/**"

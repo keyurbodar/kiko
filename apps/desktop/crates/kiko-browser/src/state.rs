@@ -189,7 +189,7 @@ impl State {
     }
 }
 
-pub async fn attach(link: &Link, target: &str) -> Result<String> {
+async fn attach(link: &Link, target: &str) -> Result<String> {
     let result = link
         .send(
             "Target.attachToTarget",

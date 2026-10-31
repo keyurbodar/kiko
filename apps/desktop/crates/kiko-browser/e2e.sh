@@ -90,6 +90,9 @@ fi
   --disable-background-networking \
   --disable-component-update \
   --disable-features=Translate \
+  --site-per-process \
+  --no-proxy-server \
+  "--host-resolver-rules=MAP frame.test 127.0.0.1" \
   --window-size=1200,900 \
   ${extra[@]+"${extra[@]}"} \
   about:blank >/tmp/kiko-browser-e2e-chrome.log 2>&1 &

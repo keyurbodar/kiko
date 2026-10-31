@@ -1,3 +1,7 @@
+use std::io::{Read, Write};
+use std::net::{TcpListener, TcpStream};
+use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use kiko_browser::browser;
@@ -472,4 +476,248 @@ fn closes_and_reopens_tabs() {
     driver
         .show(&kiko_driver::TabParams { tab: tab.id })
         .expect_err("a closed tab cannot be shown");
+}
+
+struct DevToolsPort {
+    file: PathBuf,
+    original: String,
+    port: u16,
+    path: String,
+}
+
+impl DevToolsPort {
+    fn read(profile: &Path) -> Self {
+        let file = profile.join("DevToolsActivePort");
+        let original =
+            std::fs::read_to_string(&file).expect("the e2e chrome wrote DevToolsActivePort");
+        let mut lines = original.lines();
+        let port = lines
+            .next()
+            .and_then(|port| port.trim().parse().ok())
+            .expect("a port in DevToolsActivePort");
+        let path = lines
+            .next()
+            .expect("a browser path in DevToolsActivePort")
+            .to_string();
+        Self {
+            file,
+            original,
+            port,
+            path,
+        }
+    }
+
+    fn point_at(&self, port: u16) {
+        std::fs::write(&self.file, format!("{port}\n{}\n", self.path))
+            .expect("point the e2e browser at the proxy");
+    }
+}
+
+impl Drop for DevToolsPort {
+    fn drop(&mut self) {
+        let _ = std::fs::write(&self.file, &self.original);
+    }
+}
+
+fn profile_dir() -> PathBuf {
+    let dirs = std::env::var_os("KIKO_BROWSER_PROFILE_DIRS")
+        .expect("KIKO_BROWSER_PROFILE_DIRS must point at the e2e profile");
+    std::env::split_paths(&dirs)
+        .next()
+        .expect("the e2e profile dir")
+}
+
+fn serve(html: String) -> u16 {
+    let listener = TcpListener::bind(("127.0.0.1", 0)).expect("bind a fixture server");
+    let port = listener.local_addr().expect("the fixture address").port();
+    std::thread::spawn(move || {
+        for stream in listener.incoming().flatten() {
+            let html = html.clone();
+            std::thread::spawn(move || {
+                let mut stream = stream;
+                let mut request = [0u8; 2048];
+                let _ = stream.read(&mut request);
+                let response = format!(
+                    "HTTP/1.1 200 OK\r\ncontent-type: text/html\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{html}",
+                    html.len()
+                );
+                let _ = stream.write_all(response.as_bytes());
+            });
+        }
+    });
+    port
+}
+
+fn proxy(upstream: u16) -> (u16, Arc<Mutex<Vec<String>>>) {
+    let listener = TcpListener::bind(("127.0.0.1", 0)).expect("bind the devtools proxy");
+    let port = listener.local_addr().expect("the proxy address").port();
+    let attaches = Arc::new(Mutex::new(Vec::new()));
+    let record = attaches.clone();
+    std::thread::spawn(move || {
+        for client in listener.incoming().flatten() {
+            let record = record.clone();
+            std::thread::spawn(move || forward(client, upstream, record));
+        }
+    });
+    (port, attaches)
+}
+
+fn forward(client: TcpStream, upstream: u16, record: Arc<Mutex<Vec<String>>>) {
+    let Ok(server) = TcpStream::connect(("127.0.0.1", upstream)) else {
+        return;
+    };
+    let (Ok(to_client), Ok(from_server)) = (client.try_clone(), server.try_clone()) else {
+        return;
+    };
+    std::thread::spawn(move || {
+        let mut from_server = from_server;
+        let mut to_client = to_client;
+        let _ = std::io::copy(&mut from_server, &mut to_client);
+    });
+    requests(client, server, record);
+}
+
+fn requests(mut from: TcpStream, mut to: TcpStream, record: Arc<Mutex<Vec<String>>>) {
+    let mut buffer = Vec::new();
+    let mut chunk = [0u8; 16384];
+    let mut handshake = true;
+    loop {
+        let Ok(read) = from.read(&mut chunk) else {
+            return;
+        };
+        if read == 0 {
+            return;
+        }
+        if to.write_all(&chunk[..read]).is_err() {
+            return;
+        }
+        buffer.extend_from_slice(&chunk[..read]);
+        if handshake {
+            let Some(end) = position_of(&buffer, b"\r\n\r\n") else {
+                continue;
+            };
+            buffer.drain(..end + 4);
+            handshake = false;
+        }
+        while let Some((message, used)) = frame(&buffer) {
+            buffer.drain(..used);
+            if let Some(message) = message
+                && message["method"] == "Target.attachToTarget"
+                && let Some(target) = message["params"]["targetId"].as_str()
+            {
+                record
+                    .lock()
+                    .expect("the attach record")
+                    .push(target.to_string());
+            }
+        }
+    }
+}
+
+fn position_of(haystack: &[u8], needle: &[u8]) -> Option<usize> {
+    haystack
+        .windows(needle.len())
+        .position(|window| window == needle)
+}
+
+fn frame(buffer: &[u8]) -> Option<(Option<Value>, usize)> {
+    if buffer.len() < 2 {
+        return None;
+    }
+    let opcode = buffer[0] & 0x0f;
+    let masked = buffer[1] & 0x80 != 0;
+    let short = usize::from(buffer[1] & 0x7f);
+    let mut at = 2;
+    let length = match short {
+        126 => {
+            if buffer.len() < 4 {
+                return None;
+            }
+            at = 4;
+            usize::from(u16::from_be_bytes([buffer[2], buffer[3]]))
+        }
+        127 => {
+            if buffer.len() < 10 {
+                return None;
+            }
+            at = 10;
+            usize::try_from(u64::from_be_bytes(buffer[2..10].try_into().ok()?)).ok()?
+        }
+        length => length,
+    };
+    let key = if masked {
+        if buffer.len() < at + 4 {
+            return None;
+        }
+        let key = [buffer[at], buffer[at + 1], buffer[at + 2], buffer[at + 3]];
+        at += 4;
+        key
+    } else {
+        [0; 4]
+    };
+    if buffer.len() < at + length {
+        return None;
+    }
+    let used = at + length;
+    let message = (opcode == 1).then(|| {
+        let payload: Vec<u8> = buffer[at..used]
+            .iter()
+            .zip(key.iter().cycle())
+            .map(|(byte, key)| byte ^ key)
+            .collect();
+        serde_json::from_slice(&payload).ok()
+    });
+    Some((message.flatten(), used))
+}
+
+const FRAME: &str = "<!doctype html><html><head><title>frame</title></head><body><button id=\"inner\" aria-label=\"Inner\">Inner</button></body></html>";
+
+#[test]
+#[ignore]
+fn reads_a_cross_origin_frame_through_one_session() {
+    let frame = serve(FRAME.to_string());
+    let outer = serve(format!(
+        "<!doctype html><html><head><title>outer</title></head><body><iframe title=\"Frame\" src=\"http://frame.test:{frame}/frame\"></iframe></body></html>"
+    ));
+    let devtools = DevToolsPort::read(&profile_dir());
+    let (port, attaches) = proxy(devtools.port);
+    devtools.point_at(port);
+
+    let mut driver = browser();
+    let tab = driver
+        .open(&BrowserOpenParams {
+            url: format!("http://127.0.0.1:{outer}/outer"),
+            mode: Mode::Background,
+        })
+        .expect("open the page with a cross-origin frame");
+    wait_for("the cross-origin frame to load", || {
+        driver
+            .read(&BrowserReadParams {
+                tab: tab.id.clone(),
+                image: false,
+                max_width: None,
+            })
+            .ok()
+            .filter(|page| page.nodes.iter().any(|node| node.name == "Inner"))
+            .map(|_| ())
+    });
+
+    let first = read(&mut driver, &tab, false);
+    find(&first, "button", "Inner");
+    let second = read(&mut driver, &tab, false);
+    find(&second, "button", "Inner");
+
+    let page_target = tab.id.split_once(':').expect("slug:target").1;
+    let attached: Vec<String> = attaches
+        .lock()
+        .expect("the attach record")
+        .iter()
+        .filter(|target| target.as_str() != page_target)
+        .cloned()
+        .collect();
+    assert_eq!(
+        attached.len(),
+        1,
+        "repeated reads attach to the cross-origin frame once, not {attached:?}"
+    );
 }
