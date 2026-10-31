@@ -185,14 +185,18 @@ const TEXT_ROLES = new Set([
   "document",
 ])
 
+function roleOf(row: string): string {
+  const head = (row.split('"')[0] ?? "").trim().toLowerCase().replace(/=+$/, "").trim()
+  return head.startsWith("ax") ? head.slice(2) : head
+}
+
 function tokenOf(text: string): string | undefined {
   const snapshot = text.match(/snapshot_id=([A-Za-z0-9]+)/)?.[1]
   if (!snapshot) return undefined
   for (const line of text.split("\n")) {
     const row = line.match(/^\s*- \[(\d+)\] (.+)$/)
     if (!row) continue
-    const role = (row[2] ?? "").split('"')[0]?.trim().toLowerCase() ?? ""
-    if (TEXT_ROLES.has(role)) return `${snapshot}:${row[1]}`
+    if (TEXT_ROLES.has(roleOf(row[2] ?? ""))) return `${snapshot}:${row[1]}`
   }
   return undefined
 }
