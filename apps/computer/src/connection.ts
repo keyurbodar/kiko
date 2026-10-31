@@ -61,6 +61,8 @@ type Held = { at: number; frame: Result }
 
 const decodeFrame = Schema.decodeUnknownOption(ToDaemon)
 
+const elapsedMs = (started: number): number => Math.round(performance.now() - started)
+
 function decodeArgs(op: Op, raw: unknown): unknown {
   const decoded = Schema.decodeUnknownOption(Calls[op].args)(raw)
   if (Option.isNone(decoded))
@@ -361,13 +363,14 @@ class Link {
       context.budgetMs,
     )
     let result: Result
+    const started = performance.now()
     try {
       const args = decodeArgs(frame.op, frame.args)
       const value = await this.execute(frame.op, args, context)
       if (context.aborted) throw abortReason(context.signal)
-      result = { t: "result", id: frame.id, ok: true, value: encodeValue(frame.op, value) }
+      result = { t: "result", id: frame.id, ok: true, value: encodeValue(frame.op, value), opMs: elapsedMs(started) }
     } catch (error) {
-      result = { t: "result", id: frame.id, ok: false, error: failure(error) }
+      result = { t: "result", id: frame.id, ok: false, error: failure(error), opMs: elapsedMs(started) }
     } finally {
       clearTimeout(timer)
       this.pending.delete(frame.id)

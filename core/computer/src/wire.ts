@@ -242,12 +242,19 @@ export type ToDaemon = typeof ToDaemon.Type
 
 export const FromDaemon = Schema.Union([
   Hello,
-  Schema.Struct({ t: Schema.Literal("result"), id: Id, ok: Schema.Literal(true), value: Schema.Unknown }),
+  Schema.Struct({
+    t: Schema.Literal("result"),
+    id: Id,
+    ok: Schema.Literal(true),
+    value: Schema.Unknown,
+    opMs: Schema.optionalKey(Count),
+  }),
   Schema.Struct({
     t: Schema.Literal("result"),
     id: Id,
     ok: Schema.Literal(false),
     error: Schema.Struct({ code: FailCode, message: Text }),
+    opMs: Schema.optionalKey(Count),
   }),
   Schema.Struct({ t: Schema.Literal("chunk"), id: Id, data: Text }),
   Schema.Struct({ t: Schema.Literal("humanInput") }),

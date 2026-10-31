@@ -1,5 +1,5 @@
 export type Os = "macos" | "windows" | "linux"
-export type Track = "terminal" | "browser" | "desktop" | "mixed"
+export type Track = "terminal" | "browser" | "desktop" | "mixed" | "environment"
 export type Condition = "foreground" | "background"
 export type Need = "display" | "chrome" | "electron" | "network" | "docker"
 
@@ -38,6 +38,7 @@ export interface Task {
   readonly os: readonly Os[]
   readonly needs: readonly Need[]
   readonly heldOut: boolean
+  readonly contenders?: readonly string[]
   readonly prompt: string
   readonly limits: { readonly turns: number; readonly seconds: number }
   setup(m: Machine, seed: number): Promise<void>
@@ -58,6 +59,8 @@ export interface ToolResult {
   readonly text: string
   readonly images: readonly Image[]
   readonly isError: boolean
+  readonly opMs?: number
+  readonly transportMs?: number
 }
 
 export interface Contender {
