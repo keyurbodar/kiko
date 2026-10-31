@@ -69,6 +69,6 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             at-spi2-core dbus gir1.2-gtk-3.0 gnome-shell libclang-dev \
             libpipewire-0.3-dev mutter pipewire pkgconf python3-gi \
-            wireplumber xdg-desktop-portal xdg-desktop-portal-gnome xwayland
+            wireplumber x11-utils xdg-desktop-portal xdg-desktop-portal-gnome xwayland
       - name: End-to-end on Wayland
         run: ./crates/kiko-native-linux/wayland-e2e.sh

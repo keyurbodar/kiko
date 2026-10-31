@@ -52,6 +52,20 @@ dbus-run-session -- bash -euo pipefail -c '
     tail -20 /tmp/kiko-wayland-shell.log >&2 || true
     exit 1
   fi
+  for _ in $(seq 1 100); do
+    auth="$(ls -1 "$XDG_RUNTIME_DIR"/.mutter-Xwaylandauth.* 2>/dev/null | head -n 1)"
+    if [ -n "$auth" ]; then
+      export XAUTHORITY="$auth"
+      break
+    fi
+    sleep 0.1
+  done
+  if ! xdpyinfo >/dev/null 2>&1; then
+    echo "the headless compositor's Xwayland did not accept clients" >&2
+    ls -1 "$XDG_RUNTIME_DIR" >&2 || true
+    tail -20 /tmp/kiko-wayland-shell.log >&2 || true
+    exit 1
+  fi
   pipewire >/tmp/kiko-wayland-pipewire.log 2>&1 & pids+=($!)
   wireplumber >/tmp/kiko-wayland-wireplumber.log 2>&1 & pids+=($!)
   /usr/libexec/xdg-desktop-portal >/tmp/kiko-wayland-portal.log 2>&1 & pids+=($!)
