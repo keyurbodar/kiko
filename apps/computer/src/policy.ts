@@ -15,10 +15,10 @@ function canonical(path: string): string {
   let current = resolve(path)
   for (;;) {
     try {
-      return resolve(realpathSync(current), ...rest.reverse())
+      return resolve(realpathSync(current), ...rest.toReversed())
     } catch {
       const parent = dirname(current)
-      if (parent === current) return resolve(current, ...rest.reverse())
+      if (parent === current) return resolve(current, ...rest.toReversed())
       rest.push(basename(current))
       current = parent
     }

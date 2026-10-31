@@ -114,7 +114,7 @@ export function startCdp(): Promise<Cdp> {
       sockets.add(socket)
       socket.on("close", () => sockets.delete(socket))
       handshake(request, socket)
-      let buffer = head
+      let buffer: Buffer = head
       socket.on("data", (chunk: Buffer) => {
         buffer = read(Buffer.concat([buffer, chunk]), (text) => {
           const message = JSON.parse(text) as Message

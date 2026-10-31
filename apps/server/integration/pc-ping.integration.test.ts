@@ -4,7 +4,7 @@ import type { Duplex } from "node:stream"
 import { connectMessage, CONNECT_HEADERS, generateKeys, sign } from "@kiko/computer/sign"
 import { PROTOCOL } from "@kiko/computer/wire"
 import { describe, it } from "@effect/vitest"
-import { Effect } from "effect"
+import { Clock, Effect } from "effect"
 import { RPC_PONG } from "../src/rpc/wire"
 import { connect, signIn } from "./owner"
 import { localWorker } from "./worker"
@@ -170,7 +170,7 @@ describe.concurrent("pc socket", () => {
       const minted = yield* session.client["pc.pairCode"]()
       const keys = yield* Effect.promise(() => generateKeys())
       const paired = yield* pair(worker.url, minted.code, keys.publicKey)
-      const ts = Date.now()
+      const ts = yield* Clock.currentTimeMillis
       const signature = yield* Effect.promise(() =>
         sign(keys.privateKey, connectMessage(paired.userId, paired.id, ts, PROTOCOL)),
       )
