@@ -94,7 +94,7 @@ async function add(ctx: Context): Promise<void> {
 
   const found = await withOwner(ctx, (client) =>
     waitForComputer(pcStream(client), { name: ctx.name, known }).pipe(
-      Effect.catchAll(() => Effect.succeed(null as ComputerSummary | null)),
+      Effect.catch(() => Effect.succeed(null as ComputerSummary | null)),
     ),
   )
   if (found) {

@@ -8,7 +8,7 @@ export const WAIT_BUDGET = Duration.seconds(60)
 
 type Computers = Stream.Stream<readonly ComputerSummary[]>
 
-export function capabilityList(caps: ComputerCaps, background: boolean): readonly string[] {
+function capabilityList(caps: ComputerCaps, background: boolean): readonly string[] {
   const list: string[] = []
   if (caps.shell) list.push("shell")
   if (caps.files) list.push("files")
@@ -26,10 +26,10 @@ export function describeComputer(pc: ComputerSummary): string {
 }
 
 export interface DaemonReadings {
-  readonly welcomed: boolean
-  readonly cannotReach: string | null
-  readonly refused: string | null
-  readonly protocol: string | null
+  welcomed: boolean
+  cannotReach: string | null
+  refused: string | null
+  protocol: string | null
 }
 
 export function readDaemonLog(lines: readonly string[]): DaemonReadings {
@@ -107,9 +107,8 @@ export function pcStream(client: {
   "user.subscribe"(payload: { afterSequence?: number }): Stream.Stream<UserStreamItem, unknown>
 }): Computers {
   return client["user.subscribe"]({}).pipe(
-    Stream.filterMap((item) =>
-      item.kind === "signal" && item.signal.t === "pcState" ? Stream.succeed(item.signal.computers) : Stream.empty,
-    ),
+    Stream.map((item) => (item.kind === "signal" && item.signal.t === "pcState" ? item.signal.computers : undefined)),
+    Stream.filter((list): list is readonly ComputerSummary[] => list !== undefined),
   )
 }
 
