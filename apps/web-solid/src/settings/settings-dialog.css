@@ -6,7 +6,7 @@
   background: var(--bg-editor);
   border-radius: var(--radius-xl);
   box-shadow:
-    0 0 0 1px var(--stroke-secondary),
+    0 0 0 1px var(--stroke-tertiary),
     var(--box-shadow-dialog);
 }
 
@@ -157,10 +157,6 @@
   background: var(--bg-quaternary);
 }
 
-.settings-nav-row[aria-current="page"] .settings-nav-icon {
-  color: var(--icon-primary);
-}
-
 .settings-nav-glide {
   background: var(--bg-quaternary);
   border-radius: var(--radius-base);
@@ -194,8 +190,6 @@
   flex: none;
   align-items: center;
   justify-content: center;
-  color: var(--icon-secondary);
-  transition: color var(--duration-fast) var(--ease-sharp);
 }
 
 .settings-nav-label {

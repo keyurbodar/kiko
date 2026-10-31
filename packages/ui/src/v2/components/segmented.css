@@ -13,7 +13,6 @@
     overflow-x: auto;
     background: var(--bg-quinary);
     border-radius: var(--radius-base);
-    box-shadow: inset 0 0 0 1px var(--stroke-tertiary);
     scrollbar-width: none;
   }
 
@@ -24,7 +23,6 @@
     left: 0;
     background: var(--bg-tertiary);
     border-radius: var(--radius-sm);
-    box-shadow: inset 0 0 0 1px var(--stroke-tertiary);
     pointer-events: none;
   }
 

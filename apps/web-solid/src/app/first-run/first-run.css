@@ -289,8 +289,6 @@
   margin: 0 -8px;
   padding: 2px 8px 8px;
   mask-image: linear-gradient(to bottom, #000 calc(100% - 24px), transparent);
-  scrollbar-width: thin;
-  scrollbar-color: var(--bg-secondary) transparent;
 }
 .ob-group {
   display: flex;

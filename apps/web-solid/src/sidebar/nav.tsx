@@ -15,7 +15,7 @@ const hintOf = (id: CommandId): string => {
 function NavBody(props: { icon: Glyph; label: string; hint?: string }): JSX.Element {
   return (
     <>
-      <span class="nav-icon">
+      <span class="nav-icon row-icon">
         <RemixIcon icon={props.icon} size={14} />
       </span>
       <span class="nav-label">{props.label}</span>

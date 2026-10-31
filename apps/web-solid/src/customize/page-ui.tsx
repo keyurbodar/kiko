@@ -205,7 +205,7 @@ export function SkeletonRows(props: { count: number; grid?: boolean }) {
     >
       <For each={Array.from({ length: props.count })}>
         {() => (
-          <div class="flex items-center gap-3 rounded-xl border border-tertiary bg-editor p-3">
+          <div class="flex items-center gap-3 rounded-xl bg-quinary p-3">
             <span class="motion-skeleton size-8 shrink-0 rounded-lg" />
             <span class="flex flex-1 flex-col gap-1.5">
               <span class="motion-skeleton h-3 w-1/3 rounded-sm" />

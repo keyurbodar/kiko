@@ -94,7 +94,7 @@ function Leading(props: { item: Item }) {
         <Show
           when={props.item.chatId ?? props.item.seed}
           fallback={
-            <span class="palette-icon">
+            <span class="palette-icon row-icon">
               <RemixIcon
                 icon={props.item.glyph ?? (props.item.folder ? FolderIcon : iconFor(props.item.icon ?? "command"))}
                 size={14}

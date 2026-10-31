@@ -31,11 +31,8 @@
   aspect-ratio: 16 / 10;
   overflow: hidden;
   border-radius: var(--radius-xl);
-  background-color: var(--bg-editor);
-  box-shadow: var(--hairline);
-  transition:
-    background-color var(--duration-fast) var(--ease-sharp),
-    box-shadow var(--duration-fast) var(--ease-sharp);
+  background-color: var(--bg-quaternary-opaque);
+  transition: background-color var(--duration-fast) var(--ease-sharp);
 }
 
 .file-card[data-compact] .file-card-plate {
@@ -235,7 +232,7 @@
 
 @media (hover: hover) and (pointer: fine) {
   .file-card:hover .file-card-plate {
-    box-shadow: var(--hairline-strong);
+    background-color: var(--bg-tertiary-opaque);
   }
 
   .file-card:hover .file-card-sheet {

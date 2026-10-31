@@ -385,8 +385,7 @@ button.run-tree-row:focus-visible,
   margin-inline-start: calc(-1 * var(--spacing-conversation-text-inset));
   overflow: hidden;
   border-radius: var(--radius-base);
-  background: var(--bg-editor);
-  box-shadow: var(--hairline);
+  background: var(--bg-quaternary-opaque);
 }
 .run-tree-mono {
   margin: 0;
