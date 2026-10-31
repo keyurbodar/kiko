@@ -24,17 +24,24 @@ export function safeDiagramSvg(svg: string): string {
 
 let counter = 0
 
-function tokenColor(name: string): string {
+function cssColor(name: string): string {
   const probe = document.createElement("span")
   probe.style.color = `var(${name})`
   document.body.append(probe)
   const computed = getComputedStyle(probe).color
   probe.remove()
+  return computed
+}
+
+function tokenColor(name: string): string {
+  const computed = cssColor(name)
   const canvas = document.createElement("canvas")
   canvas.width = 1
   canvas.height = 1
   const context = canvas.getContext("2d")
   if (!context) return computed
+  context.fillStyle = cssColor("--bg-editor")
+  context.fillRect(0, 0, 1, 1)
   context.fillStyle = computed
   context.fillRect(0, 0, 1, 1)
   const [red, green, blue] = context.getImageData(0, 0, 1, 1).data
@@ -48,16 +55,16 @@ async function draw(source: string): Promise<string> {
     securityLevel: "strict",
     htmlLabels: false,
     theme: "base",
-    fontFamily: "Satoshi, system-ui, sans-serif",
+    fontFamily: getComputedStyle(document.documentElement).getPropertyValue("--font-family-sans").trim(),
     themeVariables: {
-      background: tokenColor("--bg"),
-      primaryColor: tokenColor("--raise"),
-      primaryTextColor: tokenColor("--fg"),
-      primaryBorderColor: tokenColor("--line"),
-      secondaryColor: tokenColor("--panel"),
-      tertiaryColor: tokenColor("--bg-000"),
-      lineColor: tokenColor("--fg3"),
-      textColor: tokenColor("--fg2"),
+      background: tokenColor("--bg-editor"),
+      primaryColor: tokenColor("--bg-tertiary"),
+      primaryTextColor: tokenColor("--text-primary"),
+      primaryBorderColor: tokenColor("--stroke-secondary"),
+      secondaryColor: tokenColor("--bg-quaternary"),
+      tertiaryColor: tokenColor("--bg-editor"),
+      lineColor: tokenColor("--text-tertiary"),
+      textColor: tokenColor("--text-secondary"),
     },
   })
   const { svg } = await mermaid.render(`kiko-mermaid-${++counter}`, source)
