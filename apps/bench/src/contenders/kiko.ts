@@ -7,10 +7,19 @@ import { startDriver, type Driver } from "@kiko/computer-daemon/src/driver.ts"
 import { createLogger, failureMessage } from "@kiko/computer-daemon/src/log.ts"
 import { read, shell, write } from "@kiko/computer-daemon/src/ops.ts"
 import type { Policy } from "@kiko/computer-daemon/src/config.ts"
+import { TerminalManager } from "@kiko/computer-daemon/src/terminal/manager.ts"
 import type { Contender, Image, Machine, ToolResult, ToolSpec } from "../types"
 import { KIKO_TOOLS } from "./kiko-schemas"
 
 const BACKGROUND_TOOLS = new Set(["computer_windows", "computer_see", "computer_use"])
+const TERMINAL_TOOLS = new Set([
+  "terminal_open",
+  "terminal_send",
+  "terminal_read",
+  "terminal_wait",
+  "terminal_list",
+  "terminal_close",
+])
 const SHELL_TIMEOUT_MS = 60_000
 const CALL_TIMEOUT_MS = 60_000
 const MAX_OUTPUT_CHARS = 12_000
@@ -87,13 +96,13 @@ async function shellCall(machine: Machine, args: Bag, signal: AbortSignal): Prom
   }
 }
 
-async function readCall(machine: Machine, args: Bag): Promise<ToolResult> {
+async function readCall(machine: Machine, args: Bag, signal: AbortSignal): Promise<ToolResult> {
   const raw = stringOf(args.path)
   if (!raw) return text("computer_read needs a path", true)
   const path = pathIn(machine, raw)
   const maxBytes = Math.min(Math.max(typeof args.maxBytes === "number" ? args.maxBytes : MAX_READ_BYTES, 1), 1_000_000)
   try {
-    const value = await read({ path, maxBytes }, policyFor(machine))
+    const value = await read({ path, maxBytes }, policyFor(machine), deadlineFor(CALL_TIMEOUT_MS, signal))
     if (value.base64 !== undefined)
       return text(
         `${path} on ${machine.id} is binary, ${value.size} bytes. use computer_shell for it, such as \`file\` or \`head -c 200\`.`,
@@ -106,7 +115,7 @@ async function readCall(machine: Machine, args: Bag): Promise<ToolResult> {
   }
 }
 
-async function writeCall(machine: Machine, args: Bag): Promise<ToolResult> {
+async function writeCall(machine: Machine, args: Bag, signal: AbortSignal): Promise<ToolResult> {
   const raw = stringOf(args.path)
   const body = stringOf(args.text)
   if (!raw) return text("computer_write needs a path", true)
@@ -116,6 +125,7 @@ async function writeCall(machine: Machine, args: Bag): Promise<ToolResult> {
     const value = await write(
       { path, text: body, ...(args.append === true ? { append: true } : {}) },
       policyFor(machine),
+      deadlineFor(CALL_TIMEOUT_MS, signal),
     )
     return text(`wrote ${value.size} bytes to ${path} on ${machine.id}`)
   } catch (error) {
@@ -227,11 +237,102 @@ async function useCall(driver: Driver, args: Bag, deadline: Deadline): Promise<T
 
 export interface KikoOptions {
   readonly driver?: Driver
+  readonly terminals?: TerminalManager
+}
+
+const terminalStatus = (value: { status: "running" | "exited"; exitCode: number | null }): string =>
+  value.status === "running" ? "running" : `exited with code ${value.exitCode === null ? "unknown" : value.exitCode}`
+
+const bodyOf = (value: string, truncated: boolean): string => {
+  const notes = [truncated ? "older output was cut" : ""].filter(Boolean)
+  const body = value.trim() ? value : "(no output)"
+  return notes.length > 0 ? `${notes.join("; ")}\n\n${body}` : body
+}
+
+function terminalOpen(terminals: TerminalManager, machine: Machine, args: Bag): ToolResult {
+  const shell = stringOf(args.shell)
+  const name = stringOf(args.name)
+  const cols = whole(args.cols)
+  const rows = whole(args.rows)
+  const value = terminals.open({
+    cwd: pathIn(machine, stringOf(args.cwd) ?? machine.workdir),
+    ...(shell ? { shell } : {}),
+    ...(cols ? { cols } : {}),
+    ...(rows ? { rows } : {}),
+    ...(name ? { name } : {}),
+  })
+  return text(
+    `opened ${value.name} (${value.id}) running ${value.shell} in ${value.cwd}, ${value.cols}x${value.rows}. it stays open between your turns: type with terminal_send, then terminal_wait or terminal_read.`,
+  )
+}
+
+function terminalSend(terminals: TerminalManager, machine: Machine, args: Bag): ToolResult {
+  const id = stringOf(args.id)
+  if (!id) return text("terminal_send needs an id from terminal_open or terminal_list", true)
+  const typed = stringOf(args.text)
+  const keys = Array.isArray(args.keys) ? args.keys.filter((key): key is string => typeof key === "string") : []
+  if (typed === undefined && keys.length === 0) return text("terminal_send needs text or keys", true)
+  const value = terminals.send({
+    id,
+    ...(typed !== undefined ? { text: typed } : {}),
+    ...(keys.length ? { keys } : {}),
+  })
+  return text(
+    `sent ${value.bytes} bytes to ${id} on ${machine.id}. call terminal_wait to wait for the output, or terminal_read to see the screen.`,
+  )
+}
+
+async function terminalRead(terminals: TerminalManager, args: Bag): Promise<ToolResult> {
+  const id = stringOf(args.id)
+  if (!id) return text("terminal_read needs an id from terminal_open or terminal_list", true)
+  const mode = args.mode === "screen" ? "screen" : args.mode === "tail" ? "tail" : undefined
+  if (!mode) return text("terminal_read needs mode screen or tail", true)
+  const lines = whole(args.lines)
+  const value = await terminals.read({ id, mode, ...(lines ? { lines } : {}) })
+  const head = `${value.id}, ${value.cols}x${value.rows}, ${terminalStatus(value)}`
+  return text(`${head}\n\n${bodyOf(value.text, value.truncated)}`)
+}
+
+async function terminalWait(terminals: TerminalManager, args: Bag, signal: AbortSignal): Promise<ToolResult> {
+  const id = stringOf(args.id)
+  const until = stringOf(args.until)
+  if (!id) return text("terminal_wait needs an id from terminal_open or terminal_list", true)
+  if (!until?.trim()) return text("terminal_wait needs some text to look for", true)
+  const timeoutMs = whole(args.timeoutMs)
+  const value = await terminals.wait(
+    { id, until, ...(args.regex === true ? { regex: true } : {}), ...(timeoutMs ? { timeoutMs } : {}) },
+    signal,
+  )
+  const head = value.matched
+    ? `found ${JSON.stringify(until)} in ${id}.`
+    : value.exited
+      ? `${id} exited while waiting for ${JSON.stringify(until)}.`
+      : `waited and did not see ${JSON.stringify(until)} in ${id}.`
+  return text(`${head}\n\n${bodyOf(value.text, false)}`)
+}
+
+function terminalList(terminals: TerminalManager, machine: Machine): ToolResult {
+  const value = terminals.list()
+  if (value.terminals.length === 0)
+    return text(`no terminal sessions are open on ${machine.id}. open one with terminal_open.`)
+  const lines = value.terminals.map(
+    (terminal) =>
+      `${terminal.id} "${terminal.name}" ${terminal.cwd} ${terminal.cols}x${terminal.rows} ${terminalStatus(terminal)}`,
+  )
+  return text(`${value.terminals.length} terminal session(s) on ${machine.id}:\n${lines.join("\n")}`)
+}
+
+async function terminalClose(terminals: TerminalManager, machine: Machine, args: Bag): Promise<ToolResult> {
+  const id = stringOf(args.id)
+  if (!id) return text("terminal_close needs an id from terminal_open or terminal_list", true)
+  await terminals.close({ id })
+  return text(`closed ${id} on ${machine.id}.`)
 }
 
 export function kikoContender(options: KikoOptions = {}): Contender {
   let machine: Machine | undefined
   let driver: Driver | null = options.driver ?? null
+  let terminals: TerminalManager | undefined = options.terminals
   let owned = false
 
   const need = (): Machine => {
@@ -248,12 +349,24 @@ export function kikoContender(options: KikoOptions = {}): Contender {
     }
   }
 
+  const withTerminals = async (
+    call: (terminals: TerminalManager) => Promise<ToolResult> | ToolResult,
+  ): Promise<ToolResult> => {
+    if (!terminals) return text("the kiko app is not connected on this machine, so terminals are off", true)
+    try {
+      return await call(terminals)
+    } catch (error) {
+      return text(failureMessage(error), true)
+    }
+  }
+
   return {
     name: "kiko",
     version: kikoVersion(),
     tracks: ["terminal", "browser", "desktop", "mixed"],
     async start(m: Machine): Promise<void> {
       machine = m
+      terminals ??= new TerminalManager()
       const path = process.env.KIKO_DRIVER
       if (!driver && path) {
         driver = startDriver({ path, log: createLogger("kiko-bench") })
@@ -267,15 +380,26 @@ export function kikoContender(options: KikoOptions = {}): Contender {
       const m = need()
       const bag = bagOf(args)
       if (name === "computer_shell") return shellCall(m, bag, signal)
-      if (name === "computer_read") return readCall(m, bag)
-      if (name === "computer_write") return writeCall(m, bag)
+      if (name === "computer_read") return readCall(m, bag, signal)
+      if (name === "computer_write") return writeCall(m, bag, signal)
       if (name === "computer_windows") return withDriver((d) => windowsCall(d, deadlineFor(CALL_TIMEOUT_MS, signal)))
       if (name === "computer_see") return withDriver((d) => seeCall(d, bag, deadlineFor(CALL_TIMEOUT_MS, signal)))
       if (name === "computer_use") return withDriver((d) => useCall(d, bag, deadlineFor(CALL_TIMEOUT_MS, signal)))
+      if (TERMINAL_TOOLS.has(name))
+        return withTerminals((manager) => {
+          if (name === "terminal_open") return terminalOpen(manager, m, bag)
+          if (name === "terminal_send") return terminalSend(manager, m, bag)
+          if (name === "terminal_read") return terminalRead(manager, bag)
+          if (name === "terminal_wait") return terminalWait(manager, bag, signal)
+          if (name === "terminal_list") return terminalList(manager, m)
+          return terminalClose(manager, m, bag)
+        })
       return text(`there is no tool called ${name}`, true)
     },
     async stop(): Promise<void> {
       if (owned) driver?.close()
+      if (!options.terminals) terminals?.closeAll()
+      terminals = options.terminals
       driver = options.driver ?? null
       owned = false
       machine = undefined
