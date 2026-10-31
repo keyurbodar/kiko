@@ -1,6 +1,6 @@
 import type { Task } from "../../types"
 import { check, mulberry32, pick, readText, run, verdict } from "../helpers"
-import { HARD_LIMITS, launchHard, runHardOracle } from "./hard-support"
+import { HARD_LIMITS, hardState, launchHard, runHardOracle } from "./hard-support"
 
 const NOTES = [
   "Book the room for Thursday and tell the team.",
@@ -30,8 +30,13 @@ export const desktopSaveAs: Task = {
     const expected = noteFor(seed)
     const saved = await readText(m, "archive/note.txt")
     const stray = await readText(m, "note.txt")
+    const state = await hardState(m)
     return verdict([
-      check("saved into archive", saved === expected, `archive/note.txt was ${JSON.stringify(saved)}`),
+      check(
+        "saved into archive",
+        saved === expected,
+        `archive/note.txt was ${JSON.stringify(saved)}; saved_path was ${JSON.stringify(state?.saved_path)}`,
+      ),
       check("nothing saved at the root", stray === undefined, `note.txt at the root was ${JSON.stringify(stray)}`),
     ])
   },

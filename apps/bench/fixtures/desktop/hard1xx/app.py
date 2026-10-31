@@ -226,6 +226,9 @@ def build_notification():
             notice["window"].destroy()
 
     def show_notice():
+        if shown["value"]:
+            return False
+        shown["value"] = True
         panel, panel_fixed = make_window("New message", 520, 120, 100, 110)
         panel.set_keep_above(True)
         label(panel_fixed, "New message from Ops", 20, 10, 460)
@@ -238,7 +241,6 @@ def build_notification():
     def maybe_show(_widget):
         if shown["value"] or not name.get_text():
             return
-        shown["value"] = True
         GLib.idle_add(show_notice)
 
     label(fixed, "Name", 40, 20)
@@ -247,6 +249,7 @@ def build_notification():
     email = entry(fixed, 40, 130, 400)
     name.connect("changed", maybe_show)
     button(fixed, "Save", 40, 190, 140, handler=lambda _: save(name=name.get_text(), email=email.get_text()))
+    GLib.timeout_add(1200, show_notice)
 
 
 def build_owner():

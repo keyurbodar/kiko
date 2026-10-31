@@ -13,5 +13,9 @@ xdotool type --delay 15 --clearmodifiers -- "$workdir/archive/$name"
 sleep 0.2
 xdotool key Return
 sleep 0.5
-xdotool key Return
+xdotool key --clearmodifiers alt+s
 wait_state "$workdir/state.json" '.saved_path != null'
+if [ ! -f "$workdir/archive/$name" ]; then
+  echo "save went to $(jq -r .saved_path "$workdir/state.json")" >&2
+  exit 1
+fi
