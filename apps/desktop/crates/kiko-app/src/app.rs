@@ -41,6 +41,9 @@ pub fn run(args: &[String]) -> i32 {
     }
     let _ = log::init(&config::log_file());
     log::line(format!("kiko {} starting", env!("CARGO_PKG_VERSION")));
+    if let Err(error) = login::migrate() {
+        log::line(format!("could not migrate start at login: {error}"));
+    }
 
     match acquire() {
         Ok(()) => start(),

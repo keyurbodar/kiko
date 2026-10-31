@@ -31,6 +31,9 @@ kiko-browser = { path = "../kiko-browser", optional = true }
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
 
+[dev-dependencies]
+tempfile.workspace = true
+
 [target.'cfg(target_os = "linux")'.dependencies]
 kiko-native-linux = { path = "../kiko-native-linux", optional = true }
 ksni = { version = "0.3", default-features = false, features = ["blocking", "tokio"] }

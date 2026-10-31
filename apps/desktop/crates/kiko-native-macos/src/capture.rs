@@ -15,7 +15,8 @@ use objc2_screen_capture_kit::{
     SCContentFilter, SCScreenshotManager, SCShareableContent, SCStreamConfiguration,
 };
 
-const TIMEOUT: Duration = Duration::from_secs(4);
+pub const TIMEOUT_MS: u64 = 1_500;
+const TIMEOUT: Duration = Duration::from_millis(TIMEOUT_MS);
 const DEFAULT_WIDTH: u32 = 1280;
 
 pub fn screenshot(window: u32, frame: Rect, max_width: Option<u32>) -> kiko_driver::Result<Image> {

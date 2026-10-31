@@ -25,6 +25,7 @@ pub const CHILDREN: &str = "AXChildren";
 pub const WINDOWS: &str = "AXWindows";
 pub const MINIMIZED: &str = "AXMinimized";
 pub const FOCUSED_WINDOW: &str = "AXFocusedWindow";
+pub const MAIN: &str = "AXMain";
 pub const SELECTED_TEXT: &str = "AXSelectedText";
 pub const PARENT: &str = "AXParent";
 pub const VISIBLE_CHARACTER_RANGE: &str = "AXVisibleCharacterRange";
@@ -103,21 +104,19 @@ pub fn elements(value: &Option<CFRetained<CFType>>) -> Vec<Element> {
     };
     items
         .iter()
-        .filter_map(|item| {
-            let element = item.downcast_ref::<AXUIElement>()?;
-            Some(unsafe { CFRetained::<AXUIElement>::retain(NonNull::from(element)) })
-        })
+        .filter_map(|item| item.downcast_ref::<AXUIElement>())
+        .map(retain)
         .collect()
 }
 
 pub fn retain(element: &AXUIElement) -> Element {
+    timeout(element, MESSAGING_TIMEOUT);
     unsafe { CFRetained::retain(NonNull::from(element)) }
 }
 
 pub fn element_attribute(element: &AXUIElement, name: &str) -> Option<Element> {
     let value = attribute(element, name)?;
-    let element = value.downcast_ref::<AXUIElement>()?;
-    Some(unsafe { CFRetained::<AXUIElement>::retain(NonNull::from(element)) })
+    value.downcast_ref::<AXUIElement>().map(retain)
 }
 
 pub fn parent(element: &AXUIElement) -> Option<Element> {
@@ -207,8 +206,7 @@ pub fn windows(element: &AXUIElement) -> Vec<Element> {
 
 pub fn focused_window(element: &AXUIElement) -> Option<Element> {
     let window = attribute(element, FOCUSED_WINDOW)?;
-    let window = window.downcast_ref::<AXUIElement>()?;
-    Some(unsafe { CFRetained::<AXUIElement>::retain(NonNull::from(window)) })
+    window.downcast_ref::<AXUIElement>().map(retain)
 }
 
 pub fn trusted() -> bool {
