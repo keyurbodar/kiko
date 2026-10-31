@@ -31,7 +31,7 @@
   aspect-ratio: 16 / 10;
   overflow: hidden;
   border-radius: var(--radius-xl);
-  background-color: var(--bg-elevated);
+  background-color: var(--bg-editor);
   box-shadow: var(--hairline);
   transition:
     background-color var(--duration-fast) var(--ease-sharp),
@@ -193,13 +193,13 @@
   top: 8px;
   right: 8px;
   display: grid;
-  width: 28px;
-  height: 28px;
+  width: 24px;
+  height: 24px;
   place-items: center;
   border-radius: var(--radius-base);
   background: var(--bg-elevated);
-  box-shadow: 0 1px 3px rgb(0 0 0 / 0.18);
-  color: var(--text-primary);
+  box-shadow: var(--popup-shadow);
+  color: var(--icon-secondary);
   opacity: 0;
   outline: none;
   pointer-events: none;
@@ -221,7 +221,7 @@
 }
 
 .file-card:has(.file-card-hit:focus-visible) {
-  background: var(--bg-tertiary);
+  background: var(--bg-quaternary);
 }
 
 .file-card:has(.file-card-hit:focus-visible) .file-card-sheet {
@@ -229,7 +229,7 @@
 }
 
 .file-card:has(.file-card-hit:active) {
-  transform: scale(0.99);
+  transform: scale(var(--press-scale));
   transition: transform var(--duration-fast) var(--ease-sharp);
 }
 
@@ -259,7 +259,7 @@
   }
 
   .file-card-action:hover {
-    background: var(--bg-elevated);
+    color: var(--icon-primary);
   }
 }
 
