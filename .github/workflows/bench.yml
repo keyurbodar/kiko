@@ -46,14 +46,10 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y xvfb xauth openbox python3-gi gir1.2-gtk-3.0 xdotool jq
       - name: Validate
         if: runner.os == 'Linux'
-        run: xvfb-run -a bun run bench validate --results results --machine "$MACHINE"
-        env:
-          MACHINE: ${{ matrix.machine }}
+        run: xvfb-run -a bun run bench validate --results results --machine ${{ matrix.machine }}
       - name: Validate
         if: runner.os != 'Linux'
-        run: bun run bench validate --results results --machine "$MACHINE"
-        env:
-          MACHINE: ${{ matrix.machine }}
+        run: bun run bench validate --results results --machine ${{ matrix.machine }}
       - uses: actions/upload-artifact@v4
         if: always()
         with:

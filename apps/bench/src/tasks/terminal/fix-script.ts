@@ -20,7 +20,7 @@ async function oracleDouble(m: Machine): Promise<void> {
   const path = scriptPath(m)
   await m.writeText(
     path,
-    m.os === "windows" ? "param($n)\nWrite-Output ($n * 2)\n" : "#!/bin/sh\necho $(( $1 + $1 ))\n",
+    m.os === "windows" ? "param($n)\nWrite-Output ([int]$n * 2)\n" : "#!/bin/sh\necho $(( $1 + $1 ))\n",
   )
 }
 
