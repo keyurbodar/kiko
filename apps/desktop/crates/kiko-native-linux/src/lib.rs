@@ -4,6 +4,8 @@ mod a11y;
 mod act;
 mod capture;
 mod error;
+#[cfg(test)]
+mod fake;
 mod frames;
 mod keys;
 mod open;

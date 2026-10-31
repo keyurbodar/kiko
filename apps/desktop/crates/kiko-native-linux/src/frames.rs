@@ -1,19 +1,34 @@
 use std::os::fd::OwnedFd;
-use std::sync::mpsc;
-use std::sync::{Arc, Mutex};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex, mpsc};
+use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 
 use kiko_driver::DriverError;
 use libspa::param::video::VideoFormat;
 
 use crate::error::{failed, timeout};
-use crate::pipewire::Reader;
+use crate::pipewire::{Control, Reader};
 
 const WAIT: Duration = Duration::from_secs(2);
 const START: Duration = Duration::from_secs(5);
+const STALE: Duration = Duration::from_secs(1);
 
 pub(crate) struct Frames {
     latest: Arc<Mutex<Option<Frame>>>,
+    streaming: Arc<AtomicBool>,
+    live: Arc<AtomicBool>,
+    stopped: Arc<AtomicBool>,
+    control: Arc<Mutex<Option<Control>>>,
+    thread: Option<JoinHandle<()>>,
+}
+
+struct Wiring {
+    latest: Arc<Mutex<Option<Frame>>>,
+    streaming: Arc<AtomicBool>,
+    live: Arc<AtomicBool>,
+    stopped: Arc<AtomicBool>,
+    control: Arc<Mutex<Option<Control>>>,
 }
 
 pub(crate) struct Frame {
@@ -22,49 +37,108 @@ pub(crate) struct Frame {
     height: u32,
     stride: i32,
     format: VideoFormat,
+    at: Instant,
 }
 
 impl Frames {
     pub fn start(fd: OwnedFd, node: u32) -> Result<Self, DriverError> {
         let latest = Arc::new(Mutex::new(None));
+        let streaming = Arc::new(AtomicBool::new(false));
+        let live = Arc::new(AtomicBool::new(false));
+        let stopped = Arc::new(AtomicBool::new(false));
+        let control = Arc::new(Mutex::new(None));
         let (ready, wait) = mpsc::channel();
-        let thread_latest = Arc::clone(&latest);
-        std::thread::Builder::new()
-            .name("kiko-frames".to_string())
-            .spawn(move || run(fd, node, thread_latest, ready))
-            .map_err(|error| failed(format!("could not start the frame reader: {error}")))?;
+        let thread = {
+            let wiring = Wiring {
+                latest: Arc::clone(&latest),
+                streaming: Arc::clone(&streaming),
+                live: Arc::clone(&live),
+                stopped: Arc::clone(&stopped),
+                control: Arc::clone(&control),
+            };
+            std::thread::Builder::new()
+                .name("kiko-frames".to_string())
+                .spawn(move || run(fd, node, wiring, ready))
+                .map_err(|error| failed(format!("could not start the frame reader: {error}")))?
+        };
+        let frames = Self {
+            latest,
+            streaming,
+            live,
+            stopped,
+            control,
+            thread: Some(thread),
+        };
         match wait.recv_timeout(START) {
-            Ok(started) => started?,
+            Ok(Ok(())) => Ok(frames),
+            Ok(Err(error)) => Err(error),
             Err(mpsc::RecvTimeoutError::Timeout) => {
-                return Err(timeout("the screen share did not start in time"));
+                Err(timeout("the screen share did not start in time"))
             }
             Err(mpsc::RecvTimeoutError::Disconnected) => {
-                return Err(failed("the frame reader stopped before it started"));
+                Err(failed("the frame reader stopped before it started"))
             }
         }
-        Ok(Self { latest })
     }
 
-    pub fn latest(&self) -> Option<Frame> {
-        self.wait(WAIT)
-    }
-
-    fn wait(&self, budget: Duration) -> Option<Frame> {
-        let deadline = Instant::now() + budget;
+    pub fn latest(&self) -> Result<Frame, DriverError> {
+        let deadline = Instant::now() + WAIT;
         loop {
-            if let Some(frame) = self.frame() {
-                return Some(frame);
+            let streaming = self.streaming.load(Ordering::SeqCst);
+            if let Some(frame) = self.current(streaming) {
+                return Ok(frame);
+            }
+            if self.stopped() && self.stale() {
+                return Err(timeout(
+                    "the screen share stopped sending pictures; ask the owner to share the window again",
+                ));
             }
             if Instant::now() >= deadline {
-                return None;
+                return Err(timeout("the shared window has not sent a picture yet"));
             }
             std::thread::sleep(Duration::from_millis(10));
         }
     }
 
-    fn frame(&self) -> Option<Frame> {
+    pub fn stopped(&self) -> bool {
+        self.live.load(Ordering::SeqCst) && !self.streaming.load(Ordering::SeqCst)
+    }
+
+    fn current(&self, streaming: bool) -> Option<Frame> {
         let guard = self.latest.lock().ok()?;
-        guard.as_ref().map(Frame::copy)
+        let frame = guard.as_ref()?;
+        (streaming || frame.at.elapsed() <= STALE).then(|| frame.copy())
+    }
+
+    fn stale(&self) -> bool {
+        let Ok(guard) = self.latest.lock() else {
+            return true;
+        };
+        guard
+            .as_ref()
+            .is_none_or(|frame| frame.at.elapsed() > STALE)
+    }
+
+    fn quit(&self) {
+        if let Ok(control) = self.control.lock()
+            && let Some(control) = control.as_ref()
+        {
+            control.quit();
+        }
+    }
+}
+
+impl Drop for Frames {
+    fn drop(&mut self) {
+        self.stopped.store(true, Ordering::SeqCst);
+        let Some(thread) = self.thread.take() else {
+            return;
+        };
+        while !thread.is_finished() {
+            self.quit();
+            std::thread::sleep(Duration::from_millis(1));
+        }
+        let _ = thread.join();
     }
 }
 
@@ -82,6 +156,7 @@ impl Frame {
             height,
             stride,
             format,
+            at: Instant::now(),
         }
     }
 
@@ -92,6 +167,7 @@ impl Frame {
             height: self.height,
             stride: self.stride,
             format: self.format,
+            at: self.at,
         }
     }
 
@@ -131,20 +207,31 @@ impl Frame {
     }
 }
 
-fn run(
-    fd: OwnedFd,
-    node: u32,
-    latest: Arc<Mutex<Option<Frame>>>,
-    ready: mpsc::Sender<Result<(), DriverError>>,
-) {
-    match Reader::start(fd, node, latest) {
-        Ok(reader) => {
-            let _ = ready.send(Ok(()));
-            reader.run();
-        }
+fn run(fd: OwnedFd, node: u32, wiring: Wiring, ready: mpsc::Sender<Result<(), DriverError>>) {
+    let Wiring {
+        latest,
+        streaming,
+        live,
+        stopped,
+        control,
+    } = wiring;
+    let reader = match Reader::start(fd, node, latest, streaming, live) {
+        Ok(reader) => reader,
         Err(error) => {
             let _ = ready.send(Err(error));
+            return;
         }
+    };
+    if let Ok(mut slot) = control.lock() {
+        *slot = Some(reader.control());
+    }
+    if stopped.load(Ordering::SeqCst) {
+        return;
+    }
+    let _ = ready.send(Ok(()));
+    reader.run();
+    if let Ok(mut slot) = control.lock() {
+        *slot = None;
     }
 }
 
@@ -152,6 +239,7 @@ fn run(
 mod tests {
     use libspa::param::video::VideoFormat;
     use std::collections::HashMap;
+    use std::time::{Duration, Instant};
     use zbus::zvariant::{OwnedObjectPath, Value};
 
     use super::{Frame, Frames};
@@ -221,9 +309,7 @@ mod tests {
             .expect("runtime");
         let (_connection, fd, node) = runtime.block_on(virtual_monitor());
         let frames = Frames::start(fd, node).expect("frame reader");
-        let frame = frames
-            .wait(std::time::Duration::from_secs(10))
-            .expect("the compositor sent no frame");
+        let frame = frames.latest().expect("the compositor sent no frame");
         assert!(
             frame.width >= 640 && frame.height >= 480,
             "the compositor sent a {}x{} frame",
@@ -244,6 +330,7 @@ mod tests {
             height,
             stride,
             format: VideoFormat::BGRA,
+            at: Instant::now(),
         }
     }
 
@@ -290,5 +377,47 @@ mod tests {
                 .to_rgb()
                 .is_err()
         );
+    }
+
+    #[test]
+    fn treats_a_stopped_stream_with_an_old_frame_as_stale() {
+        let frames = Frames {
+            latest: std::sync::Arc::new(std::sync::Mutex::new(Some(Frame {
+                data: vec![0; 8],
+                width: 2,
+                height: 1,
+                stride: 8,
+                format: VideoFormat::BGRA,
+                at: Instant::now() - Duration::from_secs(5),
+            }))),
+            streaming: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            live: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true)),
+            stopped: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            control: std::sync::Arc::new(std::sync::Mutex::new(None)),
+            thread: None,
+        };
+        assert!(frames.stopped());
+        assert!(frames.latest().is_err());
+    }
+
+    #[test]
+    fn keeps_serving_a_still_window_while_the_stream_is_live() {
+        let frames = Frames {
+            latest: std::sync::Arc::new(std::sync::Mutex::new(Some(Frame {
+                data: vec![0; 8],
+                width: 2,
+                height: 1,
+                stride: 8,
+                format: VideoFormat::BGRA,
+                at: Instant::now() - Duration::from_secs(5),
+            }))),
+            streaming: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true)),
+            live: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true)),
+            stopped: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            control: std::sync::Arc::new(std::sync::Mutex::new(None)),
+            thread: None,
+        };
+        assert!(!frames.stopped());
+        assert!(frames.latest().is_ok());
     }
 }

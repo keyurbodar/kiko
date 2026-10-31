@@ -67,7 +67,7 @@ fn agent_line(state: &State) -> String {
 }
 
 fn permission_rows(state: &State) -> Vec<Row> {
-    vec![
+    let mut rows = vec![
         row(
             PermissionKind::Accessibility,
             "Accessibility",
@@ -78,8 +78,20 @@ fn permission_rows(state: &State) -> Vec<Row> {
             "Screen Recording",
             grant(state.permissions.screen),
         ),
-        row(PermissionKind::Browser, "Browser", browser(&state.browsers)),
-    ]
+    ];
+    if state.permissions.automation != Grant::NotNeeded {
+        rows.push(row(
+            PermissionKind::Automation,
+            "Remote Control",
+            grant(state.permissions.automation),
+        ));
+    }
+    rows.push(row(
+        PermissionKind::Browser,
+        "Browser",
+        browser(&state.browsers),
+    ));
+    rows
 }
 
 fn row(kind: PermissionKind, label: &str, state: &str) -> Row {
