@@ -117,7 +117,11 @@ export function ModelsPage() {
   return (
     <div class="flex flex-col gap-[18px]" data-component="models-page">
       <Show when={cheer()}>
-        <p class="rounded-tile bg-panel px-4 py-3 type-ui text-fg" data-component="first-provider-cheer" role="status">
+        <p
+          class="rounded-xl bg-editor px-4 py-3 type-base text-primary"
+          data-component="first-provider-cheer"
+          role="status"
+        >
           Connected. Your agents can reply now.
         </p>
       </Show>
@@ -206,7 +210,7 @@ function PopularProviders(props: {
             {({ provider, note }) => (
               <button
                 type="button"
-                class="group flex cursor-pointer items-center gap-3 rounded-card bg-panel p-3 text-left transition-[background-color,transform] duration-(--dur-hover) ease-kiko hover:bg-[var(--hover)] active:scale-[0.99]"
+                class="group flex cursor-pointer items-center gap-3 rounded-xl bg-quinary p-3 text-left transition-[background-color,transform] duration-(--duration-fast) ease-sharp hover:bg-quaternary active:scale-(--press-scale)"
                 data-provider={provider.id}
                 data-action="connect"
                 onClick={() => props.onPick(provider)}
@@ -215,13 +219,13 @@ function PopularProviders(props: {
                   <ProviderIcon id={provider.id} width="16" height="16" />
                 </BrandTile>
                 <span class="flex min-w-0 flex-1 flex-col">
-                  <span class="truncate type-row text-fg">{provider.name}</span>
-                  <span class="truncate type-label text-[var(--fg3)]">{note}</span>
+                  <span class="truncate type-base text-primary">{provider.name}</span>
+                  <span class="truncate type-sm text-[var(--text-tertiary)]">{note}</span>
                 </span>
                 <RemixIcon
                   icon={ChevronRightIcon}
-                  size={16}
-                  class="shrink-0 text-[var(--fg4)] transition-[color,transform] duration-(--dur-hover) group-hover:translate-x-0.5 group-hover:text-fg2"
+                  size={12}
+                  class="shrink-0 icon-tertiary transition-[color,transform] duration-(--duration-fast) group-hover:translate-x-0.5 group-hover:icon-secondary"
                 />
               </button>
             )}
@@ -247,15 +251,15 @@ function ProviderList(props: {
       <For each={props.providers}>{(provider) => <ProviderRow provider={provider} onManage={props.onManage} />}</For>
       <button
         type="button"
-        class="group flex h-control-big w-full cursor-pointer items-center gap-3 px-4 text-left transition-colors duration-(--dur-hover) hover:bg-[var(--hover)]"
+        class="group flex h-12 w-full cursor-pointer items-center gap-3 px-4 text-left transition-colors duration-(--duration-fast) hover:bg-quaternary"
         data-action="view-all-providers"
         onClick={() => props.onAdd()}
       >
         <BrandTile>
           <RemixIcon icon={PlusIcon} size={16} />
         </BrandTile>
-        <span class="min-w-0 flex-1 truncate type-ui text-fg2 group-hover:text-fg">Add a provider</span>
-        <span class="flex shrink-0 items-center gap-1.5 text-[var(--fg3)]" aria-hidden="true">
+        <span class="min-w-0 flex-1 truncate type-base text-secondary group-hover:text-primary">Add a provider</span>
+        <span class="flex shrink-0 items-center gap-1.5 text-[var(--text-tertiary)]" aria-hidden="true">
           <For each={strip()}>{(p) => <ProviderIcon id={p.id} width="14" height="14" />}</For>
         </span>
       </button>
@@ -276,7 +280,7 @@ function ProviderRow(props: { provider: CatalogProvider; onManage: (provider: Ca
   return (
     <div
       ref={row}
-      class="flex min-h-control-big items-center gap-3 px-4 py-2"
+      class="flex min-h-12 items-center gap-3 px-4 py-2"
       data-provider={props.provider.id}
       data-connected="true"
       data-problem={info()?.problem}
@@ -286,9 +290,9 @@ function ProviderRow(props: { provider: CatalogProvider; onManage: (provider: Ca
         <ProviderIcon id={props.provider.id} width="16" height="16" />
       </BrandTile>
       <div class="flex min-w-0 flex-1 flex-col">
-        <span class="truncate type-ui font-medium text-fg">{props.provider.name}</span>
+        <span class="truncate type-base text-primary">{props.provider.name}</span>
         <span
-          class={cn("truncate type-label", info()?.problem ? "text-[var(--danger)]" : "text-[var(--fg3)]")}
+          class={cn("truncate type-sm", info()?.problem ? "text-[var(--text-danger)]" : "text-[var(--text-tertiary)]")}
           data-part="provider-status"
         >
           {statusLine(info())}
@@ -296,10 +300,10 @@ function ProviderRow(props: { provider: CatalogProvider; onManage: (provider: Ca
       </div>
       <Show
         when={info()?.problem}
-        fallback={<span class="shrink-0 type-label text-ok max-[420px]:hidden">Connected</span>}
+        fallback={<span class="shrink-0 type-sm text-success max-[420px]:hidden">Connected</span>}
       >
         {(problem) => (
-          <span class="shrink-0 type-label text-[var(--danger)] max-[420px]:hidden">{PROBLEM_SHORT[problem()]}</span>
+          <span class="shrink-0 type-sm text-[var(--text-danger)] max-[420px]:hidden">{PROBLEM_SHORT[problem()]}</span>
         )}
       </Show>
       <Button data-action="manage-provider" onClick={() => props.onManage(props.provider)}>
@@ -425,7 +429,7 @@ function PickerModelRow(props: { row: PickerRow; hidden: boolean; showProvider: 
   const label = () => `Show ${props.row.model.name} in the model picker`
   return (
     <div
-      class="flex h-[46px] cursor-pointer items-center gap-3 px-4 outline-none transition-colors duration-(--dur-hover) hover:bg-[var(--hover)] focus-visible:bg-[var(--hover)]"
+      class="flex h-[46px] cursor-pointer items-center gap-3 px-4 outline-none transition-colors duration-(--duration-fast) hover:bg-quaternary focus-visible:bg-quaternary"
       role="switch"
       tabIndex={0}
       aria-checked={!props.hidden}
@@ -440,22 +444,26 @@ function PickerModelRow(props: { row: PickerRow; hidden: boolean; showProvider: 
       }}
     >
       <Show when={props.showProvider}>
-        <ProviderIcon id={props.row.provider.id} width="14" height="14" class="shrink-0 text-[var(--fg3)]" />
+        <ProviderIcon id={props.row.provider.id} width="14" height="14" class="shrink-0 text-[var(--text-tertiary)]" />
       </Show>
       <span
-        class={cn("min-w-0 flex-1 truncate type-ui", props.hidden ? "text-[var(--fg3)]" : "text-fg")}
+        class={cn("min-w-0 flex-1 truncate type-base", props.hidden ? "text-[var(--text-tertiary)]" : "text-primary")}
         title={props.row.model.id}
       >
         {props.row.model.name}
       </span>
       <Show when={props.row.model.reasoning}>
         <TooltipV2 placement="top" value="Reasoning">
-          <span class="grid shrink-0 place-items-center text-[var(--fg4)]" aria-label="Reasoning" role="img">
+          <span
+            class="grid shrink-0 place-items-center text-[var(--text-quaternary)]"
+            aria-label="Reasoning"
+            role="img"
+          >
             <RemixIcon icon={ReasoningIcon} size={16} />
           </span>
         </TooltipV2>
       </Show>
-      <span class="w-10 shrink-0 text-right type-hint text-[var(--fg4)]">
+      <span class="w-10 shrink-0 text-right type-xs text-[var(--text-quaternary)]">
         {formatContext(props.row.model.contextWindow)}
       </span>
       <span onClick={(event) => event.stopPropagation()}>
@@ -466,7 +474,7 @@ function PickerModelRow(props: { row: PickerRow; hidden: boolean; showProvider: 
 }
 
 function ProviderSkeletons() {
-  return <For each={[0, 1, 2, 3]}>{() => <Skeleton class="h-header rounded-card" />}</For>
+  return <For each={[0, 1, 2, 3]}>{() => <Skeleton class="h-[54px] rounded-xl" />}</For>
 }
 
 function CheckAgain(props: { id: string }) {
@@ -574,7 +582,7 @@ export function AddProviderDialog(props: {
         <For
           each={shown()}
           fallback={
-            <li class={cn("px-2 type-label", muted)}>
+            <li class={cn("px-2 type-sm", muted)}>
               {props.loading ? <Skeleton class="h-8" /> : "No provider matches"}
             </li>
           }
@@ -583,15 +591,15 @@ export function AddProviderDialog(props: {
             <li data-provider={provider.id}>
               <button
                 type="button"
-                class="flex h-control-big w-full cursor-pointer items-center gap-3 rounded-row px-2 text-left outline-none transition-[background-color,transform] duration-(--dur-hover) ease-kiko hover:bg-[var(--hover)] focus-visible:bg-[var(--hover)] active:scale-[0.99]"
+                class="flex h-12 w-full cursor-pointer items-center gap-3 rounded-base px-2 text-left outline-none transition-[background-color,transform] duration-(--duration-fast) ease-sharp hover:bg-quaternary focus-visible:bg-quaternary active:scale-(--press-scale)"
                 data-action="connect"
                 onClick={() => props.onPick(provider)}
               >
                 <BrandTile>
                   <ProviderIcon id={provider.id} width="16" height="16" />
                 </BrandTile>
-                <span class="min-w-0 flex-1 truncate type-ui font-medium text-fg">{provider.name}</span>
-                <span class="shrink-0 type-hint text-[var(--fg4)]">
+                <span class="min-w-0 flex-1 truncate type-base text-primary">{provider.name}</span>
+                <span class="shrink-0 type-xs text-[var(--text-quaternary)]">
                   {provider.models.length} {provider.models.length === 1 ? "model" : "models"}
                 </span>
               </button>
@@ -601,15 +609,15 @@ export function AddProviderDialog(props: {
         <li data-provider="custom">
           <button
             type="button"
-            class="flex h-control-big w-full cursor-pointer items-center gap-3 rounded-row px-2 text-left outline-none transition-[background-color,transform] duration-(--dur-hover) ease-kiko hover:bg-[var(--hover)] focus-visible:bg-[var(--hover)] active:scale-[0.99]"
+            class="flex h-12 w-full cursor-pointer items-center gap-3 rounded-base px-2 text-left outline-none transition-[background-color,transform] duration-(--duration-fast) ease-sharp hover:bg-quaternary focus-visible:bg-quaternary active:scale-(--press-scale)"
             data-action="custom-provider"
             onClick={() => setCustom(true)}
           >
             <BrandTile>
               <RemixIcon icon={PlusIcon} size={16} />
             </BrandTile>
-            <span class="min-w-0 flex-1 truncate type-ui font-medium text-fg">Custom provider</span>
-            <span class="shrink-0 type-hint text-[var(--fg4)]">OpenAI or Anthropic compatible</span>
+            <span class="min-w-0 flex-1 truncate type-base text-primary">Custom provider</span>
+            <span class="shrink-0 type-xs text-[var(--text-quaternary)]">OpenAI or Anthropic compatible</span>
           </button>
         </li>
       </ul>
@@ -806,13 +814,13 @@ function SignInMethod(props: {
       <Show
         when={running()}
         fallback={
-          <Button big class="w-full" data-action="sign-in" onClick={start}>
+          <Button size="xl" class="w-full" data-action="sign-in" onClick={start}>
             {state()?.status === "error" ? "Try signing in again" : signInLabel(props.label ?? props.name)}
           </Button>
         }
       >
         <div class="flex items-center justify-between gap-2">
-          <span class="type-ui text-fg">{props.label ?? METHOD_LABEL[props.method]}</span>
+          <span class="type-base text-primary">{props.label ?? METHOD_LABEL[props.method]}</span>
           <Button
             variant="ghost"
             data-action="cancel-sign-in"
@@ -829,11 +837,7 @@ function SignInMethod(props: {
         {(s) => (
           <>
             <Show when={!s().code && !s().link && !s().prompt}>
-              <div
-                class={cn("flex items-center gap-2 text-hint", muted)}
-                data-component="sign-in-waiting"
-                role="status"
-              >
+              <div class={cn("flex items-center gap-2 text-xs", muted)} data-component="sign-in-waiting" role="status">
                 <Spinner size={12} />
                 Waiting for the provider
               </div>
@@ -841,13 +845,13 @@ function SignInMethod(props: {
             <Show when={s().code}>
               {(code) => (
                 <div class="flex flex-col gap-1" data-component="device-code">
-                  <span class={cn("text-hint", muted)}>Enter this code at the provider</span>
-                  <span class="select-all font-mono text-msg tracking-widest text-fg">{code().userCode}</span>
+                  <span class={cn("text-xs", muted)}>Enter this code at the provider</span>
+                  <span class="select-all font-mono text-lg tracking-widest text-primary">{code().userCode}</span>
                   <a
                     href={code().verificationUri}
                     target="_blank"
                     rel="noopener noreferrer"
-                    class="truncate text-hint text-[var(--info)]"
+                    class="truncate text-xs text-[var(--text-accent)]"
                   >
                     Open {code().verificationUri.replace(/^https?:\/\//, "")}
                   </a>
@@ -858,13 +862,13 @@ function SignInMethod(props: {
               {(link) => (
                 <div class="flex flex-col gap-1" data-component="sign-in-link">
                   <Show when={link().instructions}>
-                    <span class={cn("text-hint", muted)}>{link().instructions}</span>
+                    <span class={cn("text-xs", muted)}>{link().instructions}</span>
                   </Show>
                   <a
                     href={link().url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    class="link-grow text-label text-[var(--info)]"
+                    class="link-grow text-sm text-[var(--text-accent)]"
                   >
                     Open the sign-in page
                   </a>
@@ -872,7 +876,7 @@ function SignInMethod(props: {
               )}
             </Show>
             <Show when={s().note}>
-              <p class={cn("text-hint", muted)} data-component="sign-in-note">
+              <p class={cn("text-xs", muted)} data-component="sign-in-note">
                 {s().note}
               </p>
             </Show>
@@ -881,7 +885,7 @@ function SignInMethod(props: {
                 const prompt = p().prompt
                 return prompt.type === "select" ? (
                   <div class="flex flex-col gap-1.5" data-component="sign-in-select">
-                    <span class={cn("text-hint", muted)}>{prompt.message}</span>
+                    <span class={cn("text-xs", muted)}>{prompt.message}</span>
                     <For each={prompt.options}>
                       {(option) => (
                         <Button class="w-full justify-start" onClick={() => handle?.answer(p().promptId, option.id)}>
@@ -892,7 +896,7 @@ function SignInMethod(props: {
                   </div>
                 ) : (
                   <form class="flex flex-col gap-2.5" onSubmit={answer} data-component="sign-in-prompt">
-                    <label class={cn("text-hint", muted)} for="sign-in-answer">
+                    <label class={cn("text-xs", muted)} for="sign-in-answer">
                       {prompt.message}
                     </label>
                     <input

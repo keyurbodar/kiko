@@ -81,7 +81,7 @@ export function LargeTextViewer(props: {
         <Show
           when={meta()}
           fallback={
-            <div role="status" class="flex min-h-0 flex-1 items-center justify-center text-hint text-fg3">
+            <div role="status" class="flex min-h-0 flex-1 items-center justify-center text-xs text-tertiary">
               Reading file
             </div>
           }
@@ -101,13 +101,13 @@ export function LargeTextViewer(props: {
                 />
               </Show>
               <Show when={info().count === 0}>
-                <div class="flex min-h-0 flex-1 items-center justify-center p-6 text-hint text-fg3">
+                <div class="flex min-h-0 flex-1 items-center justify-center p-6 text-xs text-tertiary">
                   This file is empty.
                 </div>
               </Show>
               <div
                 role="status"
-                class="flex h-8 shrink-0 items-center border-t border-[var(--border-100)] px-3 text-hint text-fg3"
+                class="flex h-8 shrink-0 items-center border-t border-[var(--stroke-tertiary)] px-3 text-xs text-tertiary"
               >
                 {rows().toLocaleString()} {props.delimiter ? "rows" : "lines"}
                 {props.delimiter ? `, ${columns().toLocaleString()} columns` : ""}

@@ -91,7 +91,7 @@ export function createShortcodes(editor: () => HTMLElement | undefined) {
   const view = (
     <Show when={open()}>
       <div
-        class="absolute right-0 bottom-full left-0 z-30 mx-1.5 mb-1.5 max-h-[322px] overflow-y-auto rounded-card bg-raise p-1 text-fg shadow-popover"
+        class="absolute right-0 bottom-full left-0 z-30 mx-1.5 mb-1.5 max-h-[322px] overflow-y-auto rounded-[12px] bg-(--composer-raise) p-1 text-primary shadow-(--composer-popover-shadow)"
         role="listbox"
         aria-label="Emoji"
         data-component="emoji-shortcodes"
@@ -102,7 +102,7 @@ export function createShortcodes(editor: () => HTMLElement | undefined) {
             <div
               role="option"
               aria-selected={active() === index()}
-              class="flex h-10 cursor-default items-center gap-3 rounded-row px-2.5 data-[active]:bg-[var(--active)]"
+              class="flex h-10 cursor-default items-center gap-3 rounded-[8px] px-2.5 data-[active]:bg-(--composer-active)"
               data-active={active() === index() ? "" : undefined}
               data-component="emoji-shortcode"
               data-emoji={match.entry.emoji}
@@ -115,7 +115,7 @@ export function createShortcodes(editor: () => HTMLElement | undefined) {
               onClick={() => choose(match)}
             >
               <span class="w-6 shrink-0 text-center font-emoji text-[20px] leading-none">{match.entry.emoji}</span>
-              <span class="truncate text-ui font-semibold">
+              <span class="truncate text-[14px] leading-5 font-semibold">
                 <Shortcode match={match} query={typed()?.query ?? ""} />
               </span>
             </div>
@@ -142,7 +142,9 @@ function Shortcode(props: { match: EmojiMatch; query: string }): JSX.Element {
     <>
       :{parts()[0]}
       <Show when={parts()[1]}>
-        <mark class="rounded-tail bg-info-wash text-inherit">{parts()[1]}</mark>
+        <mark class="rounded-[6px] bg-[color-mix(in_oklab,var(--text-accent)_14%,transparent)] text-inherit">
+          {parts()[1]}
+        </mark>
       </Show>
       {parts()[2]}:
     </>

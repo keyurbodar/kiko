@@ -122,7 +122,22 @@ function authored(selector: string, property: string): string {
 }
 
 describe("RunTree", () => {
-  it("shows a live run's rows in order under a tally of its steps, with the running step marked", async () => {
+  it("collapses and reopens a live run from its head", async () => {
+    fake.steps = [step("ls", { startedAt: START, status: "running", endedAt: undefined })]
+    fake.live = true
+    await using screen = await render(() => <RunTree windowKey="kiko#0" />)
+
+    await vi.waitFor(() => expect(rows(screen.container)).toHaveLength(1))
+    const toggle = head(screen.container) as HTMLButtonElement
+    expect(toggle.getAttribute("aria-expanded")).toBe("true")
+    toggle.click()
+    await vi.waitFor(() => expect(rows(screen.container)).toHaveLength(0))
+    expect(toggle.getAttribute("aria-expanded")).toBe("false")
+    toggle.click()
+    await vi.waitFor(() => expect(rows(screen.container)).toHaveLength(1))
+  })
+
+  it("shows a live run's rows in order under a working head, with the running step marked", async () => {
     fake.steps = [
       step("ls", { startedAt: START }),
       step("cat", { startedAt: START + 4_000 }),
@@ -133,9 +148,9 @@ describe("RunTree", () => {
 
     await vi.waitFor(() => expect(rows(screen.container)).toHaveLength(3))
     expect(labels(screen.container)).toEqual(["Ran ls", "Ran cat", "Running split.py"])
-    expect(head(screen.container).querySelector(".run-tree-summary")?.textContent).toBe("Ran 3 commands")
+    expect(head(screen.container).querySelector(".run-tree-summary")?.textContent).toBe("Working")
     const running = rows(screen.container)[2]!
-    expect(running.querySelector('[data-component="mochi"]')).not.toBeNull()
+    expect(running.querySelector('[data-component="run-spinner"]')).not.toBeNull()
     expect(running.hasAttribute("data-running")).toBe(true)
   })
 
@@ -162,11 +177,11 @@ describe("RunTree", () => {
     fake.steps = [step("run", { after: 11, status: "running", endedAt: undefined })]
     await using screen = await render(() => <RunTree windowKey="kiko#11" />)
 
-    await vi.waitFor(() => expect(screen.container.querySelector('[data-component="mochi"]')).not.toBeNull())
+    await vi.waitFor(() => expect(screen.container.querySelector('[data-component="run-spinner"]')).not.toBeNull())
 
     fake.steps = [step("run", { after: 11, status: "done", endedAt: START + 2_000 })]
 
-    await vi.waitFor(() => expect(screen.container.querySelector('[data-component="mochi"]')).toBeNull())
+    await vi.waitFor(() => expect(screen.container.querySelector('[data-component="run-spinner"]')).toBeNull())
     expect(rows(screen.container)[0]!.hasAttribute("data-running")).toBe(false)
   })
 
@@ -258,7 +273,7 @@ describe("RunTree", () => {
 
     await userEvent.hover(row)
 
-    const bright = tokenColor("--text-100")
+    const bright = tokenColor("--text-primary")
     await vi.waitFor(() => expect(getComputedStyle(label).color).toBe(bright))
     await vi.waitFor(() => expect(getComputedStyle(time).opacity).toBe("1"))
 
@@ -302,7 +317,7 @@ describe("RunTree", () => {
     )
   })
 
-  it("hangs every step off a 30px row on a 1.5px rail drawn in one opaque color", async () => {
+  it("hangs every step off a 24px row on a 1px rail drawn in one opaque color", async () => {
     fake.live = false
     fake.steps = [
       step("a", { after: 30, startedAt: START, endedAt: START + 2_000 }),
@@ -312,8 +327,9 @@ describe("RunTree", () => {
     const [first, last] = await openTree(screen.container, 2)
 
     const row = first!.querySelector<HTMLElement>(".run-tree-row")!
-    expect(getComputedStyle(row).height).toBe("30px")
-    expect(getComputedStyle(row).gap).toBe("9px")
+    expect(getComputedStyle(row).height).toBe("24px")
+    expect(getComputedStyle(row).gap).toBe("6px")
+    expect(railOf(first!).borderLeftWidth).toBe("1px")
 
     const rail = railOf(first!).borderLeftColor
     const elbow = elbowOf(first!)
@@ -386,7 +402,7 @@ describe("RunTree", () => {
     expect(railOf(helperStep!).display).toBe("none")
   })
 
-  it("turns the branch white from the top down to the running step", async () => {
+  it("lights the branch from the top down to the running step", async () => {
     fake.live = true
     fake.steps = [
       step("a", { after: 32, startedAt: START, endedAt: START + 2_000 }),
@@ -400,8 +416,10 @@ describe("RunTree", () => {
       return all
     })
 
-    const white = tokenColor("--text-100")
-    const rail = tokenColor("--run-rail", screen.container.querySelector<HTMLElement>(".run-tree")!)
+    const tree = screen.container.querySelector<HTMLElement>(".run-tree")!
+    const white = tokenColor("--run-rail-live", tree)
+    const rail = tokenColor("--run-rail", tree)
+    expect(white).not.toBe(rail)
 
     expect(found[0]!.hasAttribute("data-live")).toBe(true)
     expect(found[0]!.hasAttribute("data-hot")).toBe(false)

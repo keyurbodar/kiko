@@ -54,29 +54,29 @@ export default function DateCalendar(props: {
             <div class="flex min-h-9 w-full items-center gap-0.5">
               <button
                 type="button"
-                class="chat-calendar__title -ml-2 flex cursor-pointer items-center gap-1 rounded-row px-2 py-1 text-msg font-medium whitespace-nowrap text-info hover:bg-hover"
+                class="chat-calendar__title -ml-2 flex h-control-md cursor-pointer items-center gap-1 rounded-base px-2 type-base font-semibold whitespace-nowrap text-primary transition-colors hover:bg-quaternary"
                 aria-expanded={picking()}
                 onClick={() => setPicking((was) => !was)}
               >
                 {picking() ? calendar.month.getFullYear() : MONTH_YEAR.format(calendar.month)}
-                <RemixIcon icon={ChevronDownIcon} class={cn("size-4", picking() && "rotate-180")} />
+                <RemixIcon icon={ChevronDownIcon} size={12} class={cn("icon-tertiary", picking() && "rotate-180")} />
               </button>
               <div class="ml-auto flex items-center gap-0.5">
                 <button
                   type="button"
-                  class="grid size-7 cursor-pointer place-items-center rounded-full text-fg2 hover:bg-hover hover:text-fg"
+                  class="grid size-control-md cursor-pointer place-items-center rounded-base text-secondary transition-colors hover:bg-quaternary hover:text-primary"
                   aria-label={picking() ? "Previous year" : "Previous month"}
                   onClick={() => calendar.navigate(picking() ? "prev-year" : "prev-month")}
                 >
-                  <RemixIcon icon={ChevronLeftIcon} class="size-4" />
+                  <RemixIcon icon={ChevronLeftIcon} size={13} />
                 </button>
                 <button
                   type="button"
-                  class="grid size-7 cursor-pointer place-items-center rounded-full text-fg2 hover:bg-hover hover:text-fg"
+                  class="grid size-control-md cursor-pointer place-items-center rounded-base text-secondary transition-colors hover:bg-quaternary hover:text-primary"
                   aria-label={picking() ? "Next year" : "Next month"}
                   onClick={() => calendar.navigate(picking() ? "next-year" : "next-month")}
                 >
-                  <RemixIcon icon={ChevronRightIcon} class="size-4" />
+                  <RemixIcon icon={ChevronRightIcon} size={13} />
                 </button>
               </div>
             </div>
@@ -89,10 +89,9 @@ export default function DateCalendar(props: {
                       <button
                         type="button"
                         class={cn(
-                          "cursor-pointer rounded-row py-2 text-label",
-                          "hover:bg-[oklch(from_var(--fg)_l_c_h_/_6%)]",
-                          "aria-current:bg-[oklch(from_var(--info)_l_c_h_/_22%)]",
-                          "aria-current:font-bold aria-current:text-info",
+                          "h-control-lg cursor-pointer rounded-base type-base text-secondary transition-colors",
+                          "hover:bg-quaternary hover:text-primary",
+                          "aria-current:bg-accent-soft aria-current:font-semibold aria-current:text-accent",
                         )}
                         aria-current={day().getMonth() === calendar.month.getMonth() ? "true" : undefined}
                         onClick={() => {
@@ -112,7 +111,7 @@ export default function DateCalendar(props: {
                   <tr>
                     <Index each={calendar.weekdays}>
                       {(day) => (
-                        <Calendar.HeadCell class="h-7 text-center text-label font-medium text-fg2" scope="col">
+                        <Calendar.HeadCell class="h-control-md text-center type-sm text-quaternary" scope="col">
                           {WEEKDAY_SHORT.format(day()).slice(0, 2)}
                         </Calendar.HeadCell>
                       )}
@@ -125,17 +124,17 @@ export default function DateCalendar(props: {
                       <tr>
                         <Index each={week()}>
                           {(day) => (
-                            <Calendar.Cell class="h-10 p-0 text-center">
+                            <Calendar.Cell class="h-9 p-0 text-center">
                               <Calendar.CellTrigger
                                 class={cn(
-                                  "chat-calendar__day mx-auto grid size-9 place-items-center rounded-full p-0",
-                                  "cursor-pointer",
-                                  "not-data-disabled:hover:bg-[oklch(from_var(--fg)_l_c_h_/_6%)]",
-                                  "active:not-data-disabled:scale-[0.92]",
-                                  "data-disabled:text-fg2 data-disabled:opacity-45",
-                                  "data-[today]:font-bold data-[today]:text-info",
-                                  "data-selected:font-bold data-selected:text-info",
-                                  "data-selected:bg-[oklch(from_var(--info)_l_c_h_/_22%)]",
+                                  "chat-calendar__day mx-auto grid size-8 place-items-center rounded-base p-0 type-base text-secondary",
+                                  "cursor-pointer transition-colors",
+                                  "not-data-disabled:hover:bg-quaternary not-data-disabled:hover:text-primary",
+                                  "active:not-data-disabled:scale-(--press-scale)",
+                                  "data-disabled:text-quaternary",
+                                  "data-[today]:font-semibold data-[today]:text-accent",
+                                  "data-selected:font-semibold data-selected:text-accent",
+                                  "data-selected:bg-accent-soft",
                                 )}
                                 day={day()}
                               >

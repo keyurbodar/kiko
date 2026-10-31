@@ -28,7 +28,7 @@ import "./right-panel.css"
 const scrolls = new Map<string, number>()
 
 const KEY_HINT =
-  "grid h-[18px] min-w-[18px] shrink-0 place-items-center rounded-[5px] bg-fill px-1 text-[11px] font-medium text-[var(--text-300)]"
+  "type-xs grid h-[18px] min-w-[18px] shrink-0 place-items-center rounded-sm bg-quaternary px-1 text-tertiary"
 
 const SHORTCUT_BLOCKING_LAYERS = '[role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"]'
 
@@ -71,7 +71,7 @@ function Tab(props: { chatId: string; surface: Surface; index: number; count: nu
         aria-selected={props.active}
         tabIndex={props.active ? 0 : -1}
         draggable
-        class="rp-tab flex h-6 max-w-36 shrink-0 cursor-pointer items-center gap-0.5 rounded-[6px] pr-2 pl-1.5 text-xs"
+        class="rp-tab flex h-6 max-w-36 shrink-0 cursor-pointer items-center gap-0.5 rounded-base pr-2 pl-1.5 type-sm"
         title={label()}
         data-component="right-panel-tab"
         data-surface={props.surface.id}
@@ -106,7 +106,7 @@ function Tab(props: { chatId: string; surface: Surface; index: number; count: nu
           type="button"
           tabIndex={-1}
           aria-label={`Close ${label()}`}
-          class="rp-tab-close relative flex size-4 shrink-0 items-center justify-center rounded-[4px]"
+          class="rp-tab-close relative flex size-4 shrink-0 items-center justify-center rounded-sm"
           data-action="close-surface"
           onClick={(event) => {
             event.stopPropagation()
@@ -158,7 +158,7 @@ function LauncherItems(props: { onPick: (kind: FixedKind) => void }) {
     <For each={entries()}>
       {(entry) => (
         <MenuV2.Item onSelect={() => props.onPick(entry.kind)}>
-          <RemixIcon icon={panelOf(entry.kind).icon} size={16} />
+          <RemixIcon icon={panelOf(entry.kind).icon} size={14} />
           <span class="min-w-0 flex-1 truncate">{entry.label}</span>
           <span class={KEY_HINT}>{entry.key}</span>
         </MenuV2.Item>
@@ -363,20 +363,20 @@ function EmptyPanel(props: { chatId: string }) {
       onKeyDown={onKeyDown}
     >
       <div class="w-full max-w-xs py-6">
-        <h3 class="mb-3 text-center text-[13px] font-medium text-[var(--text-000)]">Open a surface</h3>
+        <h3 class="type-base mb-3 text-center font-semibold text-primary">Open a surface</h3>
         <div class="flex flex-col gap-0.5">
           <For each={entries()}>
             {(entry, index) => (
               <button
                 type="button"
-                class="rp-launch flex h-8 w-full items-center gap-2.5 rounded-[8px] px-2.5 text-left text-[13px] text-[var(--text-000)]"
+                class="rp-launch type-base flex h-control-xl w-full items-center gap-2.5 rounded-base px-2.5 text-left text-primary"
                 data-highlighted={at() === index() ? "" : undefined}
                 data-action={`open-${entry.kind}`}
                 onMouseEnter={() => setHighlight(index())}
                 onMouseLeave={() => setHighlight((current) => (current === index() ? -1 : current))}
                 onClick={() => open(entry.kind)}
               >
-                <RemixIcon icon={panelOf(entry.kind).icon} size={16} class="shrink-0" />
+                <RemixIcon icon={panelOf(entry.kind).icon} size={14} class="shrink-0" />
                 <span class="min-w-0 flex-1 truncate">{entry.label}</span>
                 <span class={KEY_HINT}>{entry.key}</span>
               </button>
@@ -442,7 +442,7 @@ function PanelControls(props: { chatId: string; onClose: () => void; sheet: bool
             data-action="toggle-panel-max"
             onClick={() => setPanelMaximized(!maximized())}
           >
-            <RemixIcon icon={maximized() ? MinimizeIcon : MaximizeIcon} size={16} />
+            <RemixIcon icon={maximized() ? MinimizeIcon : MaximizeIcon} size={14} />
           </button>
         </TooltipV2>
       </Show>
@@ -454,7 +454,7 @@ function PanelControls(props: { chatId: string; onClose: () => void; sheet: bool
           data-action="close-panel"
           onClick={props.onClose}
         >
-          <RemixIcon icon={CloseIcon} size={16} />
+          <RemixIcon icon={CloseIcon} size={14} />
         </button>
       </TooltipV2>
     </div>

@@ -4,8 +4,8 @@ import { page, userEvent } from "vitest/browser"
 import { render } from "../../test/render"
 import Appearance from "./appearance"
 import { look, updateLook } from "./live"
-import display from "../../../landing/public/fonts/bricolage-grotesque-latin.woff2?url"
-import sans from "../../../landing/public/fonts/figtree-latin.woff2?url"
+import mono from "../fonts/geist-mono-core.woff2?url"
+import sans from "../fonts/geist-core.woff2?url"
 
 async function install(family: string, url: string) {
   const face = new FontFace(family, `url(${url})`)
@@ -24,7 +24,7 @@ async function typeFont(label: string, name: string) {
 describe("appearance fonts", () => {
   it("applies an installed interface and code font and keeps the current font for an unknown name", async () => {
     await install("KikoTestSans", sans)
-    await install("KikoTestDisplay", display)
+    await install("KikoTestMono", mono)
     await using screen = await render(() => (
       <>
         <Appearance />
@@ -45,8 +45,8 @@ describe("appearance fonts", () => {
     await expect.element(uiText).toHaveStyle({ fontFamily: `KikoTestSans, ${uiBefore}` })
     await expect.element(page.getByRole("textbox", { name: "Interface font" })).not.toHaveAttribute("aria-invalid")
 
-    await typeFont("Code font", "KikoTestDisplay")
-    await expect.element(codeText).toHaveStyle({ fontFamily: `KikoTestDisplay, ${codeBefore}` })
+    await typeFont("Code font", "KikoTestMono")
+    await expect.element(codeText).toHaveStyle({ fontFamily: `KikoTestMono, ${codeBefore}` })
 
     await screen.getByRole("button", { name: "Reset interface font to default" }).click()
     await expect.element(uiText).toHaveStyle({ fontFamily: uiBefore })
@@ -57,32 +57,41 @@ describe("appearance fonts", () => {
 
 describe("appearance themes", () => {
   it("shows only the themes for the mode in view and lets System keep one light and one dark pick", async () => {
-    updateLook({ mode: "dark", darkTheme: "kiko" })
+    updateLook({ mode: "dark", darkTheme: "dark" })
     await using screen = await render(() => <Appearance />)
     const dark = screen.getByRole("radiogroup", { name: "Dark theme" })
-    await expect.element(dark.getByRole("radio", { name: "Glacier" })).toBeVisible()
-    await expect.element(screen.getByRole("radio", { name: "Paper" })).not.toBeInTheDocument()
+    await expect.element(dark.getByRole("radio", { name: "Dark High Contrast" })).toBeVisible()
+    await expect.element(screen.getByRole("radio", { name: "Light High Contrast" })).not.toBeInTheDocument()
 
     await screen.getByRole("radio", { name: "Light", exact: true }).click()
     const light = screen.getByRole("radiogroup", { name: "Light theme" })
-    await expect.element(light.getByRole("radio", { name: "Paper" })).toHaveAttribute("aria-checked", "true")
-    await expect.element(screen.getByRole("radio", { name: "Glacier" })).not.toBeInTheDocument()
+    await expect
+      .element(light.getByRole("radio", { name: "Light", exact: true }))
+      .toHaveAttribute("aria-checked", "true")
+    await expect.element(screen.getByRole("radio", { name: "Dark High Contrast" })).not.toBeInTheDocument()
 
     await screen.getByRole("radio", { name: "System", exact: true }).click()
     await expect.element(screen.getByRole("radiogroup", { name: "Light theme" })).toBeVisible()
-    await screen.getByRole("radiogroup", { name: "Dark theme" }).getByRole("radio", { name: "Glacier" }).click()
+    await screen
+      .getByRole("radiogroup", { name: "Dark theme" })
+      .getByRole("radio", { name: "Dark High Contrast" })
+      .click()
     expect(look().mode).toBe("system")
-    expect(look().darkTheme).toBe("glacier")
+    expect(look().darkTheme).toBe("dark-high-contrast")
     await expect
-      .element(screen.getByRole("radiogroup", { name: "Dark theme" }).getByRole("radio", { name: "Glacier" }))
+      .element(
+        screen.getByRole("radiogroup", { name: "Dark theme" }).getByRole("radio", { name: "Dark High Contrast" }),
+      )
       .toHaveAttribute("aria-checked", "true")
     await expect
-      .element(screen.getByRole("radiogroup", { name: "Light theme" }).getByRole("radio", { name: "Paper" }))
+      .element(
+        screen.getByRole("radiogroup", { name: "Light theme" }).getByRole("radio", { name: "Light", exact: true }),
+      )
       .toHaveAttribute("aria-checked", "true")
   })
 
   it("keeps More themes as the last tile", async () => {
-    updateLook({ mode: "dark", darkTheme: "kiko" })
+    updateLook({ mode: "dark", darkTheme: "dark" })
     await using screen = await render(() => <Appearance />)
     const grid = screen.getByRole("radiogroup", { name: "Dark theme" }).element().parentElement!
     expect(grid.lastElementChild).toBe(screen.getByRole("button", { name: "More themes" }).element())

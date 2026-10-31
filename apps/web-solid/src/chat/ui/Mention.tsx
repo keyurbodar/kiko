@@ -14,7 +14,7 @@ export function Mention(props: { slug: string; text?: string }): JSX.Element {
     return s.status === "signed-in" && humanHandle(s.user.name) === props.slug
   }
   const plain = () => (
-    <Show when={self()} fallback={<span class="font-medium">{props.text ?? `@${props.slug}`}</span>}>
+    <Show when={self()} fallback={<span class="font-semibold">{props.text ?? `@${props.slug}`}</span>}>
       <span class="mchip" data-component="chat-mention" data-self="" data-slug={props.slug}>
         <span class="mchip-label">@{props.slug}</span>
       </span>

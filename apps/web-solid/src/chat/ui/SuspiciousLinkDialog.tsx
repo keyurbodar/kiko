@@ -42,20 +42,20 @@ export function SuspiciousLinkDialog(props: { href: string; text?: string; onClo
         </div>
       }
     >
-      <dl class="flex flex-col gap-2 rounded-tile bg-panel px-3.5 py-3" data-component="suspicious-link-detail">
+      <dl class="flex flex-col gap-2 rounded-xl bg-editor px-3.5 py-3" data-component="suspicious-link-detail">
         <Show when={says}>
           {(text) => (
             <div class="grid grid-cols-[4.5rem_minmax(0,1fr)] items-baseline gap-2">
-              <dt class="text-label text-fg3">Says</dt>
-              <dd class="type-ui break-words text-fg">{text()}</dd>
+              <dt class="text-sm text-tertiary">Says</dt>
+              <dd class="type-base break-words text-primary">{text()}</dd>
             </div>
           )}
         </Show>
         <div class="grid grid-cols-[4.5rem_minmax(0,1fr)] items-baseline gap-2">
-          <dt class="text-label text-fg3">Goes to</dt>
-          <dd class="font-mono text-label break-all" data-field="real-address">
-            <span class="text-fg">{target().host}</span>
-            <span class="text-fg3">{target().rest}</span>
+          <dt class="text-sm text-tertiary">Goes to</dt>
+          <dd class="font-mono text-sm break-all" data-field="real-address">
+            <span class="text-primary">{target().host}</span>
+            <span class="text-tertiary">{target().rest}</span>
           </dd>
         </div>
       </dl>

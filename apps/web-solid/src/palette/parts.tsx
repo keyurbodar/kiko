@@ -94,17 +94,17 @@ function Leading(props: { item: Item }) {
         <Show
           when={props.item.chatId ?? props.item.seed}
           fallback={
-            <span class="palette-icon">
+            <span class="palette-icon row-icon">
               <RemixIcon
                 icon={props.item.glyph ?? (props.item.folder ? FolderIcon : iconFor(props.item.icon ?? "command"))}
-                size={16}
+                size={14}
                 class={props.item.icon === "attach" ? "palette-clip" : undefined}
               />
             </span>
           }
         >
-          <Show when={props.item.chatId} fallback={<IdentityAvatar seed={props.item.seed!} size={28} />}>
-            {(id) => <ChatAvatar faces={room.chatFaces(id())} size={28} />}
+          <Show when={props.item.chatId} fallback={<IdentityAvatar seed={props.item.seed!} size={20} />}>
+            {(id) => <ChatAvatar faces={room.chatFaces(id())} size={20} />}
           </Show>
         </Show>
       }
@@ -192,11 +192,11 @@ export function Row(props: {
         )}
       </Show>
       <Show when={props.item.current}>
-        <RemixIcon icon={CheckIcon} size={16} class="palette-trail" />
+        <RemixIcon icon={CheckIcon} size={12} class="palette-trail" />
       </Show>
       <Show when={props.item.shortcut}>{(shortcut) => <Chips keys={keyChips(displayShortcut(shortcut()))} />}</Show>
       <Show when={props.item.submenu || props.item.folder}>
-        <RemixIcon icon={ChevronRightIcon} size={16} class="palette-trail" />
+        <RemixIcon icon={ChevronRightIcon} size={12} class="palette-trail" />
       </Show>
       <span class="palette-enter" aria-hidden="true">
         <Key name="enter" />
@@ -209,7 +209,7 @@ export function AskKiko(props: { query: string; onAsk: () => void }) {
   return (
     <button type="button" class="palette-ask" data-action="ask-kiko" onClick={props.onAsk}>
       <span class="palette-ask-face">
-        <IdentityAvatar seed="kiko" size={24} />
+        <IdentityAvatar seed="kiko" size={20} />
       </span>
       <span class="palette-ask-text">
         Ask Kiko: <span class="palette-ask-quote">“{props.query}”</span>
@@ -228,7 +228,7 @@ export function Empty(props: { message: string; sub?: string; onAsk?: () => void
       </Show>
       <Show when={props.onAsk}>
         <button type="button" class="palette-ask-pill" data-action="ask-kiko" onClick={() => props.onAsk?.()}>
-          <IdentityAvatar seed="kiko" size={20} />
+          <IdentityAvatar seed="kiko" size={16} />
           Ask Kiko
           <Key name="mod-enter" />
         </button>

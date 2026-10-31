@@ -24,11 +24,13 @@ export function ReactionStack(props: ReactionStackProps) {
           {(reaction) => (
             <button
               class={cn(
-                "pointer-events-auto relative inline-flex h-7 min-w-7 items-center justify-center rounded-full p-0 text-[15px] leading-none",
-                "bg-panel text-fg shadow-[0_0_0_2px_var(--bg)]",
-                "active:scale-[0.92]",
-                reaction.count > 1 && "px-2",
-                reaction.viewerReacted ? "z-[1] bg-me text-fg hover:bg-me" : "hover:bg-bg focus-visible:bg-bg",
+                "pointer-events-auto relative inline-flex h-control-md min-w-control-md items-center justify-center rounded-full p-0 leading-none",
+                "text-primary shadow-[0_0_0_2px_var(--bg-chrome)]",
+                "transition-[background-color,transform] duration-(--duration-fast) active:scale-(--press-scale)",
+                reaction.count > 1 && "px-1.5",
+                reaction.viewerReacted
+                  ? "z-[1] bg-[color-mix(in_oklab,var(--bg-accent)_22%,var(--bg-chrome))] hover:bg-[color-mix(in_oklab,var(--bg-accent)_30%,var(--bg-chrome))]"
+                  : "bg-[var(--bg-tertiary-opaque)] hover:bg-[color-mix(in_oklab,var(--text-primary)_14%,var(--bg-chrome))] focus-visible:bg-[color-mix(in_oklab,var(--text-primary)_14%,var(--bg-chrome))]",
               )}
               data-component="chat-reaction-badge"
               data-emoji={reaction.emoji}
@@ -37,9 +39,13 @@ export function ReactionStack(props: ReactionStackProps) {
               aria-label={`${reaction.emoji} ${reaction.count}`}
               onClick={props.onToggle && (() => props.onToggle!(reaction.emoji))}
             >
-              <span class="font-emoji text-[17px] leading-none">{reaction.emoji}</span>
+              <span class="font-emoji text-[14px] leading-none">{reaction.emoji}</span>
               <Show when={reaction.count > 1}>
-                <span class="ml-[3px] text-hint font-medium">{reaction.count}</span>
+                <span
+                  class={cn("ml-1 type-xs tabular-nums", reaction.viewerReacted ? "text-accent" : "text-secondary")}
+                >
+                  {reaction.count}
+                </span>
               </Show>
             </button>
           )}

@@ -93,7 +93,7 @@ export function FileBreadcrumbs(props: {
                     </TooltipV2>
                     <Show when={props.unsaved && crumb.kind === "file"}>
                       <span
-                        class="ml-1.5 size-1.5 shrink-0 rounded-full bg-[var(--fg3)]"
+                        class="ml-1.5 size-1.5 shrink-0 rounded-full bg-[var(--text-tertiary)]"
                         data-component="file-unsaved"
                         title="Saving"
                         role="img"
@@ -199,7 +199,7 @@ function FolderContentsMenu(props: {
                         <MenuV2.Item closeOnSelect={false} onSelect={() => setAt(item.path)}>
                           <FileIcon node={{ path: item.path, type: "directory" }} />
                           <span class="min-w-0 flex-1 truncate">{item.label}</span>
-                          <RemixIcon icon={ChevronRightIcon} class="size-4 shrink-0 text-fg3" />
+                          <RemixIcon icon={ChevronRightIcon} class="size-4 shrink-0 text-tertiary" />
                         </MenuV2.Item>
                       ) : (
                         <MenuV2.RadioItem

@@ -30,7 +30,7 @@ import { HOME } from "./model"
 import { setFullSize } from "./prefs"
 import { type FileGroup, fileType, type FileType, GROUP_LABELS, groupOf, TYPE_NAMES } from "./type"
 import { TypeIcon } from "./type-icon"
-import { type CardFile, FileCard, toneOf } from "./card"
+import { type CardFile, FileCard } from "./card"
 import { agoText } from "./edited"
 import { authorFacets, byAuthor, knownAuthor, type Author } from "./author"
 import { AuthorMenu } from "./author-menu"
@@ -130,7 +130,7 @@ function Upload(props: { onFiles: (files: File[]) => void; primary?: boolean }) 
         data-action="upload-files"
         onClick={() => input.click()}
       >
-        <RemixIcon icon={UploadIcon} size={16} />
+        <RemixIcon icon={UploadIcon} size={14} />
         Upload
       </button>
     </>
@@ -159,7 +159,7 @@ function SortMenu(props: {
   return (
     <MenuV2 gutter={4} placement="bottom-end">
       <MenuV2.Trigger class={toolButton} aria-label="Sort and filter files" data-action="sort-files">
-        <RemixIcon icon={FilterHorizontalIcon} size={16} />
+        <RemixIcon icon={FilterHorizontalIcon} size={13} />
       </MenuV2.Trigger>
       <MenuV2.Portal>
         <MenuV2.Content class="min-w-48">
@@ -190,7 +190,7 @@ function NewMenu(props: { onNew: (blank: (typeof BLANKS)[number]) => void }) {
   return (
     <MenuV2 gutter={4} placement="bottom-end">
       <MenuV2.Trigger class={primaryButton} data-action="new-file">
-        <RemixIcon icon={PlusIcon} size={16} />
+        <RemixIcon icon={PlusIcon} size={14} />
         New
       </MenuV2.Trigger>
       <MenuV2.Portal>
@@ -228,20 +228,15 @@ function ListView(props: { shown: readonly Entry[]; open: (key: string) => void 
         {(e) => (
           <button
             type="button"
-            class="group flex h-12 cursor-pointer items-center gap-3 rounded-row px-3 text-left outline-none transition-colors duration-(--dur-hover) hover:bg-hover focus-visible:bg-hover"
+            class="group flex h-control-xl cursor-pointer items-center gap-2.5 rounded-base px-2 text-left outline-none transition-colors duration-(--duration-fast) hover:bg-quaternary focus-visible:bg-quaternary"
             data-file={e.path}
             data-fresh={isFresh(e.path) ? "" : undefined}
             onClick={() => props.open(e.key)}
           >
+            <TypeIcon type={e.type} size={14} />
+            <span class="type-base min-w-0 flex-1 truncate text-primary">{e.name}</span>
             <span
-              class="grid size-8 shrink-0 place-items-center rounded-control transition-colors duration-(--dur-hover)"
-              style={{ background: `color-mix(in oklab, ${toneOf(e.name)} 14%, var(--panel))` }}
-            >
-              <TypeIcon type={e.type} size={16} />
-            </span>
-            <span class="type-row min-w-0 flex-1 truncate text-fg">{e.name}</span>
-            <span
-              class="type-label hidden w-56 min-w-0 items-center gap-1.5 text-fg3 @min-[640px]/page:flex"
+              class="type-sm hidden w-56 min-w-0 items-center gap-1.5 text-tertiary @min-[640px]/page:flex"
               title={
                 e.madeBy ? `${agentDisplayName(e.madeBy, user.agents())} made it in ${place(e)}` : `In ${place(e)}`
               }
@@ -249,8 +244,8 @@ function ListView(props: { shown: readonly Entry[]; open: (key: string) => void 
               <Maker entry={e} />
               <span class="truncate">{agoText(e.at)}</span>
             </span>
-            <span class="type-label hidden w-24 text-fg3 @min-[640px]/page:block">{TYPE_NAMES[e.type]}</span>
-            <span class="type-hint w-16 text-right text-fg4">{formatBytes(e.file.size)}</span>
+            <span class="type-sm hidden w-24 text-tertiary @min-[640px]/page:block">{TYPE_NAMES[e.type]}</span>
+            <span class="type-sm w-16 text-right text-tertiary">{formatBytes(e.file.size)}</span>
           </button>
         )}
       </For>
@@ -343,7 +338,7 @@ export default function FilesPage() {
                 icon={view() === "grid" ? MenuIcon : GridIcon}
                 onClick={() => setView(view() === "grid" ? "list" : "grid")}
               />
-              <span class="ml-1 flex items-center gap-2">
+              <span class="ml-1 flex items-center gap-1.5">
                 <Upload onFiles={(files) => void saveFiles(files)} />
                 <NewMenu onNew={(blank) => void createBlank(blank)} />
               </span>

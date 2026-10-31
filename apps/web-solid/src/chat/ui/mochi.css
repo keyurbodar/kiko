@@ -14,7 +14,7 @@
   width: 0.6em;
   height: 0.1em;
   border-radius: 50%;
-  background: var(--fg);
+  background: var(--text-primary);
   opacity: 0.4;
 }
 
@@ -25,7 +25,7 @@
   width: 0.7em;
   height: 0.55em;
   border-radius: 50% 50% 44% 44% / 62% 62% 38% 38%;
-  background: var(--fg);
+  background: var(--text-primary);
   transform-origin: 50% 100%;
 }
 

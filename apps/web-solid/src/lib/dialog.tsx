@@ -41,9 +41,13 @@ export function Dialog(props: {
   )
   const inner = () => (
     <>
-      <div class={cn("min-h-0 flex-1 overflow-y-auto px-5 pb-5 empty:hidden", props.bodyClass)}>{props.children}</div>
+      <div
+        class={cn("min-h-0 flex-1 overflow-y-auto px-4 pb-4 type-base text-secondary empty:hidden", props.bodyClass)}
+      >
+        {props.children}
+      </div>
       <Show when={props.footer}>
-        <div class="flex shrink-0 flex-wrap items-center justify-end gap-2 px-5 pb-5">{props.footer}</div>
+        <div class="flex shrink-0 flex-wrap items-center justify-end gap-2 px-4 pb-4">{props.footer}</div>
       </Show>
     </>
   )
@@ -53,7 +57,7 @@ export function Dialog(props: {
         <ModalV2.Overlay />
         <ModalV2.Content
           class={cn(
-            "max-h-[calc(100dvh-32px)] flex-col overflow-hidden rounded-sheet bg-raise text-fg shadow-[var(--float-shadow)]",
+            "max-h-[calc(100dvh-32px)] flex-col overflow-hidden rounded-xl bg-elevated text-primary shadow-[var(--box-shadow-dialog)]",
             WIDTH[props.size ?? "sm"],
             props.class,
           )}
@@ -64,10 +68,10 @@ export function Dialog(props: {
           }}
         >
           <div class="relative flex min-h-0 flex-1 flex-col" data-component={props["data-component"]}>
-            <header class="shrink-0 px-5 pt-4 pr-12 pb-4">
-              <ModalV2.Title class="type-section font-semibold leading-snug text-fg">{props.title}</ModalV2.Title>
+            <header class="shrink-0 px-4 pt-4 pr-11 pb-3">
+              <ModalV2.Title class="type-lg font-semibold text-primary">{props.title}</ModalV2.Title>
               <Show when={props.description}>
-                <p id={describedBy} class="mt-1 text-label leading-relaxed text-[var(--kit-meta)]">
+                <p id={describedBy} class="mt-1 type-base text-secondary">
                   {props.description}
                 </p>
               </Show>
@@ -82,12 +86,12 @@ export function Dialog(props: {
               type="button"
               aria-label="Close"
               title="Close"
-              class={cn(iconButtonClass, "absolute top-3 right-3")}
+              class={cn(iconButtonClass, "absolute top-3.5 right-3.5")}
               data-action="close-dialog"
               onClick={() => props.onClose()}
             >
               <svg
-                class="size-4"
+                class="size-3.5"
                 viewBox="0 0 16 16"
                 fill="none"
                 stroke="currentColor"

@@ -10,8 +10,6 @@
   Cache-Control: public, max-age=604800, stale-while-revalidate=2592000
 /favicon.ico
   Cache-Control: public, max-age=604800, stale-while-revalidate=2592000
-/fonts/*
-  Cache-Control: public, max-age=604800, stale-while-revalidate=2592000
 /kiko.svg
   Cache-Control: public, max-age=604800, stale-while-revalidate=2592000
 /manifest.webmanifest

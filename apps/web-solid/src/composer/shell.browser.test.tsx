@@ -80,7 +80,7 @@ describe("composer shell", () => {
         expectEdgeless(screen.container)
         expect(ring(box)).toMatch(/0px 0px 0px 1px inset$/)
         fill = getComputedStyle(box).backgroundColor
-        expect(fill).toBe(resolvedColor("background", "--raise"))
+        expect(fill).toBe(resolvedColor("background", "--composer-raise"))
       })
       return fill
     })

@@ -2,7 +2,7 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 20px;
+  gap: 16px;
   justify-content: center;
   padding: 0 16px 16px;
   text-align: center;
@@ -11,16 +11,16 @@
 
 .chat-empty-mochi {
   display: grid;
-  width: 120px;
-  height: 120px;
+  width: 64px;
+  height: 64px;
   place-items: center;
   border-radius: 50%;
-  background: var(--panel);
+  background: var(--bg-quaternary);
 }
 
 @media (prefers-reduced-motion: no-preference) {
   .chat-empty-mochi {
-    animation: motion-fade-scale-in var(--dur-pop) var(--ease-kiko) both;
+    animation: motion-fade-scale-in var(--duration-normal) var(--ease-sharp) both;
   }
 }
 

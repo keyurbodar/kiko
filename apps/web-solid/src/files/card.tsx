@@ -27,7 +27,7 @@ export type CardFile = {
 
 const GREY = ["#6f7480", "#9ea3ae"] as const
 
-export function toneOf(name: string): string {
+function toneOf(name: string): string {
   const [light, dark] = fileTone(name) ?? GREY
   return `light-dark(${light}, ${dark})`
 }
@@ -233,8 +233,8 @@ export function FileCard(props: {
           <Sheet entry={props.entry} compact={props.compact ?? false} />
         </span>
         <span class="file-card-text">
-          <span class="file-card-name type-label truncate text-fg">{props.entry.name}</span>
-          <span class="file-card-meta type-hint flex min-w-0 items-center gap-1.5 text-[var(--text-300)]">
+          <span class="file-card-name type-sm truncate text-primary">{props.entry.name}</span>
+          <span class="file-card-meta type-xs flex min-w-0 items-center gap-1.5 text-[var(--text-tertiary)]">
             <Show when={props.entry.madeBy}>
               {(slug) => <IdentityAvatar seed={slug()} size={props.compact ? 14 : 16} class="shrink-0" />}
             </Show>
@@ -252,7 +252,7 @@ export function FileCard(props: {
         title="Save"
         data-action="save-file"
       >
-        <RemixIcon icon={DownloadIcon} size={16} />
+        <RemixIcon icon={DownloadIcon} size={14} />
       </a>
     </div>
   )

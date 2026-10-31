@@ -9,11 +9,11 @@ import { backendVersion, startUpdate, view, watchLatest } from "./update-flow"
 function Versions(props: { note?: string }) {
   return (
     <div class="flex flex-col gap-1">
-      <Show when={props.note}>{(note) => <p class="text-label">{note()}</p>}</Show>
-      <dl class="grid grid-cols-[auto_auto] gap-x-3 text-label" data-part="update-versions">
-        <dt class="opacity-70">App</dt>
+      <Show when={props.note}>{(note) => <p class="type-sm">{note()}</p>}</Show>
+      <dl class="grid grid-cols-[auto_auto] gap-x-3 type-sm" data-part="update-versions">
+        <dt class="text-tertiary">App</dt>
         <dd data-part="app-version">{APP_VERSION}</dd>
-        <dt class="opacity-70">Backend</dt>
+        <dt class="text-tertiary">Backend</dt>
         <dd data-part="backend-version">{backendVersion() ?? "Unknown"}</dd>
       </dl>
     </div>
@@ -41,7 +41,7 @@ const offered = (): keyof typeof LABEL | null => {
 }
 
 const row =
-  "flex h-nav-tab w-full min-w-0 items-center gap-2.5 rounded-row px-2.5 type-ui text-fg2 transition-[background-color,color,transform] duration-(--dur-hover) ease-kiko"
+  "flex h-sidebar-row w-full min-w-0 items-center gap-1.5 rounded-base px-1.5 type-base text-secondary transition-[background-color,color,transform] duration-(--duration-fast) ease-sharp"
 
 export default function UpdatePill() {
   const navigate = useNavigate()
@@ -50,7 +50,7 @@ export default function UpdatePill() {
     offered() === "reconnect" ? void navigate({ to: "/connect", search: { reconnect: 1 } }) : void startUpdate()
   return (
     <Show when={view().kind !== "none"}>
-      <div class="px-2 pb-1" data-component="update-pill-row">
+      <div class="px-sidebar-inset pb-px" data-component="update-pill-row">
         <TooltipV2
           placement="top"
           openDelay={500}
@@ -60,10 +60,10 @@ export default function UpdatePill() {
             <Match when={busyText()}>
               {(text) => (
                 <span class={row} role="status" data-component="update-pill" data-kind="busy">
-                  <RemixIcon icon={DownloadIcon} size={16} class="shrink-0 text-fg4" />
+                  <RemixIcon icon={DownloadIcon} size={14} class="shrink-0 icon-tertiary" />
                   <span
                     class="motion-shine min-w-0 truncate"
-                    style={{ "--run-text": "var(--fg3)", "--visible-animation-state": "running" }}
+                    style={{ "--run-text": "var(--text-tertiary)", "--visible-animation-state": "running" }}
                   >
                     {BUSY[text()] ?? text()}
                   </span>
@@ -74,15 +74,15 @@ export default function UpdatePill() {
               {(kind) => (
                 <button
                   type="button"
-                  class={`${row} cursor-pointer hover:bg-hover hover:text-fg active:scale-[0.98]`}
+                  class={`${row} cursor-pointer hover:bg-quaternary hover:text-primary active:scale-(--press-scale)`}
                   data-component="update-pill"
                   data-kind={kind()}
                   onClick={act}
                 >
-                  <RemixIcon icon={ICON[kind()]} size={16} class="shrink-0" />
+                  <RemixIcon icon={ICON[kind()]} size={14} class="shrink-0 icon-secondary" />
                   <span class="min-w-0 flex-1 truncate text-left">{LABEL[kind()]}</span>
                   <Show when={kind() === "failed"}>
-                    <span class="shrink-0 text-fg">Retry</span>
+                    <span class="shrink-0 text-primary">Retry</span>
                   </Show>
                 </button>
               )}

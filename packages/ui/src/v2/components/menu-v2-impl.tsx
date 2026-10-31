@@ -19,17 +19,17 @@ const Glide: Component = () => {
         [...menu.querySelectorAll<HTMLElement>(ITEM)].find(
           (item) => item.closest('[data-component="menu-v2-content"]') === menu,
         ),
-      tone: (item) => (item.matches(".text-bad, .text-error") ? "bad" : undefined),
+      tone: (item) => (item.matches(".text-danger, .text-error") ? "bad" : undefined),
     })
   })
   return <span ref={mark} data-slot="glide" data-hidden="" aria-hidden="true" />
 }
 
-const ChevronRight: Component = () => <RemixIcon icon={ChevronRightIcon} data-slot="menu-v2-item-chevron" size={16} />
+const ChevronRight: Component = () => <RemixIcon icon={ChevronRightIcon} data-slot="menu-v2-item-chevron" size={12} />
 
 const Check: Component = () => (
   <DropdownMenu.ItemIndicator data-slot="menu-v2-item-indicator" forceMount>
-    <RemixIcon icon={CheckIcon} size={16} />
+    <RemixIcon icon={CheckIcon} size={14} />
   </DropdownMenu.ItemIndicator>
 )
 

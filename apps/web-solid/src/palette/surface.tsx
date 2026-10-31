@@ -411,7 +411,7 @@ export function PaletteSurface(props: { source: TabData }) {
           >
             <div class="palette-bar">
               <span class="palette-addon" aria-hidden="true">
-                <RemixIcon icon={view().parent ? iconFor(view().parent!.icon) : SearchIcon} size={16} />
+                <RemixIcon icon={view().parent ? iconFor(view().parent!.icon) : SearchIcon} size={14} />
               </span>
               <Cmdk.Input
                 ref={input}
@@ -537,14 +537,14 @@ export function PaletteSurface(props: { source: TabData }) {
                     <b>{pickedFiles().size} selected</b> {selectedSize()}
                   </span>
                   <button type="button" class="palette-btn" onClick={() => downloadFiles(entries())}>
-                    <RemixIcon icon={DownloadIcon} size={16} />
+                    <RemixIcon icon={DownloadIcon} size={13} />
                     Download
                   </button>
                   <Show when={canAttach()}>
                     <Show
                       when={attachable(entries()).length > 0}
                       fallback={
-                        <span class="type-hint text-fg4" data-component="palette-attach-other">
+                        <span class="type-xs text-quaternary" data-component="palette-attach-other">
                           Files from other chats stay in their chat
                         </span>
                       }

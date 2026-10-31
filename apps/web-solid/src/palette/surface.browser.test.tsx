@@ -119,9 +119,9 @@ describe("command palette", () => {
   it("slides one pill under the selected tab", async () => {
     await using _screen = await open()
     const tabs = page.getByRole("tablist")
-    await expect.element(tabs).toContainHTML("translateX(12px)")
+    await expect.element(tabs).toContainHTML("translateX(8px)")
     await tab("Files").click()
-    await expect.element(tabs).not.toContainHTML("translateX(12px)")
+    await expect.element(tabs).not.toContainHTML("translateX(8px)")
     expect(document.querySelectorAll(".palette-pill")).toHaveLength(1)
   })
 

@@ -180,9 +180,9 @@ export function FileSurface(props: { chatId: string; path?: string }) {
         class="flex min-h-0 min-w-0 flex-1 flex-col items-center justify-center gap-2 p-6 text-center"
         data-component="files-pane-empty"
       >
-        <RemixIcon icon={FileIcon} size={24} class="text-[var(--text-300)]" />
-        <p class="type-ui text-fg">Open files appear here</p>
-        <p class="type-label text-[var(--text-300)]">Pick a file in the tree, or drop one here.</p>
+        <RemixIcon icon={FileIcon} size={24} class="text-[var(--text-tertiary)]" />
+        <p class="type-base text-primary">Open files appear here</p>
+        <p class="type-sm text-[var(--text-tertiary)]">Pick a file in the tree, or drop one here.</p>
       </div>
     )
 
@@ -234,7 +234,7 @@ export function FileSurface(props: { chatId: string; path?: string }) {
             when={!fullSize()}
             fallback={
               <div
-                class="flex min-w-0 flex-1 items-center justify-center p-6 text-center text-label text-fg3"
+                class="flex min-w-0 flex-1 items-center justify-center p-6 text-center text-sm text-tertiary"
                 data-component="file-full-size-note"
               >
                 Open full size. Close it to return here.

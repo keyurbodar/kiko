@@ -27,7 +27,7 @@
 }
 
 .typing-body > .thinking {
-  margin-left: 16px;
+  margin-left: var(--spacing-conversation-text-inset);
 }
 
 .typing[data-group] {
@@ -47,12 +47,14 @@
 }
 
 .typing-more {
-  color: var(--text-300);
-  font-size: var(--type-hint);
+  padding-left: var(--spacing-conversation-text-inset);
+  color: var(--text-quaternary);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-sm);
 }
 
 .typing-stack[data-group] .typing-more {
-  padding-left: 40px;
+  padding-left: calc(40px + var(--spacing-conversation-text-inset));
 }
 
 .typing-sr {
@@ -69,11 +71,7 @@
 
 @media (prefers-reduced-motion: no-preference) {
   .typing {
-    animation: typing-in 200ms var(--ease-kiko) backwards;
-  }
-  .typing-bird {
-    animation: typing-bird-hop 1.2s var(--ease-kiko) infinite;
-    transform-origin: 50% 100%;
+    animation: typing-in 200ms var(--ease-sharp) backwards;
   }
 }
 
@@ -81,21 +79,5 @@
   from {
     opacity: 0;
     transform: translateY(4px);
-  }
-}
-
-@keyframes typing-bird-hop {
-  0%,
-  100% {
-    transform: none;
-  }
-  35% {
-    transform: translateY(-5px) scale(0.94, 1.06);
-  }
-  55% {
-    transform: scale(1.07, 0.93);
-  }
-  70% {
-    transform: none;
   }
 }

@@ -16,7 +16,7 @@ function AgentRow(props: { slug: AgentSlug; name: string }) {
     <Row
       data-agent={props.slug}
       label={
-        <span class="flex items-center gap-3 py-1 text-label font-semibold">
+        <span class="flex items-center gap-3 py-1 text-sm font-semibold">
           <IdentityAvatar seed={props.slug} size={36} />
           {props.name}
         </span>
@@ -30,7 +30,7 @@ function AgentRow(props: { slug: AgentSlug; name: string }) {
           ref !== current()?.model && room.setAgentModel(props.slug, { ref, levels, name })
         }
         title={`Choose model for ${props.name}`}
-        class="flex h-8 max-w-[240px] min-w-0 items-center gap-1.5 rounded-control bg-[var(--raise)] px-3 text-label text-fg transition-colors duration-[var(--dur-hover)] hover:bg-[var(--fill-control-hover)] aria-expanded:bg-[var(--fill-control-hover)] active:scale-[0.98]"
+        class="flex h-8 max-w-[240px] min-w-0 items-center gap-1.5 rounded-base bg-[var(--bg-elevated)] px-3 text-sm text-primary transition-colors duration-[var(--duration-fast)] hover:bg-[var(--bg-secondary)] aria-expanded:bg-[var(--bg-secondary)] active:scale-(--press-scale)"
       >
         <Show when={current()?.model.split("/")[0]}>
           {(provider) => <ProviderIcon id={provider()} width="13" height="13" />}
@@ -43,7 +43,7 @@ function AgentRow(props: { slug: AgentSlug; name: string }) {
         levels={current()?.thinkingLevels}
         value={current()?.thinking}
         placement="bottom-end"
-        class="h-8 rounded-control bg-[var(--raise)] px-3 text-label text-fg"
+        class="h-8 rounded-base bg-[var(--bg-elevated)] px-3 text-sm text-primary"
         onChange={(thinking) => room.setAgentModel(props.slug, { thinking })}
       />
     </Row>

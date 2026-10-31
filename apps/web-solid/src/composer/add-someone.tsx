@@ -18,7 +18,7 @@ export function AddSomeoneItems(props: { chatId: string }): JSX.Element {
   const agents = () => addable(user.agents(), room.roomMembers())
   return (
     <MenuV2.Group>
-      <MenuV2.GroupLabel class="px-2 pt-1.5 pb-1 type-hint text-fg3">Add to this chat</MenuV2.GroupLabel>
+      <MenuV2.GroupLabel class="px-2 pt-1.5 pb-1 type-xs text-tertiary">Add to this chat</MenuV2.GroupLabel>
       <Show when={agents().length > 0} fallback={<MenuV2.Item disabled>No other agents</MenuV2.Item>}>
         <For each={agents()}>
           {(agent) => (

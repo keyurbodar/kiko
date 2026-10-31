@@ -15,7 +15,7 @@ const OUTFITS = ["none", ...OUTFIT_NAMES] as const
 const label = (name: string) => name.charAt(0).toUpperCase() + name.slice(1)
 
 const cell =
-  "grid size-12 cursor-pointer place-items-center rounded-tile outline-none transition-[background-color,box-shadow,transform] duration-(--dur-hover) ease-kiko hover:bg-hover active:scale-[0.96] aria-checked:bg-active aria-checked:shadow-[inset_0_0_0_2px_var(--accent-fill)]"
+  "grid size-12 cursor-pointer place-items-center rounded-lg outline-none transition-[background-color,box-shadow,transform] duration-(--duration-fast) ease-sharp hover:bg-quaternary active:scale-(--press-scale) aria-checked:bg-quaternary aria-checked:shadow-[inset_0_0_0_1px_var(--bg-accent)]"
 
 const HOP: Keyframe[] = [
   { transform: "translateY(0) scale(1, 1)" },
@@ -38,7 +38,7 @@ function withPins(avatars: Look["avatars"], slug: string, pins: AvatarPins): Loo
 function Section(props: { title: string; children: JSX.Element }) {
   return (
     <section class="flex flex-col gap-2">
-      <h3 class="type-label text-fg3">{props.title}</h3>
+      <h3 class="type-sm text-tertiary">{props.title}</h3>
       <div
         class="grid grid-cols-[repeat(auto-fill,48px)] justify-between gap-1"
         role="radiogroup"

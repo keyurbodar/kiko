@@ -106,12 +106,12 @@ describe("shell", () => {
 
     toggle()
     expect(slideDurationMs()).toEqual([200, 200])
+    expect(railShown()).toBe(true)
+    expect(sidebarShown()).toBe(false)
     const closing = sampleChatLeft(screen.container, RAIL)
     expect(closing.at(-1)).toBe(RAIL)
     expect(closing.every((left) => left >= RAIL && left <= expanded)).toBe(true)
     expect(movesOneWay(closing, -1)).toBe(true)
-    await expect.poll(railShown).toBe(true)
-    expect(sidebarShown()).toBe(false)
 
     toggle()
     const opening = sampleChatLeft(screen.container, expanded)
@@ -120,6 +120,37 @@ describe("shell", () => {
     expect(movesOneWay(opening, 1)).toBe(true)
     expect(railShown()).toBe(false)
     expect(sidebarShown()).toBe(true)
+  })
+
+  it("lays the sidebar and the rail on Cursor's row grid", async () => {
+    await page.viewport(1440, 900)
+    localStorage.clear()
+    closeDesk()
+    room.followRoute(() => null)
+    const router = firstSignIn()
+    await using screen = await render(() => <RouterProvider router={router} />)
+
+    const box = (selector: string) => screen.container.querySelector(selector)!.getBoundingClientRect()
+    await expect.poll(() => width(screen.container, "sidebar-panel")).toBe(280)
+    expect(box(".panel-header").height).toBe(40)
+    expect(box('[data-component="top-bar"]').height).toBe(40)
+    const add = box('[data-component="sidebar-add"]')
+    const search = box('[data-component="sidebar-search"]')
+    expect([add.left, add.width, add.height, search.top - add.top]).toEqual([8, 264, 32, 33])
+    expect(box('[data-component="sidebar-header-search"]').height).toBe(24)
+
+    screen.container.querySelector<HTMLElement>('[data-component="sidebar-toggle"]')!.click()
+    await expect.poll(() => width(screen.container, "sidebar-panel")).toBe(RAIL)
+    const items = [
+      ...screen.container.querySelectorAll(
+        '[data-component="sidebar-rail"] [aria-label="New chat"], [data-component="sidebar-rail"] [aria-label="Search"]',
+      ),
+    ].map((el) => el.getBoundingClientRect())
+    expect(items.map((item) => [item.left, item.width])).toEqual([
+      [10, 28],
+      [10, 28],
+    ])
+    expect(items[1]!.top - items[0]!.top).toBe(33)
   })
 
   it("opens collapsed at the rail width once the owner has hidden the sidebar", async () => {

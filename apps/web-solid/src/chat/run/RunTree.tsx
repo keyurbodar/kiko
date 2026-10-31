@@ -1,5 +1,5 @@
 import type { RunStep } from "@kiko/protocol"
-import { ChevronRightIcon } from "@kiko/ui/icons"
+import { ChevronRightIcon, LoaderIcon } from "@kiko/ui/icons"
 import { RemixIcon } from "@kiko/ui/remix-icon"
 import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
 import { CopyCheckIcon } from "@kiko/ui/v2/copy-check-icon"
@@ -22,15 +22,14 @@ import { room } from "../../state/room"
 import { filledParts, partMs, type Thought, type ThoughtPart } from "../../state/thoughts"
 import { fixedSurface, openFile, openSurface } from "../side/surfaces"
 import { findFile } from "../ui/find-file"
-import { Mochi } from "../ui/Mochi"
 import { ThoughtStream } from "../thinking/Thinking"
+import { codeEdges } from "../rich/code/edges"
 import { durationLabel, elapsedLabel, fullTimeLabel } from "./duration"
 import { GLYPH } from "./glyphs"
 import { dividerParts } from "../lib/time-label"
 import { type StepIcon } from "./run-log"
 import {
   type DetailStatus,
-  groupSummary,
   LONG_LIST,
   mergeThoughtRows,
   SHORT_LIST,
@@ -41,7 +40,6 @@ import {
   type RowDetail,
   type StepItem,
   summaryOf,
-  summaryText,
   type WorkerItem,
   type WorkItem,
   workLogOf,
@@ -63,7 +61,7 @@ const FIRST_DELAY_MS = 0
 const STAGGER_MS = 30
 
 const PILL =
-  "cursor-pointer rounded-row bg-fill px-2.5 py-0.5 text-fg transition-transform hover:bg-fill-hover active:scale-[0.97]"
+  "inline-flex h-control-sm cursor-pointer items-center rounded-base bg-tertiary px-1.5 type-sm text-primary transition-[background-color,transform] hover:bg-secondary active:scale-(--press-scale)"
 
 function withKey(current: ReadonlySet<string>, key: string): ReadonlySet<string> {
   const next = new Set(current)
@@ -197,10 +195,15 @@ function Leaves(props: { running: boolean; failed: boolean }) {
 function Icon(props: { icon?: StepIcon; running: boolean; failed: boolean; settled: boolean }) {
   return (
     <span class="run-tree-slot" aria-hidden="true" data-settled={props.settled && !props.running ? "" : undefined}>
-      <Show when={!props.running} fallback={<Mochi size={16} />}>
+      <Show
+        when={!props.running}
+        fallback={
+          <RemixIcon icon={LoaderIcon} size={14} class="run-tree-icon motion-spin" data-component="run-spinner" />
+        }
+      >
         <RemixIcon
           icon={GLYPH[props.failed ? "alert-circle" : (props.icon ?? "wrench")]}
-          size={16}
+          size={14}
           class="run-tree-icon"
           data-failed={props.failed ? "" : undefined}
         />
@@ -249,17 +252,20 @@ function DetailEmpty(props: { detail: RowDetail; onRetry: () => void }) {
 
 function Detail(props: { detail: RowDetail; onRetry: () => void }) {
   const [all, setAll] = createSignal(false)
+  const [fades, setFades] = createSignal({ top: false, bottom: false })
   let output: HTMLPreElement | undefined
   const lines = () => (props.detail.output ?? "").split("\n")
   const shown = () => (all() ? props.detail.output : lines().slice(0, LINE_LIMIT).join("\n"))
+  const measure = () => {
+    if (!output) return
+    const edges = codeEdges(output)
+    setFades({ top: edges.top, bottom: edges.bottom })
+  }
   createEffect(
-    on(
-      () => props.detail.output,
-      () => {
-        if (!props.detail.running || !output) return
-        output.scrollTop = output.scrollHeight
-      },
-    ),
+    on([() => props.detail.output, all], () => {
+      if (props.detail.running && output) output.scrollTop = output.scrollHeight
+      measure()
+    }),
   )
   return (
     <div class="run-tree-detail">
@@ -279,7 +285,13 @@ function Detail(props: { detail: RowDetail; onRetry: () => void }) {
           <Show when={props.detail.output}>
             {(text) => (
               <div class="run-tree-output-wrap">
-                <pre ref={output} class="run-tree-mono run-tree-output">
+                <pre
+                  ref={output}
+                  class="run-tree-mono run-tree-output"
+                  data-fade-top={fades().top ? "" : undefined}
+                  data-fade-bottom={fades().bottom ? "" : undefined}
+                  onScroll={measure}
+                >
                   {shown()}
                 </pre>
                 <CopyText text={text()} label="Copy output" />
@@ -442,7 +454,7 @@ function NoteRow(props: { note: NoteItem; view: View; order: number; live: boole
         onClick={() => setOpen(!open())}
       >
         <span class="run-tree-slot">
-          <RemixIcon icon={GLYPH.bulb} size={16} class="run-tree-icon" />
+          <RemixIcon icon={GLYPH.bulb} size={14} class="run-tree-icon" />
         </span>
         <span class="run-tree-label">{props.note.text}</span>
         <Chevron open={open()} />
@@ -477,7 +489,7 @@ function ThoughtRow(props: { part: ThoughtPart; order: number; now: number; live
         onClick={() => setOpened(!opened())}
       >
         <span class="run-tree-slot">
-          <RemixIcon icon={GLYPH.bulb} size={16} class="run-tree-icon" />
+          <RemixIcon icon={GLYPH.bulb} size={14} class="run-tree-icon" />
         </span>
         <span class="run-tree-label">Thought for {secondsLabel(ms())}</span>
         <Chevron open={isOpen()} />
@@ -650,10 +662,19 @@ function Head(props: {
         </Show>
       }
     >
-      <div class="run-tree-head" data-live="" data-component="run-tree-head-live">
+      <button
+        type="button"
+        class="run-tree-head"
+        data-live=""
+        data-component="run-tree-head-live"
+        aria-expanded={props.open}
+        data-disclosure=""
+        onClick={props.onToggle}
+      >
         <Shine running class="run-tree-summary">
           {props.label}
         </Shine>
+        <Chevron open={props.open} />
         <Show when={props.clock} keyed>
           {(text) => (
             <TooltipV2
@@ -668,7 +689,7 @@ function Head(props: {
             </TooltipV2>
           )}
         </Show>
-      </div>
+      </button>
     </Show>
   )
 }
@@ -706,6 +727,8 @@ export function RunTree(props: {
   const openKey = () => runKeyOf(props.windowKey)
   const itemKey = (id: string) => `${openKey()}|${id}`
   const open = createMemo(() => opened().has(openKey()))
+  const shutKey = () => `${openKey()}|shut`
+  const shut = createMemo(() => opened().has(shutKey()))
 
   const detailStatus = createMemo<DetailStatus>(() => {
     const missing = short()
@@ -741,12 +764,6 @@ export function RunTree(props: {
       known: recallSummary(openKey()),
     }),
   )
-
-  const summary = createMemo(() => {
-    const loaded = steps().length >= total()
-    const text = loaded ? summaryText(groupSummary(steps())) : ""
-    return text || log().head?.summary || ""
-  })
 
   const worked = createMemo(() => {
     const head = log().head
@@ -817,16 +834,16 @@ export function RunTree(props: {
     return lastItem === undefined || newest.startedAt >= lastItem.startedAt
   })
 
-  const liveLabel = createMemo(() => (thinkingNow() ? "Thinking" : summaryText(groupSummary(steps())) || "Working"))
+  const liveLabel = createMemo(() => (thinkingNow() ? "Thinking" : "Working"))
 
   const handoff = untrack(() => {
     const found = room.runEnd(openKey())
     if (!found || untrack(live)) return undefined
     const left = CROSSFADE_MS - (Date.now() - found.at)
-    return left > 0 ? { from: found.label, left } : undefined
+    return left > 0 ? { left } : undefined
   })
   const [settling, setSettling] = createSignal(handoff !== undefined)
-  const [crossFrom, setCrossFrom] = createSignal(handoff?.from ?? "")
+  const [crossFrom, setCrossFrom] = createSignal("Working")
   let settleTimer: ReturnType<typeof setTimeout> | undefined
   if (handoff) {
     setOpen(openKey(), false)
@@ -838,7 +855,7 @@ export function RunTree(props: {
       live,
       (isLive, wasLive) => {
         if (isLive || !wasLive) return
-        setCrossFrom(untrack(summary) || untrack(liveLabel))
+        setCrossFrom(untrack(liveLabel))
         setSettling(true)
         setOpen(openKey(), false)
         clearTimeout(settleTimer)
@@ -856,7 +873,7 @@ export function RunTree(props: {
     }
   })
 
-  const expanded = createMemo(() => live() || settling() || open())
+  const expanded = createMemo(() => (live() || settling() ? !shut() : open()))
   const [fold, setFold] = createSignal<Fold>(untrack(expanded) ? "open" : "gone")
   let clicked = false
   let list: HTMLDivElement | undefined
@@ -878,7 +895,8 @@ export function RunTree(props: {
 
   const toggleHead = () => {
     clicked = true
-    setOpen(openKey(), !open())
+    if (live()) setOpen(shutKey(), !shut())
+    else setOpen(openKey(), !open())
   }
 
   createEffect(() => {
@@ -946,15 +964,15 @@ export function RunTree(props: {
         clock={clock()}
         startedAt={startedAt()}
         now={now()}
-        open={open()}
+        open={expanded()}
         onToggle={toggleHead}
       />
-      <Show when={live() || settling() || fold() !== "gone"}>
+      <Show when={fold() !== "gone"}>
         <div
           ref={list}
           class="run-tree-fold motion-run-fold"
           data-grow={fold() === "grow" ? "" : undefined}
-          data-shut={!live() && !settling() && fold() === "shut" ? "" : undefined}
+          data-shut={fold() === "shut" ? "" : undefined}
         >
           <div>{body()}</div>
         </div>

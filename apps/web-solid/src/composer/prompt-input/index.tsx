@@ -128,6 +128,7 @@ export function PromptInputV2(props: PromptInputV2Props) {
   let richHost!: HTMLDivElement
   let form: HTMLFormElement | undefined
   const syncBlank = () => setBlank(field()?.isEmpty() ?? true)
+  const focusBare = (event: PointerEvent) => event.target === event.currentTarget && field()?.focus()
   const dropArea = createMemo(() => {
     if (state.drag !== "active") return null
     const column = richHost?.closest('[data-component="chat-shell"]') ?? richHost?.closest("form")
@@ -299,6 +300,7 @@ export function PromptInputV2(props: PromptInputV2Props) {
           data-editing={props.editing ? "" : undefined}
           data-focused={focused() ? "" : undefined}
           data-dragging={state.drag === "active" ? "" : undefined}
+          onPointerDown={focusBare}
           onFocusIn={() => setFocused(true)}
           onFocusOut={(event) => {
             if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setFocused(false)
@@ -316,11 +318,7 @@ export function PromptInputV2(props: PromptInputV2Props) {
               onDismiss={props.onDismissRejected}
             />
           </Show>
-          <div
-            class="composer-main"
-            data-component="prompt-input-box"
-            onPointerDown={(e) => e.target === e.currentTarget && field()?.focus()}
-          >
+          <div class="composer-main" data-component="prompt-input-box" onPointerDown={focusBare}>
             <div class="composer-field">
               <div ref={richHost} class="composer-rich" classList={{ "opacity-50": props.disabled }} />
               <Show when={blank()}>
@@ -454,7 +452,7 @@ function Recipient(props: { recipient: Token; controller: PromptInputV2Interacti
                       data-action="add-someone"
                       onSelect={() => requestAnimationFrame(() => people().onAddingChange(true))}
                     >
-                      <RemixIcon icon={PlusIcon} size={16} class="text-fg2" />
+                      <RemixIcon icon={PlusIcon} size={16} class="icon-secondary" />
                       <span class="truncate">Add someone…</span>
                     </MenuV2.Item>
                   </>

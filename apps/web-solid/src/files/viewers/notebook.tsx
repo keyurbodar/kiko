@@ -91,10 +91,10 @@ function CellView(props: { cell: Cell; index: number; language: string }): JSX.E
   return (
     <section
       aria-label={`Cell ${props.index + 1}`}
-      class="min-w-0 overflow-hidden rounded-control"
+      class="min-w-0 overflow-hidden rounded-base"
       data-component="notebook-cell"
     >
-      <div class="flex items-center gap-2 bg-raise px-3 py-1 text-hint text-fg3">
+      <div class="flex items-center gap-2 bg-elevated px-3 py-1 text-xs text-tertiary">
         <span class="flex-1">
           {label()} {props.index + 1}
         </span>
@@ -121,7 +121,7 @@ function CellView(props: { cell: Cell; index: number; language: string }): JSX.E
           <Show
             when={output.kind === "image"}
             fallback={
-              <pre class="overflow-x-auto border-t border-[var(--line)] px-4 py-2 font-mono text-hint whitespace-pre-wrap text-fg2">
+              <pre class="overflow-x-auto border-t border-[var(--stroke-tertiary)] px-4 py-2 font-mono text-xs whitespace-pre-wrap text-secondary">
                 {output.text}
               </pre>
             }
@@ -129,7 +129,7 @@ function CellView(props: { cell: Cell; index: number; language: string }): JSX.E
             <img
               src={output.text}
               alt={`Cell ${props.index + 1} output`}
-              class="max-h-96 max-w-full border-t border-[var(--line)] object-contain p-4"
+              class="max-h-96 max-w-full border-t border-[var(--stroke-tertiary)] object-contain p-4"
             />
           </Show>
         )}
@@ -175,7 +175,7 @@ export default function NotebookViewer(props: { name: string; src: string; size:
       <Show when={notebook()} fallback={<SurfaceLoading />}>
         {(loaded) => (
           <div class="flex min-h-0 flex-1 flex-col" data-component="file-notebook">
-            <div class="flex h-10 min-h-10 shrink-0 items-center gap-2 border-b border-[var(--border-100)] px-3 text-hint text-fg3">
+            <div class="flex h-10 min-h-10 shrink-0 items-center gap-2 border-b border-[var(--stroke-tertiary)] px-3 text-xs text-tertiary">
               <span class="flex-1">
                 {loaded().cells.length.toLocaleString()} cells, {loaded().language}
               </span>
@@ -189,7 +189,7 @@ export default function NotebookViewer(props: { name: string; src: string; size:
                 <Show when={visible() < loaded().cells.length}>
                   <button
                     type="button"
-                    class="self-center rounded-control px-3 py-1.5 text-hint text-fg2 hover:bg-hover"
+                    class="self-center rounded-base px-3 py-1.5 text-xs text-secondary hover:bg-tertiary"
                     onClick={() => setVisible((count) => count + PAGE)}
                   >
                     Show more cells ({loaded().cells.length - visible()} remaining)

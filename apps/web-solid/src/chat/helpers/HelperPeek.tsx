@@ -75,7 +75,7 @@ export function HelperPeek(props: { helper: string; window: string; chatId: stri
       <Show when={siblings().length > 1}>
         <Tabs chatId={props.chatId} lanes={siblings()} active={props.helper} />
       </Show>
-      <Show when={lane()} fallback={<p class="px-1 text-ui text-fg3">Loading this helper…</p>}>
+      <Show when={lane()} fallback={<p class="px-1 text-base text-tertiary">Loading this helper…</p>}>
         {(current) => (
           <>
             <div class="flex items-center gap-3">
@@ -87,10 +87,10 @@ export function HelperPeek(props: { helper: string; window: string; chatId: stri
                 parent={isGroupChat() ? current().slug : undefined}
               />
               <div class="flex min-w-0 flex-col">
-                <h3 class="truncate type-row text-fg" data-component="helper-title">
+                <h3 class="truncate type-base text-primary" data-component="helper-title">
                   {current().title}
                 </h3>
-                <span class="truncate text-label text-fg3">
+                <span class="truncate text-sm text-tertiary">
                   {`${name()}'s helper, started ${elapsed(now() - current().startedAt)} ago`}
                 </span>
               </div>

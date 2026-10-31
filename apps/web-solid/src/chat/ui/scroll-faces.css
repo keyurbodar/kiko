@@ -4,33 +4,31 @@
   left: 50%;
   z-index: 6;
   display: grid;
-  width: 52px;
-  height: 52px;
-  margin-left: -26px;
+  width: var(--spacing-control-xl);
+  height: var(--spacing-control-xl);
+  margin-left: calc(var(--spacing-control-xl) / -2);
   place-items: center;
   border-radius: var(--radius-full);
-  background: var(--raise);
-  box-shadow:
-    inset 0 0 0 1px var(--line2),
-    0 8px 24px rgb(0 0 0 / 45%);
-  color: var(--fg);
+  background: var(--bg-elevated);
+  box-shadow: var(--popup-shadow);
+  color: var(--text-secondary);
   cursor: pointer;
   transition:
-    opacity var(--dur-pop) var(--ease-kiko),
-    transform var(--dur-pop) var(--ease-kiko),
-    background-color var(--dur-pop) var(--ease-kiko);
+    opacity var(--duration-normal) var(--ease-sharp),
+    transform var(--duration-normal) var(--ease-sharp),
+    background-color var(--duration-normal) var(--ease-sharp);
 }
 .scroll-faces-down[data-working] {
   overflow: hidden;
 }
 @media (hover: hover) and (pointer: fine) {
   .scroll-faces-down:hover {
-    background: var(--hover);
-    transform: translateY(-1px);
+    background: var(--bg-tertiary-opaque-elevated);
+    color: var(--text-primary);
   }
 }
 .scroll-faces-down:active {
-  transform: scale(0.96);
+  transform: scale(var(--press-scale));
 }
 .scroll-faces-down[data-hidden] {
   pointer-events: none;
@@ -46,8 +44,8 @@
   align-items: center;
   justify-content: center;
   transition:
-    opacity 180ms var(--ease-kiko),
-    transform 250ms var(--ease-kiko);
+    opacity 180ms var(--ease-sharp),
+    transform 250ms var(--ease-sharp);
 }
 .scroll-faces-down[data-working] .scroll-faces-arrow {
   opacity: 0;
@@ -74,12 +72,8 @@
 
 .scroll-faces-stack {
   position: relative;
-  width: 24px;
-  height: 24px;
-}
-.scroll-faces-stack[data-solo] {
-  width: 26px;
-  height: 26px;
+  width: 20px;
+  height: 20px;
 }
 .scroll-faces-face {
   position: absolute;
@@ -88,8 +82,8 @@
   opacity: 0;
   transform: translateY(-6px);
   transition:
-    opacity 180ms var(--ease-kiko),
-    transform 180ms var(--ease-kiko);
+    opacity 180ms var(--ease-sharp),
+    transform 180ms var(--ease-sharp);
 }
 .scroll-faces-face[data-shown] {
   opacity: 1;
@@ -98,13 +92,13 @@
 
 .scroll-faces-dot {
   position: absolute;
-  top: 7px;
-  right: 7px;
-  width: 9px;
-  height: 9px;
+  top: 2px;
+  right: 2px;
+  width: 7px;
+  height: 7px;
   border-radius: var(--radius-full);
-  background: var(--fg);
-  box-shadow: 0 0 0 2.5px var(--raise);
+  background: var(--bg-accent);
+  box-shadow: 0 0 0 2px var(--bg-elevated);
 }
 
 .scroll-faces-top {
@@ -114,8 +108,8 @@
   z-index: 6;
   transform: translateX(-50%);
   transition:
-    opacity var(--dur-pop) var(--ease-kiko),
-    transform var(--dur-pop) var(--ease-kiko);
+    opacity var(--duration-normal) var(--ease-sharp),
+    transform var(--duration-normal) var(--ease-sharp);
 }
 .scroll-faces-top[data-hidden] {
   pointer-events: none;
@@ -126,35 +120,34 @@
 .scroll-faces-pill {
   position: relative;
   display: inline-flex;
-  height: 40px;
-  min-width: 196px;
+  height: var(--spacing-control-xl);
+  min-width: 160px;
   align-items: center;
   overflow: hidden;
   border-radius: var(--radius-full);
-  background: var(--raise);
-  box-shadow:
-    inset 0 0 0 1px var(--line2),
-    0 8px 24px rgb(0 0 0 / 45%);
-  color: var(--fg);
-  font-size: 13px;
-  line-height: 18px;
+  background: var(--bg-elevated);
+  box-shadow: var(--popup-shadow);
+  color: var(--text-secondary);
+  font-size: var(--font-size-base);
+  line-height: var(--line-height-base);
+  letter-spacing: var(--letter-spacing-base);
   white-space: nowrap;
   cursor: pointer;
   transition:
-    background-color var(--dur-hover) var(--ease-kiko),
-    transform var(--dur-hover) var(--ease-kiko);
+    background-color var(--duration-fast) var(--ease-sharp),
+    transform var(--duration-fast) var(--ease-sharp);
 }
 .scroll-faces-pill-says,
 .scroll-faces-pill-arrow {
   display: flex;
   align-items: center;
   transition:
-    opacity 180ms var(--ease-kiko),
-    transform 250ms var(--ease-kiko);
+    opacity 180ms var(--ease-sharp),
+    transform 250ms var(--ease-sharp);
 }
 .scroll-faces-pill-says {
-  gap: 8px;
-  padding: 0 14px 0 12px;
+  gap: 6px;
+  padding: 0 12px 0 8px;
 }
 .scroll-faces-pill-arrow {
   position: absolute;
@@ -173,7 +166,8 @@
 }
 @media (hover: hover) and (pointer: fine) {
   .scroll-faces-pill:hover {
-    background: var(--hover);
+    background: var(--bg-tertiary-opaque-elevated);
+    color: var(--text-primary);
   }
   .scroll-faces-pill:hover .scroll-faces-pill-says {
     opacity: 0;
@@ -185,27 +179,23 @@
   }
 }
 .scroll-faces-pill:active {
-  transform: scale(0.97);
+  transform: scale(var(--press-scale));
 }
 .scroll-faces-pill-faces {
   display: inline-flex;
 }
 .scroll-faces-pill-face {
   border-radius: var(--radius-full);
-  background: var(--active);
-  box-shadow: 0 0 0 2px var(--raise);
+  background: var(--bg-secondary);
+  box-shadow: 0 0 0 2px var(--bg-elevated);
 }
 .scroll-faces-pill-face + .scroll-faces-pill-face {
-  margin-left: -7px;
+  margin-left: -6px;
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .scroll-faces-stack[data-solo] .scroll-faces-face {
-    animation: scroll-faces-hop 1.2s ease infinite;
-    transform-origin: 50% 100%;
-  }
   .scroll-faces-dot {
-    animation: scroll-faces-dot-pop 320ms var(--ease-kiko) both;
+    animation: scroll-faces-dot-pop 320ms var(--ease-sharp) both;
   }
 }
 
@@ -219,22 +209,6 @@
   .scroll-faces-pill-says,
   .scroll-faces-pill-arrow {
     transition: none;
-  }
-}
-
-@keyframes scroll-faces-hop {
-  0%,
-  100% {
-    transform: none;
-  }
-  35% {
-    transform: translateY(-5px) scale(0.94, 1.06);
-  }
-  55% {
-    transform: scale(1.07, 0.93);
-  }
-  70% {
-    transform: none;
   }
 }
 

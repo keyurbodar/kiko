@@ -71,7 +71,7 @@ const Desk = lazy(loadDesk)
 
 const KEY = "kiko:device:sidebar-collapsed"
 
-const DETAILS_GUTTER = 324
+const DETAILS_GUTTER = 288
 
 const DETAILS_MIN_COLUMN = 560
 
@@ -127,19 +127,6 @@ export function Shell(props: ParentProps) {
   const inlineSide = () => (compact() || !sideOpen() ? null : sideChat())
   const sheetSide = () => (compact() && sideOpen() ? sideChat() : null)
   onMount(() => {
-    const root = document.documentElement
-    const keys = (e: KeyboardEvent) => {
-      if (e.key === "Tab") root.dataset.input = "keys"
-    }
-    const pointer = () => delete root.dataset.input
-    window.addEventListener("keydown", keys, true)
-    window.addEventListener("pointerdown", pointer, true)
-    onCleanup(() => {
-      window.removeEventListener("keydown", keys, true)
-      window.removeEventListener("pointerdown", pointer, true)
-    })
-  })
-  onMount(() => {
     const on = () => {
       setNarrow(narrowQuery!.matches)
       setDrawer(false)
@@ -188,10 +175,8 @@ export function Shell(props: ParentProps) {
     })
   })
   const closed = () => (narrow() ? !drawer() : collapsed())
-  const [railShown, setRailShown] = createSignal(collapsed())
   const reducedMotion = () => typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches
   let mounted = false
-  let settling = false
   onMount(() => requestAnimationFrame(() => (mounted = true)))
   const slidingPanels = () => [
     ...document.querySelectorAll<HTMLElement>(
@@ -205,11 +190,6 @@ export function Shell(props: ParentProps) {
     if (!mounted || reducedMotion()) return
     for (const panel of slidingPanels()) panel.classList.add("motion-slide")
   }
-  const finishCollapse = () => {
-    if (!settling) return
-    settling = false
-    if (sidebarPanel?.collapsed()) setRailShown(true)
-  }
   const settleSidebar = (event: Event) => {
     if (
       !(event instanceof TransitionEvent) ||
@@ -218,11 +198,6 @@ export function Shell(props: ParentProps) {
     )
       return
     dropSlide()
-    finishCollapse()
-  }
-  const beginSidebarDrag = () => {
-    dropSlide()
-    finishCollapse()
   }
   const watchSidebarPanel = (el: Element) => {
     el.addEventListener("transitionend", settleSidebar)
@@ -232,26 +207,19 @@ export function Shell(props: ParentProps) {
     setCollapsed(value)
     writeCollapsed(value)
   }
-  const expandSidebar = (panel: PanelContextValue) => {
-    setRailShown(false)
-    settling = false
-    slide()
-    panel.expand()
-    panel.resize(`${readWidth(SIDEBAR)}px`)
-  }
-  const collapseSidebar = (panel: PanelContextValue) => {
-    const instant = !mounted || reducedMotion()
-    settling = !instant
-    if (instant) setRailShown(true)
-    slide()
-    panel.collapse()
-  }
   const toggle = () => {
     if (narrow()) return setDrawer(!drawer())
     const panel = sidebarPanel
     if (!panel) return
-    if (railShown() || panel.collapsed()) expandSidebar(panel)
-    else collapseSidebar(panel)
+    slide()
+    if (collapsed() || panel.collapsed()) {
+      setAndSave(false)
+      panel.expand()
+      panel.resize(`${readWidth(SIDEBAR)}px`)
+    } else {
+      setAndSave(true)
+      panel.collapse()
+    }
   }
   createEffect((prev: string | undefined) => {
     const path = pathname()
@@ -328,7 +296,7 @@ export function Shell(props: ParentProps) {
   return (
     <I18nProvider value={i18n}>
       <div
-        class="sidebar-shell relative flex h-dvh overflow-hidden bg-side"
+        class="sidebar-shell relative flex h-dvh overflow-hidden bg-sidebar"
         data-component="app-shell"
         data-section={(onChat() && sectionOf(pathname())) || undefined}
       >
@@ -363,25 +331,18 @@ export function Shell(props: ParentProps) {
                     collapsible
                     collapsedSize={`${RAIL}px`}
                     ref={watchSidebarPanel}
-                    onCollapse={() => {
-                      setAndSave(true)
-                      if (!settling) setRailShown(true)
-                    }}
-                    onExpand={() => {
-                      setAndSave(false)
-                      settling = false
-                      setRailShown(false)
-                    }}
+                    onCollapse={() => setAndSave(true)}
+                    onExpand={() => setAndSave(false)}
                   >
                     <GrabPanel onGrab={(panel) => (sidebarPanel = panel)} />
-                    {railShown() ? <Rail onExpand={toggle} /> : sidebar()}
+                    {collapsed() ? <Rail onExpand={toggle} /> : sidebar()}
                   </Resizable.Panel>
                   <Resizable.Handle
                     class="resize-handle"
                     data-component="sidebar-resize"
                     aria-label="Resize sidebar"
                     altKey={false}
-                    onHandleDragStart={beginSidebarDrag}
+                    onHandleDragStart={dropSlide}
                     onHandleDragEnd={() => saveWidth(SIDEBAR, "kiko-sidebar-panel")}
                     onKeyUp={() => saveWidth(SIDEBAR, "kiko-sidebar-panel")}
                     onDblClick={() => resetWidth(SIDEBAR, sidebarPanel)}
@@ -436,14 +397,14 @@ export function Shell(props: ParentProps) {
                         </Show>
                       </div>
                     </main>
-                    <Show when={inlineSide()} keyed>
-                      {(chatId) => (
-                        <RightPanelHost maximized={maximized()}>
-                          <Suspense>
-                            <Desk chatId={chatId} onClose={closeSide} />
-                          </Suspense>
-                        </RightPanelHost>
-                      )}
+                    <Show when={inlineSide()}>
+                      <RightPanelHost maximized={maximized()}>
+                        <Suspense>
+                          <Show when={inlineSide()} keyed>
+                            {(chatId) => <Desk chatId={chatId} onClose={closeSide} />}
+                          </Show>
+                        </Suspense>
+                      </RightPanelHost>
                     </Show>
                   </div>
                 </Resizable.Panel>
@@ -451,22 +412,20 @@ export function Shell(props: ParentProps) {
             )
           }}
         </Show>
-        <Show when={sheetSide()} keyed>
-          {(chatId) => (
-            <>
-              <div
-                class="drawer-scrim sidecar-scrim"
-                data-component="sidecar-scrim"
-                aria-hidden="true"
-                onPointerDown={closeSide}
-              />
-              <div class="sidecar-overlay" data-component="sidecar-overlay" data-mode="sheet">
-                <Suspense>
-                  <Desk chatId={chatId} onClose={closeSide} sheet />
-                </Suspense>
-              </div>
-            </>
-          )}
+        <Show when={sheetSide()}>
+          <div
+            class="drawer-scrim sidecar-scrim"
+            data-component="sidecar-scrim"
+            aria-hidden="true"
+            onPointerDown={closeSide}
+          />
+          <div class="sidecar-overlay" data-component="sidecar-overlay" data-mode="sheet">
+            <Suspense>
+              <Show when={sheetSide()} keyed>
+                {(chatId) => <Desk chatId={chatId} onClose={closeSide} sheet />}
+              </Show>
+            </Suspense>
+          </div>
         </Show>
         <Suspense>
           <Palette />

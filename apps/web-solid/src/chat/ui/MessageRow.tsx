@@ -33,10 +33,10 @@ function tailRun(isRunStart: boolean, isRunEnd: boolean): "start" | "mid" | "bot
   return "mid"
 }
 
-export const GROUP_GUTTER = "pl-[calc(1rem+40px)]"
+const GROUP_GUTTER = "pl-[calc(1rem+40px)]"
 
 const FAILED_ACTION =
-  "shrink-0 cursor-pointer rounded-full border border-bad/40 bg-bg px-2 py-0.5 text-hint font-medium text-fg hover:bg-hover"
+  "shrink-0 cursor-pointer rounded-full border border-[color-mix(in_oklab,var(--text-danger)_40%,transparent)] bg-chrome px-2 py-0.5 text-[11.5px] leading-[15px] font-medium text-primary hover:bg-(--bubble-hover)"
 
 export function MessageRow(props: {
   message: ChatMessage
@@ -108,11 +108,10 @@ export function MessageRow(props: {
         <RunAvatar seed={props.message.botId!} runKey={props.runKey ?? props.message.id} isRunEnd={props.isRunEnd} />
       </Show>
       <Show when={named() && !nameInBubble() && !props.jumboClass}>
-        <div class="truncate pb-1 pl-1 text-[13px] leading-[18px] text-fg3" data-component="chat-sender">
+        <div class="truncate pb-1 pl-1 text-[13px] leading-[18px] text-tertiary" data-component="chat-sender">
           {senderName()}
         </div>
       </Show>
-      <Show when={windowKey() ? undefined : thought()}>{(found) => <ThoughtRow thought={found()} />}</Show>
       <Bubble
         variant={failed() ? "destructive" : props.jumboClass ? "ghost" : own() ? "default" : "secondary"}
         align={own() ? "end" : "start"}
@@ -130,12 +129,12 @@ export function MessageRow(props: {
             "relative",
             "after:pointer-events-none after:absolute after:inset-0 after:z-[2] after:content-['']",
             "after:rounded-[inherit] after:opacity-0",
-            "after:bg-fg",
+            "after:bg-neutral",
             props.highlighted ? "after:opacity-[0.22]" : props.replying && "after:opacity-[0.1]",
           )}
         >
           <Show when={nameInBubble()}>
-            <div class="truncate pb-1 text-[13px] leading-[18px] text-fg3" data-component="chat-sender">
+            <div class="truncate pb-1 text-[13px] leading-[18px] text-tertiary" data-component="chat-sender">
               {senderName()}
             </div>
           </Show>
@@ -145,7 +144,7 @@ export function MessageRow(props: {
           <Show when={props.message.initiative}>
             {(reason) => (
               <div
-                class="px-(--bubble-pad-x) pt-1 text-label leading-5 text-[color-mix(in_oklab,currentColor_55%,transparent)]"
+                class="px-(--bubble-pad-x) pt-1 text-[12.5px] leading-5 text-[color-mix(in_oklab,currentColor_55%,transparent)]"
                 data-component="noticed"
               >
                 Noticed: {reason()}
@@ -179,9 +178,9 @@ export function MessageRow(props: {
               data-component="chat-send-failed"
               role="alert"
             >
-              <RemixIcon icon={AlertCircleIcon} class="size-4 shrink-0 text-bad" />
+              <RemixIcon icon={AlertCircleIcon} class="size-4 shrink-0 text-danger" />
               <span
-                class="min-w-0 flex-1 truncate text-hint font-medium"
+                class="min-w-0 flex-1 truncate text-[11.5px] leading-[15px] font-medium"
                 title={failure() ?? undefined}
                 data-part="reason"
               >
@@ -218,6 +217,7 @@ export function MessageRow(props: {
           />
         </Show>
       </Bubble>
+      <Show when={windowKey() ? undefined : thought()}>{(found) => <ThoughtRow thought={found()} />}</Show>
       <Show when={finishedKey()}>
         {(key) => (
           <RunTree

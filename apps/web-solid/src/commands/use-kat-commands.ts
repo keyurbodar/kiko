@@ -177,7 +177,7 @@ export function useKatCommands(deps: { toggleSidebar: () => void }): void {
   useCommands(
     themeCommands({
       mode: () => cachedLook().mode,
-      darkTheme: () => cachedLook().darkTheme,
+      builtin: () => ({ dark: cachedLook().darkTheme, light: cachedLook().lightTheme }),
       setMode: (mode) => void live().then((m) => m.updateLook({ mode })),
       setBuiltin: (id) => void live().then((m) => m.chooseBuiltin(id)),
       imported: () => cachedLook().imported,
@@ -186,12 +186,13 @@ export function useKatCommands(deps: { toggleSidebar: () => void }): void {
           m.updateLook({ mode: appearance })
           m.choose(appearance, id)
         }),
-      preview: ({ mode, darkTheme, active }) => {
+      preview: ({ mode, darkTheme, lightTheme, active }) => {
         const saved = cachedLook()
         return previewLook({
           ...saved,
           mode: mode ?? saved.mode,
           darkTheme: darkTheme ?? saved.darkTheme,
+          lightTheme: lightTheme ?? saved.lightTheme,
           imported: active ? { ...saved.imported, active } : saved.imported,
         })
       },

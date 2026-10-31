@@ -1,6 +1,6 @@
 import { formatHex, interpolate, parse, rgb, wcagContrast, wcagLuminance } from "culori"
-import { themeId, type ImportedTheme, type Syntax } from "./imported"
-import { THEMES, PALETTES, type ThemeAppearance } from "./palette"
+import { themeId, type ImportedTheme } from "./imported"
+import { PALETTES, type Palette, type Syntax, type ThemeAppearance } from "./palette"
 
 export type VsCodeTheme = {
   type?: unknown
@@ -107,6 +107,17 @@ function syntaxOf(tokenColors: unknown, canvas: string, text: string): Syntax {
   return { keyword: color("keyword"), string: color("string"), func: color("func"), comment: color("comment") }
 }
 
+const HUE_KEYS = {
+  red: "terminal.ansiRed",
+  orange: "terminal.ansiBrightRed",
+  yellow: "terminal.ansiYellow",
+  green: "terminal.ansiGreen",
+  cyan: "terminal.ansiCyan",
+  blue: "terminal.ansiBlue",
+  magenta: "terminal.ansiMagenta",
+  purple: "terminal.ansiBrightMagenta",
+} as const satisfies Partial<Record<keyof Palette, string>>
+
 export function themeFromVsCode(
   json: VsCodeTheme,
   meta: { id: string; name: string; source: string; uiTheme?: string },
@@ -115,46 +126,49 @@ export function themeFromVsCode(
   const firstOf = (candidates: ReadonlyArray<string | null>) =>
     candidates.find((candidate) => candidate !== null) ?? null
 
-  const canvas = firstOf([opaque(colors["editor.background"]), opaque(colors["editorPane.background"])])
-  if (!canvas) throw new Error("That theme has no editor background, so there is nothing to build a palette from.")
-  const appearance = appearanceOf(meta.uiTheme, json.type, canvas)
+  const editor = firstOf([opaque(colors["editor.background"]), opaque(colors["editorPane.background"])])
+  if (!editor) throw new Error("That theme has no editor background, so there is nothing to build a palette from.")
+  const appearance = appearanceOf(meta.uiTheme, json.type, editor)
   const fallback = PALETTES[appearance]
-  const pick = (...keys: string[]) => keys.map((key) => flatten(colors[key], canvas))
+  const pick = (...keys: string[]) => keys.map((key) => flatten(colors[key], editor))
 
-  const text = ink(canvas, TEXT_CONTRAST, pick("editor.foreground", "foreground"), readableOn(canvas, fallback.text))
-  const muted = ink(canvas, TEXT_CONTRAST, pick("descriptionForeground"), mix(text, canvas, 0.35))
-  const action = ink(canvas, SHAPE_CONTRAST, pick("button.background"), text)
-  const onAction = ink(action, TEXT_CONTRAST, pick("button.foreground"), readableOn(action, canvas))
+  const base = ink(editor, TEXT_CONTRAST, pick("editor.foreground", "foreground"), readableOn(editor, fallback.base))
+  const accent = ink(
+    editor,
+    SHAPE_CONTRAST,
+    pick("focusBorder", "textLink.foreground", "button.background", "activityBarBadge.background"),
+    fallback.accent,
+  )
+  const sidebar = firstOf(pick("sideBar.background", "activityBar.background")) ?? mix(editor, base, 0.04)
+  const shape = (key: keyof Palette, ...keys: string[]) => ink(editor, SHAPE_CONTRAST, pick(...keys), fallback[key])
+  const hues = Object.fromEntries(
+    Object.entries(HUE_KEYS).map(([hue, key]) => [hue, shape(hue as keyof Palette, key)]),
+  ) as Pick<Palette, keyof typeof HUE_KEYS>
 
   return {
     id: themeId(meta.id),
     name: meta.name.slice(0, 48),
     source: meta.source,
     appearance,
-    accent: ink(
-      canvas,
-      SHAPE_CONTRAST,
-      pick("focusBorder", "textLink.foreground", "button.background", "activityBarBadge.background"),
-      THEMES[appearance === "dark" ? "glacier" : "snow"].accent,
-    ),
     palette: {
-      canvas,
-      sidebar: firstOf(pick("sideBar.background", "activityBar.background")) ?? mix(canvas, text, 0.04),
-      text,
-      muted,
-      faint: ink(canvas, SHAPE_CONTRAST, pick("disabledForeground"), mix(text, canvas, 0.55)),
-      action,
-      actionHover: mix(action, onAction, 0.12),
-      onAction,
+      ...hues,
+      chrome: firstOf(pick("titleBar.activeBackground", "activityBar.background")) ?? sidebar,
+      sidebar,
+      editor,
+      base,
+      accent,
+      onPrimary: readableOn(accent, ink(accent, TEXT_CONTRAST, pick("button.foreground"), fallback.onPrimary)),
+      focus: accent,
+      success: shape("success", "gitDecoration.addedResourceForeground", "terminal.ansiGreen"),
+      warn: ink(editor, TEXT_CONTRAST, pick("editorWarning.foreground"), readableOn(editor, fallback.warn)),
       danger: ink(
-        canvas,
+        editor,
         TEXT_CONTRAST,
         pick("errorForeground", "editorError.foreground"),
-        readableOn(canvas, fallback.danger),
+        readableOn(editor, fallback.danger),
       ),
-      gold: ink(canvas, TEXT_CONTRAST, pick("editorWarning.foreground"), readableOn(canvas, fallback.gold)),
     },
-    syntax: syntaxOf(json.tokenColors, canvas, text),
+    syntax: syntaxOf(json.tokenColors, editor, base),
   }
 }
 

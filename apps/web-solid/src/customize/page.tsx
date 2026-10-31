@@ -44,13 +44,13 @@ export default function CustomizePage() {
               when={tab() === "apps"}
               fallback={
                 <button type="button" class={primaryButton} data-action="new-agent" onClick={openNewAgent}>
-                  <RemixIcon icon={PlusIcon} size={16} />
+                  <RemixIcon icon={PlusIcon} size={14} />
                   New agent
                 </button>
               }
             >
               <button type="button" class={primaryButton} data-action="add-app" onClick={() => setScope("discover")}>
-                <RemixIcon icon={PlusIcon} size={16} />
+                <RemixIcon icon={PlusIcon} size={14} />
                 Add
               </button>
             </Show>
@@ -65,7 +65,7 @@ export default function CustomizePage() {
           }
         >
           <div ref={pageIn} class="-mt-2 flex flex-col gap-6">
-            <p class="type-ui text-fg3">Your agents, what they know and what they can use.</p>
+            <p class="type-base text-tertiary">Your agents, what they know and what they can use.</p>
             <TeamTab />
           </div>
         </Show>

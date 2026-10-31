@@ -19,11 +19,11 @@ function Faces(props: { slugs: readonly string[] }): JSX.Element {
   })
   const shown = () => turn() % Math.max(props.slugs.length, 1)
   return (
-    <span class="scroll-faces-stack" data-solo={props.slugs.length === 1 ? "" : undefined}>
+    <span class="scroll-faces-stack">
       <Index each={props.slugs}>
         {(slug, i) => (
           <span class="scroll-faces-face" data-shown={shown() === i ? "" : undefined}>
-            <IdentityAvatar seed={slug()} size={props.slugs.length === 1 ? 26 : 24} />
+            <IdentityAvatar seed={slug()} size={20} />
           </span>
         )}
       </Index>
@@ -57,7 +57,7 @@ export function ScrollDown(props: {
         </span>
       </Show>
       <span class="scroll-faces-arrow">
-        <RemixIcon icon={ArrowDownIcon} size={16} />
+        <RemixIcon icon={ArrowDownIcon} size={14} />
       </span>
       <Show when={props.landed && !working()}>
         <span class="scroll-faces-dot" data-component="chat-scroll-down-new" />
@@ -82,15 +82,15 @@ export function NewAbovePill(props: { above: NewAbove | null; onClick: () => voi
               <Show when={above().slugs.length > 0}>
                 <span class="scroll-faces-pill-faces" aria-hidden="true">
                   <For each={above().slugs.slice(0, PILL_FACES)}>
-                    {(slug) => <IdentityAvatar seed={slug} size={22} class="scroll-faces-pill-face" />}
+                    {(slug) => <IdentityAvatar seed={slug} size={18} class="scroll-faces-pill-face" />}
                   </For>
                 </span>
               </Show>
               <span>{above().count} new above</span>
-              <RemixIcon icon={ArrowUpIcon} size={16} class="text-fg3" />
+              <RemixIcon icon={ArrowUpIcon} size={14} class="icon-tertiary" />
             </span>
             <span class="scroll-faces-pill-arrow" aria-hidden="true">
-              <RemixIcon icon={ArrowUpIcon} size={16} />
+              <RemixIcon icon={ArrowUpIcon} size={14} />
             </span>
           </button>
         )}

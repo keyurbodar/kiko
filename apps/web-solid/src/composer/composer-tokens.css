@@ -1,0 +1,26 @@
+:root {
+  --composer-raise: color-mix(in oklab, var(--text-primary) 5.8%, var(--bg-chrome));
+  --composer-panel: color-mix(in oklab, var(--text-primary) 2.9%, var(--bg-chrome));
+  --composer-line: color-mix(in oklab, var(--text-primary) 10.2%, var(--bg-chrome));
+  --composer-line-strong: color-mix(in oklab, var(--text-primary) 15.5%, var(--bg-chrome));
+  --composer-hover: color-mix(in oklab, var(--text-primary) 8%, transparent);
+  --composer-active: color-mix(in oklab, var(--text-primary) 11.3%, transparent);
+  --composer-fill-field: color-mix(in oklab, var(--text-primary) 4.6%, transparent);
+  --composer-fill-hover: color-mix(in oklab, var(--text-primary) 6.4%, transparent);
+  --composer-text-strong: color-mix(in srgb, var(--text-primary) 50%, var(--text-secondary));
+  --composer-popover-shadow: 0 8px 24px rgb(0 0 0 / 32%), 0 2px 6px rgb(0 0 0 / 20%);
+  --composer-float-shadow: 0 0 0 1px var(--composer-line), var(--composer-popover-shadow);
+  --composer-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+:root:not(.dark) {
+  --composer-raise: color-mix(in oklab, var(--text-primary) 2.4%, var(--bg-chrome));
+  --composer-panel: color-mix(in oklab, var(--text-primary) 1.6%, var(--bg-chrome));
+  --composer-line: color-mix(in oklab, var(--text-primary) 8%, var(--bg-chrome));
+  --composer-line-strong: color-mix(in oklab, var(--text-primary) 12%, var(--bg-chrome));
+  --composer-hover: color-mix(in oklab, var(--text-primary) 4%, transparent);
+  --composer-active: color-mix(in oklab, var(--text-primary) 6.5%, transparent);
+  --composer-fill-field: color-mix(in oklab, var(--text-primary) 2.4%, transparent);
+  --composer-fill-hover: color-mix(in oklab, var(--text-primary) 4%, transparent);
+  --composer-popover-shadow: 0 8px 24px rgb(0 0 0 / 8%), 0 2px 6px rgb(0 0 0 / 6%);
+}

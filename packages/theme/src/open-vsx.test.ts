@@ -359,8 +359,8 @@ describe("installTheme", () => {
       ["Catppuccin Latte", "light"],
     ])
     const mochaTheme = themes[0]!
-    expect(mochaTheme.palette.canvas).toBe(mocha.base)
-    expect(mochaTheme.accent).toBe(mocha.accent)
+    expect(mochaTheme.palette.editor).toBe(mocha.base)
+    expect(mochaTheme.palette.accent).toBe(mocha.accent)
     expect(mochaTheme.syntax).toEqual({
       keyword: mocha.accent,
       string: mocha.green,
@@ -383,7 +383,7 @@ describe("installTheme", () => {
     const { send } = await registry([darkPlus])
     const [theme] = await installTheme(darkPlus, undefined, send)
     expect(theme?.name).toBe("Dark Modern+")
-    expect(theme?.palette.canvas).toBe("#1e1e1e")
+    expect(theme?.palette.editor).toBe("#1e1e1e")
     expect(theme?.syntax).toEqual({ keyword: "#c586c0", string: "#ce9178", func: "#dcdcaa", comment: "#6a9955" })
   })
 

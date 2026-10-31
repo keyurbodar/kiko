@@ -1,30 +1,31 @@
 .lchip,
 .mchip {
-  --chip-fill: color-mix(in oklab, var(--fg) 9%, transparent);
-  --chip-fill-hover: color-mix(in oklab, var(--fg) 14%, transparent);
+  --chip-fill: var(--bg-tertiary);
+  --chip-fill-hover: var(--bg-secondary);
   display: inline-flex;
   box-sizing: border-box;
   max-width: 100%;
-  height: 22px;
+  height: var(--spacing-control-sm);
   align-items: center;
   border: 0;
   background: var(--chip-fill);
-  color: var(--fg);
+  color: var(--text-primary);
   font: inherit;
-  font-size: var(--type-row);
-  line-height: 20px;
+  font-size: var(--font-size-base);
+  line-height: var(--line-height-base);
+  letter-spacing: var(--letter-spacing-base);
   vertical-align: middle;
   white-space: nowrap;
 }
 
 .lchip {
-  gap: 5px;
-  padding: 0 8px 0 4px;
-  border-radius: var(--radius-tail);
+  gap: 4px;
+  padding: 0 6px 0 3px;
+  border-radius: var(--radius-base);
   cursor: pointer;
   transition:
-    background-color var(--dur-hover) var(--ease-kiko),
-    transform var(--dur-hover) var(--ease-kiko);
+    background-color var(--duration-fast) var(--ease-sharp),
+    transform var(--duration-fast) var(--ease-sharp);
 }
 
 .lchip-anchor,
@@ -40,16 +41,16 @@
 .lchip > svg,
 .lchip-thumb {
   display: block;
-  width: 16px;
-  height: 16px;
+  width: 14px;
+  height: 14px;
   flex: none;
 }
 .lchip-thumb {
-  border-radius: var(--radius-micro);
+  border-radius: var(--radius-sm);
   object-fit: cover;
 }
 .lchip-folder {
-  color: var(--fg2);
+  color: var(--icon-secondary);
 }
 
 .lchip-label,
@@ -61,12 +62,12 @@
 
 .lchip-meta {
   flex: none;
-  color: var(--fg3);
-  font-size: var(--type-label);
+  color: var(--text-tertiary);
+  font-size: var(--font-size-sm);
 }
 
 .lchip[data-missing] {
-  color: var(--fg2);
+  color: var(--text-secondary);
 }
 
 @media (hover: hover) and (pointer: fine) {
@@ -75,20 +76,18 @@
   }
 }
 .lchip:active {
-  transform: scale(0.97);
+  transform: scale(var(--press-scale));
 }
 
 .mchip {
-  --chip-fill: color-mix(in oklab, var(--fg) 11%, transparent);
   gap: 4px;
-  padding: 0 7px 0 3px;
+  padding: 0 6px 0 2px;
   border-radius: var(--radius-full);
-  font-weight: 500;
 }
 .mchip[data-self] {
-  padding-left: 7px;
-  background: color-mix(in oklab, var(--info) 16%, transparent);
-  color: var(--info);
+  padding-left: 6px;
+  background: var(--bg-accent-tertiary);
+  color: var(--text-accent);
 }
 
 @media (prefers-reduced-motion: reduce) {

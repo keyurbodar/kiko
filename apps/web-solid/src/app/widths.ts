@@ -1,7 +1,7 @@
-export const SIDEBAR = { key: "kiko:device:sidebar-width", min: 220, max: 420, fallback: 296, floor: 296 }
+export const SIDEBAR = { key: "kiko:device:sidebar-width", min: 220, max: 420, fallback: 280, floor: 280 }
 export const INFO = { key: "kiko:device:info-width", min: 360, max: 4096, fallback: 540 }
 export const CHAT_MIN = 360
-export const RAIL = 56
+export const RAIL = 48
 
 const PANEL_MAX_TENTHS = 7
 

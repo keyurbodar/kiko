@@ -109,7 +109,7 @@ describe("composer attachments", () => {
     await expect.poll(() => editor.querySelector('.token-chip[data-state="failed"]')).not.toBeNull()
     const chip = editor.querySelector<HTMLElement>('.token-chip[data-state="failed"]')!
     const probe = document.createElement("span")
-    probe.style.color = "var(--bad)"
+    probe.style.color = "var(--text-danger)"
     document.body.append(probe)
     const bad = getComputedStyle(probe).color
     probe.remove()

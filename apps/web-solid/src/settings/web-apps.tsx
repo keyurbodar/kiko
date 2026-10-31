@@ -51,8 +51,8 @@ function Account(props: { state: Ready; busy: boolean; onConnect: () => void; on
             id="lakebed-account"
             description={
               <>
-                Approve code <span class="font-mono text-fg">{account().code}</span> on Lakebed. This page updates when
-                you do.
+                Approve code <span class="font-mono text-primary">{account().code}</span> on Lakebed. This page updates
+                when you do.
               </>
             }
           >
@@ -86,11 +86,11 @@ function AppRow(props: { app: WebApp; claiming: boolean; onClaim: () => void }):
       title={props.app.name}
       meta={
         <>
-          <a class="hover:text-fg hover:underline" href={props.app.url} target="_blank" rel="noopener noreferrer">
+          <a class="hover:text-primary hover:underline" href={props.app.url} target="_blank" rel="noopener noreferrer">
             {host(props.app.url)}
           </a>
           {", "}
-          <span class={props.app.owned ? "text-ok" : undefined}>{expiry(props.app)}</span>
+          <span class={props.app.owned ? "text-success" : undefined}>{expiry(props.app)}</span>
         </>
       }
       data-web-app={props.app.name}

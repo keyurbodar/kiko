@@ -82,6 +82,7 @@ async function mountThread(options: { firstUnread?: (messages: ChatMessage[]) =>
     { container: host },
   )
   const scroller = host.querySelector<HTMLElement>('[data-component="chat-scroll"]')!
+  scroller.dataset.testid = "chat-scroll"
   const atEnd = () => scroller.scrollHeight - scroller.clientHeight - scroller.scrollTop
   await vi.waitFor(() => {
     expect(host.querySelectorAll('[data-component="chat-row"]').length).toBeGreaterThan(4)

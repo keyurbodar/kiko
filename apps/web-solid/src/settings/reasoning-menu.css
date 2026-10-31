@@ -1,18 +1,18 @@
 .reasoning-trigger {
   transition:
-    background-color var(--dur-hover) var(--ease-kiko),
-    color var(--dur-hover) var(--ease-kiko),
-    transform var(--dur-hover) var(--ease-kiko);
+    background-color var(--duration-fast) var(--ease-sharp),
+    color var(--duration-fast) var(--ease-sharp),
+    transform var(--duration-fast) var(--ease-sharp);
 }
 .reasoning-trigger:active {
-  transform: scale(0.97);
+  transform: scale(var(--press-scale));
 }
 .reasoning-default {
-  padding: 1px 6px;
-  border-radius: var(--radius-tail);
-  background: var(--active);
-  color: var(--fg3);
-  font-size: var(--type-hint);
+  padding: 0 4px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-quaternary);
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
   font-weight: 500;
   line-height: 16px;
 }
@@ -23,29 +23,29 @@
 }
 .reasoning-choice {
   display: inline-flex;
-  height: 32px;
+  height: 28px;
   align-items: center;
   gap: 6px;
-  padding: 0 12px;
-  border-radius: var(--radius-full);
-  background: var(--hover);
-  color: var(--fg2);
-  font-size: var(--type-label);
+  padding: 0 10px;
+  border-radius: var(--radius-base);
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
   font-weight: 500;
   cursor: pointer;
   transition:
-    background-color var(--dur-hover) var(--ease-kiko),
-    color var(--dur-hover) var(--ease-kiko),
-    transform var(--dur-hover) var(--ease-kiko);
+    background-color var(--duration-fast) var(--ease-sharp),
+    color var(--duration-fast) var(--ease-sharp),
+    transform var(--duration-fast) var(--ease-sharp);
 }
 .reasoning-choice:active {
-  transform: scale(0.97);
+  transform: scale(var(--press-scale));
 }
 .reasoning-choice[aria-checked="true"] {
-  background: var(--fg);
-  color: var(--on-fg);
+  background: var(--bg-neutral);
+  color: var(--text-invert);
 }
 .reasoning-choice[aria-checked="true"] .reasoning-default {
-  background: color-mix(in oklab, var(--on-fg) 14%, transparent);
-  color: var(--on-fg);
+  background: color-mix(in oklab, var(--text-invert) 14%, transparent);
+  color: var(--text-invert);
 }

@@ -5,7 +5,7 @@
   min-width: 0;
   gap: 2px;
   overflow: hidden;
-  border-radius: var(--radius-card);
+  border-radius: var(--radius-lg);
   grid-template-columns: repeat(2, 1fr);
 }
 
@@ -21,7 +21,7 @@
   padding: 0;
   overflow: hidden;
   border: 0;
-  background: var(--active);
+  background: var(--bg-tertiary);
   cursor: zoom-in;
 }
 
@@ -50,17 +50,17 @@
   min-width: 0;
   flex-direction: column;
   overflow: hidden;
-  border-radius: var(--radius-card);
-  background: var(--raise);
+  border-radius: var(--radius-lg);
+  background: var(--bg-quaternary-opaque);
 }
 
 .att-file {
   display: flex;
-  height: 60px;
+  height: 48px;
   min-width: 0;
   align-items: center;
   gap: 8px;
-  padding: 0 10px 0 12px;
+  padding: 0 8px 0 10px;
 }
 
 .att-open {
@@ -68,97 +68,98 @@
   min-width: 0;
   flex: 1;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   text-align: start;
   cursor: pointer;
 }
 
 .att-file + .att-file,
 .att-file + .att-foot {
-  border-top: 1px solid var(--line);
+  border-top: 1px solid var(--stroke-tertiary);
 }
 
 .att-tile {
   display: grid;
-  width: 36px;
-  height: 40px;
+  width: 28px;
+  height: 32px;
   flex: none;
   place-items: center;
-  border-radius: var(--radius-control);
+  border-radius: var(--radius-base);
   background: color-mix(in oklab, currentColor 12%, transparent);
-  color: var(--fg2);
+  color: var(--icon-secondary);
 }
 
 .att-name {
   overflow: hidden;
-  font-size: var(--type-ui);
-  font-weight: 500;
-  line-height: var(--type-ui-line);
+  color: var(--text-primary);
+  font-size: var(--font-size-base);
+  line-height: var(--line-height-base);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .att-meta {
   overflow: hidden;
-  color: var(--fg3);
-  font-size: var(--type-label);
-  line-height: var(--type-label-line);
+  color: var(--text-tertiary);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-sm);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .att-download {
   display: grid;
-  width: 28px;
-  height: 28px;
+  width: var(--spacing-control-md);
+  height: var(--spacing-control-md);
   flex: none;
   place-items: center;
-  border-radius: var(--radius-control);
-  color: var(--fg3);
+  border-radius: var(--radius-base);
+  color: var(--text-tertiary);
   transition:
-    background var(--dur-hover) var(--ease-kiko),
-    color var(--dur-hover) var(--ease-kiko);
+    background var(--duration-fast) var(--ease-sharp),
+    color var(--duration-fast) var(--ease-sharp);
 }
 
 @media (hover: hover) and (pointer: fine) {
   .att-file:hover .att-download {
-    background: var(--active);
-    color: var(--fg);
+    background: var(--bg-quaternary);
+    color: var(--text-primary);
   }
 }
 
 .att-download:active {
-  transform: scale(0.96);
+  transform: scale(var(--press-scale));
 }
 
 .att-foot {
   display: flex;
-  min-height: 40px;
+  min-height: var(--spacing-control-xl);
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 6px 10px 6px 12px;
+  padding: 4px 8px 4px 10px;
 }
 
 .att-foot-action {
   display: inline-flex;
-  height: 28px;
+  height: var(--spacing-control-md);
   align-items: center;
   gap: 6px;
-  padding: 0 6px;
-  border-radius: var(--radius-control);
-  color: var(--fg2);
-  font-size: var(--type-label);
+  padding: 0 8px;
+  border-radius: var(--radius-base);
+  color: var(--text-secondary);
+  font-size: var(--font-size-base);
+  line-height: var(--line-height-base);
   cursor: pointer;
   transition:
-    background var(--dur-hover) var(--ease-kiko),
-    color var(--dur-hover) var(--ease-kiko);
+    background var(--duration-fast) var(--ease-sharp),
+    color var(--duration-fast) var(--ease-sharp);
 }
 
 @media (hover: hover) and (pointer: fine) {
   .att-foot-action:hover {
-    background: var(--active);
-    color: var(--fg);
+    background: var(--bg-quaternary);
+    color: var(--text-primary);
   }
 }
 

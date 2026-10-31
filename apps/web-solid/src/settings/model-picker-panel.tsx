@@ -65,8 +65,8 @@ function Row(props: {
       id={props.id}
       role="option"
       aria-selected={selected()}
-      class="picker-row group/model flex h-9 cursor-pointer items-center gap-2 rounded-row px-2.5"
-      classList={{ "bg-hover": props.active }}
+      class="picker-row group/model flex h-9 cursor-pointer items-center gap-2 rounded-base px-2.5"
+      classList={{ "bg-tertiary": props.active }}
       title={modelDetail(row().model)}
       data-model={ref()}
       onPointerMove={() => props.onHover()}
@@ -75,17 +75,17 @@ function Row(props: {
       <Show when={props.entry.mixed}>
         <ProviderIcon id={row().provider.id} width="13" height="13" />
       </Show>
-      <span class="type-ui min-w-0 flex-1 truncate text-fg">{row().model.name}</span>
+      <span class="type-base min-w-0 flex-1 truncate text-primary">{row().model.name}</span>
       <Show when={problemOf(row().provider.id)}>
         {(problem) => (
-          <span class="type-hint shrink-0 text-bad" data-part="provider-problem">
+          <span class="type-xs shrink-0 text-danger" data-part="provider-problem">
             {PROBLEM_SHORT[problem()]}
           </span>
         )}
       </Show>
       <button
         type="button"
-        class="picker-star grid size-6 shrink-0 place-items-center rounded-row"
+        class="picker-star grid size-6 shrink-0 place-items-center rounded-base"
         data-shown={starred() ? "" : undefined}
         aria-label={starred() ? `Unstar ${row().model.name}` : `Star ${row().model.name}`}
         aria-pressed={starred()}
@@ -96,7 +96,7 @@ function Row(props: {
       >
         <Star on={starred()} />
       </button>
-      <span class="grid size-4 shrink-0 place-items-center text-fg" aria-hidden="true">
+      <span class="grid size-4 shrink-0 place-items-center text-primary" aria-hidden="true">
         <Show when={selected()}>
           <RemixIcon icon={CheckIcon} size={16} class="picker-check" />
         </Show>
@@ -109,16 +109,16 @@ function LegacyRow(props: { entry: Extract<PickerEntry, { kind: "legacy" }>; onT
   return (
     <button
       type="button"
-      class="picker-row picker-legacy flex h-12 w-full cursor-pointer items-center gap-2 rounded-row px-2.5 text-left"
+      class="picker-row picker-legacy flex h-12 w-full cursor-pointer items-center gap-2 rounded-base px-2.5 text-left"
       aria-expanded={props.entry.open}
       data-component="model-legacy"
       onClick={() => props.onToggle()}
     >
       <span class="flex min-w-0 flex-1 flex-col">
-        <span class="type-ui text-fg">Legacy models</span>
-        <span class="text-hint text-fg3">{props.entry.count} models</span>
+        <span class="type-base text-primary">Legacy models</span>
+        <span class="text-xs text-tertiary">{props.entry.count} models</span>
       </span>
-      <RemixIcon icon={ChevronRightIcon} size={16} class="picker-legacy-chevron shrink-0 text-fg2" />
+      <RemixIcon icon={ChevronRightIcon} size={16} class="picker-legacy-chevron shrink-0 text-secondary" />
     </button>
   )
 }
@@ -259,11 +259,11 @@ export function ModelList(props: {
     <Show
       when={providers().length || catalog.loading}
       fallback={
-        <p class="m-auto px-6 py-8 text-center text-ui text-fg3" data-component="model-empty">
+        <p class="m-auto px-6 py-8 text-center text-base text-tertiary" data-component="model-empty">
           No provider is connected.{" "}
           <button
             type="button"
-            class="text-fg underline"
+            class="text-primary underline"
             data-action="connect-provider"
             onClick={() => {
               openSettings("models")
@@ -278,12 +278,12 @@ export function ModelList(props: {
     >
       <ProviderRail providers={providers()} value={query().trim() ? "" : filter()} onChange={chooseFilter} />
       <div class="flex min-h-0 min-w-0 flex-1 flex-col">
-        <label class="picker-search relative mx-3 mt-2.5 flex shrink-0 items-center border-b border-line2 pb-1.5 text-fg3">
+        <label class="picker-search relative mx-3 mt-2.5 flex shrink-0 items-center border-b border-secondary pb-1.5 text-tertiary">
           <RemixIcon icon={SearchIcon} size={16} class="pointer-events-none absolute left-0 top-1.5 shrink-0" />
           <input
             ref={(el) => props.autofocus && requestAnimationFrame(() => el.focus())}
             type="search"
-            class="h-6 min-w-0 flex-1 bg-transparent pl-5 text-ui text-fg outline-none placeholder:text-fg4"
+            class="h-6 min-w-0 flex-1 bg-transparent pl-5 text-base text-primary outline-none placeholder:text-quaternary"
             placeholder="Search models..."
             aria-label="Search models"
             role="combobox"
@@ -296,7 +296,7 @@ export function ModelList(props: {
             data-component="model-search"
           />
         </label>
-        <Show when={rows().length} fallback={<p class="p-4 text-ui text-fg3">{empty()}</p>}>
+        <Show when={rows().length} fallback={<p class="p-4 text-base text-tertiary">{empty()}</p>}>
           <VList
             ref={setHandle}
             id={id}
@@ -380,7 +380,7 @@ export default function ModelPickerPanel(props: {
     <Portal>
       <div
         ref={panel}
-        class="picker-panel pointer-events-auto fixed z-[80] flex h-[392px] w-[400px] max-w-[calc(100vw-16px)] overflow-hidden rounded-sheet bg-raise shadow-[var(--float-shadow)]"
+        class="picker-panel pointer-events-auto fixed z-[80] flex h-[392px] w-[400px] max-w-[calc(100vw-16px)] overflow-hidden rounded-3xl bg-elevated shadow-[var(--popup-shadow)]"
         style={place()}
         data-component="model-picker"
         data-kb-top-layer=""

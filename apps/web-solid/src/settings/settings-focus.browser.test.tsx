@@ -81,6 +81,18 @@ describe("settings focus", () => {
     expect(closed.count).toBe(1)
   })
 
+  it("lets a nested dialog keep focus while you type in it", async () => {
+    await page.viewport(1280, 720)
+    const router = routerAt("/settings/tools", () => <ToolDialog />)
+    await using _screen = await render(() => <RouterProvider router={router} />)
+    await page.getByRole("button", { name: "Connect app" }).click()
+    const key = page.getByRole("textbox", { name: "App key" })
+    await key.click()
+    await userEvent.keyboard("abc")
+    await expect.element(key).toHaveFocus()
+    await expect.element(key).toHaveValue("abc")
+  })
+
   it("closes settings with Escape after a nested dialog closes", async () => {
     await page.viewport(1280, 720)
     closed.count = 0

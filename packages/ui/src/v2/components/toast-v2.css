@@ -1,7 +1,6 @@
 .toast-v2-region,
 .toast-v2-anchors {
-  --toast-muted: var(--fg3);
-  --toast-edge: inset 0 0 0 1px var(--line2);
+  --toast-edge: 0 0 0 1px var(--stroke-secondary);
 }
 
 .toast-v2-region {
@@ -10,7 +9,7 @@
   --toast-peek: 12px;
   --toast-outward: 1;
   position: fixed;
-  z-index: 1000;
+  z-index: var(--layer-toast, 5000);
   bottom: calc(var(--toast-inset) + env(safe-area-inset-bottom));
   left: 50%;
   width: calc(100% - var(--toast-inset) * 2);
@@ -47,10 +46,12 @@
   z-index: calc(9999 - var(--toast-index));
   box-sizing: border-box;
   width: 100%;
-  border-radius: var(--radius-control);
-  color: var(--fg);
-  background: var(--popover);
-  box-shadow: var(--toast-edge), var(--shadow-float);
+  border-radius: var(--radius-xl);
+  color: var(--text-primary);
+  background: var(--bg-elevated);
+  box-shadow: var(--popup-shadow);
+  font-family: var(--font-family-sans);
+  -webkit-font-smoothing: var(--font-smoothing, antialiased);
   pointer-events: auto;
   user-select: none;
   -webkit-user-select: none;
@@ -60,9 +61,9 @@
   transform: translateX(var(--toast-swipe-x, 0px)) translateY(calc(var(--toast-swipe-y, 0px) + var(--toast-y)))
     scale(var(--toast-scale));
   transition:
-    transform var(--dur-pop) var(--ease-kiko),
-    opacity var(--dur-pop) var(--ease-kiko),
-    height 150ms var(--ease-kiko);
+    transform var(--duration-slow) var(--ease-sharp),
+    opacity var(--duration-slow) var(--ease-sharp),
+    height var(--duration-slow) var(--ease-sharp);
 
   @starting-style {
     transform: translateX(var(--toast-swipe-x, 0px)) translateY(calc(var(--toast-y) + 8px));
@@ -101,7 +102,7 @@
     opacity: 0;
     pointer-events: none;
     transform: translateX(var(--toast-swipe-x, 0px)) translateY(calc(var(--toast-y) + 8px));
-    transition-duration: var(--dur-exit, 140ms);
+    transition-duration: var(--duration-slow), var(--duration-normal), var(--duration-slow);
   }
 
   &[data-ending="out-x"] {
@@ -131,15 +132,12 @@
   justify-content: space-between;
   gap: 10px;
   min-height: 0;
-  padding: 10px 12px;
+  padding: 10px 38px 10px 12px;
   overflow-x: clip;
-  font-size: var(--type-ui);
-  line-height: 20px;
-  transition: opacity var(--dur-pop) var(--ease-kiko);
-
-  &[data-actions] {
-    padding-inline-end: 24px;
-  }
+  font-size: var(--font-size-base);
+  line-height: var(--line-height-base);
+  letter-spacing: var(--letter-spacing-base);
+  transition: opacity var(--duration-normal) var(--ease-sharp);
 }
 
 .toast-v2-body {
@@ -158,13 +156,15 @@
 
 .toast-v2-title {
   min-width: 0;
-  font-weight: 500;
   overflow-wrap: anywhere;
 }
 
 .toast-v2-description {
   min-width: 0;
-  color: var(--toast-muted);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-sm);
+  letter-spacing: var(--letter-spacing-sm);
   overflow-wrap: anywhere;
   user-select: text;
   -webkit-user-select: text;
@@ -181,38 +181,31 @@
   display: flex;
   flex-shrink: 0;
   align-items: center;
-  width: 16px;
-  height: 20px;
+  width: 14px;
+  height: var(--line-height-base);
+  color: var(--icon-secondary);
 
   > svg {
-    width: 16px;
-    height: 16px;
+    width: 14px;
+    height: 14px;
     pointer-events: none;
   }
 }
 
 .toast-v2[data-variant="success"] .toast-v2-icon {
-  color: var(--ok);
+  color: var(--icon-success);
 }
 
 .toast-v2[data-variant="error"] .toast-v2-icon {
-  color: var(--bad);
+  color: var(--icon-danger);
 }
 
 .toast-v2[data-variant="warning"] .toast-v2-icon {
-  color: var(--fg2);
+  color: var(--icon-warning);
 }
 
-.toast-v2[data-variant="info"] .toast-v2-icon {
-  color: var(--fg2);
-}
-
-.toast-v2[data-variant="loading"] .toast-v2-icon {
-  opacity: 0.8;
-
-  > svg {
-    animation: toast-v2-spin 1s linear infinite;
-  }
+.toast-v2[data-variant="loading"] .toast-v2-icon > svg {
+  animation: toast-v2-spin var(--duration-1s) linear infinite;
 }
 
 @keyframes toast-v2-spin {
@@ -224,34 +217,29 @@
 .toast-v2-close {
   position: absolute;
   z-index: 20;
-  top: -6px;
-  right: -6px;
+  top: 9px;
+  right: 9px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
+  width: var(--spacing-control-sm, 20px);
+  height: var(--spacing-control-sm, 20px);
   padding: 0;
-  border: 1px solid color-mix(in oklab, var(--popover-edge) 60%, transparent);
-  border-radius: 50%;
-  color: var(--fg3);
-  background: color-mix(in oklab, var(--popover) 92%, transparent);
-  box-shadow: 0 1px 2px rgb(0 0 0 / 8%);
+  border: 0;
+  border-radius: var(--radius-sm);
+  color: var(--icon-tertiary);
+  background: transparent;
   cursor: pointer;
-  outline: none;
   transition:
-    color var(--dur-hover),
-    background var(--dur-hover);
+    color var(--duration-fast) ease,
+    background-color var(--duration-fast) ease,
+    opacity var(--duration-normal) var(--ease-sharp);
 
   @media (hover: hover) and (pointer: fine) {
     &:hover {
-      color: var(--fg);
-      background: var(--popover);
+      color: var(--icon-primary);
+      background: var(--bg-tertiary);
     }
-  }
-
-  &:focus-visible {
-    box-shadow: 0 0 0 2px var(--info);
   }
 
   > svg {
@@ -271,24 +259,24 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 20px;
-  height: 20px;
+  width: var(--spacing-control-sm, 20px);
+  height: var(--spacing-control-sm, 20px);
   padding: 0;
   border: 0;
-  border-radius: var(--radius-tail);
-  color: color-mix(in oklab, var(--toast-muted) 80%, transparent);
+  border-radius: var(--radius-sm);
+  color: var(--icon-tertiary);
   background: transparent;
   cursor: pointer;
-  outline: none;
 
   @media (hover: hover) and (pointer: fine) {
     &:hover {
-      color: var(--toast-muted);
+      color: var(--icon-primary);
+      background: var(--bg-tertiary);
     }
   }
 
   &[data-copied] {
-    color: var(--ok);
+    color: var(--icon-success);
   }
 
   > svg {
@@ -302,64 +290,67 @@
   flex-shrink: 0;
   align-items: center;
   justify-content: center;
-  height: 28px;
-  padding: 0 10px;
+  height: var(--spacing-control-md, 24px);
+  padding: 0 8px;
   border: 0;
-  border-radius: var(--radius-row);
-  transition:
-    background var(--dur-hover),
-    transform var(--dur-hover) var(--ease-kiko);
-  font-size: var(--type-label);
-  font-weight: 500;
-  line-height: 16px;
+  border-radius: var(--radius-base);
+  transition-property: color, background-color, transform;
+  transition-duration: var(--duration-fast), var(--duration-fast), var(--duration-instant);
+  transition-timing-function: ease, ease, var(--ease-sharp);
+  font-family: inherit;
+  font-size: var(--font-size-base);
+  line-height: var(--line-height-base);
+  letter-spacing: var(--letter-spacing-base);
   white-space: nowrap;
   cursor: pointer;
-  outline: none;
 
   &:active {
-    transform: scale(0.97);
+    transform: scale(var(--press-scale, 0.98));
   }
 
   &[data-variant="primary"] {
-    color: var(--bg);
-    background: var(--fg);
+    color: var(--text-invert);
+    font-weight: 500;
+    background: var(--bg-neutral);
   }
 
   @media (hover: hover) and (pointer: fine) {
     &[data-variant="primary"]:hover {
-      background: color-mix(in oklab, var(--fg) 88%, var(--bg));
+      background: var(--bg-neutral-hover);
     }
   }
 
   &[data-variant="secondary"] {
-    color: var(--fg);
-    background: color-mix(in oklab, var(--fg) 8%, transparent);
+    color: var(--text-primary);
+    background: var(--bg-tertiary);
   }
 
   @media (hover: hover) and (pointer: fine) {
     &[data-variant="secondary"]:hover {
-      background: color-mix(in oklab, var(--fg) 13%, transparent);
+      background: var(--bg-secondary);
     }
   }
 }
 
 .toast-v2-anchored {
   position: fixed;
-  z-index: 1000;
-  max-width: 256px;
-  padding: 4px 8px;
-  border-radius: var(--radius-tail);
-  font-size: var(--type-hint);
-  line-height: 16px;
-  color: var(--popover-fg);
-  background: var(--popover);
-  box-shadow: var(--toast-edge), var(--shadow-float);
+  z-index: var(--layer-toast, 5000);
+  max-width: 300px;
+  padding: 6px 10px;
+  border-radius: var(--radius-lg);
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-base);
+  line-height: var(--line-height-base);
+  letter-spacing: var(--letter-spacing-base);
+  color: var(--text-primary);
+  background: var(--bg-elevated);
+  box-shadow: var(--toast-edge), var(--box-shadow-popup);
   text-wrap: balance;
   pointer-events: none;
-  transform: translate(-50%, calc(-100% - 4px));
+  transform: translate(-50%, calc(-100% - 8px));
   transition:
-    scale var(--dur-hover) var(--ease-kiko),
-    opacity var(--dur-hover) var(--ease-kiko);
+    scale var(--duration-fast) var(--ease-sharp),
+    opacity var(--duration-fast) var(--ease-sharp);
 
   @starting-style {
     opacity: 0;
@@ -367,7 +358,7 @@
   }
 
   &[data-side="bottom"] {
-    transform: translate(-50%, 4px);
+    transform: translate(-50%, 8px);
   }
 
   &[data-ending] {

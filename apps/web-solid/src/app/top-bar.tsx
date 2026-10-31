@@ -1,17 +1,16 @@
 import { RemixIcon } from "@kiko/ui/remix-icon"
-import { FolderIcon, MonitorIcon, SearchIcon, SidebarRightIcon } from "@kiko/ui/icons"
+import { FolderIcon, InfoIcon, MonitorIcon } from "@kiko/ui/icons"
 import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
 import { createEffect, createSignal, onCleanup, onMount, Show } from "solid-js"
 import { computers, openViewer, startComputers, watchTarget } from "../chat/computers"
 import { closeDesk, deskShown, deskView, fixedSurface, loadDesk, openSurface } from "../chat/side/surfaces"
 import { threadDetailsOpenFor, toggleThreadDetails } from "../chat/side/thread-details-layer"
-import { runCommand } from "../commands/registry"
-import { ChatAvatar } from "../lib/IdentityAvatar"
+import { FaceRow } from "../lib/IdentityAvatar"
+import { chatSlugs } from "../lib/identity"
 import { connection, createDelayedStatus, type ConnectionView } from "../state/connection"
 import { room } from "../state/room"
 import { presenceWords } from "../state/live-status"
 import { user } from "../state/user"
-import { preloadSearch } from "../search/state"
 import { SidebarToggle } from "../sidebar"
 
 const CONNECTION_LABEL: Partial<Record<ConnectionView, string>> = {
@@ -20,6 +19,21 @@ const CONNECTION_LABEL: Partial<Record<ConnectionView, string>> = {
 }
 
 const LONG_OFFLINE_MS = 10_000
+
+const TITLE_FACES = 3
+
+const TITLE_FACE_PX = 28
+
+function TitleFaces(props: { chatId: string }) {
+  const slugs = () => chatSlugs(user.chat(props.chatId) ?? { roomId: props.chatId }, user.agents())
+  return (
+    <FaceRow
+      faces={slugs().slice(0, TITLE_FACES)}
+      size={TITLE_FACE_PX}
+      extra={Math.max(0, slugs().length - TITLE_FACES)}
+    />
+  )
+}
 
 export function TopBar(props: { chatId: string | null; sidebarOpen: boolean; onToggleSidebar: () => void }) {
   const chatId = () => props.chatId
@@ -38,7 +52,6 @@ export function TopBar(props: { chatId: string | null; sidebarOpen: boolean; onT
     return user.loaded() ? "" : "Loading…"
   }
   onMount(startComputers)
-  const toggle = () => "top-bar-button"
   const filesOpen = () => {
     const id = chatId()
     if (!id || !deskShown()) return false
@@ -56,16 +69,16 @@ export function TopBar(props: { chatId: string | null; sidebarOpen: boolean; onT
     return `You, ${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`
   }
   return (
-    <header class="top-bar flex h-[52px] shrink-0 items-center gap-0.5 px-7" data-component="top-bar">
+    <header class="flex shrink-0 items-center gap-px pr-2.5 pl-4" data-component="top-bar">
       <Show when={!props.sidebarOpen}>
         <SidebarToggle open={false} onToggle={props.onToggleSidebar} class="top-bar-button" />
       </Show>
       <div class="flex min-w-0 flex-1 items-center gap-2.5">
         <Show when={chatId()} keyed>
-          {(id) => <ChatAvatar faces={room.chatFaces(id)} size={22} />}
+          {(id) => <TitleFaces chatId={id} />}
         </Show>
         <h1
-          class="min-w-0 shrink truncate font-sans text-[15px] leading-[19px] font-semibold text-[var(--text-100)]"
+          class="min-w-0 shrink truncate text-[15px] leading-5 font-semibold tracking-[-0.15px] text-primary"
           data-component="top-bar-title"
         >
           {title()}
@@ -73,7 +86,7 @@ export function TopBar(props: { chatId: string | null; sidebarOpen: boolean; onT
         <Show when={chatId()}>
           <Show when={live()} fallback={<span class="hidden">{roster()}</span>}>
             {(text) => (
-              <span class="top-bar-sub chat-shimmer truncate text-label" data-component="top-bar-status">
+              <span class="chat-shimmer truncate type-sm" data-component="top-bar-status">
                 {text()}
               </span>
             )}
@@ -82,7 +95,7 @@ export function TopBar(props: { chatId: string | null; sidebarOpen: boolean; onT
         <Show when={offline()}>
           {(message) => (
             <span
-              class={`min-w-0 truncate text-label ${long() ? "text-fg3" : "chat-shimmer"}`}
+              class={`min-w-0 truncate type-sm ${long() ? "text-tertiary" : "chat-shimmer"}`}
               role="status"
               data-component="connection-status"
             >
@@ -104,24 +117,10 @@ export function TopBar(props: { chatId: string | null; sidebarOpen: boolean; onT
               if (id) toggleThreadDetails(id)
             }}
           >
-            <RemixIcon icon={SidebarRightIcon} size={18} />
+            <RemixIcon icon={InfoIcon} size={14} />
           </button>
         </TooltipV2>
       </Show>
-      <TooltipV2 placement="bottom" openDelay={500} value="Search messages">
-        <button
-          type="button"
-          class="top-bar-button"
-          aria-label="Search messages"
-          data-action="search-messages"
-          data-hint="chats.search-current"
-          data-hint-label="Search"
-          onPointerEnter={preloadSearch}
-          onClick={() => runCommand(chatId() ? "chats.search-current" : "chats.search-all")}
-        >
-          <RemixIcon icon={SearchIcon} size={18} />
-        </button>
-      </TooltipV2>
       <Show when={computers().length > 0}>
         <TooltipV2 placement="bottom" openDelay={500} value="Watch your computer">
           <button
@@ -131,7 +130,7 @@ export function TopBar(props: { chatId: string | null; sidebarOpen: boolean; onT
             data-action="computer-watch"
             onClick={() => openViewer(watchTarget(chatId()))}
           >
-            <RemixIcon icon={MonitorIcon} size={18} />
+            <RemixIcon icon={MonitorIcon} size={16} />
           </button>
         </TooltipV2>
       </Show>
@@ -139,7 +138,7 @@ export function TopBar(props: { chatId: string | null; sidebarOpen: boolean; onT
         <TooltipV2 placement="bottom" openDelay={500} value="Files">
           <button
             type="button"
-            class={toggle()}
+            class="top-bar-button"
             aria-label="Files"
             aria-pressed={filesOpen()}
             data-action="open-files"
@@ -153,7 +152,7 @@ export function TopBar(props: { chatId: string | null; sidebarOpen: boolean; onT
               else openSurface(id, fixedSurface("files"))
             }}
           >
-            <RemixIcon icon={FolderIcon} size={18} />
+            <RemixIcon icon={FolderIcon} size={16} />
           </button>
         </TooltipV2>
       </Show>

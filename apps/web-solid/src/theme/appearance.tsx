@@ -6,7 +6,14 @@ import { createEffect, createSignal, For, on, onCleanup, Show, type JSX } from "
 import { appearanceOf } from "@kiko/theme/apply"
 import { BASE_SIZE, CHAT_WIDTHS, CONTRAST, DEFAULT_DISPLAY, type ChatWidth, type Display } from "@kiko/theme/display"
 import { DEFAULT_LOOK, type Mode } from "@kiko/theme/look"
-import { DARK_THEME_IDS, THEMES, type Palette, type ThemeAppearance } from "@kiko/theme/palette"
+import {
+  DARK_THEME_IDS,
+  LIGHT_THEME_IDS,
+  THEMES,
+  type Palette,
+  type ThemeAppearance,
+  type ThemeId,
+} from "@kiko/theme/palette"
 import { buttonClass, Group, Row, Slider, Toggle } from "../settings/kit"
 import { ThreadDetailsMenuItems } from "../chat/side/thread-details-menu"
 import { Select } from "../settings/select"
@@ -17,26 +24,30 @@ import { ThemeBrowser } from "./open-vsx-themes"
 
 const shown = () => appearanceOf(look().mode)
 
-function Preview(props: { palette: Palette; light: boolean }) {
+function Preview(props: { palette: Palette }) {
   const p = () => props.palette
-  const solid = (pct: number) => `color-mix(in oklab, ${p().text} ${pct}%, ${p().canvas})`
-  const raise = () => solid(props.light ? 2.4 : 4.6)
-  const me = () => solid(props.light ? 5.5 : 9.6)
-  const tint = (color: string, pct: number) => `color-mix(in oklab, ${color} ${pct}%, transparent)`
+  const tint = (pct: number) => `color-mix(in oklab, ${p().base} ${pct}%, transparent)`
   return (
     <div
-      class="flex h-[104px] w-full overflow-hidden rounded-pop"
-      style={{ background: p().canvas }}
+      class="flex h-[104px] w-full overflow-hidden rounded-xl"
+      style={{ background: p().chrome, "box-shadow": `inset 0 0 0 1px ${tint(8)}` }}
       aria-hidden="true"
     >
       <div class="flex w-[34%] flex-col gap-[5px] p-2.5" style={{ background: p().sidebar }}>
-        <span class="h-[5px] w-3/5 rounded-tail" style={{ background: tint(p().text, 60) }} />
-        <span class="h-[7px] w-[85%] rounded-tail" style={{ background: tint(p().text, 35) }} />
-        <span class="h-[5px] w-[70%] rounded-tail" style={{ background: tint(p().muted, 40) }} />
+        <span class="h-[7px] w-[85%] rounded-sm" style={{ background: tint(14) }} />
+        <span class="h-[5px] w-3/5 rounded-sm" style={{ background: tint(36) }} />
+        <span class="h-[5px] w-[70%] rounded-sm" style={{ background: tint(20) }} />
       </div>
       <div class="flex flex-1 flex-col items-end gap-1.5 p-3.5">
-        <span class="h-[18px] w-1/2 rounded-control" style={{ background: me() }} />
-        <span class="h-[18px] w-[70%] self-start rounded-control" style={{ background: raise() }} />
+        <span class="h-[18px] w-1/2 rounded-base" style={{ background: tint(6) }} />
+        <span class="h-[5px] w-[70%] self-start rounded-sm" style={{ background: tint(60) }} />
+        <span class="h-[5px] w-[45%] self-start rounded-sm" style={{ background: tint(36) }} />
+        <span
+          class="mt-auto h-[14px] w-full rounded-base"
+          style={{ background: p().editor, "box-shadow": `inset 0 0 0 1px ${tint(12)}` }}
+        >
+          <span class="mt-[3px] mr-[3px] ml-auto block size-2 rounded-full" style={{ background: p().accent }} />
+        </span>
       </div>
     </div>
   )
@@ -45,7 +56,6 @@ function Preview(props: { palette: Palette; light: boolean }) {
 function ThemeCard(props: {
   name: string
   palette: Palette
-  light: boolean
   selected: boolean
   onPick: () => void
   onRemove?: () => void
@@ -56,27 +66,27 @@ function ThemeCard(props: {
         type="button"
         role="radio"
         aria-checked={props.selected}
-        class="flex w-full flex-col gap-2 text-left outline-none transition-transform duration-[var(--dur-hover)] ease-[var(--ease-kiko)] active:scale-[0.98]"
+        class="flex w-full flex-col gap-2 text-left outline-none transition-transform duration-(--duration-instant) ease-sharp active:scale-(--press-scale)"
         data-theme-card={props.name}
         onClick={props.onPick}
       >
         <span
-          class="relative block rounded-pop transition-shadow duration-(--dur-pop) ease-kiko"
+          class="relative block rounded-xl transition-shadow duration-(--duration-fast) ease-sharp"
           classList={{
-            "shadow-[0_0_0_2px_var(--bg),0_0_0_4px_var(--accent-fill)]": props.selected,
-            "hover:shadow-[0_0_0_1px_var(--line2)]": !props.selected,
+            "shadow-[0_0_0_2px_var(--bg-accent)]": props.selected,
+            "hover:shadow-[0_0_0_1px_var(--stroke-primary)]": !props.selected,
           }}
         >
-          <Preview palette={props.palette} light={props.light} />
+          <Preview palette={props.palette} />
           <Show when={props.selected}>
-            <span class="absolute top-2 right-2 grid size-[18px] place-items-center rounded-full bg-(--accent-fill) text-(--on-accent)">
+            <span class="absolute top-2 right-2 grid size-4 place-items-center rounded-full bg-accent text-on-accent">
               <RemixIcon icon={CheckIcon} size={12} />
             </span>
           </Show>
         </span>
         <span
-          class="truncate type-ui"
-          classList={{ "font-semibold text-fg": props.selected, "text-fg2": !props.selected }}
+          class="truncate px-0.5 type-base"
+          classList={{ "text-primary": props.selected, "text-secondary": !props.selected }}
         >
           {props.name}
         </span>
@@ -84,7 +94,7 @@ function ThemeCard(props: {
       <Show when={props.onRemove}>
         <button
           type="button"
-          class="absolute top-1.5 left-1.5 grid size-5 place-items-center rounded-control bg-raise text-fg2 opacity-0 shadow-menu group-hover/theme:opacity-100 hover:text-bad focus-visible:opacity-100"
+          class="absolute top-1.5 left-1.5 grid size-5 place-items-center rounded-sm bg-elevated icon-secondary opacity-0 shadow-(--popup-shadow) transition-opacity duration-(--duration-fast) group-hover/theme:opacity-100 hover:icon-danger focus-visible:opacity-100"
           aria-label={`Remove ${props.name}`}
           title="Remove"
           onClick={props.onRemove}
@@ -98,11 +108,11 @@ function ThemeCard(props: {
 
 type Card = { id: string; name: string; palette: Palette; removable?: () => void }
 
-const BUILTIN: Record<ThemeAppearance, readonly string[]> = { dark: DARK_THEME_IDS, light: ["snow"] }
+const BUILTIN: Record<ThemeAppearance, readonly ThemeId[]> = { dark: DARK_THEME_IDS, light: LIGHT_THEME_IDS }
 
 function cardsFor(appearance: ThemeAppearance): Card[] {
   const builtin = BUILTIN[appearance].map((id) => {
-    const theme = THEMES[id as keyof typeof THEMES]
+    const theme = THEMES[id]
     return { id, name: theme.label, palette: theme.palette }
   })
   const imported = themes()
@@ -114,10 +124,10 @@ function cardsFor(appearance: ThemeAppearance): Card[] {
 function pickedFor(appearance: ThemeAppearance): string {
   const imported = themes().active[appearance]
   if (imported && themes().themes.some((t) => t.id === imported)) return imported
-  return appearance === "dark" ? look().darkTheme : "snow"
+  return appearance === "dark" ? look().darkTheme : look().lightTheme
 }
 
-const gridClass = "grid grid-cols-2 gap-x-3 gap-y-5 @min-[560px]/settings:grid-cols-3"
+const gridClass = "grid grid-cols-2 gap-x-3 gap-y-4 @min-[560px]/settings:grid-cols-3"
 
 function ThemeGrid(props: { appearance: ThemeAppearance; more?: () => void }) {
   return (
@@ -128,7 +138,6 @@ function ThemeGrid(props: { appearance: ThemeAppearance; more?: () => void }) {
             <ThemeCard
               name={card.name}
               palette={card.palette}
-              light={props.appearance === "light"}
               selected={pickedFor(props.appearance) === card.id}
               onPick={() => pickTheme(props.appearance, card.id)}
               onRemove={card.removable}
@@ -140,11 +149,11 @@ function ThemeGrid(props: { appearance: ThemeAppearance; more?: () => void }) {
         {(more) => (
           <button
             type="button"
-            class="flex h-[104px] cursor-pointer flex-col items-center justify-center gap-1 rounded-pop bg-panel type-ui text-fg2 transition-[background-color,color,transform] duration-(--dur-hover) ease-kiko hover:bg-hover hover:text-fg active:scale-[0.98]"
+            class="flex h-[104px] cursor-pointer flex-col items-center justify-center gap-1.5 rounded-xl border border-dashed border-secondary type-base text-secondary transition-[background-color,color,transform] duration-(--duration-fast) ease-sharp hover:bg-quaternary hover:text-primary active:scale-(--press-scale)"
             data-action="browse-themes"
             onClick={() => more()()}
           >
-            <RemixIcon icon={PlusIcon} size={16} />
+            <RemixIcon icon={PlusIcon} size={14} class="icon-secondary" />
             More themes
           </button>
         )}
@@ -158,7 +167,7 @@ function ThemeSection(props: { onMore: () => void }) {
   return (
     <section class="flex flex-col gap-3" data-component="theme-picker">
       <div class="flex flex-wrap items-center justify-between gap-3 px-1">
-        <h2 class="flex h-section-label items-center type-label text-fg3">Theme</h2>
+        <h2 class="flex h-sidebar-group-label items-center type-sm text-tertiary">Theme</h2>
         <Segmented<Mode>
           label="Mode"
           value={mode()}
@@ -175,19 +184,19 @@ function ThemeSection(props: { onMore: () => void }) {
         fallback={<ThemeGrid appearance={mode() === "light" ? "light" : "dark"} more={props.onMore} />}
       >
         <div class="flex flex-col gap-2">
-          <h3 class="flex items-center gap-2 px-1 type-label text-fg3">
+          <h3 class="flex items-center gap-2 px-1 type-sm text-tertiary">
             Light
             <Show when={shown() === "light"}>
-              <span class="type-hint text-fg4">Showing now</span>
+              <span class="type-sm text-quaternary">Showing now</span>
             </Show>
           </h3>
           <ThemeGrid appearance="light" />
         </div>
         <div class="flex flex-col gap-2">
-          <h3 class="flex items-center gap-2 px-1 type-label text-fg3">
+          <h3 class="flex items-center gap-2 px-1 type-sm text-tertiary">
             Dark
             <Show when={shown() === "dark"}>
-              <span class="type-hint text-fg4">Showing now</span>
+              <span class="type-sm text-quaternary">Showing now</span>
             </Show>
           </h3>
           <ThemeGrid appearance="dark" more={props.onMore} />
@@ -324,12 +333,12 @@ export default function Appearance(): JSX.Element {
         </Row>
         <Row
           label="Interface font"
-          description="Any font on this device. Empty uses the system font."
+          description="Any font on this device. Empty uses Geist."
           onReset={reset("interfaceFont")}
         >
           <FontField
             label="Interface font"
-            placeholder="System"
+            placeholder="Geist"
             value={d().interfaceFont}
             onCommit={(interfaceFont) => set({ interfaceFont })}
           />
@@ -337,7 +346,7 @@ export default function Appearance(): JSX.Element {
         <Row label="Code font" onReset={reset("codeFont")}>
           <FontField
             label="Code font"
-            placeholder="System mono"
+            placeholder="Geist Mono"
             value={d().codeFont}
             onCommit={(codeFont) => set({ codeFont })}
           />
@@ -366,6 +375,7 @@ export default function Appearance(): JSX.Element {
           data-action="restore-appearance"
           onClick={() => {
             chooseBuiltin(DEFAULT_LOOK.darkTheme)
+            chooseBuiltin(DEFAULT_LOOK.lightTheme)
             updateLook({ display: DEFAULT_DISPLAY })
           }}
         >

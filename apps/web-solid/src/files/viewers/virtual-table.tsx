@@ -125,11 +125,11 @@ export function VirtualTable(props: VirtualTableProps): JSX.Element {
         <Show when={!props.source}>
           <div
             role="row"
-            class="sticky top-0 z-20 flex border-b border-[var(--line)] bg-panel font-medium text-fg"
+            class="sticky top-0 z-20 flex border-b border-[var(--stroke-tertiary)] bg-editor text-primary"
             style={{ height: `${ROW_HEIGHT}px` }}
           >
             <div
-              class="sticky left-0 z-10 shrink-0 border-r border-[var(--line)] bg-panel"
+              class="sticky left-0 z-10 shrink-0 border-r border-[var(--stroke-tertiary)] bg-editor"
               style={{ width: `${ROW_NUMBER}px` }}
             />
             <div style={{ width: `${spacer()}px`, "flex-shrink": 0 }} />
@@ -138,7 +138,7 @@ export function VirtualTable(props: VirtualTableProps): JSX.Element {
                 <div
                   role="columnheader"
                   aria-colindex={column + 1}
-                  class="shrink-0 overflow-hidden border-r border-[var(--line)] px-2.5 text-ellipsis whitespace-pre"
+                  class="shrink-0 overflow-hidden border-r border-[var(--stroke-tertiary)] px-2.5 text-ellipsis whitespace-pre"
                   style={{ width: `${widths()[column]}px`, "line-height": `${ROW_HEIGHT}px` }}
                   title={props.header?.[column] ?? columnLabel(column)}
                 >
@@ -159,13 +159,13 @@ export function VirtualTable(props: VirtualTableProps): JSX.Element {
                     role={props.source ? undefined : "row"}
                     aria-rowindex={props.source ? undefined : index + 1}
                     data-preview-row={index}
-                    class="flex border-b border-[var(--line)]"
-                    classList={{ "bg-active": local % 2 === 1 }}
+                    class="flex border-b border-[var(--stroke-tertiary)]"
+                    classList={{ "bg-secondary": local % 2 === 1 }}
                     style={{ height: `${ROW_HEIGHT}px` }}
                   >
                     <div
                       role={props.source ? undefined : "rowheader"}
-                      class="sticky left-0 z-10 shrink-0 border-r border-[var(--line)] bg-panel px-2 text-right text-fg3 select-none"
+                      class="sticky left-0 z-10 shrink-0 border-r border-[var(--stroke-tertiary)] bg-editor px-2 text-right text-tertiary select-none"
                       style={{ width: `${ROW_NUMBER}px`, "line-height": `${ROW_HEIGHT}px` }}
                       data-row-number={index + 1}
                     >
@@ -179,7 +179,7 @@ export function VirtualTable(props: VirtualTableProps): JSX.Element {
                           <div
                             role={props.source ? undefined : "cell"}
                             aria-colindex={props.source ? undefined : column + 1}
-                            class="shrink-0 overflow-hidden border-r border-[var(--line)] px-2.5 text-ellipsis whitespace-pre text-fg2"
+                            class="shrink-0 overflow-hidden border-r border-[var(--stroke-tertiary)] px-2.5 text-ellipsis whitespace-pre text-secondary"
                             classList={{ "font-mono": props.source }}
                             style={{ width: `${widths()[column]}px`, "line-height": `${ROW_HEIGHT}px` }}
                             title={text()}

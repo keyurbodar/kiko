@@ -4,9 +4,12 @@ import { createEffect, Match, onCleanup, splitProps, Switch, type JSX } from "so
 import type { ComponentProps } from "solid-js"
 import { createStore } from "solid-js/store"
 
-const HANDOFF_MS = 400
+const OPEN_DELAY_MS = 300
+const CLOSE_DELAY_MS = 100
+const HANDOFF_MS = 200
 let lastClosedAt = Number.NEGATIVE_INFINITY
-const warm = () => performance.now() - lastClosedAt < HANDOFF_MS
+let openTips = 0
+const warm = () => openTips > 0 || performance.now() - lastClosedAt < HANDOFF_MS
 
 export interface TooltipV2Props extends ComponentProps<typeof KobalteTooltip> {
   value: JSX.Element
@@ -36,14 +39,38 @@ export function TooltipV2(props: TooltipV2Props) {
     "value",
   ])
 
+  let closing: ReturnType<typeof setTimeout> | undefined
+  const cancelClose = () => {
+    clearTimeout(closing)
+    closing = undefined
+  }
+
   const show = (open: boolean) => {
+    cancelClose()
     if (open === state.open) return
-    if (open) setState("instant", warm())
-    else lastClosedAt = performance.now()
+    if (open) {
+      setState("instant", warm())
+      openTips += 1
+    } else {
+      openTips -= 1
+      lastClosedAt = performance.now()
+    }
     setState("open", open)
   }
 
   const close = () => show(false)
+
+  const closeSoon = () => {
+    cancelClose()
+    closing = setTimeout(close, CLOSE_DELAY_MS)
+  }
+
+  onCleanup(() => {
+    cancelClose()
+    if (!state.open) return
+    openTips -= 1
+    lastClosedAt = performance.now()
+  })
 
   const inside = () => {
     const active = document.activeElement
@@ -77,7 +104,7 @@ export function TooltipV2(props: TooltipV2Props) {
   }
 
   const leave = () => {
-    if (!inside()) close()
+    if (!inside()) closeSoon()
     drop()
   }
 
@@ -124,8 +151,8 @@ export function TooltipV2(props: TooltipV2Props) {
           overflowPadding={5}
           skipDelayDuration={HANDOFF_MS}
           {...others}
-          openDelay={warm() ? 0 : (others.openDelay ?? 500)}
-          closeDelay={0}
+          openDelay={warm() ? 0 : (others.openDelay ?? OPEN_DELAY_MS)}
+          closeDelay={CLOSE_DELAY_MS}
           ignoreSafeArea={local.ignoreSafeArea ?? true}
           open={local.forceOpen || state.open}
           onOpenChange={(open) => {
@@ -149,6 +176,7 @@ export function TooltipV2(props: TooltipV2Props) {
               if (event.key !== "Enter" && event.key !== " ") return
               arm()
             }}
+            onPointerEnter={cancelClose}
             onPointerLeave={leave}
             onFocusOut={() => requestAnimationFrame(() => drop())}
           >

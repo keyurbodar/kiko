@@ -39,7 +39,8 @@
   width: max-content;
   min-width: 100%;
   align-items: center;
-  font-size: 12px;
+  font-size: var(--font-size-base);
+  line-height: 20px;
 }
 
 .fb-item {
@@ -55,32 +56,31 @@
   max-width: 160px;
   cursor: pointer;
   overflow: hidden;
-  border-radius: var(--radius-micro);
-  padding: 0 2px;
-  color: var(--text-300);
+  border-radius: var(--radius-sm);
+  padding: 0 4px;
+  color: var(--text-tertiary);
   text-align: left;
   text-overflow: ellipsis;
   white-space: nowrap;
   transition:
-    background-color var(--dur-hover) var(--ease-kiko),
-    color var(--dur-hover) var(--ease-kiko);
+    background-color var(--duration-fast) var(--ease-sharp),
+    color var(--duration-fast) var(--ease-sharp);
 }
 
 @media (hover: hover) and (pointer: fine) {
   .fb-name:hover {
-    background: var(--fill-hover);
-    color: var(--fg);
+    background: var(--bg-quaternary);
+    color: var(--text-primary);
   }
 }
 
 .fb-name[data-descendant] {
-  color: color-mix(in oklab, var(--text-400) 70%, transparent);
+  color: var(--text-quaternary);
 }
 
 .fb-name[data-current] {
   cursor: default;
-  color: var(--fg);
-  font-weight: 500;
+  color: var(--text-primary);
 }
 
 @media (hover: hover) and (pointer: fine) {
@@ -97,23 +97,23 @@
   flex: none;
   align-items: center;
   justify-content: center;
-  border-radius: var(--radius-micro);
-  color: color-mix(in oklab, var(--text-400) 60%, transparent);
+  border-radius: var(--radius-sm);
+  color: var(--icon-quaternary);
   outline: none;
   transition:
-    background-color var(--dur-hover) var(--ease-kiko),
-    color var(--dur-hover) var(--ease-kiko);
+    background-color var(--duration-fast) var(--ease-sharp),
+    color var(--duration-fast) var(--ease-sharp);
 }
 
 .fb-chev[data-expanded] {
-  background: var(--fill-hover);
-  color: var(--fg);
+  background: var(--bg-quaternary);
+  color: var(--text-primary);
 }
 
 @media (hover: hover) and (pointer: fine) {
   .fb-chev:hover {
-    background: var(--fill-hover);
-    color: var(--fg);
+    background: var(--bg-quaternary);
+    color: var(--text-primary);
   }
 }
 

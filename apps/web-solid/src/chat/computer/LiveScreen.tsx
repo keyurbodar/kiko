@@ -163,7 +163,7 @@ export default function LiveScreen(props: {
       </div>
       <Show when={mode() === "connecting" || mode() === "stalled"}>
         <div
-          class="absolute inset-0 grid place-items-center px-6 text-center text-label text-white/70"
+          class="absolute inset-0 grid place-items-center px-6 text-center text-sm text-white/70"
           role="status"
           data-part="connecting"
         >

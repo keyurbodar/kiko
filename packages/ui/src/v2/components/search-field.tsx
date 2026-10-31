@@ -27,7 +27,7 @@ export function SearchField(props: SearchFieldProps) {
   }
   return (
     <label data-component="search-field" data-size={local.size ?? "normal"} class={local.wrapClass}>
-      <RemixIcon icon={SearchIcon} size={16} data-slot="search-field-icon" />
+      <RemixIcon icon={SearchIcon} size={14} data-slot="search-field-icon" />
       <input
         ref={(el) => {
           input = el
@@ -50,7 +50,7 @@ export function SearchField(props: SearchFieldProps) {
           onPointerDown={(event) => event.preventDefault()}
           onClick={clear}
         >
-          <RemixIcon icon={CloseIcon} size={16} />
+          <RemixIcon icon={CloseIcon} size={12} />
         </button>
       </Show>
     </label>

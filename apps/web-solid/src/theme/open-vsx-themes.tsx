@@ -41,17 +41,17 @@ function variantLine(item: OpenVsxItem): string {
 function ThemePreview(props: { theme: ImportedTheme }): JSX.Element {
   const p = () => props.theme.palette
   const syntax = () =>
-    props.theme.syntax ?? { keyword: props.theme.accent, string: p().gold, func: p().text, comment: p().faint }
+    props.theme.syntax ?? { keyword: p().accent, string: p().yellow, func: p().blue, comment: p().base }
   return (
     <div
       class="theme-preview"
       aria-hidden="true"
       style={{
-        "--tp-bg": p().canvas,
+        "--tp-bg": p().editor,
         "--tp-side": p().sidebar,
-        "--tp-fg": p().text,
-        "--tp-muted": p().muted,
-        "--tp-accent": props.theme.accent,
+        "--tp-fg": p().base,
+        "--tp-muted": `color-mix(in oklab, ${p().base} 60%, transparent)`,
+        "--tp-accent": p().accent,
         "--tp-kw": syntax().keyword,
         "--tp-str": syntax().string,
         "--tp-fn": syntax().func,
@@ -80,7 +80,7 @@ function VariantCard(props: { theme: ImportedTheme; label: string; onRemove?: ()
     <div class="group/variant relative min-w-0">
       <button
         type="button"
-        class="flex w-full cursor-pointer flex-col gap-1.5 text-left outline-none transition-transform duration-(--dur-hover) ease-kiko active:scale-[0.98]"
+        class="flex w-full cursor-pointer flex-col gap-1.5 text-left outline-none transition-transform duration-(--duration-fast) ease-sharp active:scale-(--press-scale)"
         aria-pressed={isShowing(props.theme)}
         aria-label={`Use ${props.theme.name}`}
         title={props.theme.name}
@@ -88,9 +88,9 @@ function VariantCard(props: { theme: ImportedTheme; label: string; onRemove?: ()
         onClick={() => wear(props.theme)}
       >
         <span
-          class="relative block rounded-tile transition-shadow duration-(--dur-pop) ease-kiko"
+          class="relative block rounded-xl transition-shadow duration-(--duration-fast) ease-sharp"
           classList={{
-            "shadow-[0_0_0_2px_var(--raise),0_0_0_3.5px_var(--fg2)]": isShowing(props.theme),
+            "shadow-[0_0_0_2px_var(--bg-accent)]": isShowing(props.theme),
             "theme-preview-hover": !isShowing(props.theme),
           }}
         >
@@ -98,15 +98,15 @@ function VariantCard(props: { theme: ImportedTheme; label: string; onRemove?: ()
           <Show when={isActive(props.theme)}>
             <span
               class="absolute top-1.5 right-1.5 grid size-4 place-items-center rounded-full"
-              style={{ background: props.theme.palette.text, color: props.theme.palette.canvas }}
+              style={{ background: props.theme.palette.base, color: props.theme.palette.editor }}
             >
               <RemixIcon icon={CheckIcon} size={12} />
             </span>
           </Show>
         </span>
         <span
-          class="truncate type-label"
-          classList={{ "font-semibold text-fg": isShowing(props.theme), "text-fg2": !isShowing(props.theme) }}
+          class="truncate px-0.5 type-sm"
+          classList={{ "text-primary": isShowing(props.theme), "text-secondary": !isShowing(props.theme) }}
         >
           {props.label}
         </span>
@@ -115,7 +115,7 @@ function VariantCard(props: { theme: ImportedTheme; label: string; onRemove?: ()
         {(onRemove) => (
           <button
             type="button"
-            class="theme-variant-remove absolute top-1.5 left-1.5 grid size-5 cursor-pointer place-items-center rounded-control bg-raise text-fg2 shadow-menu hover:text-bad"
+            class="theme-variant-remove absolute top-1.5 left-1.5 grid size-5 cursor-pointer place-items-center rounded-sm bg-elevated icon-secondary shadow-(--popup-shadow) hover:icon-danger"
             aria-label={`Remove ${props.theme.name}`}
             title="Remove"
             onClick={() => onRemove()()}
@@ -148,10 +148,10 @@ function VariantGrid(props: { themes: ImportedTheme[]; removable?: boolean; clas
 function ExtensionIcon(props: { item: OpenVsxItem }): JSX.Element {
   const [broken, setBroken] = createSignal(false)
   return (
-    <span class="grid size-10 shrink-0 place-items-center overflow-hidden rounded-tile bg-panel" aria-hidden="true">
+    <span class="grid size-8 shrink-0 place-items-center overflow-hidden rounded-lg bg-tertiary" aria-hidden="true">
       <Show
         when={props.item.icon && !broken()}
-        fallback={<span class="type-row text-fg3">{props.item.displayName.slice(0, 1).toUpperCase()}</span>}
+        fallback={<span class="type-base text-tertiary">{props.item.displayName.slice(0, 1).toUpperCase()}</span>}
       >
         <img
           src={props.item.icon!}
@@ -175,25 +175,25 @@ function ResultRow(props: { item: OpenVsxItem; state?: Install; onInstall: () =>
   const busy = () => props.state?.phase === "installing"
   return (
     <li
-      class="flex flex-col gap-3 rounded-row px-2.5 py-2.5 transition-colors duration-(--dur-hover) ease-kiko theme-row-hover"
+      class="flex flex-col gap-3 rounded-lg px-2.5 py-2 transition-colors duration-(--duration-fast) ease-sharp theme-row-hover"
       data-item={keyOf(props.item)}
       data-state={installed().length > 0 ? "installed" : (props.state?.phase ?? "available")}
     >
       <div class="flex items-center gap-3">
         <ExtensionIcon item={props.item} />
         <div class="flex min-w-0 flex-1 flex-col">
-          <span class="truncate type-row text-fg">{props.item.displayName}</span>
-          <span class="truncate type-label text-fg3">
+          <span class="truncate type-base text-primary">{props.item.displayName}</span>
+          <span class="truncate type-sm text-tertiary">
             {props.item.namespace}, {props.item.downloadCount.toLocaleString("en-US")} installs
           </span>
           <Show when={!failed() && installed().length === 0 && variantLine(props.item)}>
-            {(line) => <span class="truncate type-hint text-fg4">{line()}</span>}
+            {(line) => <span class="truncate type-xs text-quaternary">{line()}</span>}
           </Show>
         </div>
         <Show
           when={installed().length === 0}
           fallback={
-            <span class="flex shrink-0 items-center gap-1 type-label text-fg3">
+            <span class="flex shrink-0 items-center gap-1 type-sm text-tertiary">
               <RemixIcon icon={CheckIcon} size={16} />
               Installed
             </span>
@@ -208,7 +208,7 @@ function ResultRow(props: { item: OpenVsxItem; state?: Install; onInstall: () =>
       </div>
       <Show when={failed()}>
         {(state) => (
-          <p role="alert" class="pl-[52px] type-label text-bad" data-slot="install-error">
+          <p role="alert" class="pl-11 type-sm text-danger" data-slot="install-error">
             {state().message}
           </p>
         )}
@@ -224,8 +224,8 @@ function SkeletonRows(): JSX.Element {
   return (
     <For each={[0, 1, 2, 3]}>
       {() => (
-        <li class="flex items-center gap-3 px-2.5 py-2.5" aria-hidden="true">
-          <Skeleton class="size-10 rounded-tile" />
+        <li class="flex items-center gap-3 px-2.5 py-2" aria-hidden="true">
+          <Skeleton class="size-8 rounded-lg" />
           <div class="flex flex-1 flex-col gap-1.5">
             <Skeleton class="h-3.5 w-2/5" />
             <Skeleton class="h-3 w-1/4" />
@@ -238,11 +238,9 @@ function SkeletonRows(): JSX.Element {
 
 function Message(props: { title: string; children?: JSX.Element }): JSX.Element {
   return (
-    <div class="flex flex-col items-center gap-3 px-6 py-12 text-center" data-slot="message">
-      <span class="grid size-10 place-items-center rounded-full bg-panel text-fg3">
-        <RemixIcon icon={SearchIcon} size={24} class="opacity-(--opacity-icon-secondary)" />
-      </span>
-      <p class="type-ui text-fg2">{props.title}</p>
+    <div class="mx-auto flex max-w-sm flex-col items-center gap-4 px-6 py-12 text-center" data-slot="message">
+      <RemixIcon icon={SearchIcon} size={20} class="mb-2 icon-tertiary" />
+      <p class="type-base text-balance text-secondary">{props.title}</p>
       {props.children}
     </div>
   )
@@ -259,7 +257,7 @@ function Installed(props: { onSuggest: (query: string) => void }): JSX.Element {
               {(name) => (
                 <button
                   type="button"
-                  class="h-7 cursor-pointer rounded-full bg-panel px-3 type-label text-fg2 transition-[background-color,color,transform] duration-(--dur-hover) ease-kiko hover:bg-hover hover:text-fg active:scale-[0.97]"
+                  class="h-6 cursor-pointer rounded-full bg-tertiary px-2.5 type-base text-secondary transition-[background-color,color,transform] duration-(--duration-fast) ease-sharp hover:bg-secondary hover:text-primary active:scale-(--press-scale)"
                   onClick={() => props.onSuggest(name)}
                 >
                   {name}
@@ -271,7 +269,7 @@ function Installed(props: { onSuggest: (query: string) => void }): JSX.Element {
       }
     >
       <div class="flex flex-col gap-2 px-2.5 pb-2">
-        <h3 class="flex h-section-label items-center type-label text-fg3">Installed</h3>
+        <h3 class="flex h-sidebar-group-label items-center type-sm text-tertiary">Installed</h3>
         <VariantGrid themes={themes().themes} removable />
       </div>
     </Show>

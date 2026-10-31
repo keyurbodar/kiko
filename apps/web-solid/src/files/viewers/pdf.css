@@ -45,5 +45,5 @@
 }
 
 [data-pdf-text-layer] ::selection {
-  background: #4a90e266;
+  background: var(--editor-selection-bg);
 }

@@ -18,7 +18,36 @@ function Scene() {
   )
 }
 
+function Pair() {
+  return (
+    <div style={{ display: "flex", gap: "8px", padding: "40px" }}>
+      <TooltipV2 value="Settings">
+        <button type="button">Gear</button>
+      </TooltipV2>
+      <TooltipV2 value="Help">
+        <button type="button">Question</button>
+      </TooltipV2>
+    </div>
+  )
+}
+
 describe("TooltipV2", () => {
+  it("opens the next tooltip in the group at once while one is showing", async () => {
+    await using screen = await render(() => <Pair />)
+    await userEvent.hover(screen.getByRole("button", { name: "Gear" }))
+    await vi.waitFor(() => expect(tip()?.textContent).toBe("Settings"))
+    expect(tip()?.hasAttribute("data-instant")).toBe(false)
+
+    await userEvent.hover(screen.getByRole("button", { name: "Question" }))
+
+    await vi.waitFor(() => {
+      const help = [...document.querySelectorAll<HTMLElement>('[data-component="tooltip-v2"]')].find(
+        (el) => el.textContent === "Help",
+      )
+      expect(help?.hasAttribute("data-instant")).toBe(true)
+    })
+  })
+
   it("closes when the page scrolls under a still pointer", async () => {
     await using screen = await render(() => <Scene />)
     await userEvent.hover(screen.getByRole("button", { name: "Pop out" }))
@@ -38,6 +67,7 @@ describe("TooltipV2", () => {
 
     await vi.waitFor(() => expect(tip()).toBeNull())
   })
+
   it("closes when the pointer leaves the window without leaving the button first", async () => {
     await using screen = await render(() => <Scene />)
     await userEvent.hover(screen.getByRole("button", { name: "Pop out" }))

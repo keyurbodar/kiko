@@ -9,8 +9,8 @@ const item = "h-auto items-start py-2"
 function Choice(props: { title: string; hint: string }) {
   return (
     <span class="flex flex-col gap-0.5 text-left">
-      <span class="type-ui font-medium text-fg">{props.title}</span>
-      <span class="type-label text-fg3">{props.hint}</span>
+      <span class="type-base text-primary">{props.title}</span>
+      <span class="type-sm text-tertiary">{props.hint}</span>
     </span>
   )
 }
@@ -19,7 +19,7 @@ export function NewRecipe() {
   return (
     <MenuV2 gutter={4} placement="bottom-end">
       <MenuV2.Trigger class={primaryButton} data-action="new-recipe">
-        <RemixIcon icon={PlusIcon} size={16} />
+        <RemixIcon icon={PlusIcon} size={14} />
         New recipe
       </MenuV2.Trigger>
       <MenuV2.Portal>
