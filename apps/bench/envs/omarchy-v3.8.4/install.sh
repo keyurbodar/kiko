@@ -56,4 +56,13 @@ for pkg in git python python-gobject nodejs bun chromium vim tmux sqlite jq libr
   sudo pacman -S --noconfirm --needed "$pkg" || echo "!! $pkg failed" >&2
 done
 
+df -h /
+
+for cmd in Hyprland hyprctl chromium bun; do
+  if ! command -v "$cmd" >/dev/null 2>&1; then
+    echo "!! $cmd is not installed, so the image is not usable" >&2
+    exit 1
+  fi
+done
+
 echo "omarchy $tag installed from $OMARCHY_PATH"

@@ -16,7 +16,7 @@ export GDK_BACKEND=x11
 exec dbus-run-session -- xvfb-run -a -s "-screen 0 1920x1080x24" bash -c '
   xfce4-session >/tmp/xfce4-session.log 2>&1 &
   for _ in $(seq 1 100); do
-    if xprop -root _NET_SUPPORTING_WM_CHECK 2>/dev/null | grep -q 'window id'; then break; fi
+    if xprop -root _NET_SUPPORTING_WM_CHECK 2>/dev/null | grep -q "window id"; then break; fi
     sleep 0.1
   done
   gdbus call --session --dest org.a11y.Bus --object-path /org/a11y/bus \

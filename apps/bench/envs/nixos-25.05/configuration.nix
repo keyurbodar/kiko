@@ -11,8 +11,6 @@ let
     glib
     gtk3
     at-spi2-core
-    at-spi2-atk
-    xorg.libxdo
     xorg.libX11
     xorg.libXtst
     xorg.libXi

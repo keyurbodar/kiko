@@ -100,7 +100,7 @@ jobs:
         id: cache
         with:
           path: .omarchy-image
-          key: omarchy-image-v3.8.4-08754e28d91b
+          key: omarchy-image-v3.8.4-08754e28d91b-2
       - if: steps.cache.outputs.cache-hit != 'true'
         run: |
           sudo apt-get update
@@ -256,7 +256,7 @@ jobs:
         if: startsWith(matrix.env, 'omarchy')
         with:
           path: .omarchy-image
-          key: omarchy-image-v3.8.4-08754e28d91b
+          key: omarchy-image-v3.8.4-08754e28d91b-2
       - name: Resolve the image
         id: image
         run: |
@@ -379,7 +379,7 @@ jobs:
         if: startsWith(matrix.env, 'omarchy')
         with:
           path: .omarchy-image
-          key: omarchy-image-v3.8.4-08754e28d91b
+          key: omarchy-image-v3.8.4-08754e28d91b-2
       - name: Resolve the image
         id: image
         run: |

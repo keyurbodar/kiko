@@ -30,6 +30,10 @@ mkdir -p "$seed"
 hash="$(openssl passwd -6 bench)"
 cat >"$seed/user-data" <<EOF
 #cloud-config
+growpart:
+  mode: auto
+  devices: ["/"]
+resize_rootfs: true
 users:
   - name: bench
     groups: wheel
@@ -48,6 +52,7 @@ EOF
 genisoimage -output "$work/seed.iso" -volid cidata -joliet -rock "$seed" >/dev/null 2>&1
 
 qemu-img create -f qcow2 -F qcow2 -b "$base" "$overlay" >/dev/null
+qemu-img resize "$overlay" 20G >/dev/null
 qemu-system-x86_64 \
   -machine q35,accel=kvm -cpu host -smp 4 -m 8192 \
   -drive "file=$overlay,if=virtio,format=qcow2" \
@@ -77,6 +82,9 @@ if [ "$ready" != "1" ]; then
   tail -n 200 "$log" >&2 || true
   exit 1
 fi
+
+sshpass -e ssh "${ssh_opts[@]}" bench@127.0.0.1 \
+  'sudo growpart /dev/vda 1 >/dev/null 2>&1 || true; sudo resize2fs /dev/vda1 >/dev/null 2>&1 || true; df -h /'
 
 sshpass -e scp -P 2222 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
   "$here/install.sh" bench@127.0.0.1:/tmp/omarchy-install.sh

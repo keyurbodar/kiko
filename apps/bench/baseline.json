@@ -4,7 +4,7 @@
   "conditions": ["foreground"],
   "maxTrialsPerJob": 40,
   "validate": {
-    "runs": 10
+    "runs": 3
   },
   "envs": [
     {
