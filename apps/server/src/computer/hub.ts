@@ -737,7 +737,7 @@ export class ComputerHub {
     if (!force && on === this.relaying.has(pcId)) return
     if (on) this.relaying.add(pcId)
     else this.relaying.delete(pcId)
-    this.send(ws, on ? { t: "live", on: true, ...RELAY, ...(this.profiles.get(pcId) ?? {}) } : { t: "live", on: false })
+    this.send(ws, on ? { t: "live", on: true, ...RELAY, ...this.profiles.get(pcId) } : { t: "live", on: false })
   }
 
   async watchRtc(pcId: string, tab: WebSocket): Promise<void> {

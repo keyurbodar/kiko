@@ -299,10 +299,8 @@ async function main(): Promise<void> {
       const context = await viewer.newContext()
       if (noRtc)
         await context.addInitScript(() => {
-          const Broken = class {
-            constructor() {
-              throw new Error("RTC is off for this measurement")
-            }
+          const Broken = function () {
+            throw new Error("RTC is off for this measurement")
           }
           Object.defineProperty(window, "RTCPeerConnection", { value: Broken, configurable: true })
         })
