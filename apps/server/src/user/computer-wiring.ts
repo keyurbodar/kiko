@@ -132,7 +132,7 @@ export class ComputerWiring {
   }
 
   desktop(pcId?: string): DesktopInfo | null {
-    const row = this.find(pcId)
+    const row = pcId ? this.find(pcId) : (this.hub.rows()[0] ?? null)
     return row ? this.hub.desktopInfo(row.id) : null
   }
 

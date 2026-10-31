@@ -20,6 +20,7 @@ const REQUEST_TIMEOUT: Duration = Duration::from_secs(120);
 const LIST_TIMEOUT: Duration = Duration::from_secs(30);
 const PERMISSION_TIMEOUT: Duration = Duration::from_secs(15);
 const PROTOCOL_VERSION: &str = "2025-06-18";
+const NEVER_EXPOSE: &[&str] = &["install_extension"];
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Error {
@@ -175,6 +176,24 @@ impl Cua {
         self.shared.lock().screens.clone()
     }
 
+    pub fn refresh(&self) {
+        let (tools, connection) = {
+            let inner = self.shared.lock();
+            if inner.phase != Phase::Ready {
+                return;
+            }
+            (inner.tools.clone(), inner.connection.clone())
+        };
+        let Some(connection) = connection else {
+            return;
+        };
+        let permissions = load_permissions(&connection, &tools);
+        let screens = load_screens(&connection, &tools);
+        let mut inner = self.shared.lock();
+        inner.permissions = permissions;
+        inner.screens = screens;
+    }
+
     pub fn call(&self, name: &str, args: Value) -> Result<Value, Error> {
         let connection = {
             let inner = self.shared.lock();
@@ -257,6 +276,10 @@ impl Desktop for Cua {
 
     fn screens(&self) -> Vec<Display> {
         Cua::screens(self)
+    }
+
+    fn refresh(&mut self) {
+        Cua::refresh(self)
     }
 }
 
@@ -567,7 +590,9 @@ fn load_tools(connection: &Arc<Connection>) -> Result<Vec<DesktopTool>, String> 
             .cloned()
             .unwrap_or_default();
         for tool in listed {
-            if let Ok(tool) = serde_json::from_value::<DesktopTool>(tool) {
+            if let Ok(tool) = serde_json::from_value::<DesktopTool>(tool)
+                && !NEVER_EXPOSE.contains(&tool.name.as_str())
+            {
                 tools.push(tool);
             }
         }

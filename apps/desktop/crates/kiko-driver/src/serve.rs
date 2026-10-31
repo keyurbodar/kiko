@@ -19,6 +19,7 @@ pub fn dispatch(
 ) -> crate::Result<serde_json::Value> {
     match call {
         Call::Status => {
+            desktop.refresh();
             let mut status = status.clone();
             status.permissions = desktop.permissions();
             status.displays = desktop.screens();

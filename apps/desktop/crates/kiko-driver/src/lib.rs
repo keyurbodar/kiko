@@ -13,6 +13,7 @@ pub trait Desktop: Send {
     fn call(&mut self, name: &str, args: serde_json::Value) -> Result<serde_json::Value>;
     fn permissions(&self) -> Permissions;
     fn screens(&self) -> Vec<Display>;
+    fn refresh(&mut self) {}
 }
 
 pub trait Browser: Send {

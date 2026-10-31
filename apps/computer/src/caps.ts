@@ -28,7 +28,7 @@ function permitted(grant: string | undefined): boolean {
   return grant === "granted" || grant === "not_needed"
 }
 
-export function accessOf(state: DriverState | null): Access | null {
+function accessOf(state: DriverState | null): Access | null {
   if (!state) return null
   return { screen: permitted(state.permissions.screen), input: permitted(state.permissions.accessibility) }
 }

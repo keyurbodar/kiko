@@ -5,7 +5,7 @@ import { configDir, loadConfig, loadKey, loadPolicy, paths, paused } from "./con
 import { runLink, type Host } from "./connection"
 import { startDriver, type Driver } from "./driver"
 import { helloPayload } from "./hello"
-import { emptyLive, startLive, type Live } from "./live"
+import { emptyLive, startLive, type Live, type LiveCaps } from "./live"
 import { createFeed } from "./feed"
 import { createLogger, type Logger } from "./log"
 import { VERSION } from "./platform"
@@ -40,10 +40,33 @@ export async function serve(dir = configDir()): Promise<number> {
   let driver: Driver | null = null
   let link: ReturnType<typeof runLink> | null = null
   let detection = detect(log, policy, null, dir)
+  let liveCaps: LiveCaps = policy
+  let liveStarting = false
   let update: Updater | null = null
   const refresh = () => {
-    detection = detect(log, policy, driver?.state() ?? null, dir)
+    detection = detect(log, liveCaps, driver?.state() ?? null, dir)
     link?.reconnect()
+  }
+  const startLiveWhenReady = () => {
+    if (liveStarting || !detection.caps.live) return
+    liveStarting = true
+    void startLive({
+      logger: log,
+      setHolder,
+      send: (frame) => link?.frame(frame),
+      sendBinary: (bytes) => link?.binary(bytes),
+      policy: () => policy,
+      display: () => detection.displays[0],
+      configDir: dir,
+    }).then((started) => {
+      live = started
+      liveCaps = { live: started.live, input: started.input }
+      refresh()
+    })
+  }
+  const updated = () => {
+    refresh()
+    startLiveWhenReady()
   }
   const host: Host = {
     endpoint: { url: config.url, userId: config.userId, pcId: config.pcId, protocol: PROTOCOL },
@@ -73,21 +96,9 @@ export async function serve(dir = configDir()): Promise<number> {
     },
   }
   const driverPath = process.env.KIKO_DRIVER
-  if (driverPath) driver = startDriver({ path: driverPath, log, onChange: refresh })
-  refresh()
+  if (driverPath) driver = startDriver({ path: driverPath, log, onChange: updated })
+  updated()
   link = runLink(host)
-  if (detection.caps.live) {
-    live = await startLive({
-      logger: log,
-      setHolder,
-      send: (frame) => link?.frame(frame),
-      sendBinary: (bytes) => link?.binary(bytes),
-      policy: () => policy,
-      display: () => detection.displays[0],
-      configDir: dir,
-    })
-    refresh()
-  }
   const shutdown = () => {
     log.info("stopping")
     link?.stop()

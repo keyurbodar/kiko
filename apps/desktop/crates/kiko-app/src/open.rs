@@ -15,11 +15,11 @@ pub fn settings(kind: Permission) -> io::Result<()> {
         Permission::Automation => "Privacy_Automation",
         _ => return Ok(()),
     };
-    spawn(
-        Command::new("open").arg(format!(
-            "x-apple.systempreferences:com.apple.preference.security?{anchor}"
-        )),
-    )
+    let mut command = Command::new("open");
+    command.arg(format!(
+        "x-apple.systempreferences:com.apple.preference.security?{anchor}"
+    ));
+    spawn(command)
 }
 
 #[cfg(not(target_os = "macos"))]

@@ -16,8 +16,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  xgetimage:
-    name: X11 capture on Xvfb
+  tests:
+    name: daemon unit tests
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -25,9 +25,3 @@ jobs:
       - uses: ./.github/actions/setup
       - name: Unit tests
         run: bunx vitest run apps/computer/src
-      - name: Install Xvfb
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends xvfb
-      - name: Capture past the edge of the root window
-        run: xvfb-run -a -s "-screen 0 1280x800x24" bun apps/computer/scripts/linux-xgetimage.ts
