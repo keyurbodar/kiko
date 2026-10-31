@@ -112,6 +112,22 @@ describe("buildTimelineItems", () => {
       "background",
     )
   })
+
+  it("keeps the unread divider when the anchor is addressed to another agent and an activity event follows", () => {
+    const messages = [
+      said(1, START, "user"),
+      { ...said(2, START + 60_000, "bot"), to: "other" },
+      background(3, START + 120_000),
+      said(4, START + 180_000, "bot"),
+    ]
+
+    const items = buildTimelineItems(messages, "2.room", { members: new Set(["kiko", "other"]) })
+    const unread = items.findIndex((item) => item.kind === "unread-divider")
+    const reply = items.findIndex((item) => item.kind === "message" && item.message.id === "4.room")
+
+    expect(unread).toBeGreaterThanOrEqual(0)
+    expect(unread).toBeLessThan(reply)
+  })
 })
 
 describe("unfoldedRuns", () => {

@@ -52,6 +52,7 @@ export interface BrowserSession {
   tab(id: string): Tab | undefined
   attach(id: string): Promise<Tab | undefined>
   listTabs(): Promise<{ id: string; url: string; title: string }[]>
+  popups(): { id: string; url: string }[]
   closed: Promise<void>
   close(): Promise<void>
 }

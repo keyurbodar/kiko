@@ -1,4 +1,4 @@
-import type { RoomId, UserSnapshot } from "@kiko/protocol"
+import type { Message, MessageId, RoomId, RoomSnapshot, UserSnapshot } from "@kiko/protocol"
 import { describe, expect, it } from "@effect/vitest"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
@@ -12,6 +12,24 @@ const USER: UserSnapshot = { seq: 3, chats: [], home: { files: [], folders: [] }
 const ROOM = "01890000-0000-7000-8000-000000000003" as RoomId
 
 const DATABASE = "kiko:client-runtime"
+
+const message = (seq: number): Message => ({
+  id: `${seq}.room` as MessageId,
+  seq,
+  at: seq,
+  from: { kind: "agent", slug: "kiko" as never },
+  text: `m${seq}`,
+})
+
+const roomSnapshot = (seq: number, messages: ReadonlyArray<Message>): RoomSnapshot => ({
+  seq,
+  readSeq: 0,
+  members: [],
+  messages: [...messages],
+  tasks: [],
+  files: [],
+  folders: [],
+})
 
 const stores = () => {
   const store = indexedDbLayer({ database: DATABASE, namespace: "owner", factory: new IDBFactory() })
@@ -55,6 +73,44 @@ describe("snapshot cache", () => {
       expect(Option.isNone(yield* store.read(`room:${ROOM}`))).toBe(true)
     }).pipe(Effect.provide(stores())),
   )
+
+  it.effect("keeps only the newest messages of a long room, so the cached write stays small", () =>
+    Effect.gen(function* () {
+      const cache = yield* SnapshotCache
+      const messages = Array.from({ length: 260 }, (_, i) => message(i + 1))
+      yield* cache.saveRoom(ROOM, { sequence: 260, snapshot: roomSnapshot(260, messages) })
+      const loaded = Option.getOrThrow(yield* cache.loadRoom(ROOM))
+      expect(loaded.sequence).toBe(260)
+      expect(loaded.snapshot.messages).toEqual(messages.slice(-200))
+
+      const short = [message(1), message(2)]
+      yield* cache.saveRoom(ROOM, { sequence: 2, snapshot: roomSnapshot(2, short) })
+      expect(Option.getOrThrow(yield* cache.loadRoom(ROOM)).snapshot.messages).toEqual(short)
+    }).pipe(Effect.provide(stores())),
+  )
+
+  it.effect("skips a write whose persisted content did not change", () => {
+    const writes: string[] = []
+    const store = SnapshotStore.of({
+      read: () => Effect.succeed(Option.none()),
+      write: (key) => Effect.sync(() => void writes.push(key)),
+      remove: (key) => Effect.sync(() => void writes.push(`remove:${key}`)),
+    })
+    return Effect.gen(function* () {
+      const cache = yield* SnapshotCache
+      const value = { sequence: 1, snapshot: roomSnapshot(1, [message(1)]) }
+      yield* cache.saveRoom(ROOM, value)
+      yield* cache.saveRoom(ROOM, value)
+      expect(writes).toEqual([`room:${ROOM}`])
+
+      yield* cache.saveRoom(ROOM, { sequence: 2, snapshot: roomSnapshot(2, [message(2)]) })
+      expect(writes).toHaveLength(2)
+
+      yield* cache.removeRoom(ROOM)
+      yield* cache.saveRoom(ROOM, value)
+      expect(writes.filter((key) => key === `room:${ROOM}`)).toHaveLength(3)
+    }).pipe(Effect.provide(cacheLayer.pipe(Layer.provide(Layer.succeed(SnapshotStore, store)))))
+  })
 
   it.effect("keeps each namespace's entries apart in one database", () =>
     Effect.gen(function* () {

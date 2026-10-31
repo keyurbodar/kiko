@@ -1,4 +1,12 @@
-import type { Agent, InstallRecipe, RecipeInstall, RecipeNeedsConnect, RoomId } from "@kiko/protocol"
+import type {
+  Agent,
+  InstallRecipe,
+  RecipeInstall,
+  RecipeNeedsConnect,
+  RecipeRoutine,
+  RoomId,
+  Trigger,
+} from "@kiko/protocol"
 import { toolkitSlug } from "../recipes/card"
 import type { Recipe } from "../recipes/recipe"
 import type { RecipeLibrary } from "./recipe-library"
@@ -58,10 +66,11 @@ export class RecipeService {
 
   async list(): Promise<{ cards: Recipe[]; custom: ReadonlySet<string>; installs: RecipeInstall[]; broken: string[] }> {
     const lib = await this.p.library.read()
+    const routines = this.routinesByInstall()
     return {
       cards: lib.recipes,
       custom: lib.custom,
-      installs: listInstalls(this.p.sql).map((i) => this.withRoutines(i)),
+      installs: listInstalls(this.p.sql).map((i) => ({ ...i, routines: routines.get(i.installId) ?? [] })),
       broken: lib.broken,
     }
   }
@@ -259,6 +268,41 @@ export class RecipeService {
         description: `${r.title} recipe: ${r.description}${r.triggers.length ? "" : ON_FOR_YOU}`,
         location: recipeLocation(r.slug, custom.has(r.slug)),
       }))
+  }
+
+  private routinesByInstall(): Map<string, RecipeRoutine[]> {
+    const rows = this.p.sql
+      .exec<{
+        install_id: string
+        id: string
+        name: string | null
+        trigger: string
+        tz: string
+        status: "active" | "paused"
+        due_utc: number
+      }>(
+        `SELECT l.install_id, r.id, r.name, r."trigger", r.tz, r.status, r.due_utc
+         FROM recipe_links l JOIN reminders r ON r.id = l.routine_id
+         WHERE r."trigger" IS NOT NULL AND r.status IN ('active', 'paused')
+         ORDER BY l.rowid`,
+      )
+      .toArray()
+    const out = new Map<string, RecipeRoutine[]>()
+    for (const row of rows) {
+      const trigger = JSON.parse(row.trigger) as Trigger
+      const routine: RecipeRoutine = {
+        id: row.id,
+        name: row.name ?? "Routine",
+        trigger: trigger.on === "time" ? { ...trigger, at: new Date(row.due_utc).toISOString() } : trigger,
+        tz: row.tz,
+        status: row.status,
+        dueUtc: row.due_utc,
+      }
+      const list = out.get(row.install_id)
+      if (list) list.push(routine)
+      else out.set(row.install_id, [routine])
+    }
+    return out
   }
 
   private withRoutines(install: Install): RecipeInstall {

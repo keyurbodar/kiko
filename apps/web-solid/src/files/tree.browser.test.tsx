@@ -166,6 +166,8 @@ describe("file tree", () => {
     await expect
       .element(screen.getByRole("button", { name: "Collapse all folders" }))
       .toHaveAttribute("aria-pressed", "true")
+    await screen.getByRole("button", { name: "Collapse all folders" }).unhover()
+    await expect.poll(() => document.querySelector('[data-component="tooltip-v2"]')).toBeNull()
     await item("docs").click()
     await expect.element(screen.getByRole("button", { name: "Expand all folders" })).toBeInTheDocument()
   })

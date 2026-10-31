@@ -13,6 +13,7 @@ import {
   type SubmissionId,
 } from "@earendil-works/pi-durable"
 import type { Envelope, ProviderProblem, RoomId, ThinkingLevel, ThoughtPart, WorkerRow } from "@kiko/protocol"
+import { KIKO } from "@kiko/protocol"
 import { runKindFor } from "../user/provider-health"
 import type { Env } from "../index"
 import { AnswerWaiters } from "@kiko/agent/answers"
@@ -38,7 +39,7 @@ import {
   withMount,
   withSoul,
 } from "../files/room-fs"
-import { kikoDocsBackend, KIKO } from "../files/kiko-docs"
+import { kikoDocsBackend } from "../files/kiko-docs"
 import { mergeRecall, tagHits } from "./recall"
 import { type MemoryPort, memoryBlock, memoryDelta, parseZoomId } from "@kiko/memory/tools"
 import { roomWorkspacePort } from "./extensions/workspace"
@@ -51,7 +52,7 @@ import { learnedNote } from "../integrations/composio/tools"
 import { integrationNote } from "./prompt"
 
 import { buildAgent, openAgentHarness, userModels } from "./factory"
-import { isKnownModel, parseModelRef } from "./thinking"
+import { isKnownModel, modelName, parseModelRef } from "./thinking"
 import { setCustomProvider, setOverlay } from "../models/catalog"
 import { projectRecovery } from "../owner/clock"
 import {
@@ -78,7 +79,7 @@ import type { StepsPort } from "./extensions/presence"
 const WORKER_TASK_CHARS = 200
 const INTERRUPT_BUDGET = 30_000
 import { FIRST_BYTE_MS, guardStall, orStall, STALL_MS } from "./stall"
-import { type Applied, modelName, renderHandoff, sameApplied, switchedModel } from "./handoff"
+import { type Applied, renderHandoff, sameApplied, switchedModel } from "./handoff"
 
 export const DEV_FAKE_KEY = "dev-fake"
 const MEMORY_POS_KEY = "memory:pos"
@@ -340,7 +341,6 @@ export class Agent {
     const room = () => this.services.room(home.roomId)
     return {
       post: (runId, attempt, index, block) => room().post(home.slug, runId, attempt, index, block),
-      draft: (runId, index, text) => room().draft(home.slug, runId, index, text),
       thinking: (runId, part, offset, text, startedAt, done) =>
         room().thinking(home.slug, runId, part, offset, text, startedAt, done),
       note: (runId, id, text) => room().note(home.slug, runId, id, text),
@@ -877,9 +877,11 @@ export class Agent {
           method: request.method,
           headers: [...request.headers],
           body,
+          ...(signal ? { signal } : {}),
           ...(spare ? { spare } : {}),
         }),
         FIRST_BYTE_MS,
+        signal,
       )
       const response = guardStall(sent, STALL_MS)
       if (!signal || !response.body) return response
@@ -939,7 +941,10 @@ export class Agent {
     const marker = previous?.data
     const applied = marker && typeof marker === "object" && !Array.isArray(marker) ? marker.applied : undefined
     if (JSON.stringify(applied) !== JSON.stringify(next)) {
-      const text = renderHandoff(entries, { from: modelName(was.model), to: modelName(next.model) })
+      const text = renderHandoff(entries, {
+        from: modelName(was.model, `${was.model.provider}/${was.model.modelId}`),
+        to: modelName(next.model, `${next.model.provider}/${next.model.modelId}`),
+      })
       await root.commit(
         (tx) =>
           tx.appendEntry(root.id, {

@@ -1,10 +1,9 @@
 import { createEffect, createMemo, createRoot, createSignal } from "solid-js"
 import { connectedProviders, connectedReady } from "./connected"
+import { providerOf } from "./model-list"
 
 const KEY = "kiko.model-prefs"
 const FAVORITES_KEY = "kiko.model-favorites"
-
-const providerOf = (ref: string): string => ref.split("/")[0] ?? ""
 
 function parseHidden(text: string | null): readonly string[] {
   try {

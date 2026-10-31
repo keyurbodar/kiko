@@ -1,5 +1,5 @@
 import { fileName, type FileRef } from "@kiko/protocol"
-import { createEffect, createMemo, createSignal, lazy, Match, on, Show, Suspense, Switch, type JSX } from "solid-js"
+import { createEffect, createSignal, lazy, Match, on, Show, Suspense, Switch, type JSX } from "solid-js"
 import { fileSrc } from "../state/room"
 import { NoPreview, SurfaceFailure, SurfaceLoading } from "./chrome"
 import type { EditorState } from "./editor"
@@ -33,7 +33,6 @@ export function FileViewer(props: {
   reveal: { line: number; n: number } | null
   onEditorState?: (state: EditorState) => void
 }) {
-  const opened = createMemo<FileRef | undefined>((prev) => (props.file ? (prev ?? props.file) : undefined), undefined)
   const src = (f: FileRef) => fileSrc(props.roomId, f.id)
   return (
     <div
@@ -67,18 +66,21 @@ export function FileViewer(props: {
                 <LargeTextView name={fileName(ref().name)} src={src(ref())} size={ref().size} delimiter={null} />
               </Match>
               <Match when={TEXT_KINDS.has(props.kind)}>
-                <Show when={opened()} keyed>
-                  {(initial) => (
-                    <TextEditor
-                      roomId={props.roomId}
-                      path={props.path}
-                      file={props.file}
-                      initial={initial}
-                      wrap={props.wrap}
-                      reveal={props.reveal}
-                      onState={props.onEditorState}
-                    />
-                  )}
+                <Show when={props.file?.id} keyed>
+                  {(_key) => {
+                    const initial = ref()
+                    return (
+                      <TextEditor
+                        roomId={props.roomId}
+                        path={props.path}
+                        file={props.file}
+                        initial={initial}
+                        wrap={props.wrap}
+                        reveal={props.reveal}
+                        onState={props.onEditorState}
+                      />
+                    )
+                  }}
                 </Show>
               </Match>
               <Match when={props.kind === "image"}>

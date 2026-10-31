@@ -148,7 +148,7 @@ export default function BotPicker() {
             value={title()}
             maxLength={200}
             onInput={(event) => setTitle(event.currentTarget.value)}
-            onKeyDown={(event) => event.key === "Enter" && start()}
+            onKeyDown={(event) => event.key === "Enter" && !event.isComposing && start()}
           />
         </Show>
         <button

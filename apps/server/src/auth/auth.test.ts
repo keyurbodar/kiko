@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "@effect/vitest"
-import { type AuthEnv, authRoute } from "./auth"
+import { type AuthEnv, authRoute, getFileUser, getSessionUser, signToken } from "./auth"
 
 const ORIGIN = "http://localhost:5173"
 
@@ -81,5 +81,109 @@ describe("POST /api/auth/clerk", () => {
       SESSION_SECRET: "s",
     })
     expect(response).toBeNull()
+  })
+})
+
+const ACCESS_CODE = "k".repeat(20)
+
+function fakeOwner(allow: boolean, calls: boolean[] = []) {
+  const stub = {
+    accessCodeAttempt: async (matched: boolean) => {
+      calls.push(matched)
+      return allow
+    },
+  }
+  const OWNER = { idFromName: () => "owner", get: () => stub } as unknown as NonNullable<AuthEnv["OWNER"]>
+  return { OWNER, calls }
+}
+
+const accessCode = async (env: AuthEnv, code: string) => {
+  const response = await authRoute(
+    new Request("http://kiko.test/api/auth/access-code", { method: "POST", body: JSON.stringify({ code }) }),
+    env,
+  )
+  return { status: response?.status, body: (await response?.json()) as Record<string, unknown> }
+}
+
+describe("POST /api/auth/access-code", () => {
+  it("issues a session for the right code and leaves the response shape unchanged", async () => {
+    const { OWNER, calls } = fakeOwner(true)
+    const signedIn = await accessCode({ SESSION_SECRET: "s", ACCESS_CODE, OWNER }, ACCESS_CODE)
+    expect(signedIn.status).toBe(200)
+    expect(signedIn.body).toMatchObject({ user: { id: "owner" }, token: expect.stringMatching(/^owner\.session\./) })
+    expect(calls).toEqual([true])
+  })
+
+  it("refuses a wrong code, and refuses the right one once the lockout holds", async () => {
+    const open = fakeOwner(true)
+    const wrong = await accessCode({ SESSION_SECRET: "s", ACCESS_CODE, OWNER: open.OWNER }, "w".repeat(20))
+    expect(wrong).toEqual({ status: 401, body: { message: "That access code is not right" } })
+    expect(open.calls).toEqual([false])
+
+    const locked = fakeOwner(false)
+    const refused = await accessCode({ SESSION_SECRET: "s", ACCESS_CODE, OWNER: locked.OWNER }, ACCESS_CODE)
+    expect(refused.status).toBe(429)
+    expect(locked.calls).toEqual([true])
+  })
+
+  it("accepts a short configured code, leaving the lockout as the only guard", async () => {
+    const { OWNER, calls } = fakeOwner(true)
+    const short = "k"
+    const signedIn = await accessCode({ SESSION_SECRET: "s", ACCESS_CODE: short, OWNER }, short)
+    expect(signedIn.status).toBe(200)
+    expect(calls).toEqual([true])
+  })
+
+  it("reports a missing OWNER binding as a configuration error, not a lockout", async () => {
+    const refused = await accessCode({ SESSION_SECRET: "s", ACCESS_CODE }, ACCESS_CODE)
+    expect(refused).toEqual({
+      status: 500,
+      body: { message: "This deploy has no OWNER binding, so it cannot check access codes" },
+    })
+  })
+})
+
+describe("session and file tokens", () => {
+  const env = { SESSION_SECRET: "s" } as AuthEnv
+  const bearer = (token: string) =>
+    new Request("https://kiko.test/api/rpc", { headers: { authorization: `Bearer ${token}` } })
+
+  it("accepts a fresh session over the bearer header and over the socket protocol", async () => {
+    const token = await signToken("s", "owner", "session")
+    expect(await getSessionUser(bearer(token), env)).toEqual({ id: "owner", name: "owner" })
+    const socket = new Request("https://kiko.test/api/rpc", {
+      headers: { "sec-websocket-protocol": `kiko, ${token}` },
+    })
+    expect(await getSessionUser(socket, env)).toEqual({ id: "owner", name: "owner" })
+  })
+
+  it("refuses an expired session", async () => {
+    vi.useFakeTimers()
+    try {
+      vi.setSystemTime(NOW_S * 1000)
+      const old = await signToken("s", "owner", "session", NOW_S * 1000 - 31 * 86_400_000)
+      expect(await getSessionUser(bearer(old), env)).toBeNull()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it("keeps file tokens out of sessions and sessions out of file links", async () => {
+    const files = await signToken("s", "owner", "files")
+    const session = await signToken("s", "owner", "session")
+    expect(await getSessionUser(bearer(files), env)).toBeNull()
+    expect(await getFileUser(new Request(`https://kiko.test/api/files/x?t=${session}`), env)).toBeNull()
+    expect(await getFileUser(new Request(`https://kiko.test/api/files/x?t=${files}`), env)).toEqual({
+      id: "owner",
+      name: "owner",
+    })
+  })
+
+  it("refuses a tampered token and a deploy with no secret", async () => {
+    const token = await signToken("s", "owner", "session")
+    const [id, scope, expiry, mac] = token.split(".")
+    const flipped = `${mac![0] === "0" ? "1" : "0"}${mac!.slice(1)}`
+    expect(await getSessionUser(bearer(`${id}.${scope}.${expiry}.${flipped}`), env)).toBeNull()
+    expect(await getSessionUser(bearer(token), { SESSION_SECRET: "" } as AuthEnv)).toBeNull()
   })
 })

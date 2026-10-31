@@ -1,8 +1,16 @@
 import { existsSync, mkdirSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
+import { releaseConfig } from "../apps/server/src/lib/release-config.ts"
+import { type ReleaseModule, verifyModuleHash, verifyRelease } from "../core/durable/src/release.ts"
 
 const [store, base, ...versions] = process.argv.slice(2)
 if (!store || !base || !versions.length) throw new Error("usage: sync-releases.ts <store> <base-url> <version...>")
+
+const MODULE_NAME = /^[A-Za-z0-9._-]+$/u
+const isModuleName = (name: unknown): name is string =>
+  typeof name === "string" && MODULE_NAME.test(name) && !name.includes("..")
+
+const publicKey = releaseConfig({}).publicKey
 
 const get = async (path: string) => {
   const res = await fetch(`${base}/${path}`, { cache: "no-store" })
@@ -20,7 +28,7 @@ for (const version of versions) {
     continue
   }
   const manifest = await get(`${version}/manifest.json`)
-  let parsed: { version?: string; modules?: { name: string }[]; builder?: { modules?: { name: string }[] } } = {}
+  let parsed: { version?: string; modules?: ReleaseModule[]; builder?: { modules?: ReleaseModule[] } } = {}
   try {
     parsed = JSON.parse(new TextDecoder().decode(manifest))
   } catch {}
@@ -28,13 +36,26 @@ for (const version of versions) {
     console.log(`Skipped ${version}: not served`)
     continue
   }
+  const signatureBytes = await get(`${version}/manifest.sig`)
+  if (!(await verifyRelease(manifest, new TextDecoder().decode(signatureBytes), publicKey))) {
+    throw new Error(`${version}: manifest signature does not verify`)
+  }
+  const modules = parsed.modules ?? []
+  const builderModules = parsed.builder?.modules ?? []
+  for (const m of [...modules, ...builderModules]) {
+    if (!isModuleName(m.name)) throw new Error(`${version}: unsafe module name ${JSON.stringify(m.name)}`)
+  }
   const files: [string, Uint8Array][] = [
     ["manifest.json", manifest],
-    ["manifest.sig", await get(`${version}/manifest.sig`)],
+    ["manifest.sig", signatureBytes],
   ]
-  for (const m of parsed.modules ?? []) files.push([m.name, await get(`${version}/${m.name}`)])
-  for (const m of parsed.builder?.modules ?? [])
-    files.push([`builder/${m.name}`, await get(`${version}/builder/${m.name}`)])
+  const verified = async (m: ReleaseModule, url: string, name: string): Promise<[string, Uint8Array]> => {
+    const bytes = await get(url)
+    if (!(await verifyModuleHash(m, bytes))) throw new Error(`${version}: ${name} does not match the signed manifest`)
+    return [name, bytes]
+  }
+  for (const m of modules) files.push(await verified(m, `${version}/${m.name}`, m.name))
+  for (const m of builderModules) files.push(await verified(m, `${version}/builder/${m.name}`, `builder/${m.name}`))
   for (const [name, bytes] of files) {
     mkdirSync(join(dir, name, ".."), { recursive: true })
     writeFileSync(join(dir, name), bytes)

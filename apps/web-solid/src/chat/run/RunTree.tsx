@@ -917,24 +917,6 @@ export function RunTree(props: {
     retry: () => request(true),
   }
 
-  const body = () => (
-    <div class="run-tree-list">
-      <Items
-        items={log().items}
-        parts={parts()}
-        view={view}
-        steps={steps()}
-        live={live()}
-        liveTop={path().top}
-        liveChild={path().child}
-        liveChildIndex={liveChildIndex()}
-        whole={whole() || live()}
-        onWhole={() => setWhole(true)}
-      />
-      <Show when={log().missing}>{(missing) => <Missing missing={missing()} onRetry={view.retry} />}</Show>
-    </div>
-  )
-
   return (
     <div class="run-tree" data-component="run-tree" data-live={live() ? "" : undefined}>
       <Head
@@ -956,7 +938,23 @@ export function RunTree(props: {
           data-grow={fold() === "grow" ? "" : undefined}
           data-shut={!live() && !settling() && fold() === "shut" ? "" : undefined}
         >
-          <div>{body()}</div>
+          <div>
+            <div class="run-tree-list">
+              <Items
+                items={log().items}
+                parts={parts()}
+                view={view}
+                steps={steps()}
+                live={live()}
+                liveTop={path().top}
+                liveChild={path().child}
+                liveChildIndex={liveChildIndex()}
+                whole={whole() || live()}
+                onWhole={() => setWhole(true)}
+              />
+              <Show when={log().missing}>{(missing) => <Missing missing={missing()} onRetry={view.retry} />}</Show>
+            </div>
+          </div>
         </div>
       </Show>
     </div>

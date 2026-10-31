@@ -2,6 +2,7 @@ import type { Display, FromDaemon, Holder, ToDaemon } from "@kiko/computer/wire"
 import type { Logger } from "../log"
 import { createLive } from "./daemon"
 import type { PeerModule } from "./rtc-link"
+import type { LivePolicy } from "./types"
 
 export type LiveFrames = {
   rtc(frame: Extract<ToDaemon, { t: "rtc" }>): void
@@ -16,7 +17,7 @@ export type LiveHooks = {
   setHolder(holder: Holder): void
   send(frame: FromDaemon): void
   sendBinary(bytes: Uint8Array<ArrayBuffer>): void
-  policy: () => { live: boolean; input: boolean }
+  policy: LivePolicy
   display: () => Display | undefined
   configDir: string
 }
@@ -28,8 +29,6 @@ export type Live = {
   agentCursor(x: number, y: number): void
   close(): Promise<void>
 }
-
-export type LiveCaps = { live: boolean; input: boolean }
 
 async function loadPeer(logger: Logger): Promise<PeerModule | null> {
   try {
@@ -43,19 +42,18 @@ async function loadPeer(logger: Logger): Promise<PeerModule | null> {
 export async function startLive(hooks: LiveHooks): Promise<Live> {
   const rtc = await loadPeer(hooks.logger)
   if (!rtc) return emptyLive(hooks)
-  const policy = hooks.policy()
   const live = createLive({
     send: hooks.send,
     sendBinary: hooks.sendBinary,
     warn: (message) => hooks.logger.warn(message),
-    policy,
+    policy: hooks.policy,
     rtc,
     configDir: hooks.configDir,
     ...(hooks.display() ? { display: hooks.display() } : {}),
   })
   return {
-    live: policy.live,
-    input: policy.input,
+    live: hooks.policy.live,
+    input: hooks.policy.input,
     frames: {
       rtc: (frame) => live.onRtc(frame.session, frame.signal, frame.iceServers),
       live: (frame) => live.onLive(frame),

@@ -24,6 +24,7 @@ import {
   type Task,
   type TaskOp,
   type ThinkingLevel,
+  type WorkerRow,
 } from "@kiko/protocol"
 import { showToastV2 } from "@kiko/ui/v2/toast-v2"
 import type { RoomState } from "@kiko/client-runtime/state"
@@ -59,6 +60,7 @@ import { MessageLedger, PENDING_SEQ } from "./message-ledger"
 
 const HISTORY_PAGE = 30
 const TYPING_EVERY_MS = 2_000
+const READ_FLUSH_MS = 1_000
 const WARM_ROOMS = 4
 const RUN_END_KEEP_MS = 10_000
 
@@ -195,6 +197,28 @@ function sameMap<K, V>(a: ReadonlyMap<K, V>, b: ReadonlyMap<K, V>): boolean {
   if (a.size !== b.size) return false
   for (const [key, value] of a) if (b.get(key) !== value) return false
   return true
+}
+
+function sameStates(a: Record<string, AgentState>, b: Record<string, AgentState>): boolean {
+  const keys = Object.keys(a)
+  if (keys.length !== Object.keys(b).length) return false
+  for (const key of keys) if (a[key] !== b[key]) return false
+  return true
+}
+
+function settleSent(
+  list: readonly Message[],
+  sent: ReadonlyMap<string, readonly MessageFile[]>,
+  views: WeakMap<Message, ChatMessage>,
+): ReadonlySet<string> {
+  const settled = new Set<string>()
+  if (sent.size === 0) return settled
+  for (const m of list) {
+    if (m.clientId === undefined || !sent.has(m.clientId)) continue
+    settled.add(m.clientId)
+    views.delete(m)
+  }
+  return settled
 }
 
 function createLedger(source: () => readonly Message[]) {
@@ -441,11 +465,13 @@ function createHistory(roomId: () => RoomId | null, live: () => readonly Message
       setShown(null)
       return true
     }
+    const id = roomId()
     const found = await page(seq, HISTORY_PAGE, HISTORY_PAGE, false)
-    if (!found?.some((m) => m.seq === seq)) return false
+    if (roomId() !== id || !found?.some((m) => m.seq === seq)) return false
     const tail = live()
     if (tail.length === 0 || found.at(-1)!.seq >= tail[0]!.seq) {
       await page(seq, HISTORY_PAGE, HISTORY_PAGE, true)
+      if (roomId() !== id) return false
       setShown(null)
     } else setShown(found)
     return true
@@ -536,11 +562,15 @@ function createRoom() {
   )
   createComputed(on(connection.connected, (connected) => !connected && untrack(runs.clearAll), { defer: true }))
 
-  const statusOf = createMemo(() => {
-    const out: Record<string, AgentState> = {}
-    if (streaming()) for (const a of snapshot()?.agents ?? []) out[a.slug] = a.state
-    return out
-  })
+  const statusOf = createMemo(
+    () => {
+      const out: Record<string, AgentState> = {}
+      if (streaming()) for (const a of snapshot()?.agents ?? []) out[a.slug] = a.state
+      return out
+    },
+    {},
+    { equals: sameStates },
+  )
   const busy = (slug: string) => (statusOf()[slug] ?? "idle") !== "idle"
   createComputed(
     on(
@@ -631,10 +661,10 @@ function createRoom() {
     [],
     { equals: (a, b) => a.length === b.length && a.every((view, i) => view === b[i]) },
   )
-  const viewOf = (m: Message, id: RoomId): ChatMessage => {
+  const viewOf = (m: Message, id: RoomId, settled: ReadonlySet<string>): ChatMessage => {
     const cached = views.get(m)
     if (cached && cached.threadId === id) return cached
-    const sent = m.clientId ? sentFiles.get(m.clientId) : undefined
+    const sent = m.clientId !== undefined && !settled.has(m.clientId) ? sentFiles.get(m.clientId) : undefined
     const base = toChatMessage(m, id)
     const view = sent ? withSentFiles(base, sent) : base
     views.set(m, view)
@@ -649,16 +679,17 @@ function createRoom() {
     const list = messages()
     messagesLedger.tick()
     const change = messagesLedger.ledger.lastChange
+    const settled = settleSent(list, sentFiles, views)
     const full = id !== lastRoom || change.kind === "rebuild" || list.length !== lastViews.length
     let base: readonly ChatMessage[]
     if (full) {
-      const mapped = list.map((m) => viewOf(m, id))
+      const mapped = list.map((m) => viewOf(m, id, settled))
       rowMap = new Map(mapped.map((row) => [row.id, row]))
       base = mapped
     } else if (change.kind === "replace") {
       const nextBase = lastViews.slice()
       for (const index of change.changed) {
-        const fresh = viewOf(list[index]!, id)
+        const fresh = viewOf(list[index]!, id, settled)
         const old = lastViews[index]!
         nextBase[index] = fresh
         if (fresh === old) continue
@@ -669,6 +700,7 @@ function createRoom() {
     } else base = lastViews
     lastRoom = id
     lastViews = base
+    for (const clientId of settled) releaseSentFiles(clientId)
     const queued = queuedRows()
     if (queued.length === 0) return base
     const landed = new Set(base.map((view) => view.clientId))
@@ -695,10 +727,13 @@ function createRoom() {
           a.activity?.kind === "background" ? a.activity.workers.map((w) => [w.id, w.status] as const) : [],
         ),
       ),
+    new Map<string, WorkerRow["status"]>(),
+    { equals: sameMap },
   )
+  const roomStatus = createMemo(() => state()?.status)
   const helpers = createMemo(() =>
     Object.values(runs.current().steps)
-      .flatMap((steps) => helperLanes(steps, helperStatuses(), { busy, stale: state()?.status !== "live" }))
+      .flatMap((steps) => helperLanes(steps, helperStatuses(), { busy, stale: roomStatus() !== "live" }))
       .toSorted((a, b) => a.startedAt - b.startedAt),
   )
   const nestedHelpers = createMemo(() => nestedLanes(helpers(), busy))
@@ -802,10 +837,25 @@ function createRoom() {
   const [unseen, setUnseen] = createSignal<readonly MessageId[]>([])
   createComputed(on(activeId, () => setUnseen([])))
   const readSeq = () => snapshot()?.readSeq ?? 0
+  let readTimer: ReturnType<typeof setTimeout> | undefined
+  let readPending: { id: RoomId; seq: number } | undefined
+  const flushRead = () => {
+    if (readTimer !== undefined) {
+      clearTimeout(readTimer)
+      readTimer = undefined
+    }
+    const pending = readPending
+    readPending = undefined
+    if (pending) void attempt(owner.commands.markRead, { roomId: pending.id, seq: pending.seq }, () => {})
+  }
+  createComputed(on(activeId, flushRead, { defer: true }))
 
   const [line, setLine] = createSignal<UnreadLine>(NO_LINE)
   const [tabHidden, setTabHidden] = createSignal(document.visibilityState === "hidden")
-  document.addEventListener("visibilitychange", () => setTabHidden(document.visibilityState === "hidden"))
+  document.addEventListener("visibilitychange", () => {
+    setTabHidden(document.visibilityState === "hidden")
+    flushRead()
+  })
   const said = createMemo(() => {
     liveLedger.tick()
     return liveLedger.ledger.said()
@@ -1163,7 +1213,9 @@ function createRoom() {
       const newest = newestSeq(messages())
       if (newest <= (localRead.get(id) ?? 0)) return
       localRead.set(id, newest)
-      void attempt(owner.commands.markRead, { roomId: id, seq: newest }, () => {})
+      const held = readPending !== undefined && readPending.id === id ? readPending.seq : 0
+      readPending = { id, seq: Math.max(held, newest) }
+      readTimer ??= setTimeout(flushRead, READ_FLUSH_MS)
     },
     unseenMentions(): readonly MessageId[] {
       const live = new Set(roomMentions().map((m) => m.id))

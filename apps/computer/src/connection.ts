@@ -96,7 +96,7 @@ class Link {
   private stopping = false
   private rejection: Promise<void> | null = null
   private lastInbound = 0
-  private welcomed = false
+  private welcomedAt = 0
   private readonly drops = new WeakMap<WebSocket, (code: number, reason: string) => void>()
   removed = false
 
@@ -109,7 +109,7 @@ class Link {
       await this.rejection
       this.rejection = null
       if (this.stopping || this.removed) return
-      attempt = this.welcomed ? 0 : attempt + 1
+      attempt = this.welcomedAt > 0 && Date.now() - this.welcomedAt >= PING_MS ? 0 : attempt + 1
       const wait = backoffMs(attempt)
       this.host.log.info(`reconnecting in ${Math.round(wait / 1000)}s`)
       await Bun.sleep(wait)
@@ -135,13 +135,13 @@ class Link {
 
   private async open(): Promise<void> {
     const { endpoint, log } = this.host
+    this.welcomedAt = 0
     const headers = await connectHeaders(endpoint, this.host.key, Date.now()).catch((error: unknown) => {
       log.error(`cannot sign the connect request: ${failureMessage(error)}`)
       return null
     })
     if (!headers) return
     const url = socketUrl(endpoint.url)
-    this.welcomed = false
     return new Promise<void>((resolve) => {
       let settled = false
       let timer: ReturnType<typeof setTimeout> | null = null
@@ -307,7 +307,7 @@ class Link {
       case "ack":
         return this.host.live.ack(frame)
       case "welcome":
-        this.welcomed = true
+        this.welcomedAt = Date.now()
         this.host.onWelcome?.(frame.name, frame.version)
     }
   }

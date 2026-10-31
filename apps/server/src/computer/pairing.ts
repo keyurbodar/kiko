@@ -35,7 +35,7 @@ export async function mintPairCode(secret: string, userId: string, now = Date.no
   return { code: `${userId}.${expiresAt}.${nonce}.${toBase64Url(mac)}`, expiresAt, nonce }
 }
 
-export type PairCodeRead = { userId: string; expiresAt: number; nonce: string }
+type PairCodeRead = { userId: string; expiresAt: number; nonce: string }
 
 export async function readPairCode(secret: string, code: string, now = Date.now()): Promise<PairCodeRead | null> {
   const parts = code.split(".")

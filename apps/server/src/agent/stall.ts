@@ -8,17 +8,35 @@ class StallError extends Schema.TaggedError<StallError>()("StallError", {
   message: Schema.String,
 }) {}
 
-export async function orStall<T>(work: Promise<T>, ms: number): Promise<T> {
+function aborting(signal: AbortSignal): Promise<never> & { cancel: () => void } {
+  let stop = () => {}
+  const promise = new Promise<never>((_, reject) => {
+    const onAbort = () => reject(signal.reason)
+    if (signal.aborted) onAbort()
+    else {
+      signal.addEventListener("abort", onAbort, { once: true })
+      stop = () => signal.removeEventListener("abort", onAbort)
+    }
+  }) as Promise<never> & { cancel: () => void }
+  promise.cancel = stop
+  return promise
+}
+
+export async function orStall<T>(work: Promise<T>, ms: number, signal?: AbortSignal): Promise<T> {
   const wait = boundedWait(ms)
+  const abort = signal ? aborting(signal) : undefined
+  const racers: Promise<T>[] = [
+    work,
+    wait.then((): never => {
+      throw new StallError({ message: "the model stopped responding and the request timed out" })
+    }),
+  ]
+  if (abort) racers.push(abort)
   try {
-    return await Promise.race([
-      work,
-      wait.then((): never => {
-        throw new StallError({ message: "the model stopped responding and the request timed out" })
-      }),
-    ])
+    return await Promise.race(racers)
   } finally {
     wait.cancel()
+    abort?.cancel()
   }
 }
 

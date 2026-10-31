@@ -3,6 +3,7 @@ import { type Cloudflare, CloudflareError, cloudflare, listScripts, scriptBindin
 import type { FetchLike } from "@kiko/durable/cloudflare"
 import { installBuilder } from "@kiko/durable/builder-install"
 import { sha256Hex } from "@kiko/durable/hash"
+import { decodeBase64, encodeBase64 } from "../lib/base64"
 import { loadVerifiedRelease, ReleaseRefused } from "@kiko/durable/release-load"
 import {
   assertDurableObjects,
@@ -113,6 +114,12 @@ const loadRelease = (deps: UpdateDeps, version: string) =>
         : new UpdateFailed({ code: "release_unavailable", message: "The release could not be loaded. Try again." }),
   })
 
+const refusedPlan = (error: unknown) =>
+  new UpdateFailed({
+    code: "release_untrusted",
+    message: error instanceof ReleasePlanRefused ? error.message : "The release does not fit this backend.",
+  })
+
 const upload = Effect.fn("SelfUpdate.upload")(function* (
   cf: Cloudflare,
   grant: CfGrant,
@@ -125,21 +132,21 @@ const upload = Effect.fn("SelfUpdate.upload")(function* (
       message: `This backend was not found in the Cloudflare account it was installed from. ${RECONNECT}`,
     })
   const existing = yield* scriptBindings(cf, grant.accountId, grant.scriptName)
-  const builder = yield* installBuilder(cf, grant.accountId, grant.scriptName, release)
-  const metadata = yield* Effect.try({
+  const plan = yield* Effect.try({
     try: () => {
       assertDurableObjects(release.manifest, existing)
-      return buildMetadata(
-        release.manifest,
-        selectMigrations(release.manifest.migrations, { tag: own.migration_tag ?? null }),
-        keptBindings(existing, builder ? [builder] : []),
-      )
+      return selectMigrations(release.manifest.migrations, { tag: own.migration_tag ?? null })
     },
-    catch: (error) =>
-      new UpdateFailed({
-        code: "release_untrusted",
-        message: error instanceof ReleasePlanRefused ? error.message : "The release does not fit this backend.",
-      }),
+    catch: refusedPlan,
+  })
+  const builder = yield* installBuilder(cf, grant.accountId, grant.scriptName, release).pipe(
+    Effect.catchDefect((defect) =>
+      defect instanceof ReleasePlanRefused ? Effect.fail(refusedPlan(defect)) : Effect.die(defect),
+    ),
+  )
+  const metadata = yield* Effect.try({
+    try: () => buildMetadata(release.manifest, plan, keptBindings(existing, builder ? [builder] : [])),
+    catch: refusedPlan,
   })
   yield* cf.call(`/accounts/${grant.accountId}/workers/scripts/${grant.scriptName}`, {
     method: "PUT",
@@ -161,8 +168,6 @@ export const runUpdate = Effect.fn("SelfUpdate.run")(function* (deps: UpdateDeps
   )
 })
 
-const b64 = (bytes: Uint8Array) => btoa(String.fromCharCode(...bytes))
-const unb64 = (text: string) => Uint8Array.from(atob(text), (c) => c.charCodeAt(0))
 const AAD = "cf-grant"
 
 const StoredGrant = Schema.Struct({
@@ -190,10 +195,11 @@ export function grantStore(input: {
       if (Option.isSome(stored) && stored.value.fingerprint === (yield* fingerprint)) {
         const { k, iv, ct } = stored.value.sealed
         const opened = yield* Effect.promise(() =>
-          open(input.keyring, input.userId, AAD, { kekVersion: k, iv: unb64(iv), ciphertext: unb64(ct) }).then(
-            parseGrant,
-            () => null,
-          ),
+          open(input.keyring, input.userId, AAD, {
+            kekVersion: k,
+            iv: decodeBase64(iv),
+            ciphertext: decodeBase64(ct),
+          }).then(parseGrant, () => null),
         )
         if (opened) return opened
       }
@@ -205,7 +211,7 @@ export function grantStore(input: {
         input.cell.write(
           JSON.stringify({
             fingerprint: yield* fingerprint,
-            sealed: { k: sealed.kekVersion, iv: b64(sealed.iv), ct: b64(sealed.ciphertext) },
+            sealed: { k: sealed.kekVersion, iv: encodeBase64(sealed.iv), ct: encodeBase64(sealed.ciphertext) },
           }),
         )
       }),

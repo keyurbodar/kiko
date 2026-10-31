@@ -1,4 +1,4 @@
-export type Notches = (pixels: number) => number
+type Notches = (pixels: number) => number
 
 export function notches(pixelsPerNotch: number): Notches {
   let pending = 0

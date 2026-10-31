@@ -353,7 +353,18 @@ export class FileIndex<E> {
       if (recursive) for (const p of parents(rest)) names.add(prefix + p)
       else names.add(prefix + (rest.split("/")[0] ?? ""))
     }
-    const dirs: FsEntry[] = [...names].sort().map((path) => ({ kind: "directory", path, ...this.tally(path) }))
+    const counts = new Map<string, { files: number; size: number }>()
+    for (const r of files)
+      for (const p of parents(r.path)) {
+        if (!names.has(p)) continue
+        const at = counts.get(p) ?? { files: 0, size: 0 }
+        at.files += 1
+        at.size += r.size
+        counts.set(p, at)
+      }
+    const dirs: FsEntry[] = [...names]
+      .sort()
+      .map((path) => ({ kind: "directory", path, ...(counts.get(path) ?? { files: 0, size: 0 }) }))
     const shown = recursive ? files : files.filter((r) => !r.path.slice(prefix.length).includes("/"))
     return [...dirs, ...shown.map((r) => this.entry(r))]
   }

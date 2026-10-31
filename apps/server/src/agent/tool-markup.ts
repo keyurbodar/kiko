@@ -124,9 +124,11 @@ const FAMILIES: readonly Family[] = [
 type Hit = { start: number; end: number; family: Family }
 
 function firstOpen(text: string, from: number): Hit | null {
+  const window = text.slice(from)
+  if (!window.includes("<") && !window.includes("function_calls")) return null
   let best: Hit | null = null
   for (const family of FAMILIES) {
-    const m = family.open.exec(text.slice(from))
+    const m = family.open.exec(window)
     if (m && (best === null || from + m.index < best.start))
       best = { start: from + m.index, end: from + m.index + m[0].length, family }
   }
@@ -141,11 +143,32 @@ function pendingFrom(text: string): number {
 }
 
 type Parsed = { prose: string; calls: TextCall[] }
+type Scan = { text: string; stop: number; at: number; prose: string; calls: TextCall[] }
+type Scanned = Parsed & { scan: Scan }
 
-function parseToolMarkup(text: string, final: boolean): Parsed {
-  let prose = ""
-  const calls: TextCall[] = []
-  let at = 0
+const EMPTY_SCAN: Scan = { text: "", stop: 0, at: 0, prose: "", calls: [] }
+
+function pendingFunctionCall(text: string): boolean {
+  const match = /^([\w-]+)(?::([\w]*))?$/.exec(text)
+  return match !== null && (match[2] === undefined || "function_calls".startsWith(match[2]))
+}
+
+function safeAdvance(text: string, stop: number): number {
+  let next = text.length
+  const open = text.indexOf("<", Math.max(stop, text.lastIndexOf(">") + 1))
+  if (open !== -1) next = open
+  const line = text.lastIndexOf("\n") + 1
+  if (pendingFunctionCall(text.slice(line))) next = Math.min(next, Math.max(line, stop))
+  if (stop > 0 && text[stop - 1] !== "\n" && pendingFunctionCall(text.slice(stop))) next = Math.min(next, stop)
+  return next
+}
+
+function scanToolMarkup(text: string, final: boolean, cached?: Scan): Scanned {
+  const base = cached && text.startsWith(cached.text) ? cached : EMPTY_SCAN
+  let stop = base.stop
+  let at = base.at
+  let prose = base.prose
+  const calls = [...base.calls]
   for (;;) {
     const hit = firstOpen(text, at)
     if (!hit) break
@@ -154,14 +177,26 @@ function parseToolMarkup(text: string, final: boolean): Parsed {
     const close = hit.family.close.exec(rest)
     const inner = close ? rest.slice(0, close.index) : rest
     if (final || close) calls.push(...(hit.family.calls?.(inner) ?? []))
-    if (!close) return { prose, calls }
+    if (!close) return { prose, calls, scan: { text, stop: hit.start, at: hit.start, prose, calls } }
     at = hit.end + close.index + close[0].length
+    stop = at
   }
-  const tail = text.slice(at)
-  return { prose: prose + (final ? tail : tail.slice(0, pendingFrom(tail))), calls }
+  if (final) {
+    const done = prose + text.slice(at)
+    return { prose: done, calls, scan: { text, stop, at: text.length, prose: done, calls } }
+  }
+  const pending = stop + pendingFrom(text.slice(stop))
+  const advance = safeAdvance(text, stop)
+  if (pending < at || advance < at) return scanToolMarkup(text, final)
+  const next = Math.min(pending, advance)
+  return {
+    prose: prose + text.slice(at, pending),
+    calls,
+    scan: { text, stop, at: next, prose: prose + text.slice(at, next), calls },
+  }
 }
 
-export const scrubToolMarkup = (text: string, final = true): string => parseToolMarkup(text, final).prose
+export const scrubToolMarkup = (text: string, final = true): string => scanToolMarkup(text, final).prose
 
 type Schemaed = { properties?: Record<string, { type?: unknown }> }
 
@@ -194,15 +229,21 @@ function registered(name: string, context: Context): { name: string; schema: Sch
   return { name: parts.at(-1) ?? clean, schema: undefined }
 }
 
-function rewrite(message: AssistantMessage, context: Context, final: boolean): AssistantMessage {
+function rewrite(
+  message: AssistantMessage,
+  context: Context,
+  final: boolean,
+  scans?: Map<number, Scan>,
+): AssistantMessage {
   let changed = false
   const content: AssistantMessage["content"] = []
-  for (const part of message.content) {
+  for (const [index, part] of message.content.entries()) {
     if (part.type !== "text") {
       content.push(part)
       continue
     }
-    const { prose, calls } = parseToolMarkup(part.text, final)
+    const { prose, calls, scan } = scanToolMarkup(part.text, final, scans?.get(index))
+    scans?.set(index, scan)
     if (prose === part.text) {
       content.push(part)
       continue
@@ -236,17 +277,19 @@ function rewriteEvent(
   event: AssistantMessageEvent,
   context: Context,
   seen: Map<number, string>,
+  scans: Map<number, Scan>,
 ): AssistantMessageEvent {
-  if (event.type === "done") return { ...event, message: rewrite(event.message, context, true) }
-  if (event.type === "error") return { ...event, error: rewrite(event.error, context, true) }
-  const partial = rewrite(event.partial, context, false)
+  if (event.type === "done") return { ...event, message: rewrite(event.message, context, true, scans) }
+  if (event.type === "error") return { ...event, error: rewrite(event.error, context, true, scans) }
+  const partial = rewrite(event.partial, context, false, scans)
   if (event.type === "text_delta" || event.type === "text_end") {
-    const shown = scrubToolMarkup(
-      event.partial.content[event.contentIndex]?.type === "text"
-        ? (event.partial.content[event.contentIndex] as { text: string }).text
-        : "",
+    const part = event.partial.content[event.contentIndex]
+    const { prose: shown, scan } = scanToolMarkup(
+      part?.type === "text" ? part.text : "",
       event.type === "text_end",
+      scans.get(event.contentIndex),
     )
+    scans.set(event.contentIndex, scan)
     const before = seen.get(event.contentIndex) ?? ""
     seen.set(event.contentIndex, shown)
     return event.type === "text_delta"
@@ -291,12 +334,13 @@ export function withTextToolCalls(call: Stream): Stream {
     const inner = call(model, context, options)
     const out = createAssistantMessageEventStream()
     const seen = new Map<number, string>()
+    const scans = new Map<number, Scan>()
     let last: AssistantMessage | undefined
     void (async () => {
       try {
         for await (const event of inner) {
           if (event.type !== "done" && event.type !== "error") last = event.partial
-          out.push(rewriteEvent(event, context, seen))
+          out.push(rewriteEvent(event, context, seen, scans))
         }
       } catch (error) {
         out.push({ type: "error", reason: "error", error: failure(error, model, last) })

@@ -15,7 +15,10 @@ const NOW = 1_800_000_000_000
 const refused: ProviderInfo = { provider: "typesafe", kind: "api_key", last4: "", problem: "key_refused", problemAt: 1 }
 const working: ProviderInfo = { provider: "typesafe", kind: "api_key", last4: "" }
 
-function capture(providers: ProviderInfo[]) {
+function capture(
+  providers: ProviderInfo[],
+  options: { turn?: (provider: string) => Promise<TurnContext>; life?: Life } = {},
+) {
   const db = new DatabaseSync(":memory:")
   const sql = {
     exec: (query: string, ...bindings: SQLInputValue[]) => {
@@ -34,15 +37,17 @@ function capture(providers: ProviderInfo[]) {
   } as unknown as SqlStorage
   const storage = { sql, transactionSync: <T>(fn: () => T) => fn() } as unknown as DurableObjectStorage
   initializeSchema(storage)
+  const deferred: Promise<unknown>[] = []
   const mem = new MemoryCapture({
     chat: () => ({ private: false }) as unknown as Chat,
     sql,
     fetch: (() => Promise.reject(new Error("no network"))) as unknown as typeof fetch,
     countOutgoing: () => {},
-    life: {} as unknown as Life,
+    life: options.life ?? ({} as unknown as Life),
     label: "test",
     credentials: () => ({ listProviders: () => providers, setProblem: () => true }) as unknown as CredentialVault,
-    turn: async () => ({ auth: null }) as unknown as TurnContext,
+    turn: options.turn ?? (async () => ({ auth: null }) as unknown as TurnContext),
+    waitUntil: (work) => void deferred.push(work),
   })
   const queued = () =>
     sql
@@ -60,7 +65,7 @@ function capture(providers: ProviderInfo[]) {
         row.queuedAt,
       )
   }
-  return { mem, providers, queued, queue }
+  return { mem, providers, queued, queue, deferred }
 }
 
 describe("memory capture while the judge cannot run", () => {
@@ -109,5 +114,39 @@ describe("memory capture while the judge cannot run", () => {
     const left = queued()
     expect(left).toHaveLength(300)
     expect(left).not.toContain("old")
+  })
+})
+
+describe("memory capture hand-off", () => {
+  beforeEach(() => vi.useFakeTimers({ now: NOW }))
+  afterEach(() => vi.useRealTimers())
+
+  it("queues the fact and hands the judge call to waitUntil", async () => {
+    const life = { nearest: () => [], captureAllowed: () => true } as unknown as Life
+    const { mem, queued, deferred } = capture([working], {
+      life,
+      turn: () => new Promise<TurnContext>(() => {}),
+    })
+    await mem.captureHuman(ROOM, [HEARD])
+    expect(queued()).toEqual(["m1"])
+    expect(deferred).toHaveLength(1)
+  })
+
+  it("naps at most one span per pass", async () => {
+    const spans = [
+      { lo: 0, hi: 1 },
+      { lo: 1, hi: 2 },
+    ]
+    const settled: unknown[] = []
+    const life = {
+      pending: (limit: number) => spans.slice(0, limit),
+      prompt: () => "a prompt",
+      settle: (span: unknown) => settled.push(span),
+    } as unknown as Life
+    const { mem } = capture([working], { life })
+    const compress = vi.spyOn(mem, "compress").mockResolvedValue({ text: "one line" })
+    await mem.napLife()
+    expect(compress).toHaveBeenCalledTimes(1)
+    expect(settled).toHaveLength(1)
   })
 })

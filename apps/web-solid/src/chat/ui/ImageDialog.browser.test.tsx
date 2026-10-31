@@ -28,6 +28,10 @@ describe("ImageDialog", () => {
     const onClose = vi.fn()
     await using _screen = await render(() => <ImageDialog images={images} index={0} onClose={onClose} />)
 
+    const layers = () => document.querySelectorAll('[data-component="modal-v2-content"]')
+    await vi.waitFor(() => expect(layers()).toHaveLength(1))
+    await vi.waitFor(() => expect(layers()[0]?.contains(document.activeElement)).toBe(true))
+
     await userEvent.keyboard("{Escape}")
 
     await vi.waitFor(() => expect(onClose).toHaveBeenCalled())

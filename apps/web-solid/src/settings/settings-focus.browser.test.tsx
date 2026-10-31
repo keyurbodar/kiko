@@ -8,6 +8,7 @@ import {
   RouterProvider,
 } from "@tanstack/solid-router"
 import { createSignal } from "solid-js"
+import { Portal } from "solid-js/web"
 import { describe, expect, it, vi } from "vitest"
 import { page, userEvent } from "vitest/browser"
 import { render } from "../../test/render"
@@ -79,6 +80,37 @@ describe("settings focus", () => {
     expect(document.querySelector("textarea")?.value).toBe("")
     await userEvent.keyboard("{Escape}")
     expect(closed.count).toBe(1)
+  })
+
+  it("leaves focus in the model picker panel instead of pulling it back to the nav", async () => {
+    await page.viewport(1280, 720)
+    const router = routerAt("/settings/tools", () => (
+      <>
+        <p>Tools body</p>
+        <Portal>
+          <div
+            data-component="model-picker"
+            data-kb-top-layer=""
+            style={{
+              position: "fixed",
+              top: "40%",
+              left: "50%",
+              "z-index": 80,
+              background: "white",
+              padding: "8px",
+              "pointer-events": "auto",
+            }}
+          >
+            <button type="button">Starred</button>
+          </div>
+        </Portal>
+      </>
+    ))
+    await using _screen = await render(() => <RouterProvider router={router} />)
+    const provider = page.getByRole("button", { name: "Starred" })
+    await expect.element(provider).toBeVisible()
+    await userEvent.click(provider)
+    await expect.element(provider).toHaveFocus()
   })
 
   it("closes settings with Escape after a nested dialog closes", async () => {

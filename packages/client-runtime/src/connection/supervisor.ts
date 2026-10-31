@@ -53,6 +53,7 @@ type AttemptOutcome =
       readonly established: boolean
       readonly stable: boolean
       readonly error: ConnectionAttemptError
+      readonly unansweredProbe: boolean
     }
 
 type EstablishmentEvent =
@@ -76,6 +77,7 @@ function failureFromExit<A>(
   exit: Exit.Exit<A, ConnectionAttemptError>,
   established: boolean,
   stable: boolean,
+  unansweredProbe = false,
 ): AttemptOutcome {
   if (Exit.isSuccess(exit) || Cause.hasInterruptsOnly(exit.cause)) return { _tag: "Interrupted", established, stable }
   const typed = exit.cause.reasons.find(Cause.isFailReason)
@@ -83,11 +85,15 @@ function failureFromExit<A>(
     _tag: "Failure",
     established,
     stable,
+    unansweredProbe,
     error:
       typed?.error ??
       new ConnectionTransientError({ reason: "transport", detail: "Kiko's connection failed unexpectedly." }),
   }
 }
+
+const probeTimedOut = (error: ConnectionAttemptError): boolean =>
+  error._tag === "ConnectionTransientError" && error.reason === "timeout"
 
 const baseState = (
   intent: SupervisorIntent,
@@ -152,7 +158,6 @@ export const make = Effect.fn("OwnerSupervisor.make")(function* (
   const intent = yield* Ref.make(initialIntent)
   const signals = yield* Queue.unbounded<SupervisorSignal>()
   const resetRetryState = yield* Ref.make(false)
-  const probeUnanswered = yield* Ref.make(false)
   const state = yield* SubscriptionRef.make<SupervisorConnectionState>(
     !initialIntent.desired
       ? baseState(initialIntent, "available", 0, 0, null)
@@ -237,7 +242,6 @@ export const make = Effect.fn("OwnerSupervisor.make")(function* (
   )
 
   const awaitProbe = Effect.fnUntraced(function* (live: RpcSession.RpcSession, timeout: Duration.Input) {
-    yield* Ref.set(probeUnanswered, true)
     const probe = yield* Effect.forkChild(live.probe)
     let deadline = (yield* Clock.currentTimeMillis) + Duration.toMillis(Duration.fromInputUnsafe(timeout))
     for (;;) {
@@ -254,10 +258,7 @@ export const make = Effect.fn("OwnerSupervisor.make")(function* (
           detail: "Kiko did not respond to a connection health check.",
         })
       }
-      if (event._tag === "ProbeCompleted") {
-        if (Exit.isSuccess(event.exit)) yield* Ref.set(probeUnanswered, false)
-        return yield* event.exit
-      }
+      if (event._tag === "ProbeCompleted") return yield* event.exit
       if (event.next._tag === "DisconnectRequested") {
         yield* Fiber.interrupt(probe)
         return "end" as const
@@ -301,6 +302,7 @@ export const make = Effect.fn("OwnerSupervisor.make")(function* (
         _tag: "Failure",
         established: false,
         stable: false,
+        unansweredProbe: false,
         error: new ConnectionTransientError({
           reason: "timeout",
           detail: "Kiko did not respond during connection setup.",
@@ -318,7 +320,8 @@ export const make = Effect.fn("OwnerSupervisor.make")(function* (
     yield* setState({ ...baseState(currentIntent, "connected", generation, attempt, null), desired: true })
     const connectedExit = yield* exitUnlessInterrupted(Effect.raceFirst(live.closed, monitorConnected(live)))
     const stable = (yield* Clock.currentTimeMillis) - connectedAt >= BACKOFF_RESET_AFTER_MS
-    return failureFromExit(connectedExit, true, stable)
+    const outcome = failureFromExit(connectedExit, true, stable)
+    return outcome._tag === "Failure" && probeTimedOut(outcome.error) ? { ...outcome, unansweredProbe: true } : outcome
   }, Effect.ensuring(clearLease))
 
   const waitForRetrySignal = (delayMs: number) =>
@@ -349,7 +352,7 @@ export const make = Effect.fn("OwnerSupervisor.make")(function* (
   const afterFailure = Effect.fnUntraced(function* (
     attempt: number,
     error: ConnectionAttemptError,
-    failedProbe: boolean,
+    unansweredProbe: boolean,
   ) {
     const failedIntent = yield* Ref.get(intent)
     if (error._tag === "ConnectionBlockedError") {
@@ -357,7 +360,7 @@ export const make = Effect.fn("OwnerSupervisor.make")(function* (
       if (yield* waitForSignal) ladder.failureCount = 0
       return
     }
-    if (failedProbe) {
+    if (unansweredProbe) {
       ladder.failureCount = 0
       yield* setState(connectingState(failedIntent, ladder.generation, 1, ladder.latestFailure))
       return
@@ -385,7 +388,6 @@ export const make = Effect.fn("OwnerSupervisor.make")(function* (
       const attempt = ladder.failureCount + 1
       const nextGeneration = ladder.generation + 1
       const outcome: AttemptOutcome = yield* Effect.scoped(runAttempt(attempt, nextGeneration, ladder.latestFailure))
-      const failedProbe = yield* Ref.getAndSet(probeUnanswered, false)
       if (outcome.established) {
         ladder.generation = nextGeneration
         ladder.latestFailure = null
@@ -393,7 +395,7 @@ export const make = Effect.fn("OwnerSupervisor.make")(function* (
       }
       if (outcome._tag === "Interrupted") continue
       if (!outcome.established) ladder.latestFailure = outcome.error
-      yield* afterFailure(attempt, outcome.error, failedProbe)
+      yield* afterFailure(attempt, outcome.error, outcome.unansweredProbe)
     }
   })
 

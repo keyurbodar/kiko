@@ -238,6 +238,21 @@ describe("kiko/no-real-time-wait-in-tests", () => {
   )
 
   rule.invalid(
+    "reports Bun.sleep and Bun.sleepSync",
+    `
+      import { it } from "vitest";
+
+      it("waits", () => {
+        Bun.sleepSync(50);
+        return Bun.sleep(50);
+      });
+    `,
+    (output) => {
+      assert.equal(output.match(/Real-clock wait in a test/g)?.length, 2)
+    },
+  )
+
+  rule.invalid(
     "reports awaited timers/promises sleeps",
     `
       import * as NodeTimers from "node:timers/promises";

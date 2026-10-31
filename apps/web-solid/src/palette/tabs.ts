@@ -1,5 +1,6 @@
 import { fileName } from "@kiko/protocol"
-import { formatBytes } from "../chat/info/format"
+import { formatBytes } from "../lib/format"
+import { dayStartOf } from "../chat/lib/day-start"
 import type { Choice } from "../commands/registry"
 import { buildIndex, dirname, folderLabel, pathsUnder, ROOT } from "../files/model"
 import { choiceItem, matchScore, type Item, type PaletteGroup } from "./model"
@@ -32,8 +33,8 @@ const FILE_RECENTS = 5
 
 export const sinceLabel = (at: number | undefined, now: number): string => {
   if (at === undefined) return "Earlier"
-  const age = now - at
-  return age < DAY ? "Today" : age < 7 * DAY ? "This week" : "Earlier"
+  const days = Math.round((dayStartOf(now) - dayStartOf(at)) / DAY)
+  return days < 1 ? "Today" : days < 7 ? "This week" : "Earlier"
 }
 
 const substring = (query: string, text: string): number => {

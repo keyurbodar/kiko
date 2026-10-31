@@ -30,6 +30,7 @@ import { preloadMessageSearch } from "../commands/message-search"
 import { richLoaded } from "../composer/rich/loaded"
 import { useKatCommands } from "../commands/use-kat-commands"
 import { Palette, preloadPalette } from "../palette"
+import { paletteStack } from "../palette/state"
 import { botPickerOpen } from "../chat/bot-picker-state"
 import { newAgentOpen } from "../newagent/state"
 import { preloadSearch, SearchOverlay, searchScope } from "../search/state"
@@ -46,12 +47,15 @@ import { TopBar } from "./top-bar"
 import { RightPanelHost } from "./right-panel-host"
 import { CHAT_MIN, fitSidebar, RAIL, readWidth, resetWidth, saveWidth, SIDEBAR } from "./widths"
 import HintLayer from "../commands/HintLayer"
-import AvatarPicker from "../avatar/picker"
-import BotPicker from "../chat/bot-picker"
-import NewAgent from "../newagent/dialog"
-import DeleteChatDialog from "../sidebar/delete-chat-dialog"
+
+const loadAvatarPicker = () => import("../avatar/picker")
+const loadBotPicker = () => import("../chat/bot-picker")
+const loadNewAgent = () => import("../newagent/dialog")
+const loadDeleteChatDialog = () => import("../sidebar/delete-chat-dialog")
 
 const idlePreloads = [loadDesk, preloadMessageSearch]
+
+const dialogPreloads = [loadAvatarPicker, loadBotPicker, loadNewAgent, loadDeleteChatDialog]
 
 const fill = (text: string, params?: Record<string, string | number | boolean>) =>
   text.replace(/{{\s*([^}]+?)\s*}}/g, (_, key: string) => String(params?.[key] ?? ""))
@@ -68,6 +72,10 @@ const i18n: UiI18n = {
 
 const ComputerViewer = lazy(() => import("../chat/computer/Viewer"))
 const Desk = lazy(loadDesk)
+const AvatarPicker = lazy(loadAvatarPicker)
+const BotPicker = lazy(loadBotPicker)
+const NewAgent = lazy(loadNewAgent)
+const DeleteChatDialog = lazy(loadDeleteChatDialog)
 
 const KEY = "kiko:device:sidebar-collapsed"
 
@@ -100,6 +108,10 @@ function writeCollapsed(value: boolean) {
 export function Shell(props: ParentProps) {
   const pathname = useLocation({ select: (location) => location.pathname })
   const router = useRouter()
+  const [paletteSeen, setPaletteSeen] = createSignal(paletteStack() !== null)
+  createEffect(() => {
+    if (paletteStack() !== null) setPaletteSeen(true)
+  })
   const [collapsed, setCollapsed] = createSignal(readCollapsed())
   const narrowQuery = typeof matchMedia === "function" ? matchMedia("(width < 768px)") : undefined
   const [narrow, setNarrow] = createSignal(narrowQuery?.matches ?? false)
@@ -268,6 +280,7 @@ export function Shell(props: ParentProps) {
       void router.preloadRoute({ to: "/settings/models" }).catch(() => {})
       preloadSearch()
       preloadPalette()
+      for (const load of dialogPreloads) void load()
       setTimeout(() => void import("../settings/catalog").then((m) => m.prefetchCatalog()), 3000)
     })
   })
@@ -468,9 +481,11 @@ export function Shell(props: ParentProps) {
             </>
           )}
         </Show>
-        <Suspense>
-          <Palette />
-        </Suspense>
+        <Show when={paletteSeen()}>
+          <Suspense>
+            <Palette />
+          </Suspense>
+        </Show>
         <Show when={deletingChatId() !== null}>
           <Suspense>
             <DeleteChatDialog />

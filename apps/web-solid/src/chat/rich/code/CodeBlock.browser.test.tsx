@@ -1,10 +1,25 @@
 import "../../../index.css"
 import { parseRichText } from "@kiko/protocol/markdown"
 import { describe, expect, it, vi } from "vitest"
-import type { JSX } from "solid-js"
+import { createSignal, type JSX } from "solid-js"
 import { render } from "../../../../test/render"
 import { Collapsible } from "../../Collapsible"
+import type { CodeFile } from "../model"
 import { RichText } from "../RichText"
+import { CodeBlock } from "./CodeBlock"
+
+const plainCalls = vi.hoisted(() => [] as string[])
+
+vi.mock("./highlight", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./highlight")>()
+  return {
+    ...actual,
+    plainLines: (text: string) => {
+      plainCalls.push(text)
+      return actual.plainLines(text)
+    },
+  }
+})
 
 const LONG = Array.from({ length: 40 }, (_, i) => `line ${i + 1} ${"x".repeat(180)}`).join("\n")
 
@@ -114,7 +129,7 @@ describe("CodeBlock", () => {
     const clip = collapsible.firstElementChild as HTMLElement
     const scroller = pre(screen.container)
 
-    expect(collapsible.hasAttribute("data-collapsed")).toBe(true)
+    await vi.waitFor(() => expect(collapsible.hasAttribute("data-collapsed")).toBe(true))
     expect(screen.getByRole("button", { name: "Show more" }).element()).toBeTruthy()
     const blockBottom = block(screen.container).getBoundingClientRect().bottom
     expect(blockBottom).toBeLessThanOrEqual(clip.getBoundingClientRect().bottom + 0.5)
@@ -124,6 +139,23 @@ describe("CodeBlock", () => {
     scroller.scrollLeft = 100
 
     expect(scroller.scrollLeft).toBe(100)
+  })
+
+  it("does not re-tokenize a block when only the file object is new", async () => {
+    vi.stubGlobal("IntersectionObserver", undefined)
+    try {
+      const code = "a = 1\nb = 2"
+      const [files, setFiles] = createSignal<readonly CodeFile[]>([{ lang: "py", text: code }])
+      await using screen = await render(() => <CodeBlock files={files()} />)
+      const before = plainCalls.length
+
+      setFiles([{ lang: "py", text: code }])
+
+      expect(plainCalls.length).toBe(before)
+      expect(screen.container.textContent).toContain("a = 1")
+    } finally {
+      vi.unstubAllGlobals()
+    }
   })
 
   it("puts adjacent named files under one block with a tab each", async () => {

@@ -1,9 +1,32 @@
-import { createEffect, on } from "solid-js"
+import { createEffect, on, onCleanup } from "solid-js"
 
 const MAX_TRAVEL = 480
 
+export function samePositions(a: ReadonlyMap<string, number>, b: ReadonlyMap<string, number>): boolean {
+  if (a.size !== b.size) return false
+  for (const [id, top] of a) if (b.get(id) !== top) return false
+  return true
+}
+
 export function flipRows(root: () => HTMLElement | undefined, order: () => readonly string[]): void {
   let last = new Map<string, number>()
+  let shown = true
+  let watched: HTMLElement | undefined
+  let observer: IntersectionObserver | undefined
+  const watch = (el: HTMLElement) => {
+    if (watched === el) return
+    watched = el
+    observer?.disconnect()
+    if (typeof IntersectionObserver === "undefined") return
+    observer = new IntersectionObserver((entries) => {
+      const visible = entries[0]?.isIntersecting ?? true
+      if (visible === shown) return
+      shown = visible
+      if (visible) last = new Map()
+    })
+    observer.observe(el)
+  }
+  onCleanup(() => observer?.disconnect())
   const positions = (el: HTMLElement) => {
     const next = new Map<string, number>()
     for (const row of el.querySelectorAll<HTMLElement>("[data-chat-id]")) {
@@ -16,7 +39,10 @@ export function flipRows(root: () => HTMLElement | undefined, order: () => reado
     on(order, () => {
       const el = root()
       if (!el) return
+      watch(el)
+      if (!shown) return
       const next = positions(el)
+      if (samePositions(last, next)) return
       const calm = matchMedia("(prefers-reduced-motion: reduce)").matches
       if (!calm && last.size > 0) {
         for (const row of el.querySelectorAll<HTMLElement>("[data-chat-id]")) {

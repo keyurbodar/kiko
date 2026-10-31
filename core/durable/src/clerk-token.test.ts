@@ -59,16 +59,26 @@ describe("verifyClerkToken", () => {
       const early = yield* sign(privateKey, claims({ nbf: NOW_S + 30 }))
       const foreign = yield* sign(other.privateKey, claims())
       const untrusted = yield* sign(privateKey, claims({ azp: "https://kiko-app.example.workers.dev" }))
+      const originless = yield* sign(privateKey, claims({ azp: undefined }))
       assert.deepStrictEqual(
         [
           yield* verdict(trust, expired),
           yield* verdict(trust, early),
           yield* verdict(trust, foreign),
           yield* verdict(trust, untrusted),
+          yield* verdict(trust, originless),
           yield* verdict(trust, "not.a.token"),
           yield* verdict({ key: "not a key", trustedOrigins: [ORIGIN] }, yield* sign(privateKey, claims())),
         ],
-        ["token_expired", "token_expired", "token_invalid", "origin_untrusted", "token_invalid", "token_invalid"],
+        [
+          "token_expired",
+          "token_expired",
+          "token_invalid",
+          "origin_untrusted",
+          "origin_untrusted",
+          "token_invalid",
+          "token_invalid",
+        ],
       )
     }),
   )

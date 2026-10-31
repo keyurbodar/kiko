@@ -14,6 +14,7 @@ type Options = { area?: Area | null; access?: Access; cursor?: { x: number; y: n
 
 function fake(options: Options = {}) {
   const calls: Call[] = []
+  const reads = { access: 0 }
   const native: Native = {
     move: (x, y) => calls.push({ name: "move", args: [x, y] }),
     button: (slot, down, x, y) => calls.push({ name: "button", args: [slot, down, x, y] }),
@@ -31,7 +32,10 @@ function fake(options: Options = {}) {
       calls.push({ name: "shoot", args: [area] })
       return { bytes: new Uint8Array([1, 2, 3]) }
     },
-    access: () => options.access ?? { screen: true, input: true },
+    access: () => {
+      reads.access += 1
+      return options.access ?? { screen: true, input: true }
+    },
     requestAccess: () => {},
     open: async (target) => {
       calls.push({ name: "open", args: [target] })
@@ -39,7 +43,7 @@ function fake(options: Options = {}) {
     close: () => {},
   }
   const codec: Codec = async (_bytes, limit) => ({ data: "jpeg", ...fitInside(SHOT.width, SHOT.height, limit) })
-  return { calls, backend, desktop: new Desktop(backend, codec) }
+  return { calls, backend, desktop: new Desktop(backend, codec), reads }
 }
 
 function deadline(): Deadline {
@@ -315,5 +319,40 @@ describe("Desktop.act", () => {
 
     expect(failure.message).toContain("1280x800")
     expect(named(calls, "key")).toEqual([])
+  })
+
+  it("runs one act to completion before the next one starts", async () => {
+    const { desktop, calls } = fake()
+    const view = await desktop.look({}, deadline())
+
+    const first = desktop.act(
+      {
+        captureId: view.captureId,
+        steps: [
+          { op: "type", text: "a" },
+          { op: "type", text: "b" },
+        ],
+      },
+      deadline(),
+    )
+    const second = desktop.act({ captureId: view.captureId, steps: [{ op: "type", text: "c" }] }, deadline())
+
+    await Promise.all([first, second])
+
+    expect(named(calls, "text")).toEqual([
+      { name: "text", args: ["a"] },
+      { name: "text", args: ["b"] },
+      { name: "text", args: ["c"] },
+    ])
+  })
+
+  it("reads the permissions once and reuses them across calls", async () => {
+    const { desktop, reads } = fake()
+    const view = await desktop.look({}, deadline())
+
+    await desktop.act({ captureId: view.captureId, steps: [] }, deadline())
+    await desktop.act({ captureId: view.captureId, steps: [] }, deadline())
+
+    expect(reads.access).toBe(1)
   })
 })

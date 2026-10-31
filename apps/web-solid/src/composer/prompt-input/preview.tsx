@@ -2,7 +2,7 @@ import { createResource, For, Match, Show, Switch } from "solid-js"
 import { parseDelimited } from "../../files/delimited"
 import { fileType, type FileType } from "../../files/type"
 import { TypeIcon } from "../../files/type-icon"
-import { middleTruncate } from "../rich/nodes"
+import { middleTruncate } from "../truncate"
 import type { PromptInputV2Attachment } from "./types"
 
 export const PASTED_TEXT = "Pasted text.txt"

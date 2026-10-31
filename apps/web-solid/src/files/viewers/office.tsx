@@ -2,7 +2,7 @@ import { ChevronLeftIcon, ChevronRightIcon } from "@kiko/ui/icons"
 import { TabsPill, TabsV2 as Tabs } from "@kiko/ui/v2/tabs-v2"
 import { createEffect, createMemo, createSignal, For, Match, on, onCleanup, Show, Switch, type JSX } from "solid-js"
 import { SurfaceAction, SurfaceFailure, SurfaceLoading, SurfaceNotice } from "../chrome"
-import { formatBytes } from "./format"
+import { formatBytes } from "../../lib/format"
 import {
   OFFICE_MAX_BYTES,
   type DocxModel,

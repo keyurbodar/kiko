@@ -1,3 +1,5 @@
+import { fileName } from "@kiko/protocol"
+
 export const ROOT = ""
 
 export type TreeIndex = {
@@ -5,15 +7,14 @@ export type TreeIndex = {
   folders: Set<string>
 }
 
-export const basename = (path: string) => path.slice(path.lastIndexOf("/") + 1)
 export const folderLabel = (path: string) =>
-  path === ROOT ? "Files" : path === "attachments" ? "From this chat" : path === "home" ? "Home" : basename(path)
+  path === ROOT ? "Files" : path === "attachments" ? "From this chat" : path === "home" ? "Home" : fileName(path)
 export const dirname = (path: string) => (path.includes("/") ? path.slice(0, path.lastIndexOf("/")) : ROOT)
 export const join = (dir: string, name: string) => (dir === ROOT ? name : `${dir}/${name}`)
 
 export const isHidden = (path: string) => path.split("/").some((part) => part.startsWith("."))
 
-const byName = (a: string, b: string) => basename(a).localeCompare(basename(b), undefined, { numeric: true })
+const byName = (a: string, b: string) => fileName(a).localeCompare(fileName(b), undefined, { numeric: true })
 
 export function buildIndex(paths: Iterable<string>, emptyFolders: Iterable<string> = []): TreeIndex {
   const folders = new Set<string>()

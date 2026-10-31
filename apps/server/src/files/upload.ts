@@ -127,7 +127,10 @@ async function complete(
   const sha256 = await sha256Stream(object.body)
   const type = mime(object.httpMetadata?.contentType)
   const expectSha256 = expectOf(object.customMetadata?.expect)
-  if (!expectSha256) return error(400, EXPECT_ERROR)
+  if (!expectSha256) {
+    await fileStore(env).delete(key)
+    return error(400, EXPECT_ERROR)
+  }
   return index(env, userId, roomId, {
     id: fileId,
     path,

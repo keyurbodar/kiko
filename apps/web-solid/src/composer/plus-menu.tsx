@@ -128,9 +128,15 @@ function SubPanel(props: {
   }
   const pick = (token: Token | undefined) => token && props.onPick(token)
   const key = (event: KeyboardEvent) => {
-    if (event.key === "Escape" || event.key === "ArrowLeft") {
+    if (event.key === "Escape") {
       event.preventDefault()
       event.stopPropagation()
+      props.onBack()
+    } else if (event.key === "ArrowLeft") {
+      event.stopPropagation()
+      const field = event.currentTarget as HTMLInputElement
+      if (field.selectionStart !== 0 || field.selectionEnd !== 0) return
+      event.preventDefault()
       props.onBack()
     } else if (event.key === "ArrowDown") {
       event.preventDefault()

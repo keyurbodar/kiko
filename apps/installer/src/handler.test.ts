@@ -58,6 +58,16 @@ const post = (env: Env, path: string, body: unknown) =>
     env,
   )
 
+const rawPost = (env: Env, path: string, body: string) =>
+  handler.fetch(
+    new Request(`https://api.test${path}`, {
+      method: "POST",
+      headers: { Origin: ORIGIN, "Content-Type": "application/json" },
+      body,
+    }),
+    env,
+  )
+
 describe("installer routes", () => {
   beforeEach(() => {
     vi.useFakeTimers()
@@ -106,5 +116,22 @@ describe("installer routes", () => {
     expect(response.status).toBe(204)
     expect(await response.text()).toBe("")
     expect(detached).toEqual(["user_b"])
+  })
+
+  it("refuses an install body over the cap", async () => {
+    const keys = await clerkKeys()
+    const { env, installs } = envWith(keys.pem)
+    const body = JSON.stringify({ clerkToken: "x", grant: { kind: "token", token: "x" }, pad: "x".repeat(20_000) })
+    const response = await rawPost(env, "/install", body)
+    expect(response.status).toBe(413)
+    expect(installs).toEqual([])
+  })
+
+  it("refuses a detach body over the cap", async () => {
+    const keys = await clerkKeys()
+    const { env, detached } = envWith(keys.pem)
+    const response = await rawPost(env, "/detach", "x".repeat(20_000))
+    expect(response.status).toBe(413)
+    expect(detached).toEqual([])
   })
 })

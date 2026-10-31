@@ -1,5 +1,6 @@
 import { type Keyring, open, seal } from "@kiko/durable/crypto"
 import { sha256Hex, toHex } from "@kiko/durable/hash"
+import { decodeBase64, encodeBase64 } from "../lib/base64"
 import { deleteSetting, getSetting, setSetting } from "../lib/settings"
 import {
   type CliSession,
@@ -102,9 +103,6 @@ const summary = (row: Row): AppSummary => ({
   updatedAt: row.updated_at,
 })
 
-const b64 = (bytes: Uint8Array) => btoa(String.fromCharCode(...bytes))
-const unb64 = (text: string) => Uint8Array.from(atob(text), (c) => c.charCodeAt(0))
-
 function kikoModule(keySha256: string): string {
   return `const KEY_SHA256 = "${keySha256}";
 
@@ -161,6 +159,7 @@ const isUp = (status: number | null) => status !== null && status < 500 && statu
 export class Apps {
   private readonly lakebed: Lakebed
   private readonly inflight = new Map<string, Promise<unknown>>()
+  private origins?: Promise<Map<string, string>>
 
   constructor(
     private readonly sql: SqlStorage,
@@ -391,15 +390,36 @@ export class Apps {
   }
 
   async signedHeaders(url: URL): Promise<Record<string, string> | null> {
-    const row = this.sql
-      .exec<Row>("SELECT * FROM apps")
-      .toArray()
-      .find((candidate) => new URL(candidate.url).origin === url.origin)
-    return row ? { "x-kiko-key": (await this.secrets(row)).key } : null
+    const key = (await this.originKeys()).get(url.origin)
+    return key === undefined ? null : { "x-kiko-key": key }
+  }
+
+  private originKeys(): Promise<Map<string, string>> {
+    this.origins ??= this.readOrigins().catch((error: unknown) => {
+      this.origins = undefined
+      throw error
+    })
+    return this.origins
+  }
+
+  private async readOrigins(): Promise<Map<string, string>> {
+    const rows = this.sql.exec<Row>("SELECT * FROM apps").toArray()
+    const pairs = await Promise.all(
+      rows.map(async (row) => {
+        try {
+          return [new URL(row.url).origin, (await this.secrets(row)).key] as const
+        } catch {
+          return null
+        }
+      }),
+    )
+    return new Map(pairs.filter((pair): pair is readonly [string, string] => pair !== null))
   }
 
   forget(name: string): boolean {
-    return this.sql.exec("DELETE FROM apps WHERE name = ?", name).rowsWritten > 0
+    const removed = this.sql.exec("DELETE FROM apps WHERE name = ?", name).rowsWritten > 0
+    this.origins = undefined
+    return removed
   }
 
   async connect(): Promise<AccountStatus> {
@@ -416,11 +436,13 @@ export class Apps {
   }
 
   private async markClaimed(): Promise<void> {
-    for (const row of this.sql.exec<Row>("SELECT * FROM apps WHERE claimed = 0").toArray()) {
-      const record = await this.lakebed.record(row.deploy_id)
+    const rows = this.sql.exec<Row>("SELECT * FROM apps WHERE claimed = 0").toArray()
+    const checked = await Promise.all(
+      rows.map(async (row) => ({ row, record: await this.lakebed.record(row.deploy_id) })),
+    )
+    for (const { row, record } of checked)
       if (record !== "gone" && record.claimed)
         this.sql.exec("UPDATE apps SET claimed = 1, expires_at = NULL WHERE name = ?", row.name)
-    }
   }
 
   private async pendingSession(): Promise<CliSession> {
@@ -479,8 +501,8 @@ export class Apps {
     const stored = JSON.parse(text) as { k: number; iv: string; ct: string }
     const opened = await open(this.keyring, this.ownerId, ACCOUNT_AAD, {
       kekVersion: stored.k,
-      iv: unb64(stored.iv),
-      ciphertext: unb64(stored.ct),
+      iv: decodeBase64(stored.iv),
+      ciphertext: decodeBase64(stored.ct),
     })
     return JSON.parse(opened) as Account
   }
@@ -490,7 +512,7 @@ export class Apps {
     setSetting(
       this.sql,
       ACCOUNT_SETTING,
-      JSON.stringify({ k: sealed.kekVersion, iv: b64(sealed.iv), ct: b64(sealed.ciphertext) }),
+      JSON.stringify({ k: sealed.kekVersion, iv: encodeBase64(sealed.iv), ct: encodeBase64(sealed.ciphertext) }),
     )
   }
 
@@ -553,6 +575,7 @@ export class Apps {
       sealed.ciphertext,
       updatedAt,
     )
+    this.origins = undefined
     return {
       name,
       url: deployed.url,

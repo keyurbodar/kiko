@@ -25,6 +25,7 @@ import { KernelStore } from "../integrations/kernel/store"
 import * as Effect from "effect/Effect"
 import { kernelFailure, kernelIntegrationError } from "./user-errors"
 import { checkApiKey } from "./credentials"
+import { slugOf } from "./agent-id"
 import { type Attachment, send, trySend } from "./socket-frames"
 
 export type LiveLinkResult = { ok: true; url: string; posted: boolean } | { ok: false; error: string }
@@ -56,10 +57,6 @@ const RESUMED = {
 } as const
 const RESUME =
   " Carry on with the browser work that was waiting. Tell the worker that was waiting to continue with tell_work; its tabs are still open where the human left them, so it must not load the page again. Say one short line to the human only if there is something to say."
-
-function slugOf(agentId: string): string {
-  return agentId.split(/[/:]/).pop() ?? agentId
-}
 
 export class KernelWiring {
   readonly browser: KernelLease

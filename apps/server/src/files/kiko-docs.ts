@@ -1,11 +1,10 @@
 import { sha256Hex } from "@kiko/durable/hash"
+import { KIKO } from "@kiko/protocol"
 import { KIKO_DOCS } from "../agent/kiko-docs.gen"
 import { BUILTIN_RECIPES } from "../recipes/catalog.gen"
 import type { FsEntry, FsFail } from "../room/files"
 import type { FilesBackend } from "./room-fs"
 import { type BatchChange, batchPaths } from "./batch"
-
-export const KIKO = "kiko"
 
 const REFUSAL = `/${KIKO} is read-only. It explains how Kiko works. Write your own files under / or /home.`
 

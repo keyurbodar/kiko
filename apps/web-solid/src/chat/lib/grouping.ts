@@ -164,7 +164,9 @@ export function buildTimelineItems(
   const drawable = (m: ChatMessage) => !(options.members && addressee(m) !== undefined)
   const unreadIndex = messages.findIndex((m) => m.id === firstUnreadMessageId)
   if (unreadIndex >= 0 && !drawable(messages[unreadIndex])) {
-    firstUnreadMessageId = messages.slice(unreadIndex + 1).find((m) => drawable(m) && m.sender !== "user")?.id
+    firstUnreadMessageId = messages
+      .slice(unreadIndex + 1)
+      .find((m) => drawable(m) && m.sender !== "user" && !isEvent(m) && !backgroundOf(m))?.id
   }
   const list = entries(messages, options, folds(messages))
   const n = list.length

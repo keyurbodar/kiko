@@ -37,7 +37,7 @@ export function dividerParts(
 ): { day: string; time: string; dated: boolean } {
   const nowAt = usable(now)
   const stamp = Number.isFinite(at) ? at : nowAt
-  const time = fmt(stamp, { hour: "numeric", minute: "2-digit", hour12: true }, opts)
+  const time = fmt(stamp, { hour: "numeric", minute: "2-digit" }, opts)
   const day = dayStartOf(stamp)
   const today = dayStartOf(nowAt)
   const t = new Date(today)

@@ -3,8 +3,8 @@ import type { Access, Backend } from "./desk/backend"
 import { createBackend } from "./desk"
 import { Desktop } from "./desktop"
 import type { Logger } from "./log"
-import type { LiveCaps } from "./live"
 import { findBinary } from "./live/binary"
+import type { LivePolicy } from "./live/types"
 
 export type Detection = {
   backend: Backend | null
@@ -24,7 +24,7 @@ function hasFfmpeg(configDir?: string): boolean {
   return findBinary("ffmpeg", configDir) !== null
 }
 
-function capsFor(desktop: boolean, ffmpeg: boolean, live: LiveCaps): Caps {
+function capsFor(desktop: boolean, ffmpeg: boolean, live: LivePolicy): Caps {
   return {
     shell: true,
     files: true,
@@ -47,7 +47,7 @@ function displaysOf(backend: Backend | null): Display[] {
   return [{ id: "primary", width: area.width, height: area.height, scale: 1 }]
 }
 
-function detectionOf(backend: Backend | null, ffmpeg: boolean, live: LiveCaps): Detection {
+function detectionOf(backend: Backend | null, ffmpeg: boolean, live: LivePolicy): Detection {
   return {
     backend,
     desktop: backend ? new Desktop(backend) : null,
@@ -62,7 +62,7 @@ export function presence(): Detection {
   return detectionOf(createBackend(), hasFfmpeg(), { live: false, input: false })
 }
 
-export function detect(log: Logger, live: LiveCaps = { live: false, input: false }, configDir?: string): Detection {
+export function detect(log: Logger, live: LivePolicy = { live: false, input: false }, configDir?: string): Detection {
   const backend = createBackend()
   if (!backend) log.warn(`${noBackendReason()}; desktop tools are off`)
   return detectionOf(backend, hasFfmpeg(configDir), live)

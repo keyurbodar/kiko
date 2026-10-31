@@ -32,6 +32,24 @@ const FRESH_MS = 2_000
 
 type Child = Subprocess<"ignore", "pipe", "pipe">
 
+export type Pumpable = {
+  stdout: AsyncIterable<Uint8Array>
+  stderr: ReadableStream<Uint8Array>
+  exited: Promise<number>
+}
+
+export async function drain(
+  proc: Pumpable,
+  onChunk: (chunk: Uint8Array) => boolean,
+): Promise<{ code: number; tail: string }> {
+  const tail = new Response(proc.stderr).text().catch(() => "")
+  for await (const chunk of proc.stdout) {
+    if (!onChunk(chunk)) break
+  }
+  const [code, text] = await Promise.all([proc.exited, tail])
+  return { code, tail: text }
+}
+
 class H264 {
   private readonly options: H264Options
   private readonly plans: string[][]
@@ -98,12 +116,11 @@ class H264 {
   }
 
   private async pump(proc: Child): Promise<void> {
-    for await (const chunk of proc.stdout) {
-      if (this.stopped || proc !== this.child) return
+    const { code, tail } = await drain(proc, (chunk) => {
+      if (this.stopped || proc !== this.child) return false
       this.emit(chunk)
-    }
-    const tail = await new Response(proc.stderr).text().catch(() => "")
-    const code = await proc.exited
+      return true
+    })
     if (this.stopped || proc !== this.child) return
     this.child = null
     this.retry(code, tail)
@@ -162,12 +179,35 @@ export type MjpegCapture = { stop(): void }
 
 const SOI = 0xffd8
 const EOI = 0xffd9
+const MAX_FRAME_BYTES = 8 * 1024 * 1024
 
 function mark(bytes: Uint8Array, from: number, value: number): number {
   for (let i = from; i + 1 < bytes.byteLength; i++) {
     if (((bytes[i]! << 8) | bytes[i + 1]!) === value) return i
   }
   return -1
+}
+
+export function drainJpeg(
+  pending: Uint8Array,
+  chunk: Uint8Array,
+  limit: number,
+  frame: (jpeg: Uint8Array) => void,
+): Uint8Array {
+  const buffer = join(pending, chunk)
+  let scan = 0
+  while (scan + 3 < buffer.byteLength) {
+    const start = mark(buffer, scan, SOI)
+    if (start < 0) return buffer.slice(Math.max(0, buffer.byteLength - 1))
+    const end = mark(buffer, start + 2, EOI)
+    if (end < 0) {
+      const rest = buffer.slice(start)
+      return rest.byteLength > limit ? new Uint8Array(0) : rest
+    }
+    frame(buffer.slice(start, end + 2))
+    scan = end + 2
+  }
+  return buffer.slice(scan)
 }
 
 class Mjpeg {
@@ -207,12 +247,11 @@ class Mjpeg {
   }
 
   private async pump(proc: Child): Promise<void> {
-    for await (const chunk of proc.stdout) {
-      if (this.stopped || proc !== this.child) return
+    const { code, tail } = await drain(proc, (chunk) => {
+      if (this.stopped || proc !== this.child) return false
       this.emit(chunk)
-    }
-    const tail = await new Response(proc.stderr).text().catch(() => "")
-    const code = await proc.exited
+      return true
+    })
     if (this.stopped || proc !== this.child) return
     this.child = null
     if (this.plan + 1 < this.plans.length) {
@@ -225,23 +264,7 @@ class Mjpeg {
   }
 
   private emit(chunk: Uint8Array): void {
-    this.pending = join(this.pending, chunk)
-    let scan = 0
-    while (scan + 3 < this.pending.byteLength) {
-      const start = mark(this.pending, scan, SOI)
-      if (start < 0) {
-        this.pending = this.pending.slice(Math.max(0, this.pending.byteLength - 1))
-        return
-      }
-      const end = mark(this.pending, start + 2, EOI)
-      if (end < 0) {
-        this.pending = this.pending.slice(start)
-        return
-      }
-      this.options.handlers.frame(this.pending.slice(start, end + 2))
-      scan = end + 2
-    }
-    this.pending = this.pending.slice(scan)
+    this.pending = drainJpeg(this.pending, chunk, MAX_FRAME_BYTES, (jpeg) => this.options.handlers.frame(jpeg))
   }
 }
 

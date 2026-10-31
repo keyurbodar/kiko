@@ -10,6 +10,7 @@ import * as SubscriptionRef from "effect/SubscriptionRef"
 import { SnapshotCache } from "../platform/cache"
 import { UserFeed } from "../rpc/session"
 import { makeCachePersister } from "./cachePersistence"
+import { ChatRemovals } from "./chatRemovals"
 import { PendingCommands } from "./pending"
 import {
   applyStreamItems,
@@ -58,6 +59,7 @@ export const layer = Layer.effectContext(
   Effect.gen(function* () {
     const cache = yield* SnapshotCache
     const pending = yield* PendingCommands
+    const removals = yield* ChatRemovals
     const cached = yield* cache.loadUser.pipe(
       Effect.catch((error) =>
         Effect.logWarning("Kiko could not read its cached chat list.", error.message).pipe(Effect.as(Option.none())),
@@ -95,6 +97,11 @@ export const layer = Layer.effectContext(
           if (Option.isSome(after.data)) {
             yield* pending.user.reconcile("user", after.data.value, after.sequence)
             if (after.data !== before.data || after.sequence !== before.sequence) yield* persister.offer(merged)
+          }
+          for (const item of items) {
+            if (item.kind !== "event" || item.event.t !== "chat_removed") continue
+            yield* removals.remove(item.event.roomId)
+            yield* cache.removeRoom(item.event.roomId).pipe(Effect.ignore)
           }
         }),
       )

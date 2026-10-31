@@ -30,6 +30,7 @@ export type Env = {
 const CHOOSE_ACCOUNT = "This sign-in can use more than one Cloudflare account. Pick the one Kiko goes in."
 const DECIDE =
   "This Cloudflare account already has a Kiko backend that this sign-in does not own. Choose whether to keep its chats or start fresh."
+const MAX_BODY_BYTES = 16_384
 
 const InstallBody = Schema.Struct({
   clerkToken: Schema.String,
@@ -119,9 +120,44 @@ async function callerOf(env: Env, token: string): Promise<string | InstallReply>
 }
 
 const BAD_REQUEST = failureReply(failed("bad_request"))
+const TOO_LARGE: InstallReply = { ...BAD_REQUEST, status: 413 }
+
+async function readCappedBody(request: Request, max: number): Promise<string | null> {
+  if (!request.body) return ""
+  const reader = request.body.getReader()
+  const chunks: Uint8Array[] = []
+  let size = 0
+  for (;;) {
+    const { done, value } = await reader.read()
+    if (done) break
+    size += value.byteLength
+    if (size > max) {
+      reader.cancel().catch(() => {})
+      return null
+    }
+    chunks.push(value)
+  }
+  const all = new Uint8Array(size)
+  let at = 0
+  for (const chunk of chunks) {
+    all.set(chunk, at)
+    at += chunk.byteLength
+  }
+  return new TextDecoder().decode(all)
+}
+
+function parseJson(text: string): unknown {
+  try {
+    return JSON.parse(text)
+  } catch {
+    return null
+  }
+}
 
 async function installRoute(request: Request, env: Env): Promise<InstallReply> {
-  const body = decodeInstall(await request.json().catch(() => null))
+  const text = await readCappedBody(request, MAX_BODY_BYTES)
+  if (text === null) return TOO_LARGE
+  const body = decodeInstall(parseJson(text))
   const grant = Option.isSome(body) ? parseGrant(body.value.grant) : null
   if (Option.isNone(body) || !grant) return BAD_REQUEST
   const sub = await callerOf(env, body.value.clerkToken)
@@ -136,7 +172,9 @@ async function installRoute(request: Request, env: Env): Promise<InstallReply> {
 }
 
 async function detachRoute(request: Request, env: Env): Promise<InstallReply> {
-  const body = decodeDetach(await request.json().catch(() => null))
+  const text = await readCappedBody(request, MAX_BODY_BYTES)
+  if (text === null) return TOO_LARGE
+  const body = decodeDetach(parseJson(text))
   if (Option.isNone(body)) return BAD_REQUEST
   const sub = await callerOf(env, body.value.clerkToken)
   if (typeof sub !== "string") return sub

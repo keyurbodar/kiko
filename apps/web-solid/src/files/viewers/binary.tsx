@@ -1,7 +1,7 @@
 import { createEffect, createMemo, createSignal, For, on, onCleanup, onMount, Show, type JSX } from "solid-js"
 import { SurfaceFailure, SurfaceLoading, SurfaceNotice } from "../chrome"
 import type { ArchiveEntry, ArchiveRequest, ArchiveResult } from "./archive"
-import { formatBytes } from "./format"
+import { formatBytes } from "../../lib/format"
 import { hexRow, hexRowCount } from "./hex"
 
 const HEX_MAX_BYTES = 4 * 1024 * 1024

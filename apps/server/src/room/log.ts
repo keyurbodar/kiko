@@ -4,6 +4,7 @@ import type {
   Actor,
   AgentSlug,
   FileRef,
+  Member,
   Message,
   MessageId,
   Reaction,
@@ -32,9 +33,11 @@ import type { ArchivedMessage } from "../owner/history-archive"
 
 const REPLAY_LIMIT = 500
 const KEEP_EVENTS = 2 * REPLAY_LIMIT
-const UNANSWERED_PAGES = 20
+const UNANSWERED_WINDOW = 400
 const TRIM_EVERY = 100
 const SNAPSHOT_MESSAGES = 200
+const READ_COALESCE_MS = 1_000
+const KEEP_REACTIONS_MS = 7 * 86_400_000
 
 const PUBLIC_MESSAGE = "(event IS NULL OR json_extract(event, '$.private') IS NOT 1)"
 
@@ -113,6 +116,9 @@ export type NewMessage = {
 export class RoomLog {
   readonly steps: RunSteps
   private readonly windows = new Map<string, { after: number; count: number }>()
+  private cachedMembers?: Member[]
+  private pendingRead = 0
+  private lastReadAt = Number.NEGATIVE_INFINITY
 
   constructor(
     private readonly storage: DurableObjectStorage,
@@ -281,12 +287,14 @@ export class RoomLog {
   }
 
   catchUp(lastSeq: number): { t: "events"; events: RoomEvent[] } | { t: "reset"; snapshot: RoomSnapshot } {
+    this.flushRead()
     const last = this.lastSeq()
     if (lastSeq > last || last - lastSeq > REPLAY_LIMIT) return { t: "reset", snapshot: this.snapshot() }
     return { t: "events", events: this.since(lastSeq) }
   }
 
   snapshot(): RoomSnapshot {
+    this.flushRead()
     const rows = this.sql
       .exec<MessageRow>(
         "SELECT * FROM (SELECT * FROM messages WHERE room_id = ? AND deleted_at IS NULL ORDER BY seq DESC LIMIT ?) ORDER BY seq",
@@ -671,18 +679,28 @@ export class RoomLog {
 
   markRead(seq: number): RoomEvent | null {
     return this.storage.transactionSync(() => {
-      const from = this.readSeq()
       const upTo = Math.min(seq, this.lastSeq())
-      if (upTo <= from) return null
-      const event = this.append("human", { t: "read", upTo })
-      this.setMeta("read_seq", String(upTo))
-      this.sql.exec("DELETE FROM archived_unread WHERE room_id = ? AND seq <= ?", this.roomId, upTo)
-      return event
+      if (upTo > this.readSeq()) this.pendingRead = Math.max(this.pendingRead, upTo)
+      if (this.pendingRead <= this.readSeq()) return null
+      const at = this.now()
+      if (at - this.lastReadAt < READ_COALESCE_MS) return null
+      return this.flushRead(at)
     })
   }
 
+  flushRead(at = this.now()): RoomEvent | null {
+    const upTo = this.pendingRead
+    this.pendingRead = 0
+    if (upTo <= this.readSeq()) return null
+    this.lastReadAt = at
+    const event = this.append("human", { t: "read", upTo })
+    this.setMeta("read_seq", String(upTo))
+    this.sql.exec("DELETE FROM archived_unread WHERE room_id = ? AND seq <= ?", this.roomId, upTo)
+    return event
+  }
+
   unread(): number {
-    return this.countNonHuman(this.readSeq(), Number.MAX_SAFE_INTEGER)
+    return this.countNonHuman(Math.max(this.readSeq(), this.pendingRead), Number.MAX_SAFE_INTEGER)
   }
 
   private countNonHuman(after: number, upTo: number): number {
@@ -714,6 +732,7 @@ export class RoomLog {
   append(actor: string, body: Body, deliveryId?: string): RoomEvent {
     const at = this.now()
     const seq = this.lastSeq() + 1
+    if (body.t === "member" || body.t === "member_removed") this.cachedMembers = undefined
     this.sql.exec(
       "INSERT INTO events (room_id, seq, kind, at, actor, payload, deliveries) VALUES (?, ?, ?, ?, ?, ?, ?)",
       this.roomId,
@@ -731,14 +750,20 @@ export class RoomLog {
   private trim(seq: number): void {
     if (seq % TRIM_EVERY === 0)
       this.sql.exec(
-        "DELETE FROM events WHERE room_id = ? AND seq <= ? AND deliveries = '[]'",
+        "DELETE FROM events WHERE room_id = ? AND seq <= ? AND (deliveries = '[]' OR (kind = 'react' AND at < ?))",
         this.roomId,
         seq - KEEP_EVENTS,
+        this.now() - KEEP_REACTIONS_MS,
       )
   }
 
+  private members(): Member[] {
+    return (this.cachedMembers ??= listMembers(this.scopedStorage, this.roomId))
+  }
+
   unansweredFor(agentSlug: AgentSlug, after: number, limit = 200): Pending[] {
-    const members = listMembers(this.scopedStorage, this.roomId)
+    if (limit < 1) return []
+    const members = this.members()
     const membership = this.sql
       .exec<{ added_seq: number; lead_seq: number }>(
         "SELECT added_seq, lead_seq FROM members WHERE room_id = ? AND slug = ? AND removed_at IS NULL",
@@ -748,24 +773,18 @@ export class RoomLog {
       .toArray()[0]
     if (!membership) return []
     const pending: Pending[] = []
-    let cursor = Math.max(after, membership.added_seq)
-    for (let page = 0; page < UNANSWERED_PAGES && pending.length < limit; page++) {
-      const rows = this.sql
-        .exec<MessageRow>(
-          "SELECT * FROM messages WHERE room_id = ? AND seq > ? AND json_extract(sender, '$.kind') = 'human' ORDER BY seq LIMIT ?",
-          this.roomId,
-          cursor,
-          limit,
-        )
-        .toArray()
-      if (!rows.length) break
-      cursor = rows[rows.length - 1]!.seq
-      for (const row of rows) {
-        const found = this.pendingOf(row, agentSlug, members, membership)
-        if (found) pending.push(found)
-        if (pending.length >= limit) break
-      }
-      if (rows.length < limit) break
+    const rows = this.sql
+      .exec<MessageRow>(
+        "SELECT * FROM (SELECT * FROM messages WHERE room_id = ? AND seq > ? AND json_extract(sender, '$.kind') = 'human' ORDER BY seq DESC LIMIT ?) ORDER BY seq",
+        this.roomId,
+        Math.max(after, membership.added_seq),
+        UNANSWERED_WINDOW,
+      )
+      .toArray()
+    for (const row of rows) {
+      const found = this.pendingOf(row, agentSlug, members, membership)
+      if (found) pending.push(found)
+      if (pending.length >= limit) break
     }
     return pending
   }

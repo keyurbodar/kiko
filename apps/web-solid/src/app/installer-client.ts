@@ -35,6 +35,7 @@ const INSTALL_ERROR_CODES = [
   "storage_full",
   "release_unavailable",
   "release_untrusted",
+  "missing_migration_tag",
   "not_ready",
   "internal",
 ] as const

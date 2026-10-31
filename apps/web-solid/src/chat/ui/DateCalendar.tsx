@@ -11,6 +11,17 @@ const MONTH_YEAR = new Intl.DateTimeFormat(undefined, { month: "long", year: "nu
 
 const MONTHS = Array.from({ length: 12 }, (_, index) => new Date(2000, index, 1))
 
+type WeekInfo = { firstDay: number }
+type WeekLocale = Intl.Locale & { getWeekInfo?: () => WeekInfo; weekInfo?: WeekInfo }
+
+export function firstDayOfWeek(locale: string): number {
+  const parsed = new Intl.Locale(locale) as WeekLocale
+  const first = (parsed.getWeekInfo?.() ?? parsed.weekInfo)?.firstDay
+  return first === undefined ? 0 : first % 7
+}
+
+const START_OF_WEEK = firstDayOfWeek(new Intl.DateTimeFormat().resolvedOptions().locale)
+
 export default function DateCalendar(props: {
   dayStart: number
   picked: Date | null
@@ -46,7 +57,7 @@ export default function DateCalendar(props: {
         month={month()}
         onMonthChange={setMonth}
         initialFocusedDay={new Date(props.dayStart)}
-        startOfWeek={0}
+        startOfWeek={START_OF_WEEK}
         disabled={(date: Date) => (props.hasDay ? !props.hasDay(dayStartOf(date.getTime())) : false)}
       >
         {(calendar) => (

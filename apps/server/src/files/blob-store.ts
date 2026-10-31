@@ -40,6 +40,7 @@ export const UPLOAD_STEPS: Step[] = [`ALTER TABLE upload ADD COLUMN created_at I
 
 const partKey = (uploadId: string, n: number) => `part:${uploadId}:${n}`
 const stagingKey = () => `staging:${Date.now()}:${crypto.randomUUID()}`
+const prefixEnd = (prefix: string) => `${prefix}ÿ`
 
 function inOrder(parts: readonly { partNumber: number }[]): boolean {
   let last = 0
@@ -58,15 +59,20 @@ export class BlobStore {
     const uploadId = /^part:([^:]+):/.exec(key)?.[1]
     const target = uploadId ? sql.exec<{ key: string }>("SELECT key FROM upload WHERE id = ?", uploadId).one().key : key
     const prefix = target.slice(0, target.lastIndexOf("/") + 1)
-    return sql
+    const end = prefixEnd(prefix)
+    const stored = sql
+      .exec<{ n: number }>("SELECT COALESCE(SUM(size), 0) AS n FROM obj WHERE key >= ? AND key < ?", prefix, end)
+      .one().n
+    const parts = sql
       .exec<{ n: number }>(
-        "SELECT COALESCE(SUM(size), 0) AS n FROM obj o WHERE substr(o.key, 1, length(?)) = ? OR EXISTS (SELECT 1 FROM upload u WHERE substr(u.key, 1, length(?)) = ? AND substr(o.key, 1, length('part:' || u.id || ':')) = 'part:' || u.id || ':')",
+        "SELECT COALESCE(SUM(o.size), 0) AS n FROM upload u JOIN obj o ON o.key >= 'part:' || u.id || ':' AND o.key < 'part:' || u.id || ':' || char(255) WHERE u.key >= ? AND u.key < ? AND NOT (o.key >= ? AND o.key < ?)",
         prefix,
+        end,
         prefix,
-        prefix,
-        prefix,
+        end,
       )
       .one().n
+    return stored + parts
   }
 
   #drop(keys: readonly string[]): void {
@@ -267,6 +273,10 @@ export class BlobStore {
         at += f.info.size
         sql.exec("DELETE FROM obj WHERE key = ?", f.from)
       }
+      const leftover = `part:${uploadId}:`
+      const leftoverEnd = prefixEnd(leftover)
+      sql.exec("DELETE FROM chunk WHERE key >= ? AND key < ?", leftover, leftoverEnd)
+      sql.exec("DELETE FROM obj WHERE key >= ? AND key < ?", leftover, leftoverEnd)
       const info = {
         size,
         type: upload.type,

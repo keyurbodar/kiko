@@ -15,19 +15,7 @@ import { Button } from "../settings/kit"
 import { fileSrc } from "../state/room"
 import { owner, registry } from "../state/runtime"
 import { areAllDirectoriesExpanded, setAllDirectoriesExpanded } from "./explorer/expansion"
-import {
-  basename,
-  createParent,
-  dirname,
-  HOME,
-  inHome,
-  join,
-  loadExpanded,
-  pathsUnder,
-  ROOT,
-  saveExpanded,
-  where,
-} from "./model"
+import { createParent, dirname, HOME, inHome, join, loadExpanded, pathsUnder, ROOT, saveExpanded, where } from "./model"
 import { PIERRE_ICONS } from "./pierre-icons"
 import { PIERRE_TREE_UNSAFE_CSS } from "./pierre-theme"
 import { syncTree } from "./tree-sync"
@@ -303,7 +291,7 @@ export function FileTree(props: FileTreeProps): JSX.Element {
 
   const onDropComplete = (context: FileTreeDropContext) => {
     const folder = dropFolder(context)
-    for (const path of context.draggedPaths) props.onMove?.(plain(path), join(folder, basename(plain(path))))
+    for (const path of context.draggedPaths) props.onMove?.(plain(path), join(folder, fileName(plain(path))))
   }
 
   const menuTarget = createMemo<MenuTarget | null>(() => {
@@ -627,7 +615,7 @@ export function FileTree(props: FileTreeProps): JSX.Element {
       <Dialog
         open={confirming() !== null}
         onClose={() => setConfirming(null)}
-        title={`Delete ${confirming() === null ? "this" : basename(confirming()!)}?`}
+        title={`Delete ${confirming() === null ? "this" : fileName(confirming()!)}?`}
         description={
           confirming() !== null && folderSet().has(confirming()!)
             ? "The folder and everything inside it goes away."

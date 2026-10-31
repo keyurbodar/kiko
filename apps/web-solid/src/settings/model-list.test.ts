@@ -1,6 +1,6 @@
 import type { CatalogModel, CatalogProvider } from "@kiko/protocol"
 import { describe, expect, it } from "vitest"
-import { modelTrait, pickerEntries, shortModelName, STARRED } from "./model-list"
+import { modelIdOf, modelTrait, parseModelRef, pickerEntries, providerOf, shortModelName, STARRED } from "./model-list"
 
 const model = (id: string, over: Partial<CatalogModel> = {}): CatalogModel => ({
   id,
@@ -63,6 +63,31 @@ describe("pickerEntries", () => {
       "g/5.2@0",
       "g/5.3@1",
     ])
+  })
+})
+
+describe("model refs", () => {
+  it("splits a provider from its model", () => {
+    expect(parseModelRef("openai/gpt-5")).toEqual({ provider: "openai", modelId: "gpt-5" })
+    expect(providerOf("openai/gpt-5")).toBe("openai")
+    expect(modelIdOf("openai/gpt-5")).toBe("gpt-5")
+  })
+
+  it("reads a slash-less ref as the provider with no model", () => {
+    expect(parseModelRef("openai")).toBeNull()
+    expect(providerOf("openai")).toBe("openai")
+    expect(modelIdOf("openai")).toBeUndefined()
+  })
+
+  it("reads an empty ref as no provider and no model", () => {
+    expect(parseModelRef("")).toBeNull()
+    expect(providerOf("")).toBe("")
+    expect(modelIdOf("")).toBeUndefined()
+  })
+
+  it("keeps an absent ref absent", () => {
+    expect(providerOf(undefined)).toBeUndefined()
+    expect(modelIdOf(undefined)).toBeUndefined()
   })
 })
 

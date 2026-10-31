@@ -11,7 +11,7 @@ const RENUDGE_MS = 3 * DAY
 const STALE_MS = 6 * HOUR
 const KEEP_MS = 90 * DAY
 const TRIES = 5
-const PER_PASS = { digest: 1, active: 3 }
+const PER_DAY = { digest: 1, active: 3 }
 
 export type Level = UserSettings["initiative"]
 
@@ -62,9 +62,10 @@ export class InitiativeEngine {
     const report: PassReport = { at: now, woke: [] }
     const level = this.d.level()
     if (level !== "digest" && level !== "active") return report
+    let remaining = PER_DAY[level] - this.sentSince(now)
+    if (remaining <= 0) return report
     const raised = new Set<string>()
     let tried = 0
-    let landed = 0
     for (const { room: roomId, task } of this.due(now)) {
       if (this.d.title(roomId) === null || raised.has(roomId)) continue
       if (++tried > TRIES) break
@@ -89,10 +90,16 @@ export class InitiativeEngine {
         )
         this.d.count({ initiative_woke: 1 })
         raised.add(roomId)
-        if (++landed >= PER_PASS[level]) break
+        if (--remaining <= 0) break
       }
     }
     return report
+  }
+
+  private sentSince(now: number): number {
+    return this.d.sql
+      .exec<{ sent: number }>("SELECT COUNT(*) AS sent FROM initiative_wakes WHERE at > ?", now - DAY)
+      .one().sent
   }
 
   private prune(now: number): void {

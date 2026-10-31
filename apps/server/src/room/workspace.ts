@@ -56,18 +56,33 @@ export function listTasks(storage: DurableObjectStorage, roomId: string): Task[]
 }
 
 export function briefTasks(sql: SqlStorage, slug: AgentSlug, roomId: string, lead = false): Task[] {
-  const tasks = readTasks(sql, roomId)
-  const byId = new Map(tasks.map((t) => [t.id, t]))
-  const mine = tasks.filter((t) => (lead || t.owner === slug) && !CLOSED.has(t.status))
+  const rows = taskRows(sql, roomId)
+  const byId = new Map(rows.map((t) => [t.id, t]))
+  const mine = rows.filter((t) => (lead || t.owner === slug) && !CLOSED.has(t.status as TaskStatus))
+  const mineDeps = readDeps(
+    sql,
+    roomId,
+    mine.map((t) => t.id),
+  )
   const ids = new Set(mine.map((t) => t.id))
-  const blockers: Task[] = []
-  for (const id of mine.flatMap((t) => t.dependsOn)) {
+  const blockers: TaskRow[] = []
+  for (const id of mine.flatMap((t) => mineDeps.get(t.id) ?? [])) {
     const t = byId.get(id)
-    if (!t || ids.has(id) || CLOSED.has(t.status)) continue
+    if (!t || ids.has(id) || CLOSED.has(t.status as TaskStatus)) continue
     ids.add(id)
     blockers.push(t)
   }
-  return [...mine, ...blockers]
+  const deps = blockers.length
+    ? new Map([
+        ...mineDeps,
+        ...readDeps(
+          sql,
+          roomId,
+          blockers.map((t) => t.id),
+        ),
+      ])
+    : mineDeps
+  return [...mine, ...blockers].map((t) => toTask(t, deps.get(t.id) ?? []))
 }
 
 function toTask(r: TaskRow, dependsOn: string[]): Task {
@@ -81,25 +96,38 @@ function toTask(r: TaskRow, dependsOn: string[]): Task {
   }
 }
 
-function readTasks(sql: SqlStorage, roomId: string): Task[] {
-  const exists = sql.exec("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'ws_tasks'").toArray().length > 0
-  if (!exists) return []
-  const deps = new Map<string, string[]>()
-  for (const r of sql
-    .exec<{ t: string; d: string }>(
-      "SELECT task_id AS t, depends_on AS d FROM ws_task_deps WHERE ws_task_deps.room_id = ?1 ORDER BY rowid",
-      roomId,
-    )
-    .toArray()) {
-    deps.set(r.t, [...(deps.get(r.t) ?? []), r.d])
-  }
+function taskRows(sql: SqlStorage, roomId: string): TaskRow[] {
   return sql
     .exec<TaskRow>(
       "SELECT id, title, status, owner, note FROM ws_tasks WHERE ws_tasks.room_id = ?1 ORDER BY created_seq, id",
       roomId,
     )
     .toArray()
-    .map((r) => toTask(r, deps.get(r.id) ?? []))
+}
+
+function readDeps(sql: SqlStorage, roomId: string, ids: readonly string[]): Map<string, string[]> {
+  const deps = new Map<string, string[]>()
+  if (!ids.length) return deps
+  for (const r of sql
+    .exec<{ t: string; d: string }>(
+      "SELECT task_id AS t, depends_on AS d FROM ws_task_deps WHERE ws_task_deps.room_id = ?1 AND task_id IN (SELECT value FROM JSON_EACH(?2)) ORDER BY rowid",
+      roomId,
+      JSON.stringify(ids),
+    )
+    .toArray()) {
+    deps.set(r.t, [...(deps.get(r.t) ?? []), r.d])
+  }
+  return deps
+}
+
+function readTasks(sql: SqlStorage, roomId: string): Task[] {
+  const rows = taskRows(sql, roomId)
+  const deps = readDeps(
+    sql,
+    roomId,
+    rows.map((r) => r.id),
+  )
+  return rows.map((r) => toTask(r, deps.get(r.id) ?? []))
 }
 
 export const wakeBody = (wake: Pick<Wake, "taskId" | "title">) =>

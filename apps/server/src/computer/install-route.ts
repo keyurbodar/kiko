@@ -8,15 +8,24 @@ type DaemonRelease = { version: string; base: string; sums: string }
 
 const CACHE = "public, max-age=300"
 const UNAVAILABLE = "this worker has no signed kiko-computer release to install right now; try again later"
+const RELEASE_TIMEOUT_MS = 10_000
+const RELEASE_TTL_MS = 5 * 60_000
+const RELEASE_RETRY_MS = 30_000
 
 const shQuote = (value: string): string => value.replace(/'/g, `'\\''`)
 const psQuote = (value: string): string => value.replace(/'/g, "''")
 
-async function daemonRelease(env: Env): Promise<DaemonRelease | null> {
+let releaseCache: { version: string; release: DaemonRelease | null; until: number } | null = null
+let releaseInFlight: Promise<DaemonRelease | null> | null = null
+
+async function loadRelease(env: Env): Promise<DaemonRelease | null> {
   const config = updateConfig(env, null)
   const dir = `${config.releaseBase.replace(/\/$/, "")}/${BACKEND.version}`
   try {
-    const [manifest, signature] = await Promise.all([fetch(`${dir}/manifest.json`), fetch(`${dir}/manifest.sig`)])
+    const [manifest, signature] = await Promise.all([
+      fetch(`${dir}/manifest.json`, { signal: AbortSignal.timeout(RELEASE_TIMEOUT_MS) }),
+      fetch(`${dir}/manifest.sig`, { signal: AbortSignal.timeout(RELEASE_TIMEOUT_MS) }),
+    ])
     if (!manifest.ok || !signature.ok) return null
     const bytes = new Uint8Array(await manifest.arrayBuffer())
     if (!(await verifyRelease(bytes, await signature.text(), config.publicKey))) return null
@@ -26,6 +35,27 @@ async function daemonRelease(env: Env): Promise<DaemonRelease | null> {
   } catch {
     return null
   }
+}
+
+function daemonRelease(env: Env): Promise<DaemonRelease | null> {
+  const now = Date.now()
+  if (releaseCache && releaseCache.version === BACKEND.version && now < releaseCache.until)
+    return Promise.resolve(releaseCache.release)
+  if (releaseInFlight) return releaseInFlight
+  const pending = loadRelease(env)
+    .then((release) => {
+      releaseCache = {
+        version: BACKEND.version,
+        release,
+        until: Date.now() + (release ? RELEASE_TTL_MS : RELEASE_RETRY_MS),
+      }
+      return release
+    })
+    .finally(() => {
+      releaseInFlight = null
+    })
+  releaseInFlight = pending
+  return pending
 }
 
 export function installSh(origin: string, release: DaemonRelease): string {

@@ -1,4 +1,5 @@
 import type { ProviderProblem } from "@kiko/protocol"
+import { providerOf } from "./model-list"
 import { modelProviders } from "./provider-kinds"
 
 export type BlockAction = "open_settings" | "choose_model"
@@ -18,7 +19,7 @@ export function sendBlock(input: {
   const usable = modelProviders(providers)
   if (usable.length === 0) return { reason: "Connect a model provider to chat.", actions: ["open_settings"] }
   if (!model) return { reason: `Choose a model for ${agent}.`, actions: ["choose_model"] }
-  const saved = usable.find((p) => p.provider === model.slice(0, model.indexOf("/")))
+  const saved = usable.find((p) => p.provider === providerOf(model))
   if (!saved)
     return {
       reason: `${agent}'s model needs a provider you have not connected.`,

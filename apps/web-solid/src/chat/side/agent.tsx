@@ -5,6 +5,7 @@ import { user } from "../../state/user"
 import { THINKING_LABELS } from "@kiko/protocol"
 import { canReason } from "../../settings/agent-model"
 import { useLiveModel } from "../../settings/catalog"
+import { modelIdOf } from "../../settings/model-list"
 import { DangerRow, Profile, Properties, Property, roomMembers } from "../info/sections"
 import { SoulCard } from "../info/soul"
 
@@ -37,7 +38,7 @@ export function AgentPage(props: { slug: string; chatId: string; onRemoved: () =
           {member()?.lead ? "Lead" : "Agent"}
         </Property>
         <Property label="Model" field="model">
-          {picked()?.model.split("/").slice(1).join("/") ?? "None"}
+          {modelIdOf(picked()?.model) ?? "None"}
         </Property>
         {canReason(picked()?.thinkingLevels) && (
           <Property label="Reasoning" field="thinking">

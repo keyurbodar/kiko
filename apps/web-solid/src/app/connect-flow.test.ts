@@ -79,6 +79,7 @@ const EVERY_CODE = [
   ["storage_full", "same", "Resend", "Resend"],
   ["release_unavailable", "same", "Resend", "Resend"],
   ["release_untrusted", "same", "Resend", "Resend"],
+  ["missing_migration_tag", "same", "Resend", "Resend"],
   ["not_ready", "same", "Resend", "Resend"],
   ["internal", "same", "Resend", "Resend"],
   ["network", "same", "Resend", "Resend"],

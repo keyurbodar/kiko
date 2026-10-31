@@ -10,11 +10,10 @@ import { installsFor } from "./state"
 export function RecipeTile(props: { recipe: RecipeCard; onOpen: () => void; onAdd: () => void }) {
   const installs = () => installsFor(props.recipe.slug)
   const soonest = () => {
-    const times = installs().flatMap((i) => {
-      const s = installStatus(i, props.recipe)
-      return s.kind === "next" ? [s.at] : []
-    })
-    return times.length ? nextRunLabel(Math.min(...times), Date.now()) : "Paused"
+    let best: { at: number; tz: string } | undefined
+    for (const status of installs().map((install) => installStatus(install, props.recipe)))
+      if (status.kind === "next" && (!best || status.at < best.at)) best = status
+    return best ? nextRunLabel(best.at, Date.now(), best.tz) : "Paused"
   }
   const on = () => installs().length > 0
   return (

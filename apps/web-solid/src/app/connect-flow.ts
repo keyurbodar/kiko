@@ -181,6 +181,11 @@ const COPY: Record<InstallErrorCode | "network" | "unreadable" | ConnectTrouble[
   release_untrusted: {
     sentence: "The Kiko release did not pass its signature check, so nothing was installed. Try again later.",
   },
+  missing_migration_tag: {
+    sentence:
+      "This backend is deployed, but Cloudflare reports no migration tag for it, so Kiko cannot tell which schema it runs. Delete it in Cloudflare, then install again.",
+    link: WORKERS_LINK,
+  },
   not_ready: { sentence: "Kiko is installed but has not started answering yet. Wait a minute, then try again." },
   internal: { sentence: "The install did not finish. Try again." },
   network: { sentence: "Could not reach the Kiko installer. Check your connection, then try again." },

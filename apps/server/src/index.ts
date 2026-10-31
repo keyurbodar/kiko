@@ -23,7 +23,7 @@ export interface Env extends AuthEnv {
   OWNER: DurableObjectNamespace<OwnerDO>
   FILES?: R2Bucket
   ARCHIVE?: R2Bucket
-  ASSETS: Fetcher
+  ASSETS?: Fetcher
   CREDENTIALS_KEK: string
   CF_TURN_KEY_ID?: string
   CF_TURN_KEY_TOKEN?: string
@@ -72,7 +72,7 @@ async function handle(request: Request, env: Env): Promise<Response> {
   const authResponse = await authRoute(request, env)
   if (authResponse) return authResponse
   if (url.pathname.startsWith("/api/")) return new Response("not found", { status: 404 })
-  return serveAsset(env.ASSETS, request)
+  return env.ASSETS ? serveAsset(env.ASSETS, request) : new Response("not found", { status: 404 })
 }
 
 export default {

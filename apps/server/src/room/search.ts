@@ -55,6 +55,7 @@ export function snippetOf(plain: string, query: string): string {
 
 const MAX_CHUNK_MESSAGES = 2_000
 const MAX_CHUNK_BYTES = 512 * 1024
+const PAGE = 16
 
 type Member = [seq: number, start: number, end: number]
 type Chunk = { rowid: number; chunk: string; members: string; edit_seq: number }
@@ -263,39 +264,52 @@ export function searchMessages(
   const roomToken = `r${Array.from(new TextEncoder().encode(roomId), (byte) => byte.toString(16).padStart(2, "0")).join("")}`
   indexChunks(storage, roomId, roomToken)
   const rows: ResultRow[] = []
-  for (const doc of storage.sql
-    .exec<Chunk & { first_seq: number; last_seq: number }>(
-      `SELECT rowid, chunk, members, edit_seq, first_seq, last_seq FROM messages_fts
-		 WHERE messages_fts MATCH ? AND room_id = ? AND first_seq < ? ORDER BY last_seq DESC`,
-      `room:${roomToken} AND chunk:(${terms.join(" ")})`,
-      roomId,
-      options.before ?? Number.MAX_SAFE_INTEGER,
-    )
-    .toArray()) {
-    const extra = rows[size]
-    if (extra && doc.last_seq < extra.seq) break
-    const matches = matchingMembers(storage, doc, terms)
-    if (!matches.size) continue
-    rows.push(
-      ...storage.sql
-        .exec<ResultRow>(
-          `SELECT id, seq, at, sender, text, rich FROM messages
+  let cursor = Number.MAX_SAFE_INTEGER
+  for (;;) {
+    const docs = storage.sql
+      .exec<Chunk & { first_seq: number; last_seq: number }>(
+        `SELECT rowid, chunk, members, edit_seq, first_seq, last_seq FROM messages_fts
+		 WHERE messages_fts MATCH ? AND room_id = ? AND first_seq < ? AND last_seq < ? ORDER BY last_seq DESC LIMIT ?`,
+        `room:${roomToken} AND chunk:(${terms.join(" ")})`,
+        roomId,
+        options.before ?? Number.MAX_SAFE_INTEGER,
+        cursor,
+        PAGE,
+      )
+      .toArray()
+    if (!docs.length) break
+    let stop = false
+    for (const doc of docs) {
+      const extra = rows[size]
+      if (extra && doc.last_seq < extra.seq) {
+        stop = true
+        break
+      }
+      const matches = matchingMembers(storage, doc, terms)
+      if (!matches.size) continue
+      rows.push(
+        ...storage.sql
+          .exec<ResultRow>(
+            `SELECT id, seq, at, sender, text, rich FROM messages
 			 WHERE room_id = ? AND seq BETWEEN ? AND ? AND seq IN (SELECT value FROM json_each(?))
 			 AND seq < ? AND at < ? AND deleted_at IS NULL
 			 AND (event IS NULL OR json_extract(event, '$.private') IS NOT 1)${options.mail ? "" : " AND addressed IS NULL"}
 			 ORDER BY seq DESC LIMIT ?`,
-          roomId,
-          doc.first_seq,
-          doc.last_seq,
-          JSON.stringify([...matches]),
-          options.before ?? Number.MAX_SAFE_INTEGER,
-          options.beforeAt ?? Number.MAX_SAFE_INTEGER,
-          size + 1,
-        )
-        .toArray(),
-    )
-    rows.sort((a, b) => b.seq - a.seq)
-    rows.length = Math.min(rows.length, size + 1)
+            roomId,
+            doc.first_seq,
+            doc.last_seq,
+            JSON.stringify([...matches]),
+            options.before ?? Number.MAX_SAFE_INTEGER,
+            options.beforeAt ?? Number.MAX_SAFE_INTEGER,
+            size + 1,
+          )
+          .toArray(),
+      )
+      rows.sort((a, b) => b.seq - a.seq)
+      rows.length = Math.min(rows.length, size + 1)
+    }
+    if (stop || docs.length < PAGE) break
+    cursor = docs[docs.length - 1].last_seq
   }
   const page = rows.slice(0, size)
   return {

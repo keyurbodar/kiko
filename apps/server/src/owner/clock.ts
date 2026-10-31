@@ -1,6 +1,14 @@
 import type { TaskId, TaskInspection } from "@earendil-works/pi-durable"
+import type { ClockPort } from "@kiko/durable/clock-port"
 
 export const RECOVERY_DELAY_MS = 60_000
+const MAX_RECOVERY_DELAY_MS = 30 * 60_000
+
+export function retryDelay(attempt: number): number {
+  return Math.min(RECOVERY_DELAY_MS * 2 ** (attempt - 1), MAX_RECOVERY_DELAY_MS)
+}
+
+const retries = new WeakMap<ClockPort, Map<string, number>>()
 
 type AlarmStorage = Pick<DurableObjectStorage, "getAlarm" | "setAlarm" | "deleteAlarm">
 
@@ -133,7 +141,7 @@ export function createServiceClock({
 }
 
 export async function runDue(
-  clock: import("@kiko/durable/clock-port").ClockPort,
+  clock: ClockPort,
   due: readonly string[],
   handlers: Readonly<Record<string, () => unknown>>,
 ): Promise<void> {
@@ -143,13 +151,24 @@ export async function runDue(
     const at = clock.deadline(key)
     try {
       await handler?.()
+      retries.get(clock)?.delete(key)
       if (clock.deadline(key) === at) await clock.clearWakeup(key)
     } catch (error) {
       errors.push(error)
       console.error(`clock ${key} failed: ${error instanceof Error ? error.message : String(error)}`)
+      await backOff(clock, key, at)
     }
   }
   if (errors.length) throw new AggregateError(errors, "Clock handlers failed")
+}
+
+async function backOff(clock: ClockPort, key: string, at: number | undefined): Promise<void> {
+  if (at === undefined || clock.deadline(key) !== at) return
+  const attempts = (retries.get(clock)?.get(key) ?? 0) + 1
+  const keys = retries.get(clock) ?? new Map<string, number>()
+  keys.set(key, attempts)
+  retries.set(clock, keys)
+  await clock.setWakeup(key, Date.now() + retryDelay(attempts))
 }
 
 export function projectRecovery(

@@ -8,6 +8,7 @@ import { Group, Row } from "./kit"
 import { ModelPicker } from "./model-picker"
 import { ReasoningMenu } from "./reasoning-menu"
 import { useLiveModel } from "./catalog"
+import { modelIdOf, providerOf } from "./model-list"
 
 function AgentRow(props: { slug: AgentSlug; name: string }) {
   const [open, setOpen] = createSignal(false)
@@ -32,11 +33,11 @@ function AgentRow(props: { slug: AgentSlug; name: string }) {
         title={`Choose model for ${props.name}`}
         class="flex h-8 max-w-[240px] min-w-0 items-center gap-1.5 rounded-control bg-[var(--raise)] px-3 text-label text-fg transition-colors duration-[var(--dur-hover)] hover:bg-[var(--fill-control-hover)] aria-expanded:bg-[var(--fill-control-hover)] active:scale-[0.98]"
       >
-        <Show when={current()?.model.split("/")[0]}>
+        <Show when={providerOf(current()?.model)}>
           {(provider) => <ProviderIcon id={provider()} width="13" height="13" />}
         </Show>
         <span class="truncate" data-field="model">
-          {current()?.name ?? current()?.model.split("/").slice(1).join("/") ?? "Choose model"}
+          {current()?.name ?? modelIdOf(current()?.model) ?? "Choose model"}
         </span>
       </ModelPicker>
       <ReasoningMenu

@@ -81,12 +81,13 @@ if (!window.__kiko) {
 
 export const GZIP_MARK = "gz:"
 const GZIP_FROM = 8_000
+const BODY_WAIT_MS = Math.min(1_000, Math.floor(BROWSER.commandMs / 10))
 
 const READ_BODY = `
 // A load event can fire for the previous document, so a read can land mid-parse on a body-less html.
 // Wait, bounded, until this document really has a body.
 if (!document.body || document.readyState === "loading") {
-  const until = performance.now() + ${BROWSER.loadMs};
+  const until = performance.now() + ${BODY_WAIT_MS};
   while ((!document.body || document.readyState === "loading") && performance.now() < until) {
     const { promise, resolve } = Promise.withResolvers();
     setTimeout(resolve, 50);
@@ -204,6 +205,8 @@ for (const c of kept) {
   }
   controls.push(out);
 }
+const keep = new Set(controls.map((c) => c.id));
+for (const [id, ref] of Y.els) if (!keep.has(id) || ref.deref() === undefined) Y.els.delete(id);
 const text = (document.body ? document.body.innerText : "").slice(0, ${BROWSER.textMax});
 let h = 2166136261;
 // Field values and checked state are part of the key, so filling a form reads as progress. Scrolling is not.

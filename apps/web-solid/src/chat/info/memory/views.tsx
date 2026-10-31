@@ -17,6 +17,7 @@ import { MenuV2 } from "@kiko/ui/v2/menu-v2"
 import { session } from "../../../app/session"
 import { IdentityAvatar } from "../../../lib/IdentityAvatar"
 import { agentDisplayName } from "../../../lib/names"
+import { modelIdOf, parseModelRef } from "../../../settings/model-list"
 import { room } from "../../../state/room"
 import { leadName, PanelEmpty } from "../empty"
 import { memoryFor } from "./instance"
@@ -195,9 +196,7 @@ function MemoryMore(props: { store: MemoryStore }) {
             <MenuV2.Item data-action="memory-model" onSelect={() => setPicking(true)}>
               <span class="flex min-w-0 flex-1 flex-col">
                 <span>Memory model…</span>
-                <span class="truncate type-hint text-fg4">
-                  {current()?.split("/").slice(1).join("/") ?? `${leadName()}'s model`}
-                </span>
+                <span class="truncate type-hint text-fg4">{modelIdOf(current()) ?? `${leadName()}'s model`}</span>
               </span>
             </MenuV2.Item>
             <Show when={current()}>
@@ -211,8 +210,8 @@ function MemoryMore(props: { store: MemoryStore }) {
           <ModelPickerPanel
             current={current()}
             onPick={(ref) => {
-              const at = ref.indexOf("/")
-              void props.store.setModel({ provider: ref.slice(0, at), modelId: ref.slice(at + 1) })
+              const parsed = parseModelRef(ref)
+              if (parsed) void props.store.setModel(parsed)
             }}
             onOpenChange={setPicking}
             trigger={() => trigger}

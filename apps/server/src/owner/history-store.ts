@@ -27,13 +27,9 @@ export class RoomHistoryStore implements HistoryStore {
 
   oldestDay(before: number): string | null {
     const at = this.storage.sql
-      .exec<{ at: number }>(
-        "SELECT at FROM messages WHERE room_id = ? AND at < ? ORDER BY at LIMIT 1",
-        this.log.roomId,
-        before,
-      )
+      .exec<{ at: number }>("SELECT at FROM messages WHERE room_id = ? ORDER BY seq LIMIT 1", this.log.roomId)
       .toArray()[0]?.at
-    return at === undefined ? null : new Date(at).toISOString().slice(0, 10)
+    return at === undefined || at >= before ? null : new Date(at).toISOString().slice(0, 10)
   }
 
   snapshot(day: string) {

@@ -43,6 +43,24 @@ function board() {
   return new RoomWorkspace(storage, log)
 }
 
+describe("the brief", () => {
+  it("carries a member's tasks, the blockers they wait on, and each task's dependencies", () => {
+    const ws = board()
+    ws.create(LEAD, { id: "z", title: "source", owner: ANA }, MEMBERS)
+    ws.create(LEAD, { id: "a", title: "facts", owner: ANA, dependsOn: ["z"] }, MEMBERS)
+    ws.create(LEAD, { id: "b", title: "merge", owner: MAX, dependsOn: ["a"] }, MEMBERS)
+    ws.create(LEAD, { id: "c", title: "publish", owner: MAX, dependsOn: ["b"] }, MEMBERS)
+    ws.create(LEAD, { id: "d", title: "done already", owner: MAX }, MEMBERS)
+    ws.update(LEAD, "d", { status: "done" }, MEMBERS, true)
+
+    expect(ws.briefTasks(MAX)).toEqual([
+      { id: "b", title: "merge", status: "todo", owner: MAX, dependsOn: ["a"] },
+      { id: "c", title: "publish", status: "todo", owner: MAX, dependsOn: ["b"] },
+      { id: "a", title: "facts", status: "todo", owner: ANA, dependsOn: ["z"] },
+    ])
+  })
+})
+
 describe("task wakes", () => {
   it("skip a task its owner already moved to review before its dependencies finished", () => {
     const ws = board()

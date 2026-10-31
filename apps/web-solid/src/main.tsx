@@ -14,5 +14,6 @@ export async function start(): Promise<void> {
   const root = document.getElementById("root")
   if (!root) throw new Error("Root element #root not found")
   root.replaceChildren()
+  void router.load().catch(() => {})
   render(() => <RouterProvider router={router} />, root)
 }

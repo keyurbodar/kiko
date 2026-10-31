@@ -87,6 +87,20 @@ describe("an agent's pending envelopes", () => {
 })
 
 describe("when a burst is due", () => {
+  it("reads one delivery page when it measures the deadline", () => {
+    const limits: number[] = []
+    const b = burst({
+      unansweredFor: (_slug: AgentSlug, _after: number, limit = 200) => {
+        limits.push(limit)
+        return []
+      },
+    })
+
+    b.deadline()
+
+    expect(limits).toEqual([200])
+  })
+
   it("gives a message its own quiet window even after a long burst", () => {
     expect(debounce("message", 12_000, 0)).toBe(13_000)
     expect(debounce("fragment", 12_000, 0)).toBe(14_500)

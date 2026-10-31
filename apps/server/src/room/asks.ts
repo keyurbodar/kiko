@@ -33,8 +33,7 @@ export class Asks {
       remote,
       this.roomId,
     )
-    if (Math.random() < 0.02)
-      this.sql.exec("DELETE FROM agent_asks WHERE at < ?1 AND agent_asks.room_id = ?2", now - KEEP_ASKS_MS, this.roomId)
+    this.sql.exec("DELETE FROM agent_asks WHERE at < ?1 AND agent_asks.room_id = ?2", now - KEEP_ASKS_MS, this.roomId)
   }
 
   answer(from: AgentSlug, to: AgentSlug, text: string, send: string): string[] {

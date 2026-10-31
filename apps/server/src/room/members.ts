@@ -1,9 +1,19 @@
-import type { AgentSlug, AgentState, Member, MemberOp, MemberRefusal, RoomEvent, TaskStatus } from "@kiko/protocol"
+import {
+  MAX_MEMBERS,
+  type AgentSlug,
+  type AgentState,
+  type Member,
+  type MemberOp,
+  type MemberRefusal,
+  type RoomEvent,
+  type TaskStatus,
+} from "@kiko/protocol"
 import type { RoomLog } from "./log"
 
 import { CHIEF } from "./chief"
 
-export const MAX_MEMBERS = 8
+export { MAX_MEMBERS }
+
 const MAX_NAME = 60
 export const MAX_ROLE = 400
 const MAX_MODEL = 200

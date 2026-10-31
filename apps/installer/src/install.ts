@@ -96,7 +96,7 @@ type Claimable = Extract<Scan, { _tag: "Other" | "Unclaimed" }>
 const OAUTH_TOKEN_URL = "https://dash.cloudflare.com/oauth2/token"
 const RESOLVERS = ["https://cloudflare-dns.com/dns-query", "https://dns.google/resolve"]
 const POLL = Schedule.spaced("3 seconds")
-const SKIPPABLE: ReadonlySet<string> = new Set(["no_permission", "cloudflare_error"])
+const SKIPPABLE: ReadonlySet<string> = new Set(["no_permission"])
 
 const base64url = (bytes: Uint8Array) =>
   btoa(String.fromCharCode(...bytes))
@@ -325,10 +325,13 @@ const upload = Effect.fn("Installer.upload")(function* (
         ),
         keptBindings(deployment.existing?.bindings ?? [], builder ? [...written, builder] : written),
       ),
-    catch: (error) =>
-      error instanceof ReleasePlanRefused && error.reason === "unknown_migration"
-        ? failed("not_keepable", error.message)
-        : failed("release_untrusted", error instanceof Error ? error.message : undefined),
+    catch: (error) => {
+      if (error instanceof ReleasePlanRefused && error.reason === "unknown_migration")
+        return failed("not_keepable", error.message)
+      if (error instanceof ReleasePlanRefused && error.reason === "missing_migration_tag")
+        return failed("missing_migration_tag", error.message)
+      return failed("release_untrusted", error instanceof Error ? error.message : undefined)
+    },
   })
   const script = `/accounts/${account.id}/workers/scripts/${deployment.name}`
   if (deployment.deleteFirst)

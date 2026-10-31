@@ -24,6 +24,15 @@ export class OwnerRpcUnavailableError extends Schema.TaggedError<OwnerRpcUnavail
 
 const MAX_EXPECTED_FAILURE_RETRY_DELAY_MS = 30_000
 
+const RECOVERABLE_RPC_CLIENT_ERRORS: ReadonlySet<string> = new Set([
+  "SocketReadError",
+  "SocketWriteError",
+  "SocketCloseError",
+])
+
+const isRecoverableRpcClientError = (error: RpcClientError.RpcClientError): boolean =>
+  RECOVERABLE_RPC_CLIENT_ERRORS.has(error.reason._tag)
+
 export const currentSession: Effect.Effect<RpcSession, OwnerRpcUnavailableError, OwnerSupervisor> = Effect.gen(
   function* () {
     const supervisor = yield* OwnerSupervisor
@@ -84,8 +93,20 @@ export function subscribe<const Tag extends OwnerStreamTag>(
             onNone: () => Stream.empty,
             onSome: (session) => {
               let retries = 0
-              const open = (): Stream.Stream<Item, Failure> =>
-                Stream.suspend(() =>
+              function reopen(): Stream.Stream<Item, Failure> {
+                const after = options?.retryExpectedFailureAfter
+                if (after === undefined) return Stream.empty
+                const delay = Duration.millis(
+                  Math.min(
+                    Duration.toMillis(Duration.fromInputUnsafe(after)) * 2 ** retries,
+                    MAX_EXPECTED_FAILURE_RETRY_DELAY_MS,
+                  ),
+                )
+                retries += 1
+                return Stream.fromEffect(Effect.sleep(delay)).pipe(Stream.drain, Stream.concat(open()))
+              }
+              function open(): Stream.Stream<Item, Failure> {
+                return Stream.suspend(() =>
                   Stream.unwrap(
                     makeInput(session).pipe(
                       Effect.map((input) =>
@@ -107,29 +128,22 @@ export function subscribe<const Tag extends OwnerStreamTag>(
                     Stream.catchCause((cause): Stream.Stream<Item, Failure> => {
                       const failures = cause.reasons.filter(Cause.isFailReason)
                       const expectedOnly = failures.length > 0 && failures.length === cause.reasons.length
-                      if (expectedOnly && failures.every((reason) => isRpcClientError(reason.error))) {
-                        return Stream.empty
+                      const rpcFailures = failures.map((reason) => reason.error).filter(isRpcClientError)
+                      if (expectedOnly && rpcFailures.length === failures.length) {
+                        return rpcFailures.every(isRecoverableRpcClientError) ? reopen() : Stream.empty
                       }
                       if (!expectedOnly || options?.onExpectedFailure === undefined)
                         return Stream.failCause(cause as Cause.Cause<Failure>)
                       const handled = Stream.fromEffect(options.onExpectedFailure(cause as Cause.Cause<Failure>)).pipe(
                         Stream.drain,
                       )
-                      if (options.retryExpectedFailureAfter === undefined) return handled
-                      const delay = Duration.millis(
-                        Math.min(
-                          Duration.toMillis(Duration.fromInputUnsafe(options.retryExpectedFailureAfter)) * 2 ** retries,
-                          MAX_EXPECTED_FAILURE_RETRY_DELAY_MS,
-                        ),
-                      )
-                      retries += 1
-                      return handled.pipe(
-                        Stream.concat(Stream.fromEffect(Effect.sleep(delay)).pipe(Stream.drain)),
-                        Stream.concat(open()),
-                      )
+                      return options.retryExpectedFailureAfter === undefined
+                        ? handled
+                        : handled.pipe(Stream.concat(reopen()))
                     }),
                   ),
                 )
+              }
               return open()
             },
           }),

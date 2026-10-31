@@ -35,6 +35,10 @@ export async function withOwner<A, E>(ctx: Context, run: (client: OwnerClient) =
   if (!token) throw new CliError({ message: "not signed in. run `kiko login --dev` first" })
   return Effect.runPromise(
     makeClient.pipe(
+      Effect.timeoutOrElse({
+        duration: 5000,
+        orElse: () => Effect.fail(new CliError({ message: `no answer from ${new URL(ctx.url).origin} within 5s` })),
+      }),
       Effect.flatMap(run),
       Effect.mapError(failure),
       Effect.scoped,

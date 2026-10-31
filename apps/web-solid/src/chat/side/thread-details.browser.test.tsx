@@ -12,6 +12,8 @@ const fake = vi.hoisted(() => ({
   setTasks: null as unknown as (tasks: readonly unknown[]) => void,
   setHelpers: null as unknown as (helpers: readonly unknown[]) => void,
   setPresence: null as unknown as (presence: string) => void,
+  setMessages: null as unknown as (messages: readonly unknown[]) => void,
+  setSteps: null as unknown as (steps: Readonly<Record<string, readonly unknown[]>>) => void,
 }))
 
 vi.mock("../../state/room", async () => {
@@ -19,20 +21,24 @@ vi.mock("../../state/room", async () => {
   const [tasks, setTasks] = createSignal<readonly unknown[]>([])
   const [helpers, setHelpers] = createSignal<readonly unknown[]>([])
   const [presence, setPresence] = createSignal("idle")
+  const [messages, setMessages] = createSignal<readonly unknown[]>([])
+  const [steps, setSteps] = createSignal<Readonly<Record<string, readonly unknown[]>>>({})
   fake.setTasks = setTasks as never
   fake.setHelpers = setHelpers as never
   fake.setPresence = setPresence as never
+  fake.setMessages = setMessages as never
+  fake.setSteps = setSteps as never
   return {
     fileSrc: () => "",
     room: {
-      messages: () => [],
+      messages: () => messages(),
       files: () => [],
       tasks: () => tasks(),
       helpers: () => helpers(),
       typingSlugs: () => [],
       typingDoings: () => [],
       typingRun: () => null,
-      runSteps: () => [],
+      runSteps: (key: string) => steps()[key] ?? [],
       runReady: () => true,
       chatById: () => ({ presence: presence() }),
       active: () => ({ asks: () => [] }),
@@ -179,5 +185,44 @@ describe("thread details card", () => {
     fake.setTasks([])
     await using screen = await render(() => <ThreadDetails chatId={CHAT} />)
     expect(screen.container.textContent).toContain("Choose what to show")
+  })
+
+  it("shows uploads and pages the session used", async () => {
+    resetThreadDetails()
+    fake.setPresence("idle")
+    fake.setMessages([
+      {
+        id: "u1",
+        threadId: CHAT,
+        sender: "user",
+        body: "see this",
+        sentAt: 1,
+        files: [{ name: "notes.pdf", size: 10, type: "application/pdf", src: "" }],
+      },
+      { id: "b1", threadId: CHAT, sender: "bot", botId: "kiko", body: "", sentAt: 2, steps: 1 },
+    ])
+    fake.setSteps({
+      "kiko#0": [
+        {
+          id: "s1",
+          runId: "r1",
+          slug: "kiko",
+          tool: "web",
+          name: "browse",
+          label: "Browsed example.com",
+          input: '{"url":"https://example.com"}',
+          status: "done",
+          startedAt: 1,
+          after: 0,
+        },
+      ],
+    })
+    await using screen = await render(() => <ThreadDetails chatId={CHAT} />)
+    const used = section(screen.container, "used")!
+    expect(used.textContent).toContain("notes.pdf")
+    expect(used.textContent).toContain("Pages read")
+    expect(used.textContent).toContain("1 page")
+    fake.setMessages([])
+    fake.setSteps({})
   })
 })

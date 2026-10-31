@@ -14,6 +14,7 @@ import * as ConnectionWakeups from "../connection/wakeups"
 import { SnapshotCache } from "../platform/cache"
 import { subscribe } from "../rpc/client"
 import { makeCachePersister } from "./cachePersistence"
+import { ChatRemovals } from "./chatRemovals"
 import { PendingCommands, roomKey } from "./pending"
 import { roomReducer } from "./room"
 import {
@@ -105,11 +106,12 @@ export const makeRoomState = Effect.fnUntraced(function* (
 ): Effect.fn.Return<
   SubscriptionRef.SubscriptionRef<RoomState>,
   never,
-  OwnerSupervisor | SnapshotCache | PendingCommands | ConnectionWakeups.ConnectionWakeups | Scope.Scope
+  OwnerSupervisor | SnapshotCache | PendingCommands | ConnectionWakeups.ConnectionWakeups | ChatRemovals | Scope.Scope
 > {
   const supervisor = yield* OwnerSupervisor
   const cache = yield* SnapshotCache
   const pending = yield* PendingCommands
+  const removals = yield* ChatRemovals
   const wakeups = yield* ConnectionWakeups.ConnectionWakeups
   const owner = {}
   if (resume) resume.owner = owner
@@ -132,13 +134,16 @@ export const makeRoomState = Effect.fnUntraced(function* (
     )
   const state = yield* SubscriptionRef.make<RoomState>(initial)
   let resumingLive = initial.status === "live"
+  let notFoundSession: object | undefined
+  let notFoundCount = 0
+  let removed = false
   const lock = yield* Semaphore.make(1)
   const remember = (value: RoomState) =>
     Effect.sync(() => {
-      if (resume?.owner === owner) resume.snapshot = value
+      if (resume?.owner === owner) resume.snapshot = value.status === "missing" ? undefined : value
     })
   const persister = yield* makeCachePersister((value: RoomState) =>
-    resume !== undefined && resume.owner !== owner
+    removed || removals.isRemoved(roomId) || (resume !== undefined && resume.owner !== owner)
       ? Effect.void
       : Option.isSome(value.data)
         ? cache.saveRoom(roomId, { sequence: value.sequence, snapshot: value.data.value })
@@ -154,6 +159,10 @@ export const makeRoomState = Effect.fnUntraced(function* (
         const after = applyStreamItems(before, items as ReadonlyArray<Item>, roomReducer)
         yield* SubscriptionRef.set(state, after)
         yield* remember(after)
+        if (items.some((item) => item.kind === "snapshot")) {
+          removed = false
+          notFoundCount = 0
+        }
         for (const item of items) if (item.kind === "signal") yield* PubSub.publish(signals, item.signal)
         if (Option.isSome(after.data)) {
           yield* pending.rooms.reconcile(roomKey(roomId), after.data.value, after.sequence)
@@ -174,14 +183,26 @@ export const makeRoomState = Effect.fnUntraced(function* (
       Effect.forkScoped,
     )
 
-  const missing = update(markMissing).pipe(Effect.andThen(cache.removeRoom(roomId).pipe(Effect.ignore)))
+  const forget = Effect.suspend(() => {
+    removed = true
+    return update(markMissing).pipe(Effect.andThen(cache.removeRoom(roomId).pipe(Effect.ignore)))
+  })
+
+  const notFound = Effect.suspend(() => {
+    notFoundCount += 1
+    return notFoundCount > 1 ? forget : Effect.void
+  })
 
   yield* subscribe(
     "room.subscribe",
-    () =>
+    (session) =>
       Effect.gen(function* () {
+        if (notFoundSession !== session) {
+          notFoundSession = session
+          notFoundCount = 0
+        }
         const current = yield* SubscriptionRef.get(state)
-        if (current.status === "missing") return yield* Effect.never
+        if (current.status === "missing" && notFoundCount > 1) return yield* Effect.never
         const keepLive = resumingLive && current.status === "live"
         resumingLive = false
         if (!keepLive) yield* update(markCatchingUp)
@@ -190,7 +211,7 @@ export const makeRoomState = Effect.fnUntraced(function* (
     {
       onExpectedFailure: (cause) =>
         isNotFound(cause)
-          ? missing
+          ? notFound
           : update((current) => markFailed(current, failureMessage(cause))).pipe(Effect.asVoid),
       retryExpectedFailureAfter: "250 millis",
       resubscribe: wakeups.changes.pipe(Stream.filter(ConnectionWakeups.shouldResubscribeAfterWakeup)),

@@ -17,7 +17,15 @@ import { createQuery } from "../state/runtime"
 import { Portal } from "solid-js/web"
 import { VList, type VListHandle } from "virtua/solid"
 import { catalogQuery } from "./catalog"
-import { STARRED, modelDetail, modelRef, pickerEntries, type ModelRow, type PickerEntry } from "./model-list"
+import {
+  STARRED,
+  modelDetail,
+  modelRef,
+  pickerEntries,
+  providerOf,
+  type ModelRow,
+  type PickerEntry,
+} from "./model-list"
 import { RemixIcon } from "@kiko/ui/remix-icon"
 import { CheckIcon, ChevronRightIcon, SearchIcon } from "@kiko/ui/icons"
 import type { ThinkingLevel } from "@kiko/protocol"
@@ -179,7 +187,7 @@ export function ModelList(props: {
   const [legacyOpen, setLegacyOpen] = createSignal(false)
   const filter = createMemo(() => {
     const known = (value: string | undefined) => value === STARRED || providers().some((p) => p.id === value)
-    const own = props.current?.split("/")[0]
+    const own = providerOf(props.current)
     const first = providers()[0]?.id
     return [chosen(), own, first].find(known) ?? STARRED
   })
@@ -200,6 +208,7 @@ export function ModelList(props: {
     }),
   )
   const rows = createMemo(() => entries().flatMap((e) => (e.kind === "row" ? [e] : [])))
+  createEffect(() => setAt((n) => Math.min(n, Math.max(0, rows().length - 1))))
   const entryIndex = (rowAt: number) => entries().findIndex((e) => e.kind === "row" && e.at === rowAt)
 
   let centered: string | undefined

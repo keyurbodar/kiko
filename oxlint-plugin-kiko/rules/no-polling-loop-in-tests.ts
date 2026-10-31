@@ -82,6 +82,7 @@ const isWait = (node: ESTree.Node): boolean => {
   if (node.type === "NewExpression") return isTickPromise(node)
   if (node.type !== "CallExpression") return false
   if (isMember(node.callee, "Effect", "sleep")) return true
+  if (isMember(node.callee, "Bun", "sleep") || isMember(node.callee, "Bun", "sleepSync")) return true
   if (isIdentifier(unwrapExpression(node.callee), "setImmediate")) return true
   if (isMember(node.callee, "Effect", "promise")) return thunkReturnsTick(node.arguments[0])
   return false

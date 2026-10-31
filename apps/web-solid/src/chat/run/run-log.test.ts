@@ -1,5 +1,6 @@
+import type { AgentSlug, RunStep } from "@kiko/protocol"
 import { describe, expect, it } from "vitest"
-import { extraInput, iconOf, liveLabel, summarizeSteps } from "./run-log"
+import { extraInput, iconOf, liveLabel, summarizeSteps, upsertStep } from "./run-log"
 
 const step = (name: string, input?: string, label = `Used ${name}`) => ({
   tool: "other" as const,
@@ -69,6 +70,50 @@ describe("shell and app steps", () => {
     expect(liveLabel(step("app_deploy", '{"name":"hn-live"}'))).toBe("Deployed hn-live")
     expect(liveLabel(step("app_inspect", '{"name":"hn-live","what":"logs"}'))).toBe("Checked hn-live logs")
     expect(iconOf({ ...step("app_deploy", "{}"), app: undefined })).toBe("deploy")
+  })
+})
+
+describe("upsertStep", () => {
+  const runStep = (over: Partial<RunStep> = {}): RunStep => ({
+    id: "s1",
+    runId: "r1",
+    slug: "kiko" as AgentSlug,
+    tool: "other",
+    name: "read",
+    label: "Read a file",
+    status: "done",
+    startedAt: 1,
+    after: 0,
+    ...over,
+  })
+
+  it("returns the array it was given when a replayed step changes nothing", () => {
+    const steps = [runStep()]
+    expect(upsertStep(steps, runStep())).toBe(steps)
+  })
+
+  it("treats a replayed helper step as unchanged", () => {
+    const steps = [runStep({ worker: { id: "w1", task: "Layouts" } })]
+    expect(upsertStep(steps, runStep({ worker: { id: "w1", task: "Layouts" } }))).toBe(steps)
+  })
+
+  it("keeps a finished step when its running copy arrives again", () => {
+    const steps = [runStep()]
+    expect(upsertStep(steps, runStep({ status: "running" }))).toBe(steps)
+  })
+
+  it("replaces the step when a field changed", () => {
+    const steps = [runStep({ status: "running" })]
+    const done = runStep({ endedAt: 2 })
+    const next = upsertStep(steps, done)
+    expect(next).not.toBe(steps)
+    expect(next[0]).toEqual(done)
+  })
+
+  it("adds a step it has not seen", () => {
+    const steps = [runStep()]
+    const next = upsertStep(steps, runStep({ id: "s2", startedAt: 2 }))
+    expect(next.map((step) => step.id)).toEqual(["s1", "s2"])
   })
 })
 

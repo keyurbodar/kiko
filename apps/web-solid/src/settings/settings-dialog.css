@@ -293,7 +293,7 @@
   }
 
   .settings-close {
-    top: 12px;
+    top: calc(12px + env(safe-area-inset-top, 0px));
     right: 12px;
   }
 }

@@ -78,7 +78,7 @@ export const verifyClerkToken = Effect.fn("verifyClerkToken")(function* (
     return yield* new ClerkTokenError({ code: "token_expired", message: "That token has expired" })
   if (nbf !== undefined && nbf - SKEW_S > now)
     return yield* new ClerkTokenError({ code: "token_expired", message: "That token is not valid yet" })
-  if (azp !== undefined && !trust.trustedOrigins.includes(azp))
+  if (azp === undefined || !trust.trustedOrigins.includes(azp))
     return yield* new ClerkTokenError({
       code: "origin_untrusted",
       message: "That token is from an origin this backend does not trust",

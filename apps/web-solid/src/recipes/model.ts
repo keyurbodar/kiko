@@ -44,14 +44,17 @@ export function installedSlugs(
 }
 
 export type InstallStatus =
-  | { kind: "next"; at: number }
+  | { kind: "next"; at: number; tz: string }
   | { kind: "paused"; schedule: string }
   | { kind: "ask"; label: string }
 
 export function installStatus(install: RecipeInstall, card: RecipeCard): InstallStatus {
   const routines = install.routines ?? []
   const active = routines.filter((r) => r.status === "active")
-  if (active.length) return { kind: "next", at: Math.min(...active.map((r) => r.dueUtc)) }
+  if (active.length) {
+    const soonest = active.reduce((a, b) => (a.dueUtc <= b.dueUtc ? a : b))
+    return { kind: "next", at: soonest.dueUtc, tz: soonest.tz }
+  }
   if (routines.length) return { kind: "paused", schedule: triggerLabel(routines[0].trigger, routines[0].tz) }
   return { kind: "ask", label: localizeWhen(card.when) }
 }

@@ -13,7 +13,7 @@ import { ReasoningMenu } from "./reasoning-menu"
 import { useLiveModel } from "./catalog"
 import { connectedProviders } from "./connected"
 import { hasModelProvider } from "./provider-kinds"
-import { shortModelName } from "./model-list"
+import { modelIdOf, providerOf, shortModelName } from "./model-list"
 import ModelPickerPanel from "./model-picker-panel"
 import { ModelSheet } from "./model-sheet"
 import "./model-picker.css"
@@ -89,7 +89,7 @@ export function ModelPickerButton(props: { draft: string }) {
     <Show when={hasModelProvider(connectedProviders()) ? target() : undefined}>
       {(member) => {
         const current = useLiveModel(() => user.agentModel(member().slug))
-        const label = () => current()?.name ?? current()?.model.split("/").slice(1).join("/") ?? "Choose model"
+        const label = () => current()?.name ?? modelIdOf(current()?.model) ?? "Choose model"
         const thinking = () => {
           const levels = current()?.thinkingLevels
           return canReason(levels) ? THINKING_LABELS[current()?.thinking ?? defaultThinking(levels ?? [])] : null
@@ -113,7 +113,7 @@ export function ModelPickerButton(props: { draft: string }) {
                   onClick={() => changePicker(!pickerOpen())}
                 >
                   <span class="model-chip">
-                    <Show when={current()?.model.split("/")[0]}>
+                    <Show when={providerOf(current()?.model)}>
                       {(provider) => <ProviderIcon id={provider()} width="14" height="14" />}
                     </Show>
                     <span class="truncate" data-component="composer-model">
@@ -146,7 +146,7 @@ export function ModelPickerButton(props: { draft: string }) {
               <Show when={members().length > 1}>
                 <IdentityAvatar seed={member().slug} size={14} />
               </Show>
-              <Show when={current()?.model.split("/")[0]} keyed>
+              <Show when={providerOf(current()?.model)} keyed>
                 {(provider) => (
                   <span class="picker-swap" data-enter={painted() ? "" : undefined}>
                     <ProviderIcon id={provider} width="13" height="13" />

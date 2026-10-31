@@ -1,6 +1,6 @@
 import { setTimeout as sleep } from "node:timers/promises"
 import type { Args, Holder, Step, Value } from "@kiko/computer/wire"
-import type { Area, Backend, Shot } from "./desk/backend"
+import type { Access, Area, Backend, Shot } from "./desk/backend"
 import { parseKeys } from "./desk/keys"
 import { Fail } from "./log"
 import { InputQueue } from "./queue"
@@ -19,6 +19,7 @@ const HOVER_MS = 40
 const PRESS_MS = 30
 const FOCUS_MS = 120
 const STEP_GAP_MS = 60
+const ACCESS_TTL_MS = 30_000
 
 const BUTTONS = { left: 0, right: 1, middle: 2 } as const
 
@@ -56,6 +57,8 @@ export class Desktop {
   private frames: Frame[] = []
   private current: Frame | null = null
   private screen = false
+  private access: Access | null = null
+  private accessAt = 0
 
   constructor(
     private readonly backend: Backend,
@@ -92,6 +95,13 @@ export class Desktop {
   }
 
   async act(args: Args<"act">, deadline: Deadline): Promise<Value<"act">> {
+    return this.queue.run(
+      () => this.perform(args, deadline),
+      async () => this.backend.native.release(),
+    )
+  }
+
+  private async perform(args: Args<"act">, deadline: Deadline): Promise<Value<"act">> {
     const frame = args.captureId ? await this.resolve(args.captureId, deadline) : await this.fresh(deadline)
     this.requireInput()
     const outside = args.steps.map((step) => outsideOf(frame, step)).find((message) => message !== null)
@@ -104,15 +114,10 @@ export class Desktop {
         error = "the owner took over the screen, so the rest did not run"
         break
       }
-      const failed = await this.queue
-        .run(
-          () => this.step(frame, step, deadline),
-          async () => this.backend.native.release(),
-        )
-        .then(
-          () => undefined,
-          (cause: unknown) => stepFailure(cause, deadline),
-        )
+      const failed = await this.step(frame, step, deadline).then(
+        () => undefined,
+        (cause: unknown) => stepFailure(cause, deadline),
+      )
       if (failed !== undefined) {
         error = failed
         break
@@ -256,17 +261,26 @@ export class Desktop {
   }
 
   private requireInput(): void {
-    if (this.backend.access().input) return
+    if (this.permissions().input) return
     throw new Fail({ code: "unsupported", message: inputDenied() })
   }
 
   private requireScreen(): void {
     if (this.screen) return
-    if (this.backend.access().screen) {
+    if (this.permissions().screen) {
       this.screen = true
       return
     }
     throw new Fail({ code: "unsupported", message: screenDenied() })
+  }
+
+  private permissions(): Access {
+    const now = Date.now()
+    if (this.access === null || now - this.accessAt >= ACCESS_TTL_MS) {
+      this.access = this.backend.access()
+      this.accessAt = now
+    }
+    return this.access
   }
 
   private async capture(args: Args<"look">, deadline: Deadline): Promise<Captured> {

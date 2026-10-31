@@ -1,5 +1,6 @@
-import { chmod, copyFile, mkdir, readFile, stat, writeFile } from "node:fs/promises"
+import { chmod, copyFile, mkdir, readFile, rm, stat, writeFile } from "node:fs/promises"
 import { basename, dirname, join } from "node:path"
+import { configDir } from "./config"
 import { CliError } from "./errors"
 import { homeDir } from "./platform"
 import { selfArgv } from "./self"
@@ -8,6 +9,7 @@ export const LABEL = "com.kiko.computer"
 const MOVE_LABEL = `${LABEL}.move`
 const UNIT = "kiko-computer.service"
 const HOST = "kiko-computer-host"
+const WINDOWS_IMAGE = "kiko-computer.exe"
 const RUN_KEY = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run"
 const MAC_PATHS = ["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin", "/usr/sbin", "/sbin"]
 const BOOTOUT_WAIT_MS = 5_000
@@ -23,8 +25,9 @@ const SYSTEMD_ENV = [
 
 export type ServiceAction = "install" | "uninstall" | "status"
 
-function selfCommand(): string[] {
-  return [...selfArgv(), "run"]
+export function selfCommand(dir: string): string[] {
+  const argv = [...selfArgv(), "run"]
+  return dir === configDir() ? argv : [...argv, "--dir", dir]
 }
 
 function hostPath(): string | null {
@@ -33,10 +36,10 @@ function hostPath(): string | null {
   return self.length === 1 && exec ? join(dirname(exec), HOST) : null
 }
 
-async function launchdProgram(): Promise<string[]> {
+async function launchdProgram(dir: string): Promise<string[]> {
   const self = selfArgv()
   const exec = self[0]
-  if (self.length !== 1 || !exec) return selfCommand()
+  if (self.length !== 1 || !exec) return selfCommand(dir)
   const host = join(dirname(exec), HOST)
   if (!(await exists(host))) {
     await copyFile(exec, host)
@@ -160,19 +163,24 @@ export function needsHost(plist: string | null, platform: NodeJS.Platform, env: 
 export async function moveToHost(): Promise<boolean> {
   const host = hostPath()
   if (!host) return false
-  const plist = await readFile(launchdPath(), "utf8").catch(() => null)
-  if (!needsHost(plist, process.platform, process.env)) return false
   const file = join(dirname(host), `${MOVE_LABEL}.plist`)
+  const plist = await readFile(launchdPath(), "utf8").catch(() => null)
+  if (!needsHost(plist, process.platform, process.env)) {
+    await rm(file, { force: true })
+    return false
+  }
   const domain = `gui/${process.getuid?.() ?? 501}`
   await writeUnit(file, launchdPlist([...selfArgv(), "service", "install"], MOVE_LABEL, false))
   await quiet(["launchctl", "bootout", `${domain}/${MOVE_LABEL}`])
-  return (await quiet(["launchctl", "bootstrap", domain, file])) === 0
+  const moved = (await quiet(["launchctl", "bootstrap", domain, file])) === 0
+  if (moved) await rm(file, { force: true })
+  return moved
 }
 
-export async function service(action: ServiceAction): Promise<number> {
-  if (process.platform === "darwin") return launchd(action)
-  if (process.platform === "win32") return windows(action)
-  return systemd(action)
+export async function service(action: ServiceAction, dir = configDir()): Promise<number> {
+  if (process.platform === "darwin") return launchd(action, dir)
+  if (process.platform === "win32") return windows(action, dir)
+  return systemd(action, dir)
 }
 
 async function quiet(argv: string[]): Promise<number> {
@@ -193,11 +201,11 @@ async function bootstrap(domain: string, file: string): Promise<boolean> {
   return (await run(["launchctl", "bootstrap", domain, file])) === 0
 }
 
-async function launchd(action: ServiceAction): Promise<number> {
+async function launchd(action: ServiceAction, dir: string): Promise<number> {
   const file = launchdPath()
   const domain = `gui/${process.getuid?.() ?? 501}`
   if (action === "install") {
-    await writeUnit(file, launchdPlist(await launchdProgram()))
+    await writeUnit(file, launchdPlist(await launchdProgram(dir)))
     await bootout(domain, file)
     if (!(await bootstrap(domain, file))) throw new CliError({ message: `launchctl could not load ${file}` })
     console.log(`installed ${file}`)
@@ -219,10 +227,10 @@ async function launchd(action: ServiceAction): Promise<number> {
   return 0
 }
 
-async function systemd(action: ServiceAction): Promise<number> {
+async function systemd(action: ServiceAction, dir: string): Promise<number> {
   const file = systemdPath()
   if (action === "install") {
-    await writeUnit(file, systemdUnit(selfCommand()))
+    await writeUnit(file, systemdUnit(selfCommand(dir)))
     await run(["systemctl", "--user", "daemon-reload"])
     const enabled = await run(["systemctl", "--user", "enable", UNIT])
     if (enabled !== 0)
@@ -244,8 +252,23 @@ async function systemd(action: ServiceAction): Promise<number> {
   return 0
 }
 
-async function windows(action: ServiceAction): Promise<number> {
-  const program = [...selfCommand(), "--background"]
+export function windowsStopScript(exec: string, pid: number): string {
+  return `Get-CimInstance Win32_Process -Filter "Name='${WINDOWS_IMAGE}'" | Where-Object { $_.ExecutablePath -eq '${exec.replaceAll("'", "''")}' -and $_.ProcessId -ne ${pid} } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }`
+}
+
+async function stopWindowsDaemon(): Promise<void> {
+  if (basename(process.execPath).toLowerCase() !== WINDOWS_IMAGE) return
+  await quiet([
+    "powershell",
+    "-NoProfile",
+    "-NonInteractive",
+    "-Command",
+    windowsStopScript(process.execPath, process.pid),
+  ])
+}
+
+async function windows(action: ServiceAction, dir: string): Promise<number> {
+  const program = [...selfCommand(dir), "--background"]
   if (action === "status") {
     const found = await quiet(["reg", "query", RUN_KEY, "/v", "kiko-computer"])
     console.log(
@@ -255,8 +278,7 @@ async function windows(action: ServiceAction): Promise<number> {
     )
     return 0
   }
-  if (basename(process.execPath).toLowerCase() === "kiko-computer.exe")
-    await quiet(["taskkill", "/F", "/IM", "kiko-computer.exe", "/FI", `PID ne ${process.pid}`])
+  await stopWindowsDaemon()
   if (action === "uninstall") {
     await quiet(["reg", "delete", RUN_KEY, "/v", "kiko-computer", "/f"])
     console.log("kiko-computer no longer starts at logon")

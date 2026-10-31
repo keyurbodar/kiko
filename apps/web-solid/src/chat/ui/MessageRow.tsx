@@ -83,7 +83,6 @@ export function MessageRow(props: {
   const named = () => grouped() && props.isRunStart
   const nameInBubble = () => named() && !props.jumboClass
   const failed = () => props.message.status === "failed"
-  const failure = (): string | undefined => undefined
   return (
     <div
       class={cn(
@@ -180,12 +179,8 @@ export function MessageRow(props: {
               role="alert"
             >
               <RemixIcon icon={AlertCircleIcon} class="size-4 shrink-0 text-bad" />
-              <span
-                class="min-w-0 flex-1 truncate text-hint font-medium"
-                title={failure() ?? undefined}
-                data-part="reason"
-              >
-                {failure() ?? "Didn't send"}
+              <span class="min-w-0 flex-1 truncate text-hint font-medium" data-part="reason">
+                Didn't send
               </span>
               <button
                 type="button"

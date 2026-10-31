@@ -20,6 +20,7 @@ import type { OwnerRpcClient } from "../rpc/protocol"
 import type { RpcSession } from "../rpc/session"
 import { runAtomCommand } from "./atomCommand"
 import { createOwnerAtoms } from "./atoms"
+import * as ChatRemovals from "./chatRemovals"
 import * as Pending from "./pending"
 import type { RoomState } from "./roomState"
 import type { OwnerRuntimeServices } from "./runtime"
@@ -107,6 +108,7 @@ const setup = Effect.fnUntraced(function* (connected = true) {
       Layer.succeed(UserStore, user),
       cacheLayer.pipe(Layer.provide(snapshots)),
       Pending.layer,
+      ChatRemovals.layer,
       Wakeups.layerNone,
     )
   const services = servicesWith(Layer.succeed(SnapshotStore, store))

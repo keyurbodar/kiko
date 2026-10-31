@@ -59,6 +59,10 @@ export function summarize(page: PageView, find?: string): string {
   const shown = matching.slice(0, BROWSER.summaryControls)
   const lines = shown.map(controlLine)
   if (matching.length > shown.length) lines.push(`(${matching.length - shown.length} more controls)`)
+  if (page.omitted > 0)
+    lines.push(
+      `(${page.omitted} more controls are offscreen or over the ${BROWSER.controlsMax} cap: scroll and read again)`,
+    )
   if (terms.length && !matching.length) lines.push(`(no control mentions ${find})`)
   const text = find ? findPassages(page.text, find) : page.text
   const body = text || (find ? `nothing on this page mentions ${find}` : "(no text on the page)")

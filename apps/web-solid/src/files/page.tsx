@@ -15,7 +15,7 @@ import {
   ToolButton,
   toolButton,
 } from "../customize/page-ui"
-import { formatBytes } from "../chat/info/format"
+import { formatBytes } from "../lib/format"
 import { IdentityAvatar } from "../lib/IdentityAvatar"
 import { agentDisplayName } from "../lib/names"
 import { room } from "../state/room"

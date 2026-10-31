@@ -41,10 +41,10 @@ export function workerThinking(parent: ThinkingLevel, asked: ThinkingLevel | und
   return LEVELS.indexOf(asked) < LEVELS.indexOf(parent) ? asked : parent
 }
 
-function workerAgent(agent: Agent, all: readonly Extension[], thinking?: ThinkingLevel): AgentChange {
+function workerAgent(agent: Agent, all: readonly Extension[], level: ThinkingLevel): AgentChange {
   return {
     model: agent.model ?? null,
-    thinkingLevel: workerThinking(agent.thinkingLevel, thinking),
+    thinkingLevel: level,
     extensions: forRole(all, "worker"),
     instructions: WORKER_PROMPT,
   }
@@ -55,13 +55,17 @@ const brief = (args: unknown) => {
   return text === "{}" ? "" : ` ${text.length > 80 ? `${text.slice(0, 79)}…` : text}`
 }
 
-const WorkerTasks = defineDoc<{ children: Record<string, ConversationId>; reporters: Record<string, TaskId> }>({
+const WorkerTasks = defineDoc<{
+  children: Record<string, ConversationId>
+  reporters: Record<string, TaskId>
+  thinking?: Record<string, ThinkingLevel>
+}>({
   kind: "kiko.worker-tasks",
   version: 1,
   scope: "conversation",
   history: "latest",
   fork: "initial",
-  initial: () => ({ children: {}, reporters: {} }),
+  initial: () => ({ children: {}, reporters: {}, thinking: {} }),
 })
 const WorkerAnchor = defineTask<null, { phase: "done" }, null>({
   name: "kiko.worker-anchor",
@@ -150,7 +154,9 @@ export function workExtensions(
       }
       let conversationId = work.conversationId
       if (conversationId === null) {
-        const agent = workerAgent(await api.agent(ctx), all(), thinking)
+        const parent = await api.agent(ctx)
+        const level = workerThinking(parent.thinkingLevel, thinking)
+        const agent = workerAgent(parent, all(), level)
         conversationId = await api.commit(async (tx) => {
           const tasks = await tx.doc(WorkerTasks, api.conversationId)
           const existing = tasks.children[String(api.taskId)]
@@ -162,6 +168,7 @@ export function workExtensions(
           const created = await tx.createConversation({ ownership: { kind: "task", taskId: anchor } })
           await configure(tx, created.id, agent)
           tasks.children[String(api.taskId)] = created.id
+          tasks.thinking = { ...tasks.thinking, [work.id]: level }
           return created.id
         }, ctx)
         workers.placed(work.id, conversationId)
@@ -184,9 +191,13 @@ export function workExtensions(
       const child = work?.conversationId ? await api.conversation(work.conversationId, ctx) : undefined
       if (!work || !child || !work.conversationId) return say(`there is no worker ${id}.`)
       if (work.status !== "running") {
-        const agent = workerAgent(await api.agent(ctx), all())
+        const parent = await api.agent(ctx)
         const conversationId = work.conversationId
-        await api.commit((tx) => configure(tx, conversationId, agent), ctx)
+        await api.commit(async (tx) => {
+          const tasks = await tx.doc(WorkerTasks, api.conversationId)
+          const level = workerThinking(parent.thinkingLevel, tasks.thinking?.[id])
+          await configure(tx, conversationId, workerAgent(parent, all(), level))
+        }, ctx)
       }
       await report(api, id, work.conversationId, text, `steer:${api.taskId}`, ctx)
       return say(work.status === "running" ? `sent to ${id}.` : `${id} took it up again. it reports back when done.`)

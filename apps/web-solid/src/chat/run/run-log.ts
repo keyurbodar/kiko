@@ -354,11 +354,37 @@ function pruneSteps(steps: RunStep[]): RunStep[] {
   return kept.length === steps.length ? steps : kept
 }
 
-export function upsertStep(steps: readonly RunStep[], step: RunStep): RunStep[] {
+type StepField = Exclude<keyof RunStep, "worker">
+
+const STEP_FIELDS = {
+  id: 1,
+  runId: 1,
+  slug: 1,
+  tool: 1,
+  name: 1,
+  app: 1,
+  note: 1,
+  label: 1,
+  input: 1,
+  status: 1,
+  startedAt: 1,
+  endedAt: 1,
+  output: 1,
+  after: 1,
+} satisfies Record<StepField, 1>
+
+const sameWorker = (a: RunStep["worker"], b: RunStep["worker"]): boolean =>
+  a === b || (a !== undefined && b !== undefined && a.id === b.id && a.task === b.task)
+
+const sameStep = (a: RunStep, b: RunStep): boolean =>
+  (Object.keys(STEP_FIELDS) as StepField[]).every((field) => a[field] === b[field]) && sameWorker(a.worker, b.worker)
+
+export function upsertStep(steps: RunStep[], step: RunStep): RunStep[] {
   const key = stepKey(step)
   const at = steps.findIndex((s) => stepKey(s) === key)
   if (at === -1) return pruneSteps([...steps, step].sort(byStart))
-  if (rank(step) < rank(steps[at])) return [...steps]
+  const found = steps[at]!
+  if (rank(step) < rank(found) || sameStep(found, step)) return steps
   const next = [...steps]
   next[at] = step
   return next.sort(byStart)

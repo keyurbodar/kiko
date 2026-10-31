@@ -135,7 +135,7 @@ export function bindRich(input: {
 
   createEffect(() => {
     const text = markdown()
-    if (text !== editor.snapshot().markdown) {
+    if (text !== editor.markdown()) {
       editor.setMarkdown(text)
       input.onEdit()
     }

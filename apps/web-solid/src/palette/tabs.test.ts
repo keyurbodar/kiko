@@ -59,6 +59,12 @@ describe("sinceLabel", () => {
     expect(sinceLabel(NOW - 3 * DAY, NOW)).toBe("This week")
     expect(sinceLabel(NOW - 20 * DAY, NOW)).toBe("Earlier")
   })
+
+  it("changes bucket at midnight, not after 24 hours", () => {
+    const earlyToday = new Date(2026, 9, 24, 0, 10).getTime()
+    expect(sinceLabel(new Date(2026, 9, 23, 23, 50).getTime(), earlyToday)).toBe("This week")
+    expect(sinceLabel(new Date(2026, 9, 17, 23, 50).getTime(), earlyToday)).toBe("Earlier")
+  })
 })
 
 describe("All tab", () => {

@@ -32,14 +32,25 @@ export function mountLite(input: {
   dom.textContent = markdown()
   input.host.appendChild(dom)
 
-  const text = () => dom.innerText.replace(/\n$/, "")
+  const textOnly = () => {
+    for (const node of dom.childNodes) if (node.nodeType !== Node.TEXT_NODE) return false
+    return true
+  }
+  const text = () => (textOnly() ? (dom.textContent ?? "") : dom.innerText).replace(/\n$/, "")
   const cursor = () => {
     const selection = window.getSelection()
     if (!selection?.rangeCount || !dom.contains(selection.anchorNode)) return text().length
-    const range = selection.getRangeAt(0).cloneRange()
-    range.selectNodeContents(dom)
-    range.setEnd(selection.anchorNode!, selection.anchorOffset)
-    return range.toString().length
+    const edge = document.createRange()
+    edge.setStart(selection.anchorNode!, selection.anchorOffset)
+    edge.collapse(true)
+    const walker = document.createTreeWalker(dom, NodeFilter.SHOW_TEXT)
+    let total = 0
+    for (let node = walker.nextNode() as Text | null; node; node = walker.nextNode() as Text | null) {
+      if (node === selection.anchorNode) return total + selection.anchorOffset
+      if (edge.comparePoint(node, 0) !== -1) return total
+      total += node.data.length
+    }
+    return total
   }
   const sync = () => {
     const value = text()

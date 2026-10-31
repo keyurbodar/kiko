@@ -839,13 +839,19 @@ export class User {
     return this.life
       .recall(query, 10, { skipCard: true })
       .map((l) =>
-        itemLine({ pos: l.pos, at: l.at, text: `${l.source ? `${l.source}: ` : ""}${l.text}` }, 400, true, "life"),
+        itemLine(
+          { pos: l.pos, at: l.at, text: `${l.source ? `${l.source}: ` : ""}${l.text}` },
+          400,
+          true,
+          "life",
+          Date.now(),
+        ),
       )
   }
 
   async captureNow(): Promise<void> {
     await this.#mem.captureNow()
-    await this.#mem.napLife()
+    this.ctx.waitUntil(this.#mem.napLife().catch(() => {}))
   }
 
   async initiativePass(): Promise<void> {
@@ -1140,6 +1146,7 @@ export class User {
       countOutgoing: () => this.services.countOutgoing(),
       credentials: () => this.#credentials,
       turn: (provider) => this.turnContext(provider),
+      waitUntil: (work) => this.ctx.waitUntil(work),
     })
     return this.#memory
   }

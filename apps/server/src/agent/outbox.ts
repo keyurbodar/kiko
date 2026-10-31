@@ -18,13 +18,11 @@ import { scrubToolMarkup } from "./tool-markup"
 import { createSplitter, type Reaction, type Splitter } from "./split-bubbles"
 
 const context = BACKGROUND_CONTEXT
-const DRAFT_INTERVAL_MS = 300
 const THINKING_INTERVAL_MS = 500
 const THINKING_CHARS = 1_500
 
 export interface RoomPort {
   post(runId: string, attempt: number, index: number, block: string): Promise<unknown>
-  draft(runId: string, index: number, text: string): Promise<void>
   thinking(runId: string, part: number, offset: number, text: string, startedAt: number, done: boolean): Promise<void>
   note(runId: string, id: string, text: string): Promise<void>
   status(state: AgentState, detail?: string | null): Promise<void>
@@ -35,6 +33,10 @@ export interface RoomPort {
 }
 
 type Row = { run_id: string; attempt: number; cursor: number; posted: number; until?: number }
+
+type Posted = { attempt: number; posted: number }
+
+type Group = { first: number; id: SubmissionId; settled: boolean; answer?: number }
 
 type Failure = { errorMessage?: string; provider?: string }
 
@@ -123,7 +125,6 @@ export class Outbox {
   private conversationId?: Parameters<typeof watchEvents>[1]
   private run: Run | null = null
   private lastEntry = 0
-  private lastDraft = 0
   private lastThought = 0
   private state: AgentState = "idle"
   private detail: string | undefined
@@ -194,9 +195,13 @@ export class Outbox {
   }
 
   async settle(root: Conversation): Promise<void> {
-    const view = await root.context(context)
-    const entry = view.entries.reduce((last, row) => Math.max(last, row.id), 0)
-    if (this.lastEntry >= entry && !this.run) return
+    if (this.run) return this.wait(this.lastEntry)
+    const newest = (await root.entries({}, 1, undefined, context)).items[0]?.id ?? 0
+    if (this.lastEntry >= newest) return
+    return this.wait(newest)
+  }
+
+  private async wait(entry: number): Promise<void> {
     const done = Promise.withResolvers<void>()
     this.idleWaiters.add({ entry, resolve: () => done.resolve(), reject: done.reject })
     this.notifyIdle()
@@ -316,11 +321,16 @@ export class Outbox {
     const entries = snapshot.entries
     this.lastEntry = entries.reduce((max, e) => Math.max(max, e.id), this.lastEntry)
     const liveId = snapshot.run ? `${this.prefix()}:${snapshot.run.inputs[0]}` : null
-    for (const row of await this.openRows(snapshot)) {
+    const { rows, newestFinished } = await this.openRows(snapshot)
+    for (const row of rows) {
       const run = this.load(row)
       this.replayEntries(run, row, entries, liveId, livePartial)
       this.run = run
       if (run.posted > run.blocks.length + (run.generation?.blocks.length ?? 0)) this.rebase(run)
+      if (row.run_id !== liveId && row.run_id !== newestFinished && !this.unposted(run) && run.notes.length === 0) {
+        this.run = null
+        continue
+      }
       await this.notes(run)
       if (row.run_id !== liveId) await this.end(row.run_id)
     }
@@ -364,10 +374,6 @@ export class Outbox {
     this.queueReactions(run, out.reactions, run.generationIndex, generation.reactionIndex)
     generation.reactionIndex += out.reactions.length
     await this.flush()
-    if (out.draft !== null && this.now() - this.lastDraft >= DRAFT_INTERVAL_MS) {
-      this.lastDraft = this.now()
-      await this.room()?.draft(run.id, run.blocks.length + generation.blocks.length, out.draft)
-    }
   }
 
   private async thinkLast(generation: Generation, entry: EntryRecord): Promise<void> {
@@ -460,6 +466,10 @@ export class Outbox {
     run.posted = 0
   }
 
+  private unposted(run: Run): boolean {
+    return run.posted < run.blocks.length + (run.generation?.blocks.length ?? 0)
+  }
+
   private async flush(): Promise<void> {
     const run = this.run
     const room = this.room()
@@ -485,7 +495,9 @@ export class Outbox {
     try {
       if (run) {
         run.generation = null
-        await this.flush()
+        await this.flush().catch((error: unknown) =>
+          this.reportError(id, { errorMessage: error instanceof Error ? error.message : String(error) }),
+        )
       }
       const failure = run?.failure ?? (await this.unanswered(inputs?.[0]))
       if (failure) await this.reportError(id, failure)
@@ -523,7 +535,7 @@ export class Outbox {
   private row(id: string, cursor: number): Row {
     const roomId = this.agent.split(":")[0]!
     const posted = this.sql
-      .exec<{ attempt: number; posted: number }>(
+      .exec<Posted>(
         "SELECT run_attempt AS attempt, max(run_index) + 1 AS posted FROM messages WHERE room_id = ? AND run_id = ? GROUP BY run_attempt ORDER BY run_attempt DESC LIMIT 1",
         roomId,
         id,
@@ -532,41 +544,72 @@ export class Outbox {
     return { run_id: id, cursor, posted: posted?.posted ?? 0, attempt: posted?.attempt ?? 0 }
   }
 
-  private async openRows(snapshot: SnapshotEvent): Promise<Row[]> {
-    if (!this.journal) return []
-    const rows: Row[] = []
-    const groups = new Map<number, { first: number; last: number; id: SubmissionId; answer?: number }>()
+  private postedRows(): Map<string, Posted> {
+    const roomId = this.agent.split(":")[0]!
+    const rows = new Map<string, Posted>()
+    for (const row of this.sql
+      .exec<Posted & { run_id: string }>(
+        "SELECT run_id, run_attempt AS attempt, max(run_index) + 1 AS posted FROM messages WHERE room_id = ? AND run_id IS NOT NULL GROUP BY run_id, run_attempt",
+        roomId,
+      )
+      .toArray())
+      if ((rows.get(row.run_id)?.attempt ?? -1) < row.attempt)
+        rows.set(row.run_id, { attempt: row.attempt, posted: row.posted })
+    return rows
+  }
+
+  private async submissionGroups(journal: JournalStorage, snapshot: SnapshotEvent): Promise<Group[]> {
+    const groups = new Map<number, Group>()
     let cursor: Parameters<Storage["scanSubmissions"]>[2]
     do {
-      const page = await this.journal.scanSubmissions({ conversationId: this.conversationId }, 100, cursor, context)
+      const page = await journal.scanSubmissions({ conversationId: this.conversationId }, 100, cursor, context)
       for (const submission of page.items) {
         if (submission.type !== "input" || submission.entry === undefined) continue
         if (snapshot.run?.inputs.includes(submission.id) && snapshot.run.inputs[0] !== submission.id) continue
-        const settlement = this.journal.settlement(submission.id)
+        const settlement = journal.settlement(submission.id)
         const groupId = settlement ?? -submission.id
         const group = groups.get(groupId)
         if (group) {
-          group.last = Math.max(group.last, submission.entry)
+          group.settled ||= settlement !== undefined
           continue
         }
         groups.set(groupId, {
           first: submission.entry,
-          last: submission.entry,
           id: submission.id,
+          settled: settlement !== undefined,
           ...(submission.status === "done" ? { answer: submission.answer } : {}),
         })
       }
       cursor = page.next
     } while (cursor)
-    const ordered = [...groups.values()].sort((a, b) => a.first - b.first)
+    return [...groups.values()].sort((a, b) => a.first - b.first)
+  }
+
+  private async openRows(snapshot: SnapshotEvent): Promise<{ rows: Row[]; newestFinished?: string }> {
+    if (!this.journal) return { rows: [] }
+    const rows: Row[] = []
+    const ordered = await this.submissionGroups(this.journal, snapshot)
+    const newestFinished = ordered.findLast((group) => group.settled)
+    const posted = this.postedRows()
     for (const [index, group] of ordered.entries()) {
+      if (group.settled && group !== newestFinished) continue
       const id = `${this.prefix()}:${group.id}`
       const next = ordered[index + 1]?.first
       const until =
         group.answer ?? (snapshot.run?.inputs[0] === group.id ? undefined : next === undefined ? Infinity : next - 1)
-      rows.push({ ...this.row(id, group.first), ...(until === undefined ? {} : { until }) })
+      const counts = posted.get(id)
+      rows.push({
+        run_id: id,
+        cursor: group.first,
+        posted: counts?.posted ?? 0,
+        attempt: counts?.attempt ?? 0,
+        ...(until === undefined ? {} : { until }),
+      })
     }
-    return rows
+    return {
+      rows,
+      ...(newestFinished === undefined ? {} : { newestFinished: `${this.prefix()}:${newestFinished.id}` }),
+    }
   }
 
   private load(row: Row): Run {

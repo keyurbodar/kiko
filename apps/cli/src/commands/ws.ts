@@ -1,6 +1,8 @@
 import { CliError, type Context } from "../context"
 import { sessionToken } from "./login"
 
+const FIRST_REPLY_MS = 10_000
+
 export async function ws(ctx: Context): Promise<void> {
   const path = ctx.args[0]
   if (!path) throw new CliError({ message: "ws needs a path, for example: kiko ws /api/rpc" })
@@ -24,12 +26,14 @@ export async function ws(ctx: Context): Promise<void> {
 
   let timer: ReturnType<typeof setTimeout> | undefined
   let stdinDone = false
+  let heard = false
   const arm = () => {
     clearTimeout(timer)
     timer = setTimeout(() => socket.close(), ctx.idle)
   }
 
   const closed = Promise.withResolvers<void>()
+  const input = Bun.stdin.stream().getReader()
   socket.addEventListener("message", (ev) => {
     const text = typeof ev.data === "string" ? ev.data : new TextDecoder().decode(ev.data as ArrayBuffer)
     let frame: unknown = text
@@ -37,22 +41,39 @@ export async function ws(ctx: Context): Promise<void> {
       frame = JSON.parse(text)
     } catch {}
     console.log(JSON.stringify(frame))
+    heard = true
     if (stdinDone) arm()
   })
   socket.addEventListener("error", () =>
     closed.reject(new CliError({ message: `ws failed: connection to ${target} broke` })),
   )
-  socket.addEventListener("close", () => {
+  socket.addEventListener("close", (ev) => {
     clearTimeout(timer)
-    closed.resolve()
+    void input.cancel().catch(() => {})
+    if (ev.code === 1000 || ev.code === 1005) return closed.resolve()
+    const reason = ev.reason ? `: ${ev.reason}` : ""
+    closed.reject(new CliError({ message: `ws failed: connection to ${target} closed with ${ev.code}${reason}` }))
   })
   ;(async () => {
-    for await (const line of lines()) {
+    let buf = ""
+    const decoder = new TextDecoder()
+    while (true) {
+      const { done, value } = await input.read()
+      if (done) break
       if (socket.readyState !== WebSocket.OPEN) return
-      socket.send(line)
+      buf += decoder.decode(value, { stream: true })
+      let i = buf.indexOf("\n")
+      while (i >= 0) {
+        const line = buf.slice(0, i).trim()
+        buf = buf.slice(i + 1)
+        if (line) socket.send(line)
+        i = buf.indexOf("\n")
+      }
     }
+    if (buf.trim() && socket.readyState === WebSocket.OPEN) socket.send(buf.trim())
     stdinDone = true
-    arm()
+    clearTimeout(timer)
+    timer = setTimeout(() => socket.close(), heard ? ctx.idle : Math.max(ctx.idle, FIRST_REPLY_MS))
   })().catch(closed.reject)
   await closed.promise
 }
@@ -67,20 +88,4 @@ async function refusal(target: URL, headers: Record<string, string>): Promise<st
   } catch {
     return ""
   }
-}
-
-async function* lines(): AsyncGenerator<string> {
-  let buf = ""
-  const decoder = new TextDecoder()
-  for await (const chunk of Bun.stdin.stream()) {
-    buf += decoder.decode(chunk, { stream: true })
-    let i = buf.indexOf("\n")
-    while (i >= 0) {
-      const line = buf.slice(0, i).trim()
-      buf = buf.slice(i + 1)
-      if (line) yield line
-      i = buf.indexOf("\n")
-    }
-  }
-  if (buf.trim()) yield buf.trim()
 }

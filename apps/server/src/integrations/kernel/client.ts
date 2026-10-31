@@ -3,8 +3,6 @@ import Kernel, { APIConnectionError, APIError } from "@onkernel/sdk"
 
 export type Mode = "headless" | "headful"
 
-export type KernelErrorKind = "unauthorized" | "rate_limited" | "capacity" | "not_found" | "conflict" | "failed"
-
 export class KernelError extends Schema.TaggedError<KernelError>()("KernelError", {
   kind: Schema.Literals(["unauthorized", "rate_limited", "capacity", "not_found", "conflict", "failed"]),
   message: Schema.String,

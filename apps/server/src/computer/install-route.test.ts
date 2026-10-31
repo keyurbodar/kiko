@@ -153,6 +153,20 @@ describe("install route", () => {
     expect(run.stderr).toContain("no signed kiko-computer release")
     expect(run.calls()).toEqual([])
   })
+
+  it("loads the release once for repeated requests", async () => {
+    vi.resetModules()
+    const { installRoute: fresh } = await import("./install-route")
+    const calls: string[] = []
+    vi.stubGlobal("fetch", (input: string | URL | Request) => {
+      calls.push(String(input))
+      return Promise.resolve(new Response("", { status: 404 }))
+    })
+    await fresh(new Request(`${ORIGIN}/pc/install.sh`), {} as Env)
+    await fresh(new Request(`${ORIGIN}/pc/install.sh`), {} as Env)
+    vi.unstubAllGlobals()
+    expect(calls).toHaveLength(2)
+  })
 })
 
 describe("install script hints", () => {

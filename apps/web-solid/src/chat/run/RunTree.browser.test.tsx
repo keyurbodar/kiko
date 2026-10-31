@@ -481,6 +481,28 @@ describe("RunTree", () => {
     await page.viewport(1280, 720)
   })
 
+  it("keeps the list element when a step signal arrives mid-run", async () => {
+    fake.end = undefined
+    fake.restored = undefined
+    fake.live = true
+    fake.steps = [step("a", { after: 43, status: "running", endedAt: undefined })]
+    await using screen = await render(() => <RunTree windowKey="kiko#43" />)
+
+    const list = await vi.waitFor(() => {
+      const found = screen.container.querySelector<HTMLElement>(".run-tree-list")
+      expect(found).not.toBeNull()
+      return found!
+    })
+
+    fake.steps = [
+      ...fake.steps,
+      step("b", { after: 43, startedAt: START + 5_000, status: "running", endedAt: undefined }),
+    ]
+
+    await vi.waitFor(() => expect(items(screen.container)).toHaveLength(2))
+    expect(screen.container.querySelector(".run-tree-list")).toBe(list)
+  })
+
   it("folds a running helper to one row with the step it is on and a time", async () => {
     using _timers = fakeTimers()
     vi.setSystemTime(START + 5_000)

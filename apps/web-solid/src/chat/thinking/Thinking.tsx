@@ -1,6 +1,6 @@
 import { ChevronRightIcon } from "@kiko/ui/icons"
 import { RemixIcon } from "@kiko/ui/remix-icon"
-import { createEffect, createMemo, createSignal, on, onCleanup, Show, type JSX } from "solid-js"
+import { createEffect, createMemo, createSignal, on, onCleanup, Show, type Accessor, type JSX } from "solid-js"
 import { type Thought, thoughtMs, thoughtText } from "../../state/thoughts"
 import { createRichTextCache } from "../rich/block-cache"
 import { RichText } from "../rich/RichText"
@@ -57,6 +57,29 @@ function lastSentence(markdown: string): Preview {
 export function thoughtPreview(markdown: string): Preview {
   const lead = latestLead(markdown)
   return lead ? { at: -1 - lead.index, text: plainPreview(lead.value) } : lastSentence(markdown)
+}
+
+const PREVIEW_MS = 200
+
+function throttled<T>(read: () => T, ms: number): Accessor<T> {
+  const [value, setValue] = createSignal(read())
+  let timer: ReturnType<typeof setTimeout> | undefined
+  createEffect(
+    on(
+      read,
+      (next) => {
+        if (timer !== undefined) return
+        setValue(() => next)
+        timer = setTimeout(() => {
+          timer = undefined
+          setValue(() => read())
+        }, ms)
+      },
+      { defer: true },
+    ),
+  )
+  onCleanup(() => clearTimeout(timer))
+  return value
 }
 
 function remembered(): boolean {
@@ -176,15 +199,16 @@ function Caption(props: { text: string; at?: number; running: boolean }): JSX.El
 
 export function ThinkingLine(props: { thought: Thought | undefined; fallback: string; since?: number }): JSX.Element {
   const live = () => (props.thought && !props.thought.over ? props.thought : undefined)
-  const text = () => {
+  const text = createMemo(() => {
     const thought = live()
     return thought ? thoughtText(thought) : ""
-  }
+  })
   const thinking = () => {
     const thought = live()
     return thought !== undefined && thought.openSince !== null && text() !== ""
   }
-  const preview = createMemo(() => thoughtPreview(text()))
+  const sample = throttled(text, PREVIEW_MS)
+  const preview = createMemo(() => thoughtPreview(sample()))
   const caption = () => preview().text || "Thinking"
   const [open, setOpen] = createSignal(remembered())
   const now = useNow(() => !!live() || props.since !== undefined)

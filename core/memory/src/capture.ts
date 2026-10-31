@@ -1,6 +1,6 @@
 import type { JsonObject } from "@earendil-works/pi-ai"
-import { boolOf, choiceOf, type Judge, type Question } from "./judge"
-import { type CardTag, isCardTag, type Life } from "./life"
+import { boolOf, choiceOf, type Answer, type Judge, type Question } from "./judge"
+import { type CardTag, isCardTag, keywords, type Life } from "./life"
 import { LINE_BYTES } from "./optmem"
 
 export type CaptureMode = "auto" | "off"
@@ -53,7 +53,8 @@ export function candidates(text: string): string[] {
   return out
 }
 
-const NEIGHBORS = 8
+const NEIGHBORS = 3
+const JUDGE_CANDIDATES = 8
 
 const RULES = {
   worth: {
@@ -135,6 +136,11 @@ function captureQuestions(items: readonly CaptureItem[]): { state: JsonObject; q
 
 type CaptureRow = { heard: Heard; ref: string; keep?: () => boolean }
 
+function related(candidate: string, known: string): boolean {
+  const shared = new Set(keywords(candidate))
+  return keywords(known).some((word) => shared.has(word))
+}
+
 export async function captureWithJudge(
   life: Life,
   judge: Judge,
@@ -145,13 +151,32 @@ export async function captureWithJudge(
     candidates(row.heard.text).map((candidate) => ({
       message,
       candidate,
-      known: life.nearest(candidate, NEIGHBORS).map((l) => ({ pos: l.pos, text: l.text })),
+      known: life
+        .nearest(candidate, NEIGHBORS)
+        .filter((line) => related(candidate, line.text))
+        .map((line) => ({ pos: line.pos, text: line.text })),
     })),
   )
   if (!items.length) return count
-  const { state, questions } = captureQuestions(items)
-  const answers = await judge(state, questions)
-  if (!answers) return null
+  const batches: { items: CaptureItem[]; answers: Record<string, Answer> }[] = []
+  for (let at = 0; at < items.length; at += JUDGE_CANDIDATES) {
+    const batch = items.slice(at, at + JUDGE_CANDIDATES)
+    const { state, questions } = captureQuestions(batch)
+    const answers = await judge(state, questions)
+    if (!answers) return null
+    batches.push({ items: batch, answers })
+  }
+  for (const { items: batch, answers } of batches) applyAnswers(life, rows, batch, answers, count)
+  return count
+}
+
+function applyAnswers(
+  life: Life,
+  rows: readonly CaptureRow[],
+  items: readonly CaptureItem[],
+  answers: Record<string, Answer>,
+  count: CaptureCount,
+): void {
   for (const [i, { message, candidate, known }] of items.entries()) {
     const row = rows[message]!
     if (!life.captureAllowed(row.heard.at) || (row.keep && !row.keep())) continue
@@ -170,7 +195,6 @@ export async function captureWithJudge(
     }
     store(life, candidate, card, row.heard.at, row.ref, replaced, count)
   }
-  return count
 }
 
 function store(

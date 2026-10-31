@@ -24,4 +24,10 @@ describe("summarize", () => {
     expect(summarize(page({ y: 0, height: 700, view: 800 }))).toBe("Example\nhttps://example.com/\n\nhello")
     expect(summarize(page())).toBe("Example\nhttps://example.com/\n\nhello")
   })
+
+  it("says how many controls the cap left off the page", () => {
+    expect(summarize({ ...page(), omitted: 7 })).toBe(
+      "Example\nhttps://example.com/\n(7 more controls are offscreen or over the 250 cap: scroll and read again)\n\nhello",
+    )
+  })
 })

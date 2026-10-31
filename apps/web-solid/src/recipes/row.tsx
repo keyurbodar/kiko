@@ -6,18 +6,12 @@ import { openChat } from "../app/history"
 import { Show } from "solid-js"
 import { cn } from "../lib/cn"
 import { ChatAvatar, IdentityAvatar } from "../lib/IdentityAvatar"
+import { agentDisplayName } from "../lib/names"
 import { room } from "../state/room"
+import { user } from "../state/user"
 import { iconButtonClass, Spinner } from "../settings/kit"
 import { type InstallStatus, installStatus, localizeWhen, nextRunLabel } from "./model"
-import {
-  agentName,
-  editRecipe,
-  freshElapsed,
-  isEditing,
-  removeInstall,
-  setInstallPaused,
-  targetsForChat,
-} from "./state"
+import { editRecipe, freshElapsed, isEditing, removeInstall, setInstallPaused, targetsForChat } from "./state"
 
 const pillClass =
   "relative h-7 shrink-0 cursor-pointer rounded-full px-3 text-hint text-fg3 hover:bg-hover hover:text-fg"
@@ -31,7 +25,7 @@ function StatusChip(props: { status: InstallStatus }) {
         if (s.kind === "next")
           return (
             <span class={cn(chip, "min-w-0 bg-panel text-fg")}>
-              <span class="truncate">{nextRunLabel(s.at, Date.now())}</span>
+              <span class="truncate">{nextRunLabel(s.at, Date.now(), s.tz)}</span>
             </span>
           )
         if (s.kind === "paused")
@@ -63,7 +57,7 @@ function InstallMenu(props: { install: RecipeInstall; card: RecipeCard; go: (roo
           <MenuV2.Item onSelect={() => props.go(props.install.roomId)}>Open chat</MenuV2.Item>
           <MenuV2.Item onSelect={() => void editRecipe(props.card.slug, props.go)}>Edit recipe</MenuV2.Item>
           <MenuV2.Item onSelect={() => removeInstall(props.install)}>
-            Remove from {agentName(props.install.agent)}
+            Remove from {agentDisplayName(props.install.agent, user.agents())}
           </MenuV2.Item>
         </MenuV2.Content>
       </MenuV2.Portal>
@@ -95,20 +89,22 @@ function Runner(props: { install: RecipeInstall }) {
     <Show when={targetsForChat(props.install.roomId).length > 1}>
       <span class="flex shrink-0 items-center gap-1 text-hint text-fg">
         <IdentityAvatar seed={props.install.agent} size={16} />
-        {agentName(props.install.agent)}
+        {agentDisplayName(props.install.agent, user.agents())}
       </span>
     </Show>
   )
 }
 
 export function InstallCard(props: { install: RecipeInstall; card: RecipeCard }) {
-  const chatName = () => room.chatById(props.install.roomId)?.name ?? agentName(props.install.agent)
+  const chatName = () =>
+    room.chatById(props.install.roomId)?.name ?? agentDisplayName(props.install.agent, user.agents())
   const status = () => installStatus(props.install, props.card)
   const on = () => status().kind === "next"
   const sinceFresh = freshElapsed(props.install.slug)
   const note = () => {
     const s = status()
-    return s.kind === "next" ? nextRunLabel(s.at, Date.now()) : s.kind === "paused" ? "Paused" : s.label
+    if (s.kind === "next") return nextRunLabel(s.at, Date.now(), s.tz)
+    return s.kind === "paused" ? "Paused" : s.label
   }
   return (
     <article
@@ -167,12 +163,13 @@ export function InstallCard(props: { install: RecipeInstall; card: RecipeCard })
 }
 
 export function InstallRow(props: { install: RecipeInstall; card: RecipeCard; navigate: (roomId: string) => void }) {
-  const title = () => room.chatById(props.install.roomId)?.name ?? agentName(props.install.agent)
+  const title = () => room.chatById(props.install.roomId)?.name ?? agentDisplayName(props.install.agent, user.agents())
+  const status = () => installStatus(props.install, props.card)
   return (
     <div
       class="flex items-center gap-2 rounded-pop px-2.5 py-2 hover:bg-hover"
       data-install={props.install.installId}
-      data-status={installStatus(props.install, props.card).kind}
+      data-status={status().kind}
     >
       <button
         type="button"
@@ -185,7 +182,7 @@ export function InstallRow(props: { install: RecipeInstall; card: RecipeCard; na
           <span class="type-row truncate font-medium text-fg">{title()}</span>
           <span class="flex min-w-0 items-center gap-2">
             <Runner install={props.install} />
-            <StatusChip status={installStatus(props.install, props.card)} />
+            <StatusChip status={status()} />
           </span>
         </span>
       </button>

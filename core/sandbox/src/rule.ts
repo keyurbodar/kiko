@@ -30,8 +30,11 @@ const EXPANDS: Record<(typeof FREQS)[number], readonly string[]> = {
 }
 const MONTH_DAYS = [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
 
-const ints = (v: string, min: number, max: number) =>
-  v.split(",").every((x) => /^-?\d+$/.test(x) && Number(x) >= min && Number(x) <= max && Number(x) !== 0) || null
+const okInt = (x: string, min: number, max: number, allowZero: boolean) =>
+  /^-?\d+$/.test(x) && Number(x) >= min && Number(x) <= max && (allowZero || Number(x) !== 0)
+
+const ints = (v: string, min: number, max: number, allowZero = false) =>
+  v.split(",").every((x) => okInt(x, min, max, allowZero)) || null
 
 export function ruleProblem(rrule: string): string | null {
   const parts = new Map<string, string>()
@@ -73,13 +76,11 @@ function partProblem(parts: Map<string, string>): string | null {
   const count = parts.get("COUNT")
   if (count !== undefined && !ints(count, 1, 10_000)) return "rrule COUNT must be 1 to 10000"
   const byHour = parts.get("BYHOUR")
-  if (byHour !== undefined && !ints(byHour.replaceAll(/\b0\b/g, "24"), 1, 24)) return "rrule BYHOUR must be 0 to 23"
+  if (byHour !== undefined && !ints(byHour, 0, 23, true)) return "rrule BYHOUR must be 0 to 23"
   const byMinute = parts.get("BYMINUTE")
-  if (byMinute !== undefined && !ints(byMinute.replaceAll(/\b0\b/g, "60"), 1, 60))
-    return "rrule BYMINUTE must be 0 to 59"
+  if (byMinute !== undefined && !ints(byMinute, 0, 59, true)) return "rrule BYMINUTE must be 0 to 59"
   const bySecond = parts.get("BYSECOND")
-  if (bySecond !== undefined && !ints(bySecond.replaceAll(/\b0\b/g, "60"), 1, 60))
-    return "rrule BYSECOND must be 0 to 59"
+  if (bySecond !== undefined && !ints(bySecond, 0, 59, true)) return "rrule BYSECOND must be 0 to 59"
   const byMonth = parts.get("BYMONTH")
   if (byMonth !== undefined && !ints(byMonth, 1, 12)) return "rrule BYMONTH must be 1 to 12"
   const byMonthDay = parts.get("BYMONTHDAY")

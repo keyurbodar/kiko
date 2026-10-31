@@ -1,13 +1,17 @@
 import { verifyClerkToken } from "@kiko/durable/clerk-token"
 import * as Effect from "effect/Effect"
 import * as Result from "effect/Result"
+import { edgeLimit } from "../lib/edge-limit"
+import { ownerStub } from "../lib/names"
 import { type ReleaseEnv, releaseConfig } from "../lib/release-config"
 import { readCapped } from "../lib/read-capped"
+import type { OwnerDO } from "../owner/owner-do"
 
 export interface AuthEnv extends ReleaseEnv {
   SESSION_SECRET: string
   OWNER_ID?: string
   ACCESS_CODE?: string
+  OWNER?: DurableObjectNamespace<OwnerDO>
 }
 
 export interface SessionUser {
@@ -102,17 +106,31 @@ export async function signedInResponse(env: AuthEnv, ownerId: string): Promise<R
   })
 }
 
+function accessCodeAttempt(owner: NonNullable<AuthEnv["OWNER"]>, matched: boolean): Promise<boolean> {
+  return ownerStub(owner, PRODUCTION_OWNER).accessCodeAttempt(matched, Date.now())
+}
+
+const mayTryCode = edgeLimit(30, 60_000)
+
 export async function authRoute(request: Request, env: AuthEnv): Promise<Response | null> {
   const { pathname } = new URL(request.url)
   if (!pathname.startsWith(`${AUTH_PATH}/`)) return null
   if (request.method !== "POST") return Response.json({ message: "method not allowed" }, { status: 405 })
   if (pathname === `${AUTH_PATH}/access-code` && env.ACCESS_CODE) {
+    if (!env.OWNER)
+      return Response.json(
+        { message: "This deploy has no OWNER binding, so it cannot check access codes" },
+        { status: 500 },
+      )
+    if (!mayTryCode())
+      return Response.json({ message: "Too many attempts. Wait a minute, then try again" }, { status: 429 })
     const input = await readJson(request)
     if (!input) return tooLarge()
     const given = typeof input.code === "string" ? input.code : ""
-    if (!(await matches(env.ACCESS_CODE, given))) {
-      return Response.json({ message: "That access code is not right" }, { status: 401 })
-    }
+    const matched = await matches(env.ACCESS_CODE, given)
+    if (!(await accessCodeAttempt(env.OWNER, matched)))
+      return Response.json({ message: "Too many attempts. Wait 15 minutes, then try again" }, { status: 429 })
+    if (!matched) return Response.json({ message: "That access code is not right" }, { status: 401 })
     return signedInResponse(env, PRODUCTION_OWNER)
   }
   if (pathname === `${AUTH_PATH}/clerk` && env.OWNER_ID) return clerkSignIn(request, env, env.OWNER_ID)

@@ -2,7 +2,7 @@ import type { PendingAttachment } from "@kiko/protocol"
 import { createComputed, createRoot, on } from "solid-js"
 import { createStore, produce } from "solid-js/store"
 import { showToastV2 } from "@kiko/ui/v2/toast-v2"
-import { formatBytes } from "../chat/info/format"
+import { formatBytes } from "../lib/format"
 import { apiFetch, apiUrl, getToken } from "../lib/api"
 import { connection } from "../state/connection"
 

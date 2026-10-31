@@ -1,3 +1,4 @@
+import { isObject } from "./guards"
 import { typeVars } from "./system"
 export type ChatWidth = "comfortable" | "wide" | "full"
 
@@ -49,7 +50,6 @@ export function cssFontFamilies(input: string): string | null {
   return families.length > 0 ? families.join(", ") : null
 }
 
-const isObject = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v)
 const oneOf = <T extends string>(table: Record<T, unknown>, v: unknown, fallback: T): T =>
   typeof v === "string" && v in table ? (v as T) : fallback
 

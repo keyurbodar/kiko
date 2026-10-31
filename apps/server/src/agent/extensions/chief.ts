@@ -3,6 +3,7 @@ import { defineExtension, defineTool, type Extension, section, wrapSection } fro
 import type { Agent } from "@kiko/protocol"
 import type { GroupInput, NewAgentSpec } from "../../room/chief"
 import { declareEffect } from "@kiko/agent/effects"
+import { textResult as text } from "./tool-result"
 
 export const GROUPS_EXT = "groups"
 
@@ -27,7 +28,6 @@ const CHIEF_RULES = `You are the chief: you make the human's agents. This chat i
 
 const MEMBER_RULES = `For a job that needs several agents together, create_group. For a quick one-off with another agent, send_message them privately. Only Kiko makes new agents; ask Kiko when none fits.`
 
-const text = (t: string) => [{ type: "text" as const, text: t }]
 const fail = (t: string) => ({ output: text(t), isError: true })
 
 const NewAgent = Type.Object({

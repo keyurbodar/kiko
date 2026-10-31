@@ -101,6 +101,7 @@ const fakeRoom = (title: string) =>
   })
 
 function assertQuiet(phase: Phase): void {
+  assert.strictEqual(phase.billingVersion, 1, `${phase.name}: KV-key and setAlarm meters`)
   assert.strictEqual(phase.billableWrites, 0, `${phase.name}: billable rows written`)
   assert.strictEqual(phase.setAlarmCalls, 0, `${phase.name}: setAlarm calls`)
   assert.strictEqual(phase.armedAgent, null, `${phase.name}: ${describeAlarm(phase.armedAgent)}`)
@@ -118,14 +119,14 @@ describe.concurrent("journal overhead", () => {
       }
       const quiet = yield* quietMinute(owner, `quiet minute after the prompt (${QUIET_MS / 1000} s)`, room)
 
-      const billable = median(warmPrompts.map((phase) => phase.billableWrites))
-      const sqlRows = median(warmPrompts.map((phase) => phase.sqlRows))
-      console.log(`gate: billable writes median ${billable}/${ROW_GATE} (SQL ${sqlRows})`)
       for (const phase of warmPrompts) {
         assert.property(phase.counters, "owner.rowsWritten", `${phase.name}: physical owner.rowsWritten counter`)
         assert.strictEqual(phase.billingVersion, 1, `${phase.name}: KV-key and setAlarm meters`)
+        assert.isAtMost(phase.billableWrites, ROW_GATE, `${phase.name}: billable rows (${phase.sqlRows} SQL)`)
       }
-      assert.isAtMost(billable, ROW_GATE, `median billable rows across ${WARM_RUNS} warm prompts (${sqlRows} SQL)`)
+      const billable = median(warmPrompts.map((phase) => phase.billableWrites))
+      const sqlRows = median(warmPrompts.map((phase) => phase.sqlRows))
+      console.log(`gate: billable writes median ${billable}/${ROW_GATE} (SQL ${sqlRows})`)
       for (const phase of [...warmPrompts, quiet]) {
         assert.strictEqual(phase.interObjectCalls, 0, `${phase.name}: calls between objects`)
       }

@@ -73,7 +73,7 @@ export async function serve(dir = configDir()): Promise<number> {
       setHolder,
       send: (frame) => link.frame(frame),
       sendBinary: (bytes) => link.binary(bytes),
-      policy: () => policy,
+      policy,
       display: () => detection.displays[0],
       configDir: dir,
     })

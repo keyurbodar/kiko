@@ -56,12 +56,12 @@ export function loadPreview(
   type: FileType,
 ): Promise<{ preview: Preview; fresh: boolean }> {
   const key = previewKey(file)
-  return storedPreview(key).then((stored) => {
+  return storedPreview(space, key).then((stored) => {
     if (stored) return { preview: stored, fresh: false }
     let pending = building.get(key)
     if (!pending) {
       pending = limited(() => build(space, file, type)).then((preview) => {
-        keepPreview(key, preview)
+        keepPreview(space, key, preview)
         return preview
       })
       pending.finally(() => building.delete(key)).catch(() => {})

@@ -37,6 +37,23 @@ export function modelRef(providerId: string, modelId: string): string {
   return `${providerId}/${modelId}`
 }
 
+export function parseModelRef(ref: string): { provider: string; modelId: string } | null {
+  const at = ref.indexOf("/")
+  return at > 0 ? { provider: ref.slice(0, at), modelId: ref.slice(at + 1) } : null
+}
+
+export function providerOf(ref: string): string
+export function providerOf(ref: string | undefined): string | undefined
+export function providerOf(ref: string | undefined): string | undefined {
+  if (ref === undefined) return undefined
+  return parseModelRef(ref)?.provider ?? ref
+}
+
+export function modelIdOf(ref: string | undefined): string | undefined {
+  if (ref === undefined) return undefined
+  return parseModelRef(ref)?.modelId
+}
+
 const LONG_CONTEXT = 1_000_000
 const FAST_OUTPUT_PRICE = 2
 

@@ -98,6 +98,19 @@ describe("BlobStore", () => {
     expect(db.prepare("SELECT COUNT(*) AS n FROM chunk").get()).toEqual({ n: 0 })
   })
 
+  it("drops parts the client leaves off the list when joining", async () => {
+    const { blobs, db } = store()
+    const key = "u/owner/r/room/file"
+    const id = blobs.startUpload(key, "text/plain", {})
+    const one = await blobs.putPart(id, 1, body("one"))
+    await blobs.putPart(id, 2, body("two"))
+    expect(blobs.finish(key, id, [one]).size).toBe(3)
+    expect(await bytes(blobs, key)).toBe("one")
+    expect(blobs.head(part(id, 2))).toBeNull()
+    expect(db.prepare("SELECT key FROM obj ORDER BY key").all()).toEqual([{ key }])
+    expect(db.prepare("SELECT COUNT(*) AS n FROM chunk WHERE key = ?").get(part(id, 2))).toEqual({ n: 0 })
+  })
+
   it("sweeps an upload nothing points at and keeps a live one", async () => {
     const { blobs, db } = store()
     const gone = blobs.startUpload("u/owner/r/room/gone", "text/plain", {})

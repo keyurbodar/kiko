@@ -355,6 +355,7 @@ function stepAcrossStyledEdges(view: EditorView, event: KeyboardEvent): boolean 
 
 export function mountRichEditor(options: RichOptions) {
   let previousKind: ChangeKind | null = null
+  let lastMarkdown = ""
 
   const Keys = Extension.create({
     name: "composerKeys",
@@ -530,15 +531,19 @@ export function mountRichEditor(options: RichOptions) {
         !!event.dataTransfer && (event.dataTransfer.types.includes("Files") || hasFileDrag(event.dataTransfer)),
     },
     onUpdate: () => {
-      options.onChange(snapshot())
+      lastMarkdown = docToMarkdown(editor.state.doc.toJSON() as Json)
+      const { plain, cursor } = cursorInfo()
+      options.onChange({ markdown: lastMarkdown, plain, cursor })
     },
     onSelectionUpdate: () => {
-      const now = snapshot()
-      options.onCursor(now.cursor, now.plain)
+      const { plain, cursor } = cursorInfo()
+      options.onCursor(cursor, plain)
     },
     onFocus: options.onFocus,
     onBlur: options.onBlur,
   })
+
+  lastMarkdown = docToMarkdown(editor.state.doc.toJSON() as Json)
 
   function copySelection(view: EditorView, event: ClipboardEvent, cut: boolean) {
     if (!event.clipboardData || view.state.selection.empty) return false
@@ -550,15 +555,11 @@ export function mountRichEditor(options: RichOptions) {
     return true
   }
 
-  function snapshot(): Snapshot {
+  function cursorInfo(): { plain: string; cursor: number } {
     const { doc, selection } = editor.state
     const plain = (end: number) =>
       doc.textBetween(0, end, "\n", (leaf) => (leaf.type.name === "hardBreak" ? "\n" : ATOM))
-    return {
-      markdown: docToMarkdown(doc.toJSON() as Json),
-      plain: plain(doc.content.size),
-      cursor: plain(selection.from).length,
-    }
+    return { plain: plain(doc.content.size), cursor: plain(selection.from).length }
   }
 
   function sliceOf(state: EditorState, text: string): Slice {
@@ -589,7 +590,7 @@ export function mountRichEditor(options: RichOptions) {
 
   return {
     dom: editor.view.dom as HTMLElement,
-    snapshot,
+    markdown: () => lastMarkdown,
     focus: () => editor.commands.focus("end", { scrollIntoView: false }),
     isFocused: () => editor.isFocused,
     setEditable: (editable: boolean) => editor.setEditable(editable, false),
@@ -603,6 +604,7 @@ export function mountRichEditor(options: RichOptions) {
       const doc = editor.schema.nodeFromJSON(markdownToDoc(markdown, options.parse))
       const state = EditorState.create({ doc, plugins: view.state.plugins, selection: Selection.atEnd(doc) })
       view.updateState(state)
+      lastMarkdown = docToMarkdown(doc.toJSON() as Json)
       previousKind = null
     },
     insertText(text: string) {
