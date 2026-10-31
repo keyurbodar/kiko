@@ -333,12 +333,12 @@ export default function Appearance(): JSX.Element {
         </Row>
         <Row
           label="Interface font"
-          description="Any font on this device. Empty uses the system font."
+          description="Any font on this device. Empty uses Geist."
           onReset={reset("interfaceFont")}
         >
           <FontField
             label="Interface font"
-            placeholder="System"
+            placeholder="Geist"
             value={d().interfaceFont}
             onCommit={(interfaceFont) => set({ interfaceFont })}
           />
@@ -346,7 +346,7 @@ export default function Appearance(): JSX.Element {
         <Row label="Code font" onReset={reset("codeFont")}>
           <FontField
             label="Code font"
-            placeholder="System mono"
+            placeholder="Geist Mono"
             value={d().codeFont}
             onCommit={(codeFont) => set({ codeFont })}
           />
