@@ -28,6 +28,7 @@ export interface TrajectoryRequest {
   readonly tools: readonly string[]
   readonly messages: readonly ChatMessage[]
   readonly latency_ms: number
+  readonly ttft_ms: number
   readonly usage: ModelUsage
   readonly finish_reason: string | null
   readonly content: string
@@ -44,6 +45,9 @@ export interface TrajectoryTool {
   readonly images: readonly string[]
   readonly is_error: boolean
   readonly ms: number
+  readonly transport_ms: number
+  readonly op_ms: number
+  readonly queue_ms: number
 }
 
 export interface Trajectory {
@@ -84,6 +88,12 @@ export interface LoopInput {
   readonly now?: () => number
 }
 
+export interface ToolLatency {
+  readonly calls: number
+  readonly p50: number
+  readonly p95: number
+}
+
 export interface LoopResult {
   readonly outcome: Outcome
   readonly error?: string
@@ -96,9 +106,18 @@ export interface LoopResult {
   readonly toolMs: number
   readonly toolP50Ms: number
   readonly toolP95Ms: number
+  readonly ttftMs: number
+  readonly modelP50Ms: number
+  readonly modelP95Ms: number
+  readonly toolTransportMs: number
+  readonly toolOpMs: number
+  readonly toolQueueMs: number
+  readonly toolLatencyByName: Readonly<Record<string, ToolLatency>>
   readonly bytesToModel: number
+  readonly bytesFromTool: number
   readonly imagesSent: number
   readonly imagesDropped: number
+  readonly imagesBytes: number
   readonly trajectory: Trajectory
 }
 
@@ -164,6 +183,20 @@ const allZero = (background: Background): boolean =>
   background.keysSwallowed === 0 &&
   background.windowsRaised === 0
 
+function latencyByName(durations: ReadonlyMap<string, number[]>): Record<string, ToolLatency> {
+  const out: Record<string, ToolLatency> = {}
+  for (const [name, values] of durations)
+    out[name] = {
+      calls: values.length,
+      p50: Math.round(percentile(values, 0.5)),
+      p95: Math.round(percentile(values, 0.95)),
+    }
+  return out
+}
+
+const imageBytes = (images: readonly Image[]): number =>
+  images.reduce((sum, image) => sum + Buffer.byteLength(image.base64, "base64"), 0)
+
 const perceptionTools = new Set([
   "desktop_list_windows",
   "desktop_get_window_state",
@@ -219,6 +252,7 @@ async function ask(
       tools: known,
       messages: redact(messages),
       latency_ms: 0,
+      ttft_ms: 0,
       usage: emptyUsage,
       finish_reason: null,
       content: "",
@@ -265,9 +299,17 @@ export async function runLoop(input: LoopInput): Promise<LoopResult> {
   let usage = emptyUsage
   let modelMs = 0
   let toolMs = 0
+  let ttftMs = 0
+  const modelDurations: number[] = []
+  let toolTransportMs = 0
+  let toolOpMs = 0
+  let toolQueueMs = 0
+  const toolDurations = new Map<string, number[]>()
   let bytesToModel = 0
+  let bytesFromTool = 0
   let imagesSent = 0
   let imagesDropped = 0
+  let imagesBytes = 0
   let turns = 0
   let toolCalls = 0
   let toolErrors = 0
@@ -290,8 +332,11 @@ export async function runLoop(input: LoopInput): Promise<LoopResult> {
         break
       }
       const reply = asked.reply
+      const replyAt = clock()
       turns++
       modelMs += reply.latencyMs
+      modelDurations.push(reply.latencyMs)
+      if (ttftMs === 0) ttftMs = reply.ttftMs
       usage = addUsage(usage, reply.usage)
       requests.push({
         at: new Date().toISOString(),
@@ -299,6 +344,7 @@ export async function runLoop(input: LoopInput): Promise<LoopResult> {
         tools: known,
         messages: redact(messages),
         latency_ms: Math.round(reply.latencyMs),
+        ttft_ms: Math.round(reply.ttftMs),
         usage: reply.usage,
         finish_reason: reply.finishReason,
         content: reply.content,
@@ -328,16 +374,23 @@ export async function runLoop(input: LoopInput): Promise<LoopResult> {
       const turn = await runTools(input, reply.toolCalls, known, messages, {
         controller,
         durations,
+        toolDurations,
         records: toolRecords,
         trajectoryDir: input.trajectoryDir,
         vision: input.model.vision,
         clock,
+        queueFrom: replyAt,
       })
       toolCalls += turn.calls
       toolErrors += turn.errors
       toolMs += turn.ms
+      toolTransportMs += turn.transport
+      toolOpMs += turn.op
+      toolQueueMs += turn.queue
+      bytesFromTool += turn.bytes
       imagesSent += turn.sent
       imagesDropped += turn.dropped
+      imagesBytes += turn.imageBytes
       if (turn.stop) {
         stop = turn.stop
         error = turn.error
@@ -385,9 +438,18 @@ export async function runLoop(input: LoopInput): Promise<LoopResult> {
     toolMs: Math.round(toolMs),
     toolP50Ms: Math.round(percentile(durations, 0.5)),
     toolP95Ms: Math.round(percentile(durations, 0.95)),
+    ttftMs: Math.round(ttftMs),
+    modelP50Ms: Math.round(percentile(modelDurations, 0.5)),
+    modelP95Ms: Math.round(percentile(modelDurations, 0.95)),
+    toolTransportMs: Math.round(toolTransportMs),
+    toolOpMs: Math.round(toolOpMs),
+    toolQueueMs: Math.round(toolQueueMs),
+    toolLatencyByName: latencyByName(toolDurations),
     bytesToModel,
+    bytesFromTool,
     imagesSent,
     imagesDropped,
+    imagesBytes,
     trajectory,
   }
 }
@@ -395,18 +457,25 @@ export async function runLoop(input: LoopInput): Promise<LoopResult> {
 interface ToolContext {
   readonly controller: AbortController
   readonly durations: number[]
+  readonly toolDurations: Map<string, number[]>
   readonly records: TrajectoryTool[]
   readonly trajectoryDir: string
   readonly vision: boolean
   readonly clock: () => number
+  readonly queueFrom: number
 }
 
 interface ToolsOutcome {
   readonly calls: number
   readonly errors: number
   readonly ms: number
+  readonly transport: number
+  readonly op: number
+  readonly queue: number
+  readonly bytes: number
   readonly sent: number
   readonly dropped: number
+  readonly imageBytes: number
   readonly stop: Outcome | undefined
   readonly error?: string
 }
@@ -420,13 +489,21 @@ async function runTools(
 ): Promise<ToolsOutcome> {
   let errors = 0
   let ms = 0
+  let transport = 0
+  let op = 0
+  let queue = 0
+  let bytes = 0
   let sent = 0
   let dropped = 0
+  let imageTotal = 0
   let executed = 0
+  let cursor = context.queueFrom
   await mkdir(context.trajectoryDir, { recursive: true })
   for (const call of calls) {
     executed++
     const started = context.clock()
+    const waited = Math.max(0, started - cursor)
+    queue += waited
     const parsed = parseArgs(call.function.arguments)
     let result: ToolResult
     let crashed = false
@@ -447,8 +524,18 @@ async function runTools(
       }
     }
     const elapsed = context.clock() - started
+    cursor = context.clock()
     ms += elapsed
+    const split = splitToolTime(elapsed, result)
+    transport += split.transport
+    op += split.op
+    const pictures = imageBytes(result.images)
+    bytes += Buffer.byteLength(result.text) + pictures
+    imageTotal += pictures
     context.durations.push(elapsed)
+    const named = context.toolDurations.get(call.function.name)
+    if (named) named.push(elapsed)
+    else context.toolDurations.set(call.function.name, [elapsed])
     if (result.isError) errors++
     const serial = context.records.length + 1
     const files = await saveImages(context.trajectoryDir, `${input.trialId}-tool-${serial}`, result.images)
@@ -463,8 +550,47 @@ async function runTools(
       images: files,
       is_error: result.isError,
       ms: Math.round(elapsed),
+      transport_ms: Math.round(split.transport),
+      op_ms: Math.round(split.op),
+      queue_ms: Math.round(waited),
     })
-    if (crashed) return { calls: executed, errors, ms, sent, dropped, stop: "tool_crash", error: result.text }
+    if (crashed)
+      return {
+        calls: executed,
+        errors,
+        ms,
+        transport,
+        op,
+        queue,
+        bytes,
+        sent,
+        dropped,
+        imageBytes: imageTotal,
+        stop: "tool_crash",
+        error: result.text,
+      }
   }
-  return { calls: executed, errors, ms, sent, dropped, stop: undefined }
+  return {
+    calls: executed,
+    errors,
+    ms,
+    transport,
+    op,
+    queue,
+    bytes,
+    sent,
+    dropped,
+    imageBytes: imageTotal,
+    stop: undefined,
+  }
+}
+
+function splitToolTime(elapsed: number, result: ToolResult): { transport: number; op: number } {
+  const reportedOp = result.opMs
+  const reportedTransport = result.transportMs
+  if (reportedOp !== undefined)
+    return { op: reportedOp, transport: reportedTransport ?? Math.max(0, elapsed - reportedOp) }
+  if (reportedTransport !== undefined)
+    return { transport: reportedTransport, op: Math.max(0, elapsed - reportedTransport) }
+  return { transport: 0, op: elapsed }
 }

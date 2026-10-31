@@ -211,6 +211,48 @@ describe("agent loop", () => {
     expect(classifyFailure(result, { pass: false, checks: [] }, background)).toBe("targeting")
   })
 
+  it("splits tool time into transport and op, and records per-tool latency", async () => {
+    let now = 0
+    let asked = 0
+    const client = new ModelClient({
+      key: "test",
+      version: "0",
+      streaming: false,
+      fetch: async () => {
+        now += 100
+        asked += 1
+        return new Response(JSON.stringify(asked === 1 ? callsTool("shell", { command: "ls" }) : saysDone()), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        })
+      },
+    })
+    const dir = await tempDir()
+    const result = await runLoop({
+      task: task(),
+      contender: contender(() => {
+        now += 10
+        return { text: "ok", images: [{ mime: "image/png", base64: "aGk=" }], isError: false, opMs: 6 }
+      }),
+      model: { id: "beam-free", vision: false },
+      client,
+      runId: "run-1",
+      trialId: "trial-1",
+      trajectoryDir: dir,
+      condition: "foreground",
+      seed: 1,
+      rep: 1,
+      now: () => now,
+    })
+    expect(result.toolOpMs).toBe(6)
+    expect(result.toolTransportMs).toBe(4)
+    expect(result.toolQueueMs).toBe(0)
+    expect(result.toolLatencyByName).toEqual({ shell: { calls: 1, p50: 10, p95: 10 } })
+    expect(result.imagesBytes).toBe(2)
+    expect(result.bytesFromTool).toBe(4)
+    expect(result.trajectory.tools[0]).toMatchObject({ op_ms: 6, transport_ms: 4, queue_ms: 0 })
+  })
+
   it("counts a tool call written as text and classifies it as a model failure", async () => {
     const reply = {
       choices: [
