@@ -15,6 +15,7 @@ const WAIT_MAX_MS = 10_000
 const WAIT_TIMEOUT_MS = 8_000
 const WAIT_POLL_MS = 200
 const FULL_PAGE_MAX_PX = 16_000
+const FULL_PAGE_MAX_AREA = 40_000_000
 
 const KEYS: Record<string, Key> = {
   Enter: { key: "Enter", code: "Enter", keyCode: 13, text: "\r" },
@@ -254,13 +255,9 @@ export async function act(page: PageState, step: Step): Promise<StepResult> {
 async function fullPageClip(page: PageState) {
   const metrics = await page.channel.send("Page.getLayoutMetrics")
   const size = metrics.cssContentSize ?? metrics.contentSize
-  return {
-    x: 0,
-    y: 0,
-    width: Math.ceil(size.width),
-    height: Math.min(Math.ceil(size.height), FULL_PAGE_MAX_PX),
-    scale: 1,
-  }
+  const width = Math.min(Math.ceil(size.width), FULL_PAGE_MAX_PX)
+  const height = Math.min(Math.ceil(size.height), FULL_PAGE_MAX_PX, Math.floor(FULL_PAGE_MAX_AREA / Math.max(width, 1)))
+  return { x: 0, y: 0, width, height, scale: 1 }
 }
 
 export async function screenshot(page: PageState, opts: { fullPage?: boolean } = {}): Promise<Uint8Array> {

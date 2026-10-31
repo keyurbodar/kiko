@@ -118,6 +118,8 @@ describe("Outbox", () => {
     expect(await two.wait(context)).toMatchObject({ status: "done" })
     await outbox.settle(root)
     expect(live.ended).toEqual([`room:kiko:${one.id}`, `room:kiko:${two.id}`])
+    expect(live.posted).toContain(`room:kiko:${one.id}:0`)
+    expect(live.posted).toContain(`room:kiko:${two.id}:0`)
 
     const reopened = recordingRoom(storage)
     const after = new Outbox(

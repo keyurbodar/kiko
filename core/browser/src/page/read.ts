@@ -43,9 +43,26 @@ export async function flush(page: PageState): Promise<void> {
   if (page.loading) await page.loading
 }
 
+const MAX_READ_BYTES = 4 * 1024 * 1024
+
+function tooLarge(): BrowserFailure {
+  return new BrowserFailure({ reason: "script", message: "The page returned more data than Kiko can read." })
+}
+
 async function gunzip(base64: string): Promise<string> {
   const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0))
-  return new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream("gzip"))).text()
+  const reader = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("gzip")).getReader()
+  const decoder = new TextDecoder()
+  let text = ""
+  for (;;) {
+    const { done, value } = await reader.read()
+    if (done) return text
+    text += decoder.decode(value, { stream: true })
+    if (text.length > MAX_READ_BYTES) {
+      await reader.cancel()
+      throw tooLarge()
+    }
+  }
 }
 
 async function readOnce(page: PageState): Promise<string> {
@@ -59,6 +76,7 @@ async function readOnce(page: PageState): Promise<string> {
 
 export async function read(page: PageState): Promise<PageView> {
   const raw = await readOnce(page)
+  if (raw.length > MAX_READ_BYTES) throw tooLarge()
   const view = JSON.parse(raw.startsWith(GZIP_MARK) ? await gunzip(raw.slice(GZIP_MARK.length)) : raw) as PageView
   for (const control of view.controls) {
     if (control.href?.startsWith("/")) control.href = new URL(control.href, view.url).href

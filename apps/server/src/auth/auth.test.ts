@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "@effect/vitest"
-import { type AuthEnv, authRoute } from "./auth"
+import { type AuthEnv, authRoute, getFileUser, getSessionUser, signToken } from "./auth"
 
 const ORIGIN = "http://localhost:5173"
 
@@ -140,5 +140,50 @@ describe("POST /api/auth/access-code", () => {
       status: 500,
       body: { message: "This deploy has no OWNER binding, so it cannot check access codes" },
     })
+  })
+})
+
+describe("session and file tokens", () => {
+  const env = { SESSION_SECRET: "s" } as AuthEnv
+  const bearer = (token: string) =>
+    new Request("https://kiko.test/api/rpc", { headers: { authorization: `Bearer ${token}` } })
+
+  it("accepts a fresh session over the bearer header and over the socket protocol", async () => {
+    const token = await signToken("s", "owner", "session")
+    expect(await getSessionUser(bearer(token), env)).toEqual({ id: "owner", name: "owner" })
+    const socket = new Request("https://kiko.test/api/rpc", {
+      headers: { "sec-websocket-protocol": `kiko, ${token}` },
+    })
+    expect(await getSessionUser(socket, env)).toEqual({ id: "owner", name: "owner" })
+  })
+
+  it("refuses an expired session", async () => {
+    vi.useFakeTimers()
+    try {
+      vi.setSystemTime(NOW_S * 1000)
+      const old = await signToken("s", "owner", "session", NOW_S * 1000 - 31 * 86_400_000)
+      expect(await getSessionUser(bearer(old), env)).toBeNull()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it("keeps file tokens out of sessions and sessions out of file links", async () => {
+    const files = await signToken("s", "owner", "files")
+    const session = await signToken("s", "owner", "session")
+    expect(await getSessionUser(bearer(files), env)).toBeNull()
+    expect(await getFileUser(new Request(`https://kiko.test/api/files/x?t=${session}`), env)).toBeNull()
+    expect(await getFileUser(new Request(`https://kiko.test/api/files/x?t=${files}`), env)).toEqual({
+      id: "owner",
+      name: "owner",
+    })
+  })
+
+  it("refuses a tampered token and a deploy with no secret", async () => {
+    const token = await signToken("s", "owner", "session")
+    const [id, scope, expiry, mac] = token.split(".")
+    const flipped = `${mac![0] === "0" ? "1" : "0"}${mac!.slice(1)}`
+    expect(await getSessionUser(bearer(`${id}.${scope}.${expiry}.${flipped}`), env)).toBeNull()
+    expect(await getSessionUser(bearer(token), { SESSION_SECRET: "" } as AuthEnv)).toBeNull()
   })
 })

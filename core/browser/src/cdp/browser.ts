@@ -44,8 +44,9 @@ export async function connect(cdpUrl: string, options: ConnectOptions = {}): Pro
     }
     try {
       const loaded = url ? page.channel.waitFor("Page.loadEventFired", BROWSER.loadMs) : undefined
-      const [, , ready] = await Promise.all([
+      const [, , , ready] = await Promise.all([
         page.channel.send("Page.enable"),
+        page.channel.send("Inspector.enable"),
         page.channel.send("Emulation.setFocusEmulationEnabled", { enabled: true }),
         url
           ? evaluate<boolean>(page, `location.href !== "about:blank" && document.readyState === "complete"`).catch(
@@ -85,8 +86,9 @@ export async function connect(cdpUrl: string, options: ConnectOptions = {}): Pro
     opening.add(targetInfo.targetId)
     popups.set(targetInfo.targetId, targetInfo.url)
     adopt(targetInfo.targetId)
-      .catch(() => {
+      .catch(async () => {
         popups.delete(targetInfo.targetId)
+        await cdp.send("Target.closeTarget", { targetId: targetInfo.targetId }).catch(() => {})
       })
       .finally(() => opening.delete(targetInfo.targetId))
   })
@@ -96,7 +98,12 @@ export async function connect(cdpUrl: string, options: ConnectOptions = {}): Pro
     releases.get(targetId)?.()
     releases.delete(targetId)
   })
-  await cdp.send("Target.setDiscoverTargets", { discover: true })
+  try {
+    await cdp.send("Target.setDiscoverTargets", { discover: true })
+  } catch (error) {
+    await cdp.close().catch(() => {})
+    throw error
+  }
 
   return {
     openTab: async (url) => {
@@ -107,7 +114,12 @@ export async function connect(cdpUrl: string, options: ConnectOptions = {}): Pro
         background: true,
         newWindow: true,
       })
-      return adopt(targetId, url)
+      try {
+        return await adopt(targetId, url)
+      } catch (error) {
+        await cdp.send("Target.closeTarget", { targetId }).catch(() => {})
+        throw error
+      }
     },
     tab: (id) => tabs.get(id),
     attach: async (id) => {
