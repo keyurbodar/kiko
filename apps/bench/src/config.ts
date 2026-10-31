@@ -36,6 +36,7 @@ export interface Job {
   readonly contender: string
   readonly model: string
   readonly shard: string
+  readonly label: string
   readonly trials: number
   readonly runner: string
   readonly machine: string
@@ -177,6 +178,7 @@ export function planJobs(config: BenchConfig, tasks: readonly Task[]): Job[] {
               contender: contender.name,
               model,
               shard: `${shard}/${shards}`,
+              label: `${shard}of${shards}`,
               trials: Math.ceil(count / shards),
               runner,
               machine,

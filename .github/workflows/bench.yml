@@ -118,7 +118,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: bench-${{ matrix.track }}-${{ matrix.os }}-${{ matrix.contender }}-${{ matrix.model }}-${{ replace(matrix.shard, '/', 'of') }}
+          name: bench-${{ matrix.track }}-${{ matrix.os }}-${{ matrix.contender }}-${{ matrix.model }}-${{ matrix.label }}
           path: results/
           if-no-files-found: warn
 
