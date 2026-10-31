@@ -33,7 +33,7 @@
 .typing[data-group] {
   position: relative;
   min-height: 28px;
-  padding-left: 36px;
+  padding-left: 40px;
 }
 
 .typing[data-group] .typing-bird {
@@ -54,7 +54,7 @@
 }
 
 .typing-stack[data-group] .typing-more {
-  padding-left: calc(36px + var(--spacing-conversation-text-inset));
+  padding-left: calc(40px + var(--spacing-conversation-text-inset));
 }
 
 .typing-sr {
