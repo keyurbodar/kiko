@@ -7,7 +7,7 @@ import { bindKey, bindings, resetAllKeys, resetKey } from "../commands/bindings"
 import { commands, GROUP_LABEL, keysOf, shortcutOf, type Command, type CommandGroup } from "../commands/registry"
 import { cn } from "../lib/cn"
 import { browserKey, refusal, sameKey } from "./browser-keys"
-import { Button, Empty, Group, IconButton } from "./kit"
+import { Button, Empty, Group, IconButton, Kbd } from "./kit"
 
 const platform = detectPlatform()
 const ORDER = Object.keys(GROUP_LABEL) as CommandGroup[]
@@ -20,14 +20,8 @@ const calm = () => typeof matchMedia === "function" && matchMedia("(prefers-redu
 
 function Keys(props: { keys: string; ref?: (el: HTMLSpanElement) => void }) {
   return (
-    <span ref={props.ref} class="inline-flex items-center gap-1" data-field="keys">
-      <For each={formatForDisplay(props.keys, { platform, parts: true })}>
-        {(part) => (
-          <kbd class="inline-flex h-5 min-w-5 items-center justify-center rounded-base bg-[var(--bg-elevated)] px-1 font-sans text-xs font-medium text-[var(--text-secondary)]">
-            {part}
-          </kbd>
-        )}
-      </For>
+    <span ref={props.ref} class="inline-flex items-center" data-field="keys">
+      <Kbd keys={formatForDisplay(props.keys, { platform, parts: true })} />
     </span>
   )
 }

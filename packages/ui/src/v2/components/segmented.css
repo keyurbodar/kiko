@@ -8,42 +8,42 @@
     flex-shrink: 0;
     grid-auto-columns: max-content;
     grid-auto-flow: column;
-    gap: 2px;
-    padding: 3px;
+    gap: 0;
+    padding: 2px;
     overflow-x: auto;
-    background: var(--bg-elevated);
+    background: var(--bg-quinary);
     border-radius: var(--radius-base);
+    box-shadow: inset 0 0 0 1px var(--stroke-tertiary);
     scrollbar-width: none;
   }
 
   [data-slot="segmented-pill"] {
     position: absolute;
-    top: 3px;
-    bottom: 3px;
+    top: 2px;
+    bottom: 2px;
     left: 0;
-    background: var(--bg-secondary);
-    border-radius: var(--radius-base);
+    background: var(--bg-tertiary);
+    border-radius: var(--radius-sm);
+    box-shadow: inset 0 0 0 1px var(--stroke-tertiary);
     pointer-events: none;
   }
 
   [data-slot="segmented-item"] {
     position: relative;
     z-index: 1;
-    height: 28px;
-    padding: 0 12px;
-    color: var(--text-tertiary);
+    height: var(--spacing-control-sm, 20px);
+    padding: 0 8px;
+    color: var(--text-secondary);
     font-family: var(--font-family-sans);
-    font-size: var(--font-size-sm);
-    font-weight: 500;
+    font-size: var(--font-size-base);
+    line-height: var(--line-height-base);
+    letter-spacing: var(--letter-spacing-base);
     white-space: nowrap;
     background: transparent;
     border: 0;
-    border-radius: var(--radius-base);
+    border-radius: var(--radius-sm);
     cursor: pointer;
-    outline: none;
-    transition:
-      color var(--duration-fast) var(--ease-sharp),
-      box-shadow var(--duration-fast) var(--ease-sharp);
+    transition: color var(--duration-fast) ease;
   }
 
   @media (hover: hover) and (pointer: fine) {

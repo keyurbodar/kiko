@@ -4,8 +4,6 @@
 
   --dur-exit: 140ms;
   --dur-page: 140ms;
-  --press-scale: 0.975;
-  --press-scale-icon: 0.94;
 
   --motion-fast: var(--duration-fast);
   --motion-base: var(--duration-normal);
@@ -14,7 +12,7 @@
   --motion-ease-settle: var(--ease-sharp);
   --motion-rise: 260ms;
   --motion-reveal: 320ms;
-  --motion-spin: 800ms;
+  --motion-spin: var(--duration-1s);
   --motion-ease-linear: linear;
   --motion-ease-in-out: var(--ease-sharp);
   --motion-dialog: var(--duration-normal);
@@ -33,7 +31,6 @@
     --dur-exit: 0ms;
     --dur-page: 0ms;
     --press-scale: 1;
-    --press-scale-icon: 1;
     --dur-land: 0ms;
     --dur-shift: 0ms;
     --land-stagger: 0ms;
@@ -153,7 +150,7 @@
   @keyframes motion-dialog-in {
     from {
       opacity: 0;
-      transform: translate(-50%, -50%) scale(0.96);
+      transform: translate(-50%, -50%) scale(0.97);
     }
     to {
       opacity: 1;
@@ -168,18 +165,7 @@
     }
     to {
       opacity: 0;
-      transform: translate(-50%, -50%) scale(0.98);
-    }
-  }
-
-  @keyframes motion-popover-in {
-    from {
-      opacity: 0;
-      transform: scale(0.98);
-    }
-    to {
-      opacity: 1;
-      transform: scale(1);
+      transform: translate(-50%, -50%) scale(0.97);
     }
   }
 
@@ -188,7 +174,7 @@
   }
 
   [data-component="modal-v2-overlay"][data-closed] {
-    animation: motion-overlay-out var(--dur-exit) var(--motion-ease-in) both;
+    animation: motion-overlay-out var(--duration-fast) var(--ease-sharp) both;
   }
 
   [data-component="modal-v2-content"][data-expanded] {
@@ -196,59 +182,34 @@
   }
 
   [data-component="modal-v2-content"][data-closed] {
-    animation: motion-dialog-out var(--dur-exit) var(--motion-ease-in) both;
+    animation: motion-dialog-out var(--duration-fast) var(--ease-sharp) both;
   }
 
-  @keyframes motion-origin-in {
+  @keyframes motion-popup-in {
     from {
       opacity: 0;
-      transform: scale(0.98);
-    }
-    to {
-      opacity: 1;
-      transform: scale(1);
+      transform: translate3d(var(--popup-nudge-x, 0px), var(--popup-nudge-y, 0px), 0) scale(0.98);
     }
   }
 
-  @keyframes motion-origin-out {
-    from {
-      opacity: 1;
-      transform: scale(1);
-    }
+  @keyframes motion-popup-out {
     to {
       opacity: 0;
-      transform: scale(0.98);
-    }
-  }
-
-  @keyframes motion-tooltip-in {
-    from {
-      opacity: 0;
-      transform: translateY(2px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
+      transform: translate3d(var(--popup-nudge-x, 0px), var(--popup-nudge-y, 0px), 0) scale(0.98);
     }
   }
 
   [data-component="menu-v2-content"][data-expanded],
   [data-component="hover-card-v2-content"][data-expanded],
+  [data-component="tooltip-v2"][data-expanded],
   .motion-popover-in {
-    animation: motion-origin-in var(--duration-normal) var(--ease-sharp) both;
+    animation: motion-popup-in var(--duration-fast) var(--ease-sharp) both;
   }
 
   [data-component="menu-v2-content"][data-closed],
-  [data-component="hover-card-v2-content"][data-closed] {
-    animation: motion-origin-out 100ms var(--motion-ease-in) both;
-  }
-
-  [data-component="tooltip-v2"][data-expanded] {
-    animation: motion-tooltip-in var(--duration-fast) var(--ease-sharp) both;
-  }
-
+  [data-component="hover-card-v2-content"][data-closed],
   [data-component="tooltip-v2"][data-closed] {
-    animation: motion-overlay-out 80ms linear both;
+    animation: motion-popup-out var(--duration-fast) var(--ease-sharp) both;
   }
 
   [data-component="tooltip-v2"][data-instant] {

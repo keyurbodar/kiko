@@ -25,11 +25,11 @@ const Glide: Component = () => {
   return <span ref={mark} data-slot="glide" data-hidden="" aria-hidden="true" />
 }
 
-const ChevronRight: Component = () => <RemixIcon icon={ChevronRightIcon} data-slot="menu-v2-item-chevron" size={16} />
+const ChevronRight: Component = () => <RemixIcon icon={ChevronRightIcon} data-slot="menu-v2-item-chevron" size={12} />
 
 const Check: Component = () => (
   <DropdownMenu.ItemIndicator data-slot="menu-v2-item-indicator" forceMount>
-    <RemixIcon icon={CheckIcon} size={16} />
+    <RemixIcon icon={CheckIcon} size={14} />
   </DropdownMenu.ItemIndicator>
 )
 

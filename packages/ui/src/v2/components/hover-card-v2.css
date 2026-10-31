@@ -22,14 +22,16 @@
     pointer-events: none !important;
 
     background: var(--bg-elevated);
-    border-radius: var(--radius-base);
+    border-radius: var(--radius-xl);
     box-shadow: var(--popup-shadow);
 
     outline: none;
     color: var(--text-primary);
-
-    -webkit-font-smoothing: auto;
-    text-rendering: geometricPrecision;
+    font-family: var(--font-family-sans);
+    font-size: var(--font-size-base);
+    line-height: var(--line-height-base);
+    letter-spacing: var(--letter-spacing-base);
+    -webkit-font-smoothing: var(--font-smoothing, antialiased);
 
     transform-origin: var(--kb-hovercard-content-transform-origin);
 

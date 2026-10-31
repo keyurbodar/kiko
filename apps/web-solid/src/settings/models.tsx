@@ -117,7 +117,11 @@ export function ModelsPage() {
   return (
     <div class="flex flex-col gap-[18px]" data-component="models-page">
       <Show when={cheer()}>
-        <p class="rounded-xl bg-editor px-4 py-3 type-base text-primary" data-component="first-provider-cheer" role="status">
+        <p
+          class="rounded-xl bg-editor px-4 py-3 type-base text-primary"
+          data-component="first-provider-cheer"
+          role="status"
+        >
           Connected. Your agents can reply now.
         </p>
       </Show>
@@ -450,7 +454,11 @@ function PickerModelRow(props: { row: PickerRow; hidden: boolean; showProvider: 
       </span>
       <Show when={props.row.model.reasoning}>
         <TooltipV2 placement="top" value="Reasoning">
-          <span class="grid shrink-0 place-items-center text-[var(--text-quaternary)]" aria-label="Reasoning" role="img">
+          <span
+            class="grid shrink-0 place-items-center text-[var(--text-quaternary)]"
+            aria-label="Reasoning"
+            role="img"
+          >
             <RemixIcon icon={ReasoningIcon} size={16} />
           </span>
         </TooltipV2>
@@ -806,7 +814,7 @@ function SignInMethod(props: {
       <Show
         when={running()}
         fallback={
-          <Button big class="w-full" data-action="sign-in" onClick={start}>
+          <Button size="xl" class="w-full" data-action="sign-in" onClick={start}>
             {state()?.status === "error" ? "Try signing in again" : signInLabel(props.label ?? props.name)}
           </Button>
         }
@@ -829,11 +837,7 @@ function SignInMethod(props: {
         {(s) => (
           <>
             <Show when={!s().code && !s().link && !s().prompt}>
-              <div
-                class={cn("flex items-center gap-2 text-xs", muted)}
-                data-component="sign-in-waiting"
-                role="status"
-              >
+              <div class={cn("flex items-center gap-2 text-xs", muted)} data-component="sign-in-waiting" role="status">
                 <Spinner size={12} />
                 Waiting for the provider
               </div>

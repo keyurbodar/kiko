@@ -41,10 +41,10 @@ export function Broken(props: { error: unknown; reset: () => void }) {
           <p class="type-base text-secondary">Your chats are safe. Try again, or reload Kiko.</p>
         </div>
         <div class="flex w-full flex-col gap-2 sm:w-auto sm:flex-row-reverse sm:justify-center">
-          <Button variant="primary" big data-action="crash-retry" onClick={props.reset}>
+          <Button variant="primary" size="xl" data-action="crash-retry" onClick={props.reset}>
             Try again
           </Button>
-          <Button variant="ghost" big data-action="crash-reload" onClick={() => location.reload()}>
+          <Button variant="ghost" size="xl" data-action="crash-reload" onClick={() => location.reload()}>
             Reload
           </Button>
         </div>

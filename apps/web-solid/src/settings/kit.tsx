@@ -1,24 +1,40 @@
 import { RemixIcon, type IconSize } from "@kiko/ui/remix-icon"
 import { LoaderIcon } from "@kiko/ui/icons"
 import { Pictogram, type PictogramName } from "@kiko/ui/pictogram"
-import { Show, splitProps, type JSX } from "solid-js"
+import { For, Show, splitProps, type JSX } from "solid-js"
 import { cn } from "../lib/cn"
 import "./kit.css"
 
-const focus = "outline-none"
-
 export const muted = "text-[var(--kit-meta)]"
 
-type Variant = "primary" | "secondary" | "ghost" | "danger"
+type Variant = "primary" | "secondary" | "ghost" | "outline" | "accent" | "danger"
+type Tone = "accent" | "danger" | "success" | "warning"
+type Size = "sm" | "md" | "lg" | "xl"
 
-export function buttonClass(variant: Variant = "secondary", extra?: string, big?: boolean) {
-  return cn("kit-btn", `kit-btn--${variant}`, big && "kit-btn--big", extra)
+export function buttonClass(variant: Variant = "secondary", extra?: string, size: Size = "md", tone?: Tone) {
+  return cn("kit-btn", `kit-btn--${variant}`, size !== "md" && `kit-btn--${size}`, tone && `kit-tone--${tone}`, extra)
 }
 
 export const selectClass = "kit-select"
 
 export function Spinner(props: { size?: IconSize }): JSX.Element {
-  return <RemixIcon icon={LoaderIcon} class="motion-spin" size={props.size ?? 16} />
+  return (
+    <RemixIcon
+      icon={LoaderIcon}
+      class="kit-spinner"
+      size={props.size ?? 14}
+      style={{ "--spinner-sync": `${-(performance.now() % 1000)}ms` }}
+      data-component="spinner"
+    />
+  )
+}
+
+export function Kbd(props: { keys: readonly string[]; size?: "sm" | "md" }): JSX.Element {
+  return (
+    <span class="kit-kbd" data-size={props.size ?? "md"} data-component="kbd">
+      <For each={props.keys}>{(key) => <kbd data-wide={key.length > 1 || undefined}>{key}</kbd>}</For>
+    </span>
+  )
 }
 
 export function Skeleton(props: { class?: string }): JSX.Element {
@@ -26,13 +42,13 @@ export function Skeleton(props: { class?: string }): JSX.Element {
 }
 
 export function Button(
-  props: JSX.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: Variant; busy?: boolean; big?: boolean },
+  props: JSX.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: Variant; tone?: Tone; size?: Size; busy?: boolean },
 ): JSX.Element {
-  const [local, rest] = splitProps(props, ["variant", "class", "type", "busy", "disabled", "big", "children"])
+  const [local, rest] = splitProps(props, ["variant", "tone", "size", "class", "type", "busy", "disabled", "children"])
   return (
     <button
       type={local.type ?? "button"}
-      class={buttonClass(local.variant, cn(local.busy && "relative", local.class), local.big)}
+      class={buttonClass(local.variant, cn(local.busy && "relative", local.class), local.size, local.tone)}
       disabled={local.disabled || local.busy}
       aria-busy={local.busy || undefined}
       {...rest}
@@ -40,22 +56,19 @@ export function Button(
       <Show when={local.busy} fallback={local.children}>
         <span class="invisible inline-flex items-center gap-[inherit]">{local.children}</span>
         <span class="motion-busy absolute inset-0 grid place-items-center">
-          <Spinner />
+          <Spinner size={12} />
         </span>
       </Show>
     </button>
   )
 }
 
-export const iconButtonClass = cn(
-  "grid size-7 shrink-0 cursor-pointer place-items-center rounded-base text-[var(--text-secondary)] transition-[background-color,color,transform] duration-[var(--duration-fast)] ease-[var(--ease-sharp)] enabled:hover:bg-[var(--bg-tertiary)] enabled:hover:text-primary enabled:active:scale-[0.94] disabled:cursor-not-allowed disabled:opacity-(--opacity-disabled)",
-  focus,
-)
+export const iconButtonClass = "kit-icon-btn"
 
 export function IconButton(
-  props: JSX.ButtonHTMLAttributes<HTMLButtonElement> & { label: string; danger?: boolean },
+  props: JSX.ButtonHTMLAttributes<HTMLButtonElement> & { label: string; danger?: boolean; size?: Size },
 ): JSX.Element {
-  const [local, rest] = splitProps(props, ["label", "danger", "class"])
+  const [local, rest] = splitProps(props, ["label", "danger", "size", "class"])
   return (
     <button
       type="button"
@@ -63,8 +76,8 @@ export function IconButton(
       title={local.label}
       class={cn(
         iconButtonClass,
-        local.danger &&
-          "enabled:hover:bg-[color-mix(in_oklab,var(--text-danger)_8%,transparent)] enabled:hover:text-[var(--text-danger)]",
+        local.size && local.size !== "md" && `kit-icon-btn--${local.size}`,
+        local.danger && "kit-tone--danger",
         local.class,
       )}
       {...rest}
@@ -77,10 +90,10 @@ export const fieldClass = "kit-field"
 export function Page(props: { title: string; description?: string; children: JSX.Element }): JSX.Element {
   return (
     <div class="flex flex-col" data-component="settings-page">
-      <header class="pb-6">
+      <header class="pb-5">
         <h1 class="settings-page-title">{props.title}</h1>
         <Show when={props.description}>
-          {(description) => <p class="mt-1.5 max-w-xl text-base leading-[22px] text-[var(--text-tertiary)]">{description()}</p>}
+          {(description) => <p class="mt-1 max-w-xl type-base text-tertiary">{description()}</p>}
         </Show>
       </header>
       {props.children}
@@ -102,21 +115,17 @@ export function Group(props: {
   return (
     <section class={local.class} data-setting-group={local.id} {...rest}>
       <Show when={local.title || local.action}>
-        <div class="flex items-end gap-4 px-1 pb-1.5">
+        <div class="flex items-end gap-4 px-0.5 pb-2">
           <div class="min-w-0 flex-1">
             <Show when={local.title}>
-              {(title) => (
-                <h2 class="flex min-h-[20px] items-center text-sm leading-5 font-medium text-[var(--text-primary)]">
-                  {title()}
-                </h2>
-              )}
+              {(title) => <h2 class="flex min-h-6 items-center type-sm text-tertiary">{title()}</h2>}
             </Show>
             <Show when={local.description}>
-              {(description) => <div class={cn("mt-1 text-sm leading-relaxed", muted)}>{description()}</div>}
+              {(description) => <div class={cn("type-sm", muted)}>{description()}</div>}
             </Show>
           </div>
           <Show when={local.action}>
-            {(action) => <div class="flex shrink-0 items-center gap-2 pb-0.5">{action()}</div>}
+            {(action) => <div class="flex shrink-0 items-center gap-1.5">{action()}</div>}
           </Show>
         </div>
       </Show>
@@ -141,19 +150,16 @@ export function Row(props: {
 }): JSX.Element {
   const [local, rest] = splitProps(props, ["label", "description", "id", "onReset", "details", "class", "children"])
   return (
-    <div class={cn("px-4", rowLine, local.class)} data-setting={local.id} {...rest}>
-      <div class="settings-row flex items-center gap-6 py-3">
+    <div class={cn("px-3", rowLine, local.class)} data-setting={local.id} {...rest}>
+      <div class="settings-row flex min-h-12 items-center gap-6 py-2.5">
         <div class="min-w-0 flex-1">
-          <div class="flex min-h-5 items-center gap-1.5 text-base leading-5 font-medium text-primary">
+          <div class="flex min-h-5 items-center gap-1.5 type-base text-primary">
             {local.label}
 
             <Show when={local.onReset}>
               <button
                 type="button"
-                class={cn(
-                  "relative grid size-5 cursor-pointer place-items-center rounded-base outline-none before:absolute before:-inset-1.5 hover:bg-[var(--bg-tertiary)] hover:text-primary",
-                  muted,
-                )}
+                class="kit-icon-btn kit-icon-btn--sm relative before:absolute before:-inset-1"
                 title="Reset to default"
                 aria-label={`Reset ${typeof local.label === "string" ? local.label.toLowerCase() : "setting"} to default`}
                 data-action="reset-setting"
@@ -176,20 +182,18 @@ export function Row(props: {
             </Show>
           </div>
           <Show when={local.description}>
-            {(description) => (
-              <div class={cn("mt-0.5 max-w-xl text-sm leading-relaxed", muted)}>{description()}</div>
-            )}
+            {(description) => <div class={cn("mt-0.5 max-w-xl type-sm", muted)}>{description()}</div>}
           </Show>
         </div>
         <Show when={local.children}>
           {(control) => (
-            <div class="settings-row-control flex min-w-0 max-w-[60%] shrink-0 flex-wrap items-center justify-end gap-2">
+            <div class="settings-row-control flex min-w-0 max-w-[60%] shrink-0 flex-wrap items-center justify-end gap-1.5">
               {control()}
             </div>
           )}
         </Show>
       </div>
-      <Show when={local.details}>{(details) => <div class="pb-3.5">{details()}</div>}</Show>
+      <Show when={local.details}>{(details) => <div class="pb-3">{details()}</div>}</Show>
     </div>
   )
 }
@@ -208,7 +212,7 @@ export function Item(props: {
   return (
     <div
       class={cn(
-        "grid items-center gap-x-3 px-4 py-2",
+        "grid items-center gap-x-2.5 px-3 py-2",
         local.icon ? "grid-cols-[auto_minmax(0,1fr)_auto]" : "grid-cols-[minmax(0,1fr)_auto]",
         rowLine,
         local.class,
@@ -217,23 +221,23 @@ export function Item(props: {
     >
       <Show when={local.icon}>
         {(icon) => (
-          <span class="grid size-6 shrink-0 place-items-center overflow-hidden rounded-base bg-[var(--bg-elevated)] text-[var(--text-secondary)]">
+          <span class="grid size-6 shrink-0 place-items-center overflow-hidden rounded-base bg-tertiary icon-secondary">
             {icon()}
           </span>
         )}
       </Show>
       <div class="flex min-h-7 min-w-0 flex-col justify-center">
-        <div class="flex items-center gap-1.5 truncate text-base leading-5 font-medium text-primary">
+        <div class="flex items-center gap-1.5 truncate type-base text-primary">
           {local.title}
           <Show when={local.trouble}>
             <span class="size-1.5 shrink-0 rounded-full bg-[var(--text-danger)]" aria-hidden="true" />
           </Show>
         </div>
-        <Show when={local.meta}>{(meta) => <div class={cn("text-sm leading-relaxed", muted)}>{meta()}</div>}</Show>
+        <Show when={local.meta}>{(meta) => <div class={cn("truncate type-sm", muted)}>{meta()}</div>}</Show>
       </div>
-      <div class="flex shrink-0 items-center gap-1.5">{local.actions}</div>
+      <div class="flex shrink-0 items-center gap-1">{local.actions}</div>
       <Show when={local.children}>
-        {(body) => <div class={cn("col-span-2 min-w-0 pt-3 pb-1", local.icon && "col-start-2")}>{body()}</div>}
+        {(body) => <div class={cn("col-span-2 min-w-0 pt-2.5 pb-1", local.icon && "col-start-2")}>{body()}</div>}
       </Show>
     </div>
   )
@@ -242,7 +246,7 @@ export function Item(props: {
 export function Hint(props: { children: JSX.Element; [data: `data-${string}`]: string | undefined }): JSX.Element {
   const [local, rest] = splitProps(props, ["children"])
   return (
-    <p class={cn("text-sm leading-relaxed", muted)} {...rest}>
+    <p class={cn("type-sm", muted)} {...rest}>
       {local.children}
     </p>
   )
@@ -251,7 +255,7 @@ export function Hint(props: { children: JSX.Element; [data: `data-${string}`]: s
 export function Empty(props: { children: JSX.Element; [data: `data-${string}`]: string | undefined }): JSX.Element {
   const [local, rest] = splitProps(props, ["children"])
   return (
-    <div class={cn("px-4 py-3 text-sm", muted, rowLine)} {...rest}>
+    <div class={cn("px-3 py-3 type-base", muted, rowLine)} {...rest}>
       {local.children}
     </div>
   )
@@ -284,14 +288,7 @@ export function Notice(props: {
 }): JSX.Element {
   const [local, rest] = splitProps(props, ["tone", "children"])
   return (
-    <p
-      role="alert"
-      class={cn(
-        "text-sm leading-relaxed",
-        local.tone === "muted" ? muted : "text-[color-mix(in_oklab,var(--text-danger)_90%,transparent)]",
-      )}
-      {...rest}
-    >
+    <p role="alert" class={cn("type-sm", local.tone === "muted" ? muted : "text-danger")} {...rest}>
       {local.children}
     </p>
   )
@@ -310,7 +307,10 @@ export function Slider(props: {
 }): JSX.Element {
   const fill = () => `${((props.value - props.min) / (props.max - props.min || 1)) * 100}%`
   return (
-    <div class="flex w-56 max-w-full items-center gap-3" classList={{ "opacity-(--opacity-disabled)": props.disabled }}>
+    <div
+      class="flex w-48 max-w-full items-center gap-2.5"
+      classList={{ "opacity-(--opacity-disabled)": props.disabled }}
+    >
       <output class="kit-value">{props.display}</output>
       <input
         type="range"

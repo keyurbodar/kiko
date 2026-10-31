@@ -2,40 +2,34 @@
 
 @layer v2 {
   [data-component="search-field"] {
+    box-sizing: border-box;
     display: flex;
-    height: 32px;
+    height: var(--spacing-control-lg, 28px);
     min-width: 0;
     align-items: center;
-    gap: 8px;
-    padding: 0 6px 0 10px;
+    gap: 6px;
+    padding: 0 4px 0 8px;
     color: var(--text-primary);
     background: var(--bg-input-field);
+    border: 1px solid var(--stroke-tertiary);
     border-radius: var(--radius-base);
-    box-shadow: var(--hairline);
     cursor: text;
-    transition:
-      background-color var(--duration-fast) var(--ease-sharp),
-      box-shadow var(--duration-fast) var(--ease-sharp);
+    transition: border-color var(--duration-fast) ease;
   }
 
   [data-component="search-field"][data-size="large"] {
-    height: 40px;
-    border-radius: var(--radius-xl);
-  }
-
-  @media (hover: hover) and (pointer: fine) {
-    [data-component="search-field"]:hover {
-      box-shadow: var(--hairline-strong);
-    }
+    height: var(--spacing-control-xl, 32px);
+    padding-inline-start: 10px;
+    border-radius: var(--radius-lg);
   }
 
   [data-component="search-field"]:focus-within {
-    box-shadow: var(--hairline-strong);
+    border-color: var(--stroke-secondary);
   }
 
   [data-slot="search-field-icon"] {
     flex-shrink: 0;
-    color: var(--text-tertiary);
+    color: var(--icon-tertiary);
   }
 
   [data-component="search-field"] > input {
@@ -46,7 +40,8 @@
     color: var(--text-primary);
     font-family: var(--font-family-sans);
     font-size: var(--font-size-base);
-    line-height: 20px;
+    line-height: var(--line-height-base);
+    letter-spacing: var(--letter-spacing-base);
     background: transparent;
     border: 0;
     outline: none;
@@ -54,7 +49,7 @@
   }
 
   [data-component="search-field"] > input::placeholder {
-    color: var(--text-quaternary);
+    color: var(--text-tertiary);
   }
 
   [data-component="search-field"] > input::-webkit-search-cancel-button,
@@ -64,25 +59,25 @@
 
   [data-slot="search-field-clear"] {
     display: grid;
-    width: 22px;
-    height: 22px;
+    width: var(--spacing-control-sm, 20px);
+    height: var(--spacing-control-sm, 20px);
     flex-shrink: 0;
     place-items: center;
     padding: 0;
-    color: var(--text-tertiary);
+    color: var(--icon-tertiary);
     background: transparent;
     border: 0;
-    border-radius: var(--radius-base);
+    border-radius: var(--radius-sm);
     cursor: pointer;
     transition:
-      background-color var(--duration-fast) var(--ease-sharp),
-      color var(--duration-fast) var(--ease-sharp);
+      background-color var(--duration-fast) ease,
+      color var(--duration-fast) ease;
   }
 
   @media (hover: hover) and (pointer: fine) {
     [data-slot="search-field-clear"]:hover {
-      color: var(--text-primary);
-      background: var(--bg-secondary);
+      color: var(--icon-primary);
+      background: var(--bg-tertiary);
     }
   }
 
