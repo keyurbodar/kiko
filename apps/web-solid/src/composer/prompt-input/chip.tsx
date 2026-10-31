@@ -55,10 +55,10 @@ export function TokenGlyph(props: { token: Token; size: number }) {
     )
   if (token.kind === "file") return <TypeIcon type={fileType({ name: token.path, type: "" })} size={props.size - 1} />
   if (token.kind === "recipe") return <span class="token-leaf" aria-hidden="true" />
-  if (token.kind === "action") return <RemixIcon icon={PlusIcon} size={16} class="token-bolt" />
+  if (token.kind === "action") return <RemixIcon icon={PlusIcon} size={14} class="token-bolt" />
   if (token.kind === "command")
-    return <RemixIcon icon={COMMAND_ICONS[token.trigger] ?? CommandIcon} size={16} class="token-bolt" />
-  return <RemixIcon icon={BoltIcon} size={16} class="token-bolt" />
+    return <RemixIcon icon={COMMAND_ICONS[token.trigger] ?? CommandIcon} size={14} class="token-bolt" />
+  return <RemixIcon icon={BoltIcon} size={14} class="token-bolt" />
 }
 
 function TokenChip(props: { sign: "@" | "/"; name: string; source: ChipSource }) {
@@ -75,7 +75,7 @@ function TokenChip(props: { sign: "@" | "/"; name: string; source: ChipSource })
     >
       {(found) => (
         <span class="token-chip" data-kind={found().kind} title={found().hint}>
-          <TokenGlyph token={found()} size={16} />
+          <TokenGlyph token={found()} size={14} />
           <span class="token-chip-label">{found().title}</span>
         </span>
       )}
@@ -129,7 +129,7 @@ function FilePreview(props: { path: string; anchor: HTMLElement; source: ChipSou
           style={{ left: `${Math.max(8, box.left)}px`, bottom: `${window.innerHeight - box.top + 8}px` }}
         >
           <div class="token-preview-head">
-            <TypeIcon type={fileType({ name: props.path, type: record().file?.type ?? "" })} size={16} />
+            <TypeIcon type={fileType({ name: props.path, type: record().file?.type ?? "" })} size={14} />
             <span class="token-preview-name">{shownName(props.path)}</span>
             <Show when={record().file}>
               {(file) => <span class="token-preview-meta">{formatBytes(file().size)}</span>}
@@ -169,7 +169,7 @@ function FileRef(props: { path: string; folder: boolean; source: ChipSource }) {
       }}
       onPointerLeave={leave}
     >
-      <TokenGlyph token={{ kind: "file", id: props.path, path: props.path, title: "", hint: "" }} size={16} />
+      <TokenGlyph token={{ kind: "file", id: props.path, path: props.path, title: "", hint: "" }} size={14} />
       <span class="token-chip-label">{middleTruncate(shownName(props.path), 28)}</span>
       <Show when={open()}>
         <FilePreview path={props.path} anchor={anchor} source={props.source} />
@@ -225,7 +225,7 @@ function Chip(props: { id: string; name: string; source: ChipSource }) {
       {image() ? (
         <img class="token-chip-thumb" src={part()!.blob.url} alt="" draggable={false} />
       ) : (
-        <TypeIcon type={fileType({ name: props.name, type: part()?.mime ?? "" })} size={16} />
+        <TypeIcon type={fileType({ name: props.name, type: part()?.mime ?? "" })} size={14} />
       )}
       <span class="token-chip-label">{middleTruncate(props.name, 28)}</span>
       <span class="token-chip-meta">{meta()}</span>

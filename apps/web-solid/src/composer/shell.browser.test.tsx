@@ -47,8 +47,9 @@ function expectEdgeless(root: HTMLElement) {
   for (const part of shellParts(root).slice(1)) expect(edges(part)).toEqual(EDGELESS)
 }
 
-function ring(element: Element) {
-  return getComputedStyle(element).boxShadow.replace(/\s+/g, " ")
+function border(element: Element) {
+  const style = getComputedStyle(element)
+  return { width: style.borderTopWidth, style: style.borderTopStyle, color: style.borderTopColor }
 }
 
 function inTheme(dark: boolean, check: () => void) {
@@ -63,7 +64,7 @@ function inTheme(dark: boolean, check: () => void) {
 }
 
 describe("composer shell", () => {
-  it("reads as a fill with a quiet ring that focus leaves alone", async () => {
+  it("reads as an input fill with a quiet hairline that focus strengthens", async () => {
     room.followRoute(() => ROOM)
     await using screen = await render(() => (
       <div class="composer-dock" data-component="composer-dock">
@@ -74,23 +75,24 @@ describe("composer shell", () => {
     const box = screen.container.querySelector<HTMLElement>(".composer-box")!
     const input = screen.container.querySelector<HTMLElement>('[contenteditable="true"]')!
 
+    expect(getComputedStyle(box).boxShadow).toBe("none")
+    expect(border(box)).toEqual({ width: "1px", style: "solid", color: resolvedColor("color", "--stroke-tertiary") })
+
     const fills = [true, false].map((dark) => {
       let fill = ""
       inTheme(dark, () => {
         expectEdgeless(screen.container)
-        expect(ring(box)).toMatch(/0px 0px 0px 1px inset$/)
         fill = getComputedStyle(box).backgroundColor
-        expect(fill).toBe(resolvedColor("background", "--raise"))
+        expect(fill).toBe(resolvedColor("background", "--bg-input"))
       })
       return fill
     })
     expect(new Set(fills).size).toBe(2)
 
-    const resting = ring(box)
     await userEvent.click(input)
     await expect.poll(() => box.hasAttribute("data-focused")).toBe(true)
     expect(document.activeElement).toBe(input)
-    expect(ring(box)).toBe(resting)
+    await expect.poll(() => border(box).color).toBe(resolvedColor("color", "--stroke-secondary"))
     expect(getComputedStyle(box).outlineStyle).toBe("none")
 
     box.setAttribute("data-editing", "")

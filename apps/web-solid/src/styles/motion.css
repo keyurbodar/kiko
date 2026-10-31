@@ -62,8 +62,13 @@
 
 .motion-skeleton {
   background:
-    linear-gradient(90deg, transparent 0%, color-mix(in oklab, var(--text-primary) 6%, transparent) 50%, transparent 100%) 0 0 /
-      50% 100% no-repeat,
+    linear-gradient(
+        90deg,
+        transparent 0%,
+        color-mix(in oklab, var(--text-primary) 6%, transparent) 50%,
+        transparent 100%
+      )
+      0 0 / 50% 100% no-repeat,
     color-mix(in oklab, var(--text-tertiary) 15%, transparent);
 }
 
@@ -521,7 +526,7 @@
 
   .composer-dock .composer-send:not(:disabled):not([data-mode="stop"]):hover .composer-send-arrow,
   .composer-dock .composer-send:not(:disabled):not([data-mode="stop"]):focus-visible .composer-send-arrow {
-    transform: translateX(-2px);
+    transform: translateY(-1px);
   }
 
   .reasoning-trigger:hover .reasoning-needle,

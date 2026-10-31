@@ -5,7 +5,7 @@
     transform var(--duration-fast) var(--ease-sharp);
 }
 .picker-trigger:active {
-  transform: scale(0.97);
+  transform: scale(var(--press-scale));
 }
 .picker-swap {
   display: inline-flex;

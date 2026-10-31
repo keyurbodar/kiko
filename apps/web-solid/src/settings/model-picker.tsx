@@ -78,7 +78,7 @@ function usePhone() {
 }
 
 const CHIP =
-  "picker-trigger flex h-control-lg min-w-0 max-w-full items-center gap-1.5 rounded-base px-2 text-sm text-secondary hover:bg-tertiary hover:text-primary aria-expanded:bg-tertiary aria-expanded:text-primary"
+  "picker-trigger flex h-control-lg min-w-0 max-w-full items-center gap-1.5 rounded-base px-2 text-sm text-secondary hover:bg-quaternary hover:text-primary aria-expanded:bg-quaternary aria-expanded:text-primary"
 
 export function ModelPickerButton(props: { draft: string }) {
   const members = () => room.roomMembers()
@@ -141,7 +141,7 @@ export function ModelPickerButton(props: { draft: string }) {
               onOpenChange={changePicker}
               onPick={pick}
               title={members().length > 1 ? `Choose model for ${member().name}` : "Choose model"}
-              class="flex h-7 max-w-[240px] min-w-0 items-center gap-1.5 rounded-base px-2 text-sm text-secondary hover:bg-tertiary hover:text-primary aria-expanded:bg-tertiary aria-expanded:text-primary"
+              class="flex h-control-md max-w-[240px] min-w-0 items-center gap-1 rounded-base px-1.5 text-sm text-secondary hover:bg-quaternary hover:text-primary aria-expanded:bg-quaternary aria-expanded:text-primary"
             >
               <Show when={members().length > 1}>
                 <IdentityAvatar seed={member().slug} size={14} />

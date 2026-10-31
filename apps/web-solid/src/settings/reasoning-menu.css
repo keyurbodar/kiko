@@ -5,12 +5,12 @@
     transform var(--duration-fast) var(--ease-sharp);
 }
 .reasoning-trigger:active {
-  transform: scale(0.97);
+  transform: scale(var(--press-scale));
 }
 .reasoning-default {
-  padding: 1px 6px;
-  border-radius: var(--radius-base);
-  background: var(--bg-secondary);
+  padding: 0 4px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-quaternary);
   color: var(--text-tertiary);
   font-size: var(--font-size-xs);
   font-weight: 500;
@@ -23,11 +23,11 @@
 }
 .reasoning-choice {
   display: inline-flex;
-  height: 32px;
+  height: 28px;
   align-items: center;
   gap: 6px;
-  padding: 0 12px;
-  border-radius: var(--radius-full);
+  padding: 0 10px;
+  border-radius: var(--radius-base);
   background: var(--bg-tertiary);
   color: var(--text-secondary);
   font-size: var(--font-size-sm);
@@ -39,10 +39,10 @@
     transform var(--duration-fast) var(--ease-sharp);
 }
 .reasoning-choice:active {
-  transform: scale(0.97);
+  transform: scale(var(--press-scale));
 }
 .reasoning-choice[aria-checked="true"] {
-  background: var(--text-primary);
+  background: var(--bg-neutral);
   color: var(--text-invert);
 }
 .reasoning-choice[aria-checked="true"] .reasoning-default {

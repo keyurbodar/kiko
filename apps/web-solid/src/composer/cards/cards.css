@@ -2,8 +2,8 @@
 .composer-card-choices {
   --card-active: var(--text-primary);
   --card-complete: var(--text-success);
-  --card-outline: var(--stroke-secondary);
-  --card-surface: var(--bg-elevated);
+  --card-outline: var(--stroke-tertiary);
+  --card-surface: var(--bg-input);
 }
 .composer-cards {
   position: relative;
@@ -25,9 +25,9 @@
 .composer-card-surface {
   container-type: inline-size;
   background: var(--card-surface);
-  border-radius: var(--radius-3xl, 20px);
-  box-shadow: var(--popup-shadow);
-  padding: 10px;
+  border: 1px solid var(--card-outline);
+  border-radius: var(--radius-xl);
+  padding: 6px;
   min-width: 0;
 }
 .composer-card-row {
@@ -50,11 +50,11 @@ button.composer-card-row {
   justify-content: center;
   align-items: center;
   width: var(--composer-banner-icon-column, 24px);
-  color: var(--text-tertiary);
+  color: var(--icon-secondary);
 }
 .composer-card-icon svg {
-  width: 12px;
-  height: 12px;
+  width: 14px;
+  height: 14px;
 }
 .composer-card-title {
   display: flex;
@@ -66,7 +66,7 @@ button.composer-card-row {
   min-width: 0;
   flex: 1;
   font-weight: 500;
-  color: color-mix(in srgb, var(--text-primary) 80%, transparent);
+  color: var(--text-primary);
 }
 .composer-card-kind {
   color: var(--text-tertiary);
@@ -98,7 +98,7 @@ button.composer-card-row {
 .composer-card-body p {
   font-size: var(--font-size-base);
   line-height: 20px;
-  color: color-mix(in srgb, var(--text-primary) 85%, transparent);
+  color: var(--text-secondary);
   margin: 0 0 8px;
   overflow-wrap: anywhere;
 }
@@ -109,7 +109,7 @@ button.composer-card-row {
   width: 96%;
   margin: 0 auto 4px;
   border: 1px solid var(--card-outline);
-  border-radius: var(--radius-xl);
+  border-radius: var(--radius-lg);
   background: var(--card-surface);
   cursor: pointer;
 }
@@ -122,7 +122,7 @@ button.composer-card-row {
   height: 4px;
   border: 1px solid var(--card-outline);
   border-bottom: 0;
-  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
   background: var(--card-surface);
 }
 .composer-card-peek > span {
@@ -137,20 +137,20 @@ button.composer-card-row {
 .composer-card-choices {
   width: var(--kb-popper-anchor-width);
   max-width: calc(100vw - 32px);
-  padding: 4px;
+  padding: 6px;
   background: var(--bg-elevated);
-  border-radius: var(--radius-xl);
+  border-radius: var(--radius-2xl);
   box-shadow: var(--popup-shadow);
   z-index: 50;
 }
 .composer-card-choice {
   container-type: inline-size;
-  padding: 7px 4px;
-  border-radius: var(--radius-base);
+  padding: 3px 0;
+  border-radius: var(--radius-lg);
 }
 @media (hover: hover) and (pointer: fine) {
   .composer-card-choice > .composer-card-row:hover {
-    background: var(--bg-secondary);
+    background: var(--bg-quaternary);
   }
 }
 .task-segments {
@@ -242,7 +242,7 @@ button.composer-card-row {
 }
 @media (hover: hover) and (pointer: fine) {
   .task-step:hover {
-    background: var(--bg-tertiary);
+    background: var(--bg-quaternary);
   }
 }
 .task-glyph {
@@ -387,12 +387,13 @@ button.composer-card-row {
   display: flex;
   align-items: center;
   gap: 10px;
-  min-height: 40px;
+  min-height: 36px;
   margin: 0 0 8px;
-  padding: 0 14px;
+  padding: 0 12px;
   overflow: hidden;
+  border: 1px solid var(--stroke-tertiary);
   border-radius: var(--radius-xl);
-  background: var(--bg-elevated);
+  background: var(--bg-input);
   color: var(--text-primary);
   font-size: var(--font-size-base);
   line-height: 20px;
@@ -411,14 +412,14 @@ button.composer-card-row {
 }
 .composer-card-stamp {
   display: inline-flex;
-  width: 18px;
-  height: 18px;
-  color: var(--text-success);
+  width: 14px;
+  height: 14px;
+  color: var(--icon-success);
   animation: task-tick var(--duration-normal) var(--ease-sharp) 100ms both;
 }
 .composer-card-stamp svg {
-  width: 18px;
-  height: 18px;
+  width: 14px;
+  height: 14px;
 }
 @keyframes composer-settled-in {
   from {
