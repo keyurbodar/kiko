@@ -28,7 +28,7 @@ import "./right-panel.css"
 const scrolls = new Map<string, number>()
 
 const KEY_HINT =
-  "grid h-[18px] min-w-[18px] shrink-0 place-items-center rounded-[5px] bg-tertiary px-1 text-[11px] text-[var(--text-tertiary)]"
+  "type-xs grid h-[18px] min-w-[18px] shrink-0 place-items-center rounded-sm bg-quaternary px-1 text-tertiary"
 
 const SHORTCUT_BLOCKING_LAYERS = '[role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"]'
 
@@ -158,7 +158,7 @@ function LauncherItems(props: { onPick: (kind: FixedKind) => void }) {
     <For each={entries()}>
       {(entry) => (
         <MenuV2.Item onSelect={() => props.onPick(entry.kind)}>
-          <RemixIcon icon={panelOf(entry.kind).icon} size={16} />
+          <RemixIcon icon={panelOf(entry.kind).icon} size={14} />
           <span class="min-w-0 flex-1 truncate">{entry.label}</span>
           <span class={KEY_HINT}>{entry.key}</span>
         </MenuV2.Item>
@@ -376,7 +376,7 @@ function EmptyPanel(props: { chatId: string }) {
                 onMouseLeave={() => setHighlight((current) => (current === index() ? -1 : current))}
                 onClick={() => open(entry.kind)}
               >
-                <RemixIcon icon={panelOf(entry.kind).icon} size={16} class="shrink-0" />
+                <RemixIcon icon={panelOf(entry.kind).icon} size={14} class="shrink-0" />
                 <span class="min-w-0 flex-1 truncate">{entry.label}</span>
                 <span class={KEY_HINT}>{entry.key}</span>
               </button>
@@ -442,7 +442,7 @@ function PanelControls(props: { chatId: string; onClose: () => void; sheet: bool
             data-action="toggle-panel-max"
             onClick={() => setPanelMaximized(!maximized())}
           >
-            <RemixIcon icon={maximized() ? MinimizeIcon : MaximizeIcon} size={16} />
+            <RemixIcon icon={maximized() ? MinimizeIcon : MaximizeIcon} size={14} />
           </button>
         </TooltipV2>
       </Show>
@@ -454,7 +454,7 @@ function PanelControls(props: { chatId: string; onClose: () => void; sheet: bool
           data-action="close-panel"
           onClick={props.onClose}
         >
-          <RemixIcon icon={CloseIcon} size={16} />
+          <RemixIcon icon={CloseIcon} size={14} />
         </button>
       </TooltipV2>
     </div>

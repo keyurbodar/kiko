@@ -55,7 +55,7 @@ function CustomizeTrigger() {
   return (
     <TooltipV2 class="td-customize-host" placement="left" openDelay={300} value="Choose what to show">
       <MenuV2.Trigger class="td-customize" aria-label="Choose what to show" data-action="customize-details">
-        <RemixIcon icon={SlidersIcon} size={16} class="size-3.5" />
+        <RemixIcon icon={SlidersIcon} size={14} />
       </MenuV2.Trigger>
     </TooltipV2>
   )
@@ -90,7 +90,7 @@ function Section(props: {
         >
           <RemixIcon
             icon={ChevronRightIcon}
-            size={16}
+            size={14}
             class="td-chevron td-heading-chevron size-3 shrink-0"
             data-open={!folded() ? "" : undefined}
           />
@@ -134,7 +134,7 @@ function FoldRow(props: { label: string; open: boolean; action: string; onToggle
     <button type="button" class="td-row" aria-expanded={props.open} data-action={props.action} onClick={props.onToggle}>
       <RemixIcon
         icon={ChevronRightIcon}
-        size={16}
+        size={14}
         class="td-chevron td-icon size-3.5 shrink-0"
         data-open={props.open ? "" : undefined}
       />
@@ -362,7 +362,7 @@ function HelpersSection(props: { chatId: string; now: number }) {
             <Show when={lane.state !== "working"}>
               <RemixIcon
                 icon={lane.state === "failed" ? AlertCircleIcon : CheckIcon}
-                size={16}
+                size={14}
                 class={`td-check-pop size-3.5 shrink-0 self-start ${
                   lane.state === "failed" ? "text-[var(--text-danger)]" : "text-[var(--text-success)]"
                 }`}
@@ -428,7 +428,7 @@ function OutputRow(props: { chatId: string; file: FileRef; index: number }) {
       <span class="td-output-icon">
         <Show
           when={type() === "image"}
-          fallback={<RemixIcon icon={OUTPUT_ICON[type()] ?? FileTextIcon} size={16} class="td-icon" />}
+          fallback={<RemixIcon icon={OUTPUT_ICON[type()] ?? FileTextIcon} size={14} class="td-icon" />}
         >
           <img class="td-thumb" src={fileSrc(props.chatId, props.file.id)} alt="" loading="lazy" />
         </Show>
@@ -481,7 +481,7 @@ function UsedRowView(props: { row: UsedRow }) {
         data-action={`used-${props.row.kind}`}
         onClick={() => setOpen(!open())}
       >
-        <RemixIcon icon={USED_ICON[props.row.kind]} size={16} class="td-icon shrink-0" />
+        <RemixIcon icon={USED_ICON[props.row.kind]} size={14} class="td-icon shrink-0" />
         <span class="shrink-0">{props.row.label}</span>
         <span class="td-meta min-w-0 flex-1 truncate text-right">{props.row.summary}</span>
       </HoverCardV2.Trigger>
@@ -630,7 +630,7 @@ export default function ThreadDetails(props: { chatId: string }) {
                   data-action="customize-details-empty"
                   onClick={() => setMenuOpen(true)}
                 >
-                  <RemixIcon icon={SlidersIcon} size={16} class="td-icon shrink-0" />
+                  <RemixIcon icon={SlidersIcon} size={14} class="td-icon shrink-0" />
                   <span class="td-muted min-w-0 flex-1 truncate">Choose what to show</span>
                 </button>
               </div>

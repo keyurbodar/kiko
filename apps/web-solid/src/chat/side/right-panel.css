@@ -21,7 +21,7 @@
 }
 
 .rp-tab[aria-selected="true"] {
-  background: var(--bg-secondary);
+  background: var(--bg-tertiary);
   color: var(--text-primary);
 }
 
@@ -50,7 +50,7 @@
 }
 
 .rp-launch[data-highlighted] {
-  background: var(--bg-tertiary);
+  background: var(--bg-quaternary);
 }
 
 .rp-tabs[data-fade~="start"] {
@@ -76,26 +76,26 @@
   flex-shrink: 0;
   place-items: center;
   border-radius: var(--radius-base);
-  color: var(--text-tertiary);
+  color: var(--icon-tertiary);
   transition:
     background-color var(--duration-fast) var(--ease-sharp),
     color var(--duration-fast) var(--ease-sharp),
-    scale 120ms var(--ease-sharp);
+    scale var(--duration-fast) var(--ease-sharp);
 }
 
 @media (hover: hover) and (pointer: fine) {
   .rp-control:hover {
-    background: var(--bg-tertiary);
-    color: var(--text-primary);
+    background: var(--bg-quaternary);
+    color: var(--icon-primary);
   }
 }
 
 .rp-control:active {
-  scale: 0.97;
+  scale: var(--press-scale);
 }
 
 .rp-control:disabled {
-  opacity: 0.5;
+  opacity: var(--opacity-disabled);
   pointer-events: none;
 }
 
