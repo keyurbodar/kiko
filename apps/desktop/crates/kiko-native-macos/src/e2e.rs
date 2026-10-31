@@ -424,6 +424,11 @@ fn background_keys_reach_only_the_window_that_was_asked() {
         Some("the first document keeps its text"),
         "the keys went to the wrong window"
     );
+    assert_eq!(
+        window::focused_window_id(asked.pid as i32),
+        kept.id.parse().ok(),
+        "the first document did not get the keyboard back after the keys"
+    );
     assert_covered(&finder, &kept);
     assert_covered(&finder, &asked);
     owner.assert_unchanged();
@@ -715,20 +720,7 @@ fn focus_text_area(driver: &mut MacDriver, window: &Window) {
 
 fn make_key(window: &Window) -> bool {
     let id = window.id.parse().expect("a numeric window id");
-    let pid = window.pid as i32;
-    let before = window::focused_window_id(pid);
-    let made = crate::worker::make_key_window(pid, id).is_ok();
-    let after = window::focused_window_id(pid);
-    if !made || after != Some(id) {
-        let focused = window::ax_element_for(id, pid)
-            .map(|element| ax::flag(&ax::attribute(&element, ax::FOCUSED)));
-        let main = window::ax_element_for(id, pid)
-            .map(|element| ax::flag(&ax::attribute(&element, ax::MAIN)));
-        println!(
-            "make_key {id}: before={before:?} after={after:?} ok={made} focused={focused:?} main={main:?}"
-        );
-    }
-    made
+    crate::worker::make_key_window(window.pid as i32, id).is_ok()
 }
 
 fn document_text(driver: &mut MacDriver, window: &Window) -> Option<String> {

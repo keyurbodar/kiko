@@ -105,11 +105,15 @@ fn set_flag(
 }
 
 fn scroll(element: &AXUIElement, dx: f64, dy: f64) -> kiko_driver::Result<Route> {
-    if ax::perform(element, "AXScrollToVisible") == AXError::Success {
-        return Ok(Route::Accessibility);
-    }
-    let vertical = dy.abs() >= dx.abs();
-    let delta = if vertical { dy } else { dx };
+    let Some((vertical, delta)) = scroll_axis(dx, dy) else {
+        if ax::perform(element, "AXScrollToVisible") == AXError::Success {
+            return Ok(Route::Accessibility);
+        }
+        return Err(DriverError::new(
+            ErrorCode::BackgroundUnavailable,
+            "this element has nothing to scroll into view and no distance was asked for; use foreground mode",
+        ));
+    };
     let before = visible_range(element);
     let mut current = ax::retain(element);
     for _ in 0..SCROLL_ANCESTORS {
@@ -133,6 +137,12 @@ fn scroll(element: &AXUIElement, dx: f64, dy: f64) -> kiko_driver::Result<Route>
         ErrorCode::BackgroundUnavailable,
         "this window has no scrollbar the background can move; use foreground mode",
     ))
+}
+
+fn scroll_axis(dx: f64, dy: f64) -> Option<(bool, f64)> {
+    let vertical = dy.abs() >= dx.abs();
+    let delta = if vertical { dy } else { dx };
+    (delta != 0.0).then_some((vertical, delta))
 }
 
 fn visible_range(element: &AXUIElement) -> Option<CFRange> {
@@ -184,4 +194,16 @@ fn needs_screen(action: Action) -> DriverError {
         ErrorCode::BackgroundUnavailable,
         format!("{what} needs the screen; use foreground mode"),
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_scroll_keeps_the_axis_with_the_larger_distance_and_its_sign() {
+        assert_eq!(scroll_axis(20.0, -600.0), Some((true, -600.0)));
+        assert_eq!(scroll_axis(-300.0, 40.0), Some((false, -300.0)));
+        assert_eq!(scroll_axis(0.0, 0.0), None);
+    }
 }

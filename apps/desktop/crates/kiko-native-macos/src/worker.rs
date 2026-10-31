@@ -9,7 +9,7 @@ use kiko_driver::{
     ActParams, ActResult, Action, DriverError, ErrorCode, Look, LookParams, Mode, OpenParams,
     OpenTarget, Point, Ref, Route, Window,
 };
-use objc2_application_services::{AXError, AXUIElement, AXValue, AXValueType};
+use objc2_application_services::{AXError, AXValue, AXValueType};
 use objc2_core_foundation::CFRange;
 
 use crate::{act, apps, ax, capture, input, look, menu, window};
@@ -18,8 +18,8 @@ const ORDER_SETTLE: Duration = Duration::from_millis(400);
 const ORDER_POLL: Duration = Duration::from_millis(40);
 const ACTIVATE_WAIT: Duration = Duration::from_millis(1_500);
 const ACTIVATE_POLL: Duration = Duration::from_millis(50);
-const FOCUS_SETTLE: Duration = Duration::from_millis(250);
-const FOCUS_WAIT: Duration = Duration::from_millis(1_500);
+const FOCUS_ATTEMPT: Duration = Duration::from_millis(400);
+const KEY_SETTLE: Duration = Duration::from_millis(120);
 const MAX_REF_WINDOWS: usize = 16;
 const MAX_REF_ELEMENTS: usize = MAX_REF_WINDOWS * kiko_driver::MAX_NODES;
 
@@ -128,11 +128,14 @@ impl Worker {
             false => None,
         };
         let mut outline = String::new();
-        if page == Some(look::WebPage::Hidden)
-            && look::chromium(window.bundle.as_deref())
+        if look::chromium(window.bundle.as_deref())
             && !nodes.iter().any(|node| node.role == "webarea")
         {
-            outline.push_str(look::PAGE_HIDDEN);
+            match page {
+                Some(look::WebPage::Hidden) => outline.push_str(look::PAGE_HIDDEN),
+                Some(look::WebPage::Pending) => outline.push_str(look::PAGE_UNREAD),
+                _ => {}
+            }
         }
         outline.push_str(&kiko_driver::outline(&nodes));
         Ok(Look {
@@ -177,14 +180,20 @@ impl Worker {
                 })?;
                 if foreground {
                     bring_forward(pid, id)?;
-                } else {
-                    make_key_window(pid, id)?;
-                    if let Some(result) = shortcut_route(pid, keys, window) {
-                        return result.map(|route| ActResult { route });
-                    }
+                    let route = input::keys(pid, keys, true)?;
+                    return Ok(ActResult { route });
                 }
-                let route = input::keys(pid, keys, foreground)?;
-                Ok(ActResult { route })
+                let previous = window::focused_window_id(pid);
+                make_key_window(pid, id)?;
+                let result = match shortcut_route(pid, keys, window) {
+                    Some(result) => result.map(|route| ActResult { route }),
+                    None => input::keys(pid, keys, false).map(|route| ActResult { route }),
+                };
+                if let Some(previous) = previous.filter(|previous| *previous != id) {
+                    std::thread::sleep(KEY_SETTLE);
+                    make_key_window(pid, previous)?;
+                }
+                result
             }
             Action::Raise => {
                 if !foreground {
@@ -283,31 +292,39 @@ pub(crate) fn make_key_window(pid: i32, id: u32) -> kiko_driver::Result<()> {
         )
     })?;
     let application = ax::application(pid);
-    ax::set(&application, ax::FOCUSED_WINDOW, &element);
-    if wait_until(FOCUS_SETTLE, || {
-        is_focused_window(&application, &element).then_some(())
-    })
-    .is_none()
-    {
-        ax::perform(&element, "AXRaise");
-        ax::set_flag(&element, ax::MAIN, true);
-        ax::set_flag(&element, ax::FOCUSED, true);
+    let attempts: [(&str, &dyn Fn() -> AXError); 4] = [
+        ("focused-window", &|| {
+            ax::set(&application, ax::FOCUSED_WINDOW, &element)
+        }),
+        ("raise", &|| ax::perform(&element, "AXRaise")),
+        ("main", &|| ax::set_flag(&element, ax::MAIN, true)),
+        ("focused", &|| ax::set_flag(&element, ax::FOCUSED, true)),
+    ];
+    let mut notes = Vec::new();
+    for (name, attempt) in attempts {
+        let error = attempt();
+        let took = wait_until(FOCUS_ATTEMPT, || is_focused_window(pid, id).then_some(())).is_some();
+        notes.push(format!(
+            "{name}={error:?} took={took} now={:?}",
+            window::focused_window_id(pid)
+        ));
+        if took {
+            return Ok(());
+        }
     }
-    if wait_until(FOCUS_WAIT, || {
-        is_focused_window(&application, &element).then_some(())
-    })
-    .is_some()
-    {
-        return Ok(());
-    }
+    let windows: Vec<(Option<u32>, String, bool)> = window::ax_windows(pid)
+        .into_iter()
+        .map(|window| (window.id, window.title, window.minimized))
+        .collect();
+    println!("make key pid={pid} id={id} windows={windows:?} attempts={notes:?}");
     Err(DriverError::new(
         ErrorCode::BackgroundUnavailable,
         "this window would not take the keyboard in the background; use foreground mode",
     ))
 }
 
-fn is_focused_window(application: &AXUIElement, element: &AXUIElement) -> bool {
-    ax::focused_window(application).is_some_and(|focused| &*focused == element)
+fn is_focused_window(pid: i32, id: u32) -> bool {
+    window::focused_window_id(pid) == Some(id)
 }
 
 fn wait_until<T>(budget: Duration, mut probe: impl FnMut() -> Option<T>) -> Option<T> {
@@ -377,6 +394,9 @@ fn select_all(pid: i32) -> bool {
 
 fn restore_order(window: &Window, action: Action, front: i32) {
     let target = window.pid as i32;
+    if !needs_reorder(front, target) {
+        return;
+    }
     let settle = if action == Action::ShowMenu {
         ORDER_SETTLE
     } else {
@@ -392,6 +412,10 @@ fn restore_order(window: &Window, action: Action, front: i32) {
         }
         std::thread::sleep(ORDER_POLL);
     }
+}
+
+fn needs_reorder(front: i32, target: i32) -> bool {
+    front != target
 }
 
 fn raise_focused(pid: i32) {
@@ -620,6 +644,12 @@ mod tests {
         let mut ran = 0;
         serve(receiver, |_| ran += 1);
         assert_eq!(ran, 1);
+    }
+
+    #[test]
+    fn an_act_on_the_front_app_leaves_its_window_order_alone() {
+        assert!(!needs_reorder(7, 7));
+        assert!(needs_reorder(8, 7));
     }
 
     #[test]
