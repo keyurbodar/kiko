@@ -17,6 +17,7 @@ export DISPLAY=:0
 export GDK_BACKEND=x11
 export NO_AT_BRIDGE=0
 export GTK_A11Y=atspi
+export GI_TYPELIB_PATH="/run/current-system/sw/lib/girepository-1.0:${GI_TYPELIB_PATH:-}"
 export LIBGL_ALWAYS_SOFTWARE=1
 
 exec dbus-run-session -- bash -c '

@@ -159,7 +159,6 @@ jobs:
       - name: Bench
         if: runner.os == 'macOS'
         run: |
-          bash apps/bench/envs/macos-15/setup.sh
           bun run bench run --ci --config "$CONFIG" --track ${{ matrix.track }} --contender ${{ matrix.contender }} --model ${{ matrix.model }} --shard ${{ matrix.shard }} --machine ${{ matrix.machine }} --results results
 
       - uses: actions/upload-artifact@v4
