@@ -21,9 +21,12 @@ const PACKAGES: Record<string, readonly string[]> = {
   "client-runtime": ["@kiko/protocol"],
 }
 
-const APPS = ["web-solid", "landing", "cli", "installer", "computer", "builder"]
+const APPS = ["web-solid", "landing", "cli", "installer", "computer", "builder", "bench"]
 
-const APP_PACKAGES: Record<string, readonly string[]> = { computer: ["@kiko/computer"] }
+const APP_PACKAGES: Record<string, readonly string[]> = {
+  computer: ["@kiko/computer"],
+  bench: ["@kiko/computer", "@kiko/computer-daemon"],
+}
 
 function files(dir: string): string[] {
   if (!existsSync(dir)) return []
