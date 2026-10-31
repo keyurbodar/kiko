@@ -338,7 +338,7 @@ fn session(
 ) -> String {
     shared.publish(Phase::Starting, "the desktop driver is starting");
     let version = version_of(binary, env).unwrap_or_default();
-    let backend = match embedded_backend(binary, socket, stop, log) {
+    let _backend = match embedded_backend(binary, socket, stop, log) {
         Ok(backend) => backend,
         Err(reason) => return reason,
     };
@@ -386,7 +386,6 @@ fn session(
     if let Some(reader) = reader {
         let _ = reader.join();
     }
-    drop(backend);
     outcome
 }
 
