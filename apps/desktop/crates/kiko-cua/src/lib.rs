@@ -8,7 +8,9 @@ use std::sync::{Arc, Condvar, Mutex, MutexGuard};
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 
-use kiko_driver::{Desktop, DesktopInfo, DesktopTool, Display, DriverError, ErrorCode, Grant, Permissions};
+use kiko_driver::{
+    Desktop, DesktopInfo, DesktopTool, Display, DriverError, ErrorCode, Grant, Permissions,
+};
 use serde_json::{Value, json};
 
 const MIN_BACKOFF: Duration = Duration::from_secs(1);
@@ -101,7 +103,13 @@ impl Shared {
         self.changed.notify_all();
     }
 
-    fn ready(&self, version: String, tools: Vec<DesktopTool>, permissions: Permissions, screens: Vec<Display>) {
+    fn ready(
+        &self,
+        version: String,
+        tools: Vec<DesktopTool>,
+        permissions: Permissions,
+        screens: Vec<Display>,
+    ) {
         {
             let mut inner = self.lock();
             inner.phase = Phase::Ready;
@@ -151,7 +159,14 @@ impl Cua {
         let thread_socket = socket.clone();
         let thread_env = env.clone();
         let worker = thread::spawn(move || {
-            supervise(&state, &flag, &thread_binary, &thread_socket, &thread_env, &thread_log)
+            supervise(
+                &state,
+                &flag,
+                &thread_binary,
+                &thread_socket,
+                &thread_env,
+                &thread_log,
+            )
         });
         Self {
             shared,
@@ -425,15 +440,15 @@ impl Drop for Backend {
 }
 
 #[cfg(target_os = "macos")]
-fn embedded_backend(binary: &Path, socket: &Path, stop: &AtomicBool, log: &Log) -> Result<Backend, String> {
+fn embedded_backend(
+    binary: &Path,
+    socket: &Path,
+    stop: &AtomicBool,
+    log: &Log,
+) -> Result<Backend, String> {
     let _ = std::fs::remove_file(socket);
     let mut child = Command::new(binary)
-        .args([
-            "serve",
-            "--embedded",
-            "--socket",
-            &socket.to_string_lossy(),
-        ])
+        .args(["serve", "--embedded", "--socket", &socket.to_string_lossy()])
         .env("CUA_DRIVER_EMBEDDED", "1")
         .env("CUA_DRIVER_PERMISSION_MODE", "standard")
         .stdin(Stdio::null())
@@ -476,9 +491,16 @@ fn embedded_backend(_: &Path, _: &Path, _: &AtomicBool, _: &Log) -> Result<Backe
     Ok(Backend)
 }
 
-fn spawn_mcp(binary: &Path, socket: &Path, env: &[(String, String)], log: &Log) -> Result<Child, String> {
+fn spawn_mcp(
+    binary: &Path,
+    socket: &Path,
+    env: &[(String, String)],
+    log: &Log,
+) -> Result<Child, String> {
     let mut command = Command::new(binary);
-    command.arg("mcp").envs(env.iter().map(|(key, value)| (key, value)));
+    command
+        .arg("mcp")
+        .envs(env.iter().map(|(key, value)| (key, value)));
     #[cfg(target_os = "macos")]
     command
         .arg("--embedded")
@@ -582,7 +604,9 @@ fn load_tools(connection: &Arc<Connection>) -> Result<Vec<DesktopTool>, String> 
     let mut tools = Vec::new();
     let mut cursor: Option<String> = None;
     loop {
-        let params = cursor.as_ref().map_or_else(|| json!({}), |cursor| json!({ "cursor": cursor }));
+        let params = cursor
+            .as_ref()
+            .map_or_else(|| json!({}), |cursor| json!({ "cursor": cursor }));
         let result = request(connection, "tools/list", params, LIST_TIMEOUT)?;
         let listed = result
             .get("tools")
@@ -635,7 +659,10 @@ fn load_permissions(connection: &Arc<Connection>, tools: &[DesktopTool]) -> Perm
 }
 
 fn report_of(result: &Value) -> Option<Value> {
-    if let Some(report) = result.get("structuredContent").filter(|value| value.is_object()) {
+    if let Some(report) = result
+        .get("structuredContent")
+        .filter(|value| value.is_object())
+    {
         return Some(report.clone());
     }
     result
@@ -672,8 +699,12 @@ fn request(
         let id = inner.next_id;
         inner.next_id += 1;
         let line = json!({ "jsonrpc": "2.0", "id": id, "method": method, "params": params });
-        writeln!(inner.stdin, "{line}").map_err(|error| format!("{method} could not be sent: {error}"))?;
-        inner.stdin.flush().map_err(|error| format!("{method} could not be sent: {error}"))?;
+        writeln!(inner.stdin, "{line}")
+            .map_err(|error| format!("{method} could not be sent: {error}"))?;
+        inner
+            .stdin
+            .flush()
+            .map_err(|error| format!("{method} could not be sent: {error}"))?;
         inner.pending.insert(id, sender);
         id
     };

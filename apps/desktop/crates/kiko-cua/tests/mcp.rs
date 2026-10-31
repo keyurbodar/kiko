@@ -35,7 +35,10 @@ fn lists_the_driver_tools_with_their_schemas() {
         .find(|tool| tool.name == "get_window_state")
         .expect("get_window_state listed");
     assert_eq!(window.description, "Snapshot a window");
-    assert_eq!(window.input_schema["properties"]["window_id"]["type"], "integer");
+    assert_eq!(
+        window.input_schema["properties"]["window_id"]["type"],
+        "integer"
+    );
     assert_eq!(
         cua.screens(),
         vec![Display {
@@ -61,7 +64,10 @@ fn calls_a_tool_and_returns_its_content() {
     let (_dir, cua) = start(vec![]);
     assert!(cua.wait_ready(READY));
     let value = cua
-        .call("type_text", json!({ "target": { "kind": "window" }, "text": "hello" }))
+        .call(
+            "type_text",
+            json!({ "target": { "kind": "window" }, "text": "hello" }),
+        )
         .expect("type_text");
     let text = value["content"][0]["text"].as_str().expect("text content");
     assert!(text.contains("called type_text"));
@@ -84,7 +90,9 @@ fn passes_image_content_through() {
 fn reports_a_tool_error_as_error_content() {
     let (_dir, cua) = start(vec![]);
     assert!(cua.wait_ready(READY));
-    let value = cua.call("fail", json!({})).expect("a failed tool still answers");
+    let value = cua
+        .call("fail", json!({}))
+        .expect("a failed tool still answers");
     assert_eq!(value["isError"], true);
     assert_eq!(value["content"][0]["text"], "it broke");
     cua.stop();
@@ -101,7 +109,9 @@ fn a_crash_is_reported_while_down_and_the_driver_comes_back() {
     assert!(matches!(while_down, Error::Down(_)), "got {while_down:?}");
     assert!(while_down.message().contains("not running"));
     assert!(cua.wait_ready(READY), "the driver did not restart");
-    let value = cua.call("list_windows", json!({})).expect("list_windows after restart");
+    let value = cua
+        .call("list_windows", json!({}))
+        .expect("list_windows after restart");
     assert!(
         value["content"][0]["text"]
             .as_str()

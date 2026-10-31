@@ -89,14 +89,19 @@ fn answer(id: &Value, message: &Value) -> Value {
                 .pointer("/params/name")
                 .and_then(Value::as_str)
                 .unwrap_or_default();
-            let arguments = message.pointer("/params/arguments").cloned().unwrap_or(json!({}));
+            let arguments = message
+                .pointer("/params/arguments")
+                .cloned()
+                .unwrap_or(json!({}));
             Ok(call(name, &arguments))
         }
         other => Err(format!("unknown method {other}")),
     };
     match result {
         Ok(result) => json!({ "jsonrpc": "2.0", "id": id, "result": result }),
-        Err(message) => json!({ "jsonrpc": "2.0", "id": id, "error": { "code": -32601, "message": message } }),
+        Err(message) => {
+            json!({ "jsonrpc": "2.0", "id": id, "error": { "code": -32601, "message": message } })
+        }
     }
 }
 

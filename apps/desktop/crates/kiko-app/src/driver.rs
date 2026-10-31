@@ -23,7 +23,12 @@ impl Driver {
 
 fn desktop() -> Box<dyn Desktop> {
     let log = Arc::new(|line: String| crate::log::line(line));
-    Box::new(Cua::start(config::cua_path(), config::cua_socket(), Vec::new(), log))
+    Box::new(Cua::start(
+        config::cua_path(),
+        config::cua_socket(),
+        Vec::new(),
+        log,
+    ))
 }
 
 fn browser() -> Box<dyn Browser> {
