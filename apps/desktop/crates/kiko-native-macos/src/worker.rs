@@ -309,6 +309,8 @@ pub(crate) fn make_key_window(pid: i32, id: u32) -> kiko_driver::Result<()> {
             window::focused_window_id(pid)
         ));
         if took {
+            #[cfg(test)]
+            println!("make key {pid}/{id} took after {name}: {notes:?}");
             return Ok(());
         }
     }
