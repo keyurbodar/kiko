@@ -5,9 +5,13 @@ on:
     branches: ["t3/cu-*"]
     paths:
       - "apps/computer/src/live/**"
+      - "apps/computer/src/browser/**"
       - "apps/computer/src/caps.ts"
+      - "apps/desktop/crates/kiko-agent-browser/**"
+      - "apps/desktop/crates/kiko-driver/**"
       - "apps/server/src/computer/**"
       - "apps/server/scripts/measure-live.ts"
+      - "apps/server/scripts/measure-browser.ts"
       - "apps/server/integration/computer-live.integration.test.ts"
       - "apps/web-solid/src/chat/computer/**"
       - "core/computer/src/frame.ts"
@@ -51,4 +55,49 @@ jobs:
             live-measure-relay.json
             shots/
             shots-relay/
+          if-no-files-found: warn
+
+  browser:
+    name: browser live measurement
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.14"
+      - name: Install
+        run: bun install --frozen-lockfile --ignore-scripts
+      - name: Install Chromium, Xvfb and the test desktop
+        run: |
+          node apps/server/node_modules/playwright/cli.js install --with-deps chromium
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            at-spi2-core dbus-x11 gir1.2-gtk-3.0 openbox python3-gi x11-utils xdotool xvfb
+      - name: Build kiko
+        working-directory: apps/desktop
+        run: cargo build --release --locked -p kiko-app
+      - name: Fetch the browser engine
+        run: |
+          browser="$(bash apps/desktop/scripts/fetch-agent-browser.sh linux-x64 "$RUNNER_TEMP/browser")"
+          echo "BROWSER_BIN=$browser" >> "$GITHUB_ENV"
+      - name: Measure the browser tab
+        env:
+          KIKO_BIN: ${{ github.workspace }}/apps/desktop/target/release/kiko
+          KIKO_AGENT_BROWSER: ${{ env.BROWSER_BIN }}
+        run: |
+          xvfb-run -a -s "-screen 0 1280x1024x24" \
+            bun apps/server/scripts/measure-browser.ts --out browser-measure.json --shots browser-shots
+      - name: Upload the browser record
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: takeover-live-browser
+          path: |
+            browser-measure.json
+            browser-shots/
           if-no-files-found: warn
