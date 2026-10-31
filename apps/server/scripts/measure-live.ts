@@ -302,6 +302,9 @@ async function main(): Promise<void> {
     const page = await context.newPage()
     try {
       await page.goto(`http://localhost:${WEB_PORT}/`)
+      await page.waitForSelector('[data-action="computer-watch"], [data-action="skip-first-run"]', { timeout: 60_000 })
+      const skip = page.locator('[data-action="skip-first-run"]')
+      if ((await skip.count()) > 0) await skip.click()
       await page.waitForSelector('[data-action="computer-watch"]', { timeout: 60_000 })
     } catch (error) {
       if (shots) {
