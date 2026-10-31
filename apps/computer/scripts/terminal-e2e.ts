@@ -30,6 +30,25 @@ try {
 
   const repl = manager.open({ name: "repl", cols: 100, rows: 30 })
   await prompt(repl.id)
+
+  if (process.platform === "win32") {
+    manager.send({ id: repl.id, text: "kiko-echo-probe" })
+    const typed = await manager.wait({ id: repl.id, until: "kiko-echo-probe", timeoutMs: 5_000 })
+    console.log(`probe powershell typed echo ${typed.matched}`)
+    manager.send({ id: repl.id, keys: ["enter"] })
+    const ran = await manager.wait({ id: repl.id, until: "not recognized", timeoutMs: 5_000 })
+    console.log(`probe powershell enter ran ${ran.matched}`)
+    const cmd = manager.open({ shell: "cmd.exe", name: "probe", cols: 100, rows: 30 })
+    await prompt(cmd.id)
+    manager.send({ id: cmd.id, text: "kiko-echo-probe" })
+    const cmdTyped = await manager.wait({ id: cmd.id, until: "kiko-echo-probe", timeoutMs: 5_000 })
+    console.log(`probe cmd typed echo ${cmdTyped.matched}`)
+    manager.send({ id: cmd.id, keys: ["enter"] })
+    const cmdRan = await manager.wait({ id: cmd.id, until: "not recognized", timeoutMs: 5_000 })
+    console.log(`probe cmd enter ran ${cmdRan.matched}`)
+    await manager.close({ id: cmd.id })
+  }
+
   manager.send({ id: repl.id, text: `"${python}" -q`, keys: ["enter"] })
   const pythonPrompt = await manager.wait({ id: repl.id, until: ">>>", timeoutMs: 60_000 })
   ok(pythonPrompt.matched, `the python prompt appeared: ${pythonPrompt.text.trim().split("\n").at(-1) ?? ""}`)

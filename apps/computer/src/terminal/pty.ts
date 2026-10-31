@@ -44,6 +44,7 @@ function terminalEnv(): Record<string, string> {
 }
 
 export const bunPty: PtySpawn = (input) => {
+  let terminal: Bun.Terminal | undefined
   const process_ = Bun.spawn([...input.command], {
     cwd: input.cwd,
     env: terminalEnv(),
@@ -51,10 +52,13 @@ export const bunPty: PtySpawn = (input) => {
       cols: input.cols,
       rows: input.rows,
       name: "xterm-256color",
-      data: (_terminal, data) => input.onData(data),
+      data: (created, data) => {
+        terminal ??= created
+        input.onData(data)
+      },
     },
   })
-  const terminal = process_.terminal
+  terminal ??= process_.terminal
   const exited = process_.exited.then((code) => {
     input.onExit(code)
     return code
@@ -62,9 +66,8 @@ export const bunPty: PtySpawn = (input) => {
   return {
     pid: process_.pid,
     write: (data) => {
-      try {
-        terminal?.write(data)
-      } catch {}
+      if (!terminal) throw new Error("the terminal is not ready yet")
+      terminal.write(data)
     },
     resize: (cols, rows) => {
       try {
