@@ -66,11 +66,11 @@ jobs:
           bun run bench "${args[@]}" > plan.json
           bun run bench "${args[@]}" --validate > validate.json
           for kind in host container vm; do
-            jq -c --arg nixos "$nixos_id" --arg omarchy "$omarchy_id" ".$kind |= $label" plan.json > "plan-$kind.json"
+            jq -c --arg nixos "$nixos_id" --arg omarchy "$omarchy_id" ".$kind |= $label | .$kind" plan.json > "plan-$kind.json"
             echo "$kind=$(cat "plan-$kind.json")" >> "$GITHUB_OUTPUT"
           done
           for kind in host container vm; do
-            jq -c --arg nixos "$nixos_id" --arg omarchy "$omarchy_id" ".$kind |= $label" validate.json > "validate-$kind.json"
+            jq -c --arg nixos "$nixos_id" --arg omarchy "$omarchy_id" ".$kind |= $label | .$kind" validate.json > "validate-$kind.json"
             echo "v$kind=$(cat "validate-$kind.json")" >> "$GITHUB_OUTPUT"
           done
           cat plan.json

@@ -2,7 +2,7 @@
 set -euo pipefail
 
 out="${1:?usage: build-omarchy-image.sh <out.qcow2>}"
-here="$(cd "$(dirname "$0")" && pwd)"
+here="$(cd "$(dirname "$0")/../../envs/omarchy-v3.8.4" && pwd)"
 # shellcheck disable=SC1091
 source "$here/image.env"
 
