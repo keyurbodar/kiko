@@ -1,3 +1,4 @@
+import { join } from "node:path"
 import { describe, expect, it } from "vitest"
 
 import { createMachine, localOs, removeMachine } from "../../machine"
@@ -49,4 +50,15 @@ describe("terminal tasks", () => {
   it.skipIf(!runsHere(gitBranch))("terminal-003-git-branch fails without the oracle", () =>
     expectSetupAloneFails(gitBranch),
   )
+
+  it("terminal-001-count-matches accepts a count written as UTF-16", async () => {
+    const machine = await createMachine()
+    try {
+      await machine.writeText(join(machine.workdir, "count.txt"), "\uFFFD\uFFFD3\u0000\r\u0000\n\u0000")
+      const verdict = await countMatches.check(machine, 1)
+      expect(verdict.pass).toBe(true)
+    } finally {
+      await removeMachine(machine)
+    }
+  })
 })

@@ -29,7 +29,7 @@ jobs:
       - name: Display
         run: sudo apt-get update && sudo apt-get install -y xvfb xauth openbox || true
       - name: Validate checkers
-        run: bun run bench validate --runs 1 --results results
+        run: bun run bench validate --runs 1 --machine gha-ubuntu-24.04-x11 --results results
       - name: Bench
         run: |
           if command -v xvfb-run >/dev/null; then
