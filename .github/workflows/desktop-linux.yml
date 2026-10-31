@@ -1,0 +1,74 @@
+name: Desktop Linux
+
+on:
+  push:
+    branches: ["t3/bg-*"]
+  pull_request:
+    paths: ["apps/desktop/**"]
+
+concurrency:
+  group: desktop-linux-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: apps/desktop
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop
+      - name: Install the test desktop
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            at-spi2-core dbus gir1.2-gtk-3.0 libclang-dev libpipewire-0.3-dev \
+            openbox pkgconf python3-gi x11-utils xvfb
+      - name: Format
+        run: cargo fmt -p kiko-native-linux -- --check
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: Unit tests
+        run: cargo test --workspace
+      - name: End-to-end
+        run: |
+          for browser in /usr/bin/google-chrome /usr/bin/chromium /usr/bin/chromium-browser; do
+            if [ -x "$browser" ]; then
+              found="$browser"
+            fi
+          done
+          if [ -z "${found:-}" ]; then
+            echo "no Chrome or Chromium on this runner; the browser e2e needs one" >&2
+            exit 1
+          fi
+          ./crates/kiko-native-linux/e2e.sh
+
+  wayland:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: apps/desktop
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop
+      - name: Install a headless Wayland desktop
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            at-spi2-core dbus gir1.2-gtk-3.0 gnome-shell libclang-dev \
+            libpipewire-0.3-dev mutter pipewire pkgconf python3-gi \
+            wireplumber xdg-desktop-portal xdg-desktop-portal-gnome
+      - name: End-to-end on Wayland
+        run: ./crates/kiko-native-linux/wayland-e2e.sh

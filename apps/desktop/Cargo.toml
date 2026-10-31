@@ -1,0 +1,34 @@
+[workspace]
+resolver = "3"
+members = ["crates/*"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+rust-version = "1.88"
+
+[workspace.dependencies]
+ashpd = { version = "0.13", default-features = false, features = ["tokio", "screencast", "remote_desktop"] }
+atspi = { version = "0.30", default-features = false, features = ["proxies", "wrappers", "tokio", "zbus"] }
+atspi-connection = { version = "0.14", default-features = false, features = ["wrappers"] }
+base64 = "0.22"
+futures-util = "0.3"
+image = { version = "0.25", default-features = false, features = ["jpeg"] }
+kiko-driver = { path = "crates/kiko-driver" }
+libloading = "0.8"
+libspa = { version = "0.10", default-features = false }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sysinfo = { version = "0.37", default-features = false, features = ["system"] }
+tempfile = "3"
+thiserror = "2"
+tokio = { version = "1", features = ["io-util", "macros", "net", "rt", "sync", "time"] }
+tokio-tungstenite = "0.30"
+x11rb = { version = "0.13", features = ["composite", "xtest"] }
+zbus = { version = "5", default-features = false, features = ["tokio"] }
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = true

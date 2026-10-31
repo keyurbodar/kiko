@@ -1,0 +1,61 @@
+[package]
+name = "kiko-app"
+description = "The kiko desktop app: menu bar, desktop driver and daemon supervisor"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[lib]
+name = "kiko_app"
+path = "src/lib.rs"
+
+[[bin]]
+name = "kiko"
+path = "src/main.rs"
+
+[features]
+default = ["drivers"]
+drivers = ["dep:kiko-browser", "dep:kiko-native-macos", "dep:kiko-native-windows", "dep:kiko-native-linux"]
+
+[dependencies]
+kiko-driver.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+fd-lock = "4"
+dirs = "7"
+interprocess = "2"
+png = "0.18"
+kiko-browser = { path = "../kiko-browser", optional = true }
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+kiko-native-linux = { path = "../kiko-native-linux", optional = true }
+ksni = { version = "0.3", default-features = false, features = ["blocking", "tokio"] }
+
+[target.'cfg(target_os = "linux")'.dev-dependencies]
+zbus = { version = "5", default-features = false, features = ["blocking-api", "tokio"] }
+tokio = { version = "1", features = ["rt-multi-thread"] }
+
+[target.'cfg(any(target_os = "macos", target_os = "windows"))'.dependencies]
+muda = "0.21"
+tao = "0.37"
+tray-icon = "0.26"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+kiko-native-macos = { path = "../kiko-native-macos", optional = true }
+
+[target.'cfg(target_os = "windows")'.dependencies]
+kiko-native-windows = { path = "../kiko-native-windows", optional = true }
+windows-sys = { version = "0.61", features = [
+  "Win32_Foundation",
+  "Win32_System_Console",
+  "Win32_System_JobObjects",
+  "Win32_System_Threading",
+] }
+winreg = "0.55"
+
+[target.'cfg(target_os = "windows")'.build-dependencies]
+winresource = "0.1"

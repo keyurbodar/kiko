@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs"
 import { chmod, mkdir, readFile, writeFile } from "node:fs/promises"
 import { join } from "node:path"
 import { homeDir } from "./platform"
@@ -26,6 +27,8 @@ export type Paths = {
   key: string
   policy: string
   log: string
+  state: string
+  agent: string
 }
 
 export function configDir(): string {
@@ -44,7 +47,21 @@ export function paths(dir = configDir()): Paths {
     key: join(dir, "key.jwk"),
     policy: join(dir, "policy.json"),
     log: join(dir, "daemon.log"),
+    state: join(dir, "state.json"),
+    agent: join(appDir(), "agent.json"),
   }
+}
+
+function appDir(): string {
+  const override = process.env.KIKO_APP_DIR
+  if (override) return override
+  if (process.platform === "darwin") return join(homeDir(), "Library", "Application Support", "kiko")
+  if (process.platform === "win32") return join(process.env.APPDATA ?? join(homeDir(), "AppData", "Roaming"), "kiko")
+  return join(process.env.XDG_CONFIG_HOME ?? join(homeDir(), ".config"), "kiko")
+}
+
+export function paused(dir = configDir()): boolean {
+  return existsSync(join(dir, "paused")) || existsSync(join(appDir(), "paused"))
 }
 
 async function readJson(file: string): Promise<unknown> {

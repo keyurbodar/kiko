@@ -1,6 +1,9 @@
 import { assert, describe, it, vi } from "@effect/vitest"
+import type { DriverCall } from "@kiko/computer/driver"
 import { PROTOCOL } from "@kiko/computer/wire"
 import { type Host, runLink } from "./connection"
+import type { Deadline } from "./deadline"
+import type { Driver } from "./driver"
 
 type Event = { code?: number; reason?: string; data?: unknown }
 type Listener = (event: Event) => void
@@ -52,6 +55,8 @@ async function host(): Promise<Host> {
     hello: () => "{}",
     policy: async () => ({ shell: true, files: { allow: ["~"] }, desktop: false, live: false, input: false }),
     desktop: () => null,
+    driver: () => null,
+    paused: () => false,
     live: { rtc() {}, live() {}, input() {}, control() {}, ack() {} },
     holder: () => "agent",
     log: { info() {}, warn() {}, error() {} },
@@ -127,6 +132,154 @@ describe("daemon connect", () => {
       assert.strictEqual(newer.sent.length, before + 1)
       assert.strictEqual(older.sent.length, 1)
     } finally {
+      reset()
+    }
+  })
+})
+
+type Result = { t: string; id: string; ok: boolean; value?: unknown; error?: { code: string; message: string } }
+
+function fakeDriver() {
+  const calls: DriverCall[] = []
+  const driver: Driver = {
+    call: async (call: DriverCall, _deadline: Deadline) => {
+      calls.push(call)
+      return { windows: [] }
+    },
+    state: () => null,
+    background: () => false,
+    browser: () => false,
+    close: () => {},
+  }
+  return { driver, calls }
+}
+
+const desktopOn = async () => ({
+  shell: true,
+  files: { allow: ["~"] },
+  desktop: true,
+  live: false,
+  input: true,
+})
+
+async function openLink(host: Host) {
+  vi.stubGlobal("WebSocket", FakeSocket)
+  const link = runLink(host)
+  const opening = link as unknown as { open(): Promise<void> }
+  const done = opening.open()
+  await vi.waitFor(() => assert.strictEqual(FakeSocket.made.length, 1))
+  const socket = FakeSocket.made[0]!
+  socket.open()
+  void done
+  return { link, socket }
+}
+
+function sendDriver(socket: FakeSocket, id: string, args: unknown) {
+  socket.emit("message", { data: JSON.stringify({ t: "call", id, op: "driver", args, deadlineMs: 5_000 }) })
+}
+
+async function resultOf(socket: FakeSocket, id: string): Promise<Result> {
+  await vi.waitFor(() => {
+    assert.isTrue(socket.sent.some((frame) => (JSON.parse(frame as string) as Result).id === id))
+  })
+  return socket.sent.map((frame) => JSON.parse(frame as string) as Result).find((frame) => frame.id === id)!
+}
+
+describe("driver calls", () => {
+  it("forwards a driver call to the kiko app", async () => {
+    const { driver, calls } = fakeDriver()
+    const { link, socket } = await openLink({ ...(await host()), driver: () => driver, policy: desktopOn })
+    try {
+      sendDriver(socket, "c1", { method: "windows" })
+
+      const result = await resultOf(socket, "c1")
+
+      assert.isTrue(result.ok)
+      assert.deepStrictEqual(result.value, { windows: [] })
+      assert.deepStrictEqual(calls, [{ method: "windows" }])
+    } finally {
+      link.stop()
+      reset()
+    }
+  })
+
+  it("answers busy when the owner paused the agent", async () => {
+    const { driver } = fakeDriver()
+    const { link, socket } = await openLink({
+      ...(await host()),
+      driver: () => driver,
+      policy: desktopOn,
+      paused: () => true,
+    })
+    try {
+      sendDriver(socket, "c1", { method: "windows" })
+
+      const result = await resultOf(socket, "c1")
+
+      assert.isFalse(result.ok)
+      assert.deepStrictEqual(result.error, {
+        code: "busy",
+        message: "the owner paused the agent from the kiko menu",
+      })
+    } finally {
+      link.stop()
+      reset()
+    }
+  })
+
+  it("answers busy when the owner has control", async () => {
+    const { driver } = fakeDriver()
+    const { link, socket } = await openLink({
+      ...(await host()),
+      driver: () => driver,
+      policy: desktopOn,
+      holder: () => "human",
+    })
+    try {
+      sendDriver(socket, "c1", { method: "windows" })
+
+      const result = await resultOf(socket, "c1")
+
+      assert.isFalse(result.ok)
+      assert.strictEqual(result.error?.code, "busy")
+    } finally {
+      link.stop()
+      reset()
+    }
+  })
+
+  it("refuses driver work when the policy turns the desktop off", async () => {
+    const { driver, calls } = fakeDriver()
+    const { link, socket } = await openLink({
+      ...(await host()),
+      driver: () => driver,
+      policy: async () => ({ ...(await desktopOn()), desktop: false }),
+    })
+    try {
+      sendDriver(socket, "c1", { method: "windows" })
+
+      const result = await resultOf(socket, "c1")
+
+      assert.isFalse(result.ok)
+      assert.strictEqual(result.error?.code, "denied")
+      assert.strictEqual(calls.length, 0)
+    } finally {
+      link.stop()
+      reset()
+    }
+  })
+
+  it("refuses driver work when the kiko app is not there", async () => {
+    const { link, socket } = await openLink({ ...(await host()), policy: desktopOn })
+    try {
+      sendDriver(socket, "c1", { method: "windows" })
+
+      const result = await resultOf(socket, "c1")
+
+      assert.isFalse(result.ok)
+      assert.strictEqual(result.error?.code, "unsupported")
+    } finally {
+      link.stop()
       reset()
     }
   })

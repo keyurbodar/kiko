@@ -377,3 +377,68 @@ describe("TURN credentials", () => {
     }),
   )
 })
+
+const BACKGROUND = { ...HELLO, caps: { ...CAPS, background: true } }
+
+type CallFrame = { t: string; id?: string; op?: string }
+
+function callIds(socket: ReturnType<typeof pcSocket>): string[] {
+  return socket.sent
+    .map((frame) => frame as unknown as CallFrame)
+    .filter((frame) => frame.t === "call")
+    .map((frame) => frame.id ?? "")
+}
+
+async function settle(computers: ReturnType<typeof liveHub>, ws: WebSocket, id: string): Promise<void> {
+  await computers.message(ws, JSON.stringify({ t: "result", id, ok: true, value: {} }))
+}
+
+const foreground = (mode: "background" | "foreground") => ({
+  method: "act",
+  params: { window: "w-1", action: "press", mode },
+})
+
+describe("driver desk", () => {
+  it.effect("claims the desk for an on-screen step", () =>
+    Effect.promise(async () => {
+      const pc = pcSocket("pc-1")
+      const computers = liveHub([], [pc.ws], ["pc-1"])
+      await computers.message(pc.ws, JSON.stringify(BACKGROUND))
+
+      const first = computers.call("pc-1", "driver", foreground("foreground"), {
+        user: { key: "a", name: "kiko" },
+      })
+      const taken = await computers.call("pc-1", "driver", foreground("foreground"), {
+        user: { key: "b", name: "other" },
+      })
+
+      assert.isFalse(taken.ok)
+      assert.strictEqual(taken.code, "busy")
+
+      const id = callIds(pc)[0]
+      if (id) await settle(computers, pc.ws, id)
+      assert.isTrue((await first).ok)
+    }),
+  )
+
+  it.effect("leaves the desk alone for a background step", () =>
+    Effect.promise(async () => {
+      const pc = pcSocket("pc-1")
+      const computers = liveHub([], [pc.ws], ["pc-1"])
+      await computers.message(pc.ws, JSON.stringify(BACKGROUND))
+
+      const first = computers.call("pc-1", "driver", foreground("background"), {
+        user: { key: "a", name: "kiko" },
+      })
+      const second = computers.call("pc-1", "driver", foreground("foreground"), {
+        user: { key: "b", name: "other" },
+      })
+
+      const ids = callIds(pc)
+      assert.strictEqual(ids.length, 2)
+      for (const id of ids) await settle(computers, pc.ws, id)
+      assert.isTrue((await first).ok)
+      assert.isTrue((await second).ok)
+    }),
+  )
+})
