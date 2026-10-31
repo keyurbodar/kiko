@@ -24,7 +24,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: bench-${{ github.ref }}
+  group: bench-${{ github.ref }}-${{ github.event.inputs.tracks || 'all' }}-${{ github.event.inputs.models || 'all' }}
   cancel-in-progress: true
 
 env:
