@@ -17,7 +17,11 @@ const OUTPUT = /^(\S+) connected(?: primary)? (\d+)x(\d+)\+(-?\d+)\+(-?\d+)/gm
 
 const MAC_SCREENS = `ObjC.import('AppKit')
 const screens = $.NSScreen.screens
-const main = screens.objectAtIndex(0).frame.size.height
+let mainHeight = 0
+for (let index = 0; index < screens.count; index++) {
+  const frame = screens.objectAtIndex(index).frame
+  if (Math.abs(frame.origin.x) < 0.5 && Math.abs(frame.origin.y) < 0.5) mainHeight = frame.size.height
+}
 const out = []
 for (let index = 0; index < screens.count; index++) {
   const screen = screens.objectAtIndex(index)
@@ -29,7 +33,7 @@ for (let index = 0; index < screens.count; index++) {
     height: Math.round(frame.size.height),
     scale: screen.backingScaleFactor,
     x: Math.round(frame.origin.x),
-    y: Math.round(main - (frame.origin.y + frame.size.height)),
+    y: Math.round(mainHeight - (frame.origin.y + frame.size.height)),
   })
 }
 JSON.stringify(out)`

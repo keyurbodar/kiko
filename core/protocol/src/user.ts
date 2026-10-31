@@ -293,6 +293,7 @@ export const ComputerInput = Schema.Union([
     mods: Count,
   }),
   Schema.Struct({ k: Schema.Literal("text"), s: Schema.String }),
+  Schema.Struct({ k: Schema.Literal("paste"), s: Schema.String, code: Schema.String, mods: Count }),
   Schema.Struct({ k: Schema.Literal("cursor"), who: Schema.Literals(["agent", "real"]), x: Unit, y: Unit }),
 ])
 export type ComputerInput = typeof ComputerInput.Type

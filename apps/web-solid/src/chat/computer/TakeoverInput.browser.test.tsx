@@ -156,6 +156,22 @@ describe("pasting into the computer", () => {
     expect(fakes.sent).toEqual([[{ k: "paste", s: "héllo\nwörld — こんにちは", code: "KeyV", mods: 8 }]])
   })
 
+  it("carries ten kilobytes of text as one paste", async () => {
+    fakes.computer = mac()
+    fakes.sent = []
+    await using screen = await mount(true)
+    const input = sink(screen)
+    input.focus()
+    const big = "abc日本語🎉\n".repeat(600)
+
+    const data = new DataTransfer()
+    data.setData("text/plain", big)
+    input.dispatchEvent(new ClipboardEvent("paste", { clipboardData: data, bubbles: true, cancelable: true }))
+
+    expect(fakes.sent).toEqual([[{ k: "paste", s: big, code: "KeyV", mods: 8 }]])
+    expect(fakes.sent.flat()[0]?.s).toHaveLength(big.length)
+  })
+
   it("uses Ctrl on a Linux computer and never types the text out", async () => {
     fakes.computer = mac({ os: "linux" })
     fakes.sent = []
