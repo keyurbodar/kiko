@@ -144,6 +144,60 @@ describe("model client", () => {
     }
   })
 
+  it("keeps parallel tool calls apart when the stream leaves out the index", async () => {
+    const fake = await streamServer([
+      { choices: [{ index: 0, finish_reason: null, delta: { role: "assistant" } }], usage: null },
+      {
+        choices: [
+          {
+            index: 0,
+            finish_reason: null,
+            delta: {
+              tool_calls: [{ id: "call-a", type: "function", function: { name: "read", arguments: '{"pc":' } }],
+            },
+          },
+        ],
+        usage: null,
+      },
+      {
+        choices: [{ index: 0, finish_reason: null, delta: { tool_calls: [{ function: { arguments: '"box-1"}' } }] } }],
+        usage: null,
+      },
+      {
+        choices: [
+          {
+            index: 0,
+            finish_reason: null,
+            delta: {
+              tool_calls: [{ id: "call-b", type: "function", function: { name: "read", arguments: '{"pc":"box-2"}' } }],
+            },
+          },
+        ],
+        usage: null,
+      },
+      { choices: [{ index: 0, finish_reason: "tool_calls", delta: {} }], usage: answer.usage },
+    ])
+    try {
+      const client = new ModelClient({
+        key: "k",
+        baseUrl: fake.url.replace("/chat/completions", ""),
+        version: "0",
+      })
+      const reply = await client.chat({
+        model: "beam-free",
+        messages: [{ role: "user", content: "read both boxes" }],
+        tools: [{ name: "read", description: "read a file", parameters: { type: "object" } }],
+        session: "kb-run-1-trial-2",
+      })
+      expect(reply.toolCalls).toEqual([
+        { id: "call-a", type: "function", function: { name: "read", arguments: '{"pc":"box-1"}' } },
+        { id: "call-b", type: "function", function: { name: "read", arguments: '{"pc":"box-2"}' } },
+      ])
+    } finally {
+      await fake.close()
+    }
+  })
+
   it("leaves streaming out when it is turned off", async () => {
     const seen: Seen[] = []
     const fake = await fakeServer((entry) => {

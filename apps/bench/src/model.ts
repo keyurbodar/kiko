@@ -297,31 +297,38 @@ function deltaPieces(delta: Bag): string[] {
   return pieces
 }
 
-function toolCallParts(delta: Bag): { index: number; id: string; name: string; arguments: string }[] {
+function toolCallParts(delta: Bag): { index?: number; id: string; name: string; arguments: string }[] {
   const calls = delta.tool_calls
   if (!Array.isArray(calls)) return []
-  return calls.flatMap((call, position) => {
+  return calls.map((call) => {
     const entry = bag(call)
     const fn = bag(entry.function)
-    return [
-      {
-        index: typeof entry.index === "number" ? entry.index : position,
-        id: str(entry.id),
-        name: str(fn.name),
-        arguments: str(fn.arguments),
-      },
-    ]
+    return {
+      ...(typeof entry.index === "number" ? { index: entry.index } : {}),
+      id: str(entry.id),
+      name: str(fn.name),
+      arguments: str(fn.arguments),
+    }
   })
 }
 
 function accumulateCall(
   calls: Map<number, { id: string; name: string; arguments: string }>,
-  part: { index: number; id: string; name: string; arguments: string },
+  part: { index?: number; id: string; name: string; arguments: string },
 ): void {
-  const held = calls.get(part.index) ?? { id: "", name: "", arguments: "" }
-  calls.set(part.index, {
+  const index = part.index ?? slotFor(calls, part.id)
+  const held = calls.get(index) ?? { id: "", name: "", arguments: "" }
+  calls.set(index, {
     id: held.id || part.id,
     name: held.name || part.name,
     arguments: held.arguments + part.arguments,
   })
+}
+
+function slotFor(calls: Map<number, { id: string }>, id: string): number {
+  if (id) {
+    for (const [index, held] of calls) if (held.id === id) return index
+    return calls.size === 0 ? 0 : Math.max(...calls.keys()) + 1
+  }
+  return calls.size === 0 ? 0 : Math.max(...calls.keys())
 }
