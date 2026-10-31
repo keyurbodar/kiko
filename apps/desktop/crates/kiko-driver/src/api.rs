@@ -8,12 +8,6 @@ pub struct Rect {
     pub h: f64,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
-pub struct Point {
-    pub x: f64,
-    pub y: f64,
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum Mode {
@@ -29,15 +23,6 @@ pub enum Grant {
     Denied,
     Unknown,
     NotNeeded,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum PermissionKind {
-    Accessibility,
-    Screen,
-    Automation,
-    Browser,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -69,22 +54,6 @@ pub struct Status {
     pub session: String,
     pub permissions: Permissions,
     pub browsers: Vec<BrowserStatus>,
-}
-
-pub type WindowId = String;
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct Window {
-    pub id: WindowId,
-    pub pid: u32,
-    pub app: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub bundle: Option<String>,
-    pub title: String,
-    pub frame: Rect,
-    pub focused: bool,
-    pub minimized: bool,
-    pub on_screen: bool,
 }
 
 pub type Ref = u32;
@@ -135,79 +104,25 @@ pub struct Image {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct Look {
-    pub window: Window,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub image: Option<Image>,
-    pub nodes: Vec<Node>,
-    pub outline: String,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct LookParams {
-    pub window: WindowId,
-    #[serde(default = "yes")]
-    pub tree: bool,
-    #[serde(default = "yes")]
-    pub image: bool,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub max_width: Option<u32>,
-}
-
-fn yes() -> bool {
-    true
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct ActParams {
-    pub window: WindowId,
-    #[serde(rename = "ref", default, skip_serializing_if = "Option::is_none")]
-    pub reference: Option<Ref>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub point: Option<Point>,
-    pub action: Action,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub text: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub keys: Option<String>,
+pub struct DesktopTool {
+    pub name: String,
     #[serde(default)]
-    pub dx: f64,
-    #[serde(default)]
-    pub dy: f64,
-    #[serde(default)]
-    pub mode: Mode,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum Route {
-    Accessibility,
-    WindowEvent,
-    Private,
-    Dom,
-    Trusted,
-    Foreground,
+    pub description: String,
+    #[serde(rename = "inputSchema")]
+    pub input_schema: serde_json::Value,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct ActResult {
-    pub route: Route,
+pub struct DesktopInfo {
+    pub version: String,
+    pub tools: Vec<DesktopTool>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case", tag = "kind", content = "target")]
-pub enum OpenTarget {
-    App(String),
-    Url(String),
-    Path(String),
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct OpenParams {
-    #[serde(flatten)]
-    pub target: OpenTarget,
+pub struct DesktopCallParams {
+    pub name: String,
     #[serde(default)]
-    pub mode: Mode,
+    pub args: serde_json::Value,
 }
 
 pub type TabId = String;
@@ -283,21 +198,30 @@ pub struct BrowserEvalParams {
     pub expression: String,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Route {
+    Accessibility,
+    WindowEvent,
+    Private,
+    Dom,
+    Trusted,
+    Foreground,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct PermissionParams {
-    pub kind: PermissionKind,
+pub struct ActResult {
+    pub route: Route,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "method", content = "params", rename_all = "snake_case")]
 pub enum Call {
     Status,
-    #[serde(rename = "permissions.request")]
-    PermissionsRequest(PermissionParams),
-    Windows,
-    Look(LookParams),
-    Act(ActParams),
-    Open(OpenParams),
+    #[serde(rename = "desktop.tools")]
+    DesktopTools,
+    #[serde(rename = "desktop.call")]
+    DesktopCall(DesktopCallParams),
     #[serde(rename = "browser.tabs")]
     BrowserTabs,
     #[serde(rename = "browser.open")]
@@ -404,12 +328,4 @@ impl From<False> for bool {
     fn from(_: False) -> bool {
         false
     }
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "event", content = "data", rename_all = "snake_case")]
-pub enum Event {
-    Permissions(Permissions),
-    Browser(BrowserStatus),
-    OwnerActive { window: Option<WindowId> },
 }

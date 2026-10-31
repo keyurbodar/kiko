@@ -2,51 +2,39 @@ use kiko_driver::*;
 
 struct Fake;
 
-impl Native for Fake {
+impl Desktop for Fake {
+    fn info(&self) -> DesktopInfo {
+        DesktopInfo {
+            version: "0.38.0".into(),
+            tools: vec![DesktopTool {
+                name: "list_windows".into(),
+                description: "List top-level windows".into(),
+                input_schema: serde_json::json!({ "type": "object", "properties": {} }),
+            }],
+        }
+    }
+
+    fn call(&mut self, name: &str, args: serde_json::Value) -> Result<serde_json::Value> {
+        if name == "type_text" {
+            return Ok(serde_json::json!({
+                "content": [
+                    { "type": "text", "text": format!("typed {}", args["text"]) },
+                    { "type": "image", "data": "aGVsbG8=", "mimeType": "image/png" },
+                ],
+            }));
+        }
+        Err(DriverError::new(
+            ErrorCode::NotFound,
+            format!("no tool called {name}"),
+        ))
+    }
+
     fn permissions(&self) -> Permissions {
         Permissions {
             accessibility: Grant::Granted,
             screen: Grant::Denied,
             automation: Grant::NotNeeded,
         }
-    }
-    fn request_permission(&mut self, _: PermissionKind) -> Result<()> {
-        Ok(())
-    }
-    fn windows(&mut self) -> Result<Vec<Window>> {
-        Ok(vec![Window {
-            id: "w1".into(),
-            pid: 7,
-            app: "TextEdit".into(),
-            bundle: None,
-            title: "Notes".into(),
-            frame: Rect {
-                x: 0.0,
-                y: 0.0,
-                w: 10.0,
-                h: 10.0,
-            },
-            focused: false,
-            minimized: false,
-            on_screen: true,
-        }])
-    }
-    fn look(&mut self, _: &LookParams) -> Result<Look> {
-        Err(DriverError::new(ErrorCode::NotFound, "no such window"))
-    }
-    fn act(&mut self, params: &ActParams) -> Result<ActResult> {
-        match params.mode {
-            Mode::Background => Err(DriverError::new(
-                ErrorCode::BackgroundUnavailable,
-                "needs the screen",
-            )),
-            Mode::Foreground => Ok(ActResult {
-                route: Route::Foreground,
-            }),
-        }
-    }
-    fn open(&mut self, _: &OpenParams) -> Result<()> {
-        Ok(())
     }
 }
 
@@ -55,7 +43,11 @@ fn run(lines: &str) -> Vec<serde_json::Value> {
         version: "0.1.0".into(),
         os: "test".into(),
         session: "x11".into(),
-        permissions: Fake.permissions(),
+        permissions: Permissions {
+            accessibility: Grant::Unknown,
+            screen: Grant::Unknown,
+            automation: Grant::Unknown,
+        },
         browsers: vec![],
     };
     let mut out = Vec::new();
@@ -76,24 +68,30 @@ fn run(lines: &str) -> Vec<serde_json::Value> {
 
 #[test]
 fn answers_each_request_by_id() {
-    let out = run("{\"id\":1,\"method\":\"windows\"}\n{\"id\":2,\"method\":\"status\"}\n");
+    let out = run("{\"id\":1,\"method\":\"desktop.tools\"}\n{\"id\":2,\"method\":\"status\"}\n");
     assert_eq!(out[0]["id"], 1);
     assert_eq!(out[0]["ok"], true);
-    assert_eq!(out[0]["value"][0]["on_screen"], true);
+    assert_eq!(out[0]["value"]["version"], "0.38.0");
+    assert_eq!(out[0]["value"]["tools"][0]["name"], "list_windows");
+    assert_eq!(out[0]["value"]["tools"][0]["inputSchema"]["type"], "object");
     assert_eq!(out[1]["value"]["permissions"]["screen"], "denied");
 }
 
 #[test]
-fn background_act_refuses_instead_of_taking_the_screen() {
+fn passes_a_tool_call_and_its_content_through() {
     let out = run(
-        "{\"id\":3,\"method\":\"act\",\"params\":{\"window\":\"w1\",\"ref\":4,\"action\":\"press\"}}\n",
+        "{\"id\":3,\"method\":\"desktop.call\",\"params\":{\"name\":\"type_text\",\"args\":{\"text\":\"hi\"}}}\n",
     );
+    assert_eq!(out[0]["ok"], true);
+    assert_eq!(out[0]["value"]["content"][0]["text"], "typed \"hi\"");
+    assert_eq!(out[0]["value"]["content"][1]["type"], "image");
+}
+
+#[test]
+fn a_failing_tool_keeps_its_code() {
+    let out = run("{\"id\":4,\"method\":\"desktop.call\",\"params\":{\"name\":\"nope\"}}\n");
     assert_eq!(out[0]["ok"], false);
-    assert_eq!(out[0]["error"]["code"], "background_unavailable");
-    let out = run(
-        "{\"id\":4,\"method\":\"act\",\"params\":{\"window\":\"w1\",\"action\":\"press\",\"mode\":\"foreground\"}}\n",
-    );
-    assert_eq!(out[0]["value"]["route"], "foreground");
+    assert_eq!(out[0]["error"]["code"], "not_found");
 }
 
 #[test]

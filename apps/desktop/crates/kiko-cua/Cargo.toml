@@ -1,0 +1,19 @@
+[package]
+name = "kiko-cua"
+description = "Runs the pinned cua-driver as kiko's desktop engine and speaks its MCP tools"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+kiko-driver.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[[bin]]
+name = "fake-mcp"
+path = "src/bin/fake_mcp.rs"

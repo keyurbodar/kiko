@@ -8,13 +8,10 @@ pub use serve::{dispatch, serve};
 
 pub type Result<T> = std::result::Result<T, DriverError>;
 
-pub trait Native: Send {
+pub trait Desktop: Send {
+    fn info(&self) -> DesktopInfo;
+    fn call(&mut self, name: &str, args: serde_json::Value) -> Result<serde_json::Value>;
     fn permissions(&self) -> Permissions;
-    fn request_permission(&mut self, kind: PermissionKind) -> Result<()>;
-    fn windows(&mut self) -> Result<Vec<Window>>;
-    fn look(&mut self, params: &LookParams) -> Result<Look>;
-    fn act(&mut self, params: &ActParams) -> Result<ActResult>;
-    fn open(&mut self, params: &OpenParams) -> Result<()>;
 }
 
 pub trait Browser: Send {

@@ -1,4 +1,4 @@
-use kiko_driver::{BrowserState, BrowserStatus, Grant, PermissionKind};
+use kiko_driver::{BrowserState, BrowserStatus, Grant};
 
 use crate::state::State;
 
@@ -8,6 +8,14 @@ pub const PAUSE: &str = "pause";
 pub const OPEN: &str = "open";
 pub const LOGIN: &str = "login";
 pub const QUIT: &str = "quit";
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Permission {
+    Accessibility,
+    Screen,
+    Automation,
+    Browser,
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Row {
@@ -69,32 +77,32 @@ fn agent_line(state: &State) -> String {
 fn permission_rows(state: &State) -> Vec<Row> {
     let mut rows = vec![
         row(
-            PermissionKind::Accessibility,
+            Permission::Accessibility,
             "Accessibility",
             grant(state.permissions.accessibility),
         ),
         row(
-            PermissionKind::Screen,
+            Permission::Screen,
             "Screen Recording",
             grant(state.permissions.screen),
         ),
     ];
     if state.permissions.automation != Grant::NotNeeded {
         rows.push(row(
-            PermissionKind::Automation,
+            Permission::Automation,
             "Remote Control",
             grant(state.permissions.automation),
         ));
     }
     rows.push(row(
-        PermissionKind::Browser,
+        Permission::Browser,
         "Browser",
         browser(&state.browsers),
     ));
     rows
 }
 
-fn row(kind: PermissionKind, label: &str, state: &str) -> Row {
+fn row(kind: Permission, label: &str, state: &str) -> Row {
     Row {
         id: permission_id(kind),
         label: format!("{label}: {state}"),
@@ -119,22 +127,22 @@ fn browser(browsers: &[BrowserStatus]) -> &'static str {
     }
 }
 
-pub fn permission_id(kind: PermissionKind) -> String {
+pub fn permission_id(kind: Permission) -> String {
     let name = match kind {
-        PermissionKind::Accessibility => "accessibility",
-        PermissionKind::Screen => "screen",
-        PermissionKind::Automation => "automation",
-        PermissionKind::Browser => "browser",
+        Permission::Accessibility => "accessibility",
+        Permission::Screen => "screen",
+        Permission::Automation => "automation",
+        Permission::Browser => "browser",
     };
     format!("permission.{name}")
 }
 
-pub fn permission_kind(id: &str) -> Option<PermissionKind> {
+pub fn permission_kind(id: &str) -> Option<Permission> {
     match id {
-        "permission.accessibility" => Some(PermissionKind::Accessibility),
-        "permission.screen" => Some(PermissionKind::Screen),
-        "permission.automation" => Some(PermissionKind::Automation),
-        "permission.browser" => Some(PermissionKind::Browser),
+        "permission.accessibility" => Some(Permission::Accessibility),
+        "permission.screen" => Some(Permission::Screen),
+        "permission.automation" => Some(Permission::Automation),
+        "permission.browser" => Some(Permission::Browser),
         _ => None,
     }
 }
