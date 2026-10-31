@@ -323,26 +323,28 @@ async function locateWindow(driver: Driver, title: string): Promise<CuaWindow> {
   }
 }
 
-async function typeInto(driver: Driver, window: CuaWindow, typed: string): Promise<void> {
-  const state = await driver.call("desktop.call", {
+function readWindow(driver: Driver, window: CuaWindow): Promise<unknown> {
+  return driver.call("desktop.call", {
     name: "get_window_state",
     args: { pid: window.pid, window_id: window.id, include_screenshot: false },
   })
+}
+
+async function typeInto(driver: Driver, window: CuaWindow, typed: string): Promise<string> {
+  const state = await readWindow(driver, window)
   const element = tokenOf(textOf(state))
-  if (!element) throw new Error(`no text field in the window state: ${textOf(state).slice(0, 400)}`)
+  if (!element) throw new Error(`no text field in the window state: ${textOf(state).slice(0, 600)}`)
   const target = { kind: "window", pid: window.pid, window_id: window.id }
-  const inserted = await driver.call("desktop.call", {
-    name: "type_text",
-    args: { target, element_token: element, text: typed },
-  })
-  if (isRecord(inserted) && inserted.isError === true)
-    throw new Error(`type_text failed: ${textOf(inserted).slice(0, 400)}`)
-  const after = await driver.call("desktop.call", {
-    name: "get_window_state",
-    args: { pid: window.pid, window_id: window.id, include_screenshot: false },
-  })
-  if (!textOf(after).includes(typed))
-    throw new Error(`the window does not show ${typed}: ${textOf(after).slice(0, 400)}`)
+  const attempts = [
+    { tool: "type_text", args: { target, element_token: element, text: typed } },
+    { tool: "set_value", args: { pid: window.pid, element_token: element, value: typed } },
+  ]
+  for (const attempt of attempts) {
+    const inserted = await driver.call("desktop.call", { name: attempt.tool, args: attempt.args })
+    if (isRecord(inserted) && inserted.isError === true) continue
+    if (textOf(await readWindow(driver, window)).includes(typed)) return attempt.tool
+  }
+  throw new Error(`the window does not show ${typed}: ${textOf(await readWindow(driver, window)).slice(0, 600)}`)
 }
 
 async function waitForTools(driver: Driver): Promise<{ record: Record<string, unknown>; names: string[] }> {
@@ -385,7 +387,7 @@ async function main(): Promise<void> {
     fixture = await startFixture(dir)
     const window = await locateWindow(driver, fixture.title)
     const before = await frontAwayFrom(fixture)
-    await typeInto(driver, window, typed)
+    const via = await typeInto(driver, window, typed)
     const after = await frontmost()
     if (before !== after || after.includes(fixture.title))
       throw new Error(`the desktop action changed the front window: ${before} -> ${after}`)
@@ -398,6 +400,7 @@ async function main(): Promise<void> {
         toolNames: names,
         window,
         typed,
+        via,
         frontBefore: before,
         frontAfter: after,
       }),
