@@ -43,7 +43,7 @@ export default function TokenPopover(props: {
                     onClick={() => props.onSelect(item)}
                   >
                     <span class="composer-popover-icon">
-                      <TokenGlyph token={item} size={18} />
+                      <TokenGlyph token={item} size={14} />
                     </span>
                     <span class="composer-popover-label">{item.title}</span>
                     <span class="composer-popover-hint">{item.hint}</span>

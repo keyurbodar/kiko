@@ -7,27 +7,21 @@ import { bindKey, bindings, resetAllKeys, resetKey } from "../commands/bindings"
 import { commands, GROUP_LABEL, keysOf, shortcutOf, type Command, type CommandGroup } from "../commands/registry"
 import { cn } from "../lib/cn"
 import { browserKey, refusal, sameKey } from "./browser-keys"
-import { Button, Empty, Group, IconButton } from "./kit"
+import { Button, Empty, Group, IconButton, Kbd } from "./kit"
 
 const platform = detectPlatform()
 const ORDER = Object.keys(GROUP_LABEL) as CommandGroup[]
 
 const show = (key: string) => formatForDisplay(key, { platform })
 
-const SHINE = { "--run-text": "var(--fg3)", "--visible-animation-state": "running" }
+const SHINE = { "--run-text": "var(--text-tertiary)", "--visible-animation-state": "running" }
 
 const calm = () => typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches
 
 function Keys(props: { keys: string; ref?: (el: HTMLSpanElement) => void }) {
   return (
-    <span ref={props.ref} class="inline-flex items-center gap-1" data-field="keys">
-      <For each={formatForDisplay(props.keys, { platform, parts: true })}>
-        {(part) => (
-          <kbd class="inline-flex h-5 min-w-5 items-center justify-center rounded-tail bg-[var(--raise)] px-1 font-sans text-hint font-medium text-[var(--fg2)]">
-            {part}
-          </kbd>
-        )}
-      </For>
+    <span ref={props.ref} class="inline-flex items-center" data-field="keys">
+      <Kbd keys={formatForDisplay(props.keys, { platform, parts: true })} />
     </span>
   )
 }
@@ -43,7 +37,7 @@ function KeyRow(props: { command: Command }) {
   const saved = () =>
     requestAnimationFrame(() => {
       if (calm()) return
-      row.animate([{ backgroundColor: "var(--hover)" }, { backgroundColor: "transparent" }], {
+      row.animate([{ backgroundColor: "var(--bg-tertiary)" }, { backgroundColor: "transparent" }], {
         duration: 400,
         easing: "cubic-bezier(.2,.8,.2,1)",
       })
@@ -106,14 +100,14 @@ function KeyRow(props: { command: Command }) {
   return (
     <div
       ref={row}
-      class="group/key flex flex-col rounded-row"
+      class="group/key flex flex-col rounded-base"
       data-setting={props.command.id}
       data-custom={custom() ? "" : undefined}
     >
       <div class="flex items-center gap-1">
         <button
           type="button"
-          class="flex min-h-12 min-w-0 flex-1 cursor-pointer items-center gap-6 rounded-row px-3 py-2 text-left outline-none transition-[background-color,transform] duration-(--dur-hover) ease-[var(--ease-out)] hover:bg-[var(--hover)] active:scale-[0.99]"
+          class="flex min-h-12 min-w-0 flex-1 cursor-pointer items-center gap-6 rounded-base px-3 py-2 text-left outline-none transition-[background-color,transform] duration-(--duration-fast) ease-[var(--ease-sharp)] hover:bg-quaternary active:scale-(--press-scale)"
           aria-label={
             recorder.isRecording()
               ? `Press the new shortcut for ${props.command.title}`
@@ -125,14 +119,14 @@ function KeyRow(props: { command: Command }) {
           onBlur={() => recorder.isRecording() && recorder.cancelRecording()}
         >
           <span class="flex min-w-0 flex-1 flex-col">
-            <span class="truncate text-row leading-5 font-medium text-fg">{props.command.title}</span>
+            <span class="truncate text-base leading-5 text-primary">{props.command.title}</span>
             <Show
               when={recorder.isRecording()}
               fallback={
                 <Show when={problem() ?? claimed()}>
                   {(text) => (
                     <span
-                      class={cn("type-label", problem() ? "text-[var(--danger)]" : "text-[var(--fg3)]")}
+                      class={cn("type-sm", problem() ? "text-[var(--text-danger)]" : "text-[var(--text-tertiary)]")}
                       data-field="shortcut-note"
                     >
                       {text()}
@@ -141,19 +135,19 @@ function KeyRow(props: { command: Command }) {
                 </Show>
               }
             >
-              <span class="type-hint text-[var(--fg4)]">Esc to cancel, Backspace to remove</span>
+              <span class="type-xs text-[var(--text-quaternary)]">Esc to cancel, Backspace to remove</span>
             </Show>
           </span>
           <span
             class={cn(
-              "inline-flex h-7 min-w-24 shrink-0 items-center justify-end rounded-control px-2 transition-colors duration-(--dur-hover)",
-              recorder.isRecording() && "bg-[var(--active)]",
+              "inline-flex h-7 min-w-24 shrink-0 items-center justify-end rounded-base px-2 transition-colors duration-(--duration-fast)",
+              recorder.isRecording() && "bg-[var(--bg-secondary)]",
             )}
           >
             <Show
               when={!recorder.isRecording()}
               fallback={
-                <span class="motion-shine type-label text-[var(--fg3)]" style={SHINE}>
+                <span class="motion-shine type-sm text-[var(--text-tertiary)]" style={SHINE}>
                   Press keys
                 </span>
               }
@@ -161,7 +155,7 @@ function KeyRow(props: { command: Command }) {
               <Show
                 when={key()}
                 fallback={
-                  <span class="type-label text-[var(--fg3)] opacity-0 transition-opacity duration-(--dur-hover) group-hover/key:opacity-100 group-focus-within/key:opacity-100">
+                  <span class="type-sm text-[var(--text-tertiary)] opacity-0 transition-opacity duration-(--duration-fast) group-hover/key:opacity-100 group-focus-within/key:opacity-100">
                     Add shortcut
                   </span>
                 }
@@ -187,14 +181,14 @@ function KeyRow(props: { command: Command }) {
       <Show when={conflict()}>
         {(taken) => (
           <p
-            class="flex flex-wrap items-center gap-x-2 px-3 pb-2 type-label text-[var(--danger)]"
+            class="flex flex-wrap items-center gap-x-2 px-3 pb-2 type-sm text-[var(--text-danger)]"
             role="alert"
             data-field="shortcut-conflict"
           >
             {show(taken().hotkey)} already opens {taken().owner.title}.
             <button
               type="button"
-              class="link-grow cursor-pointer text-fg"
+              class="link-grow cursor-pointer text-primary"
               data-action="use-shortcut-anyway"
               onClick={useAnyway}
             >

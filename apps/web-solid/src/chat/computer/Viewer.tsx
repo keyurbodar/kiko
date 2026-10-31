@@ -9,7 +9,8 @@ import { closeViewer, computerById, computers, openViewer, release, takeOver, vi
 import { accessHint, canControl } from "./access"
 import LiveScreen from "./LiveScreen"
 
-const pill = "h-8 shrink-0 cursor-pointer rounded-full px-3.5 type-label font-medium whitespace-nowrap"
+const pill =
+  "type-base h-control-xl shrink-0 cursor-pointer rounded-base px-3 font-medium whitespace-nowrap transition-[background-color,scale] duration-(--duration-fast) hover:bg-(--bg-neutral-hover) active:scale-(--press-scale)"
 
 export default function Viewer(): JSX.Element {
   const pc = () => computerById(viewerFor() ?? "")
@@ -52,25 +53,25 @@ export default function Viewer(): JSX.Element {
             aria-modal="true"
             aria-label={`${computer().name} screen`}
             tabindex="-1"
-            class="flex h-full max-h-[min(860px,100%)] w-full max-w-[1280px] flex-col gap-2 rounded-sheet bg-[color-mix(in_oklab,var(--bg)_92%,var(--fg))] p-2 shadow-2xl outline-none"
+            class="flex h-full max-h-[min(860px,100%)] w-full max-w-[1280px] flex-col gap-2 rounded-3xl bg-[color-mix(in_oklab,var(--bg-chrome)_92%,var(--text-primary))] p-2 shadow-2xl outline-none"
           >
             <div
               class={cn(
-                "flex min-h-11 shrink-0 items-center gap-3 rounded-pop py-1.5 pr-2 pl-4",
+                "flex min-h-11 shrink-0 items-center gap-3 rounded-xl py-1.5 pr-2 pl-4",
                 interactive()
-                  ? "bg-[color-mix(in_oklab,var(--warn)_16%,transparent)] text-warn"
-                  : "bg-[color-mix(in_oklab,var(--fg)_6%,transparent)] text-fg",
+                  ? "bg-[color-mix(in_oklab,var(--text-warning)_16%,transparent)] text-warning"
+                  : "bg-[color-mix(in_oklab,var(--text-primary)_6%,transparent)] text-primary",
               )}
               data-part="bar"
             >
               <div class="flex min-w-0 flex-1 flex-col">
-                <span class="truncate text-ui font-medium" data-field="viewer-reason">
+                <span class="truncate text-base font-semibold" data-field="viewer-reason">
                   {reason() ??
                     (interactive() ? `You are controlling ${computer().name}` : `Watching ${computer().name}`)}
                 </span>
                 <Show when={accessHint(computer())}>
                   {(line) => (
-                    <span class="truncate type-hint opacity-70" data-field="viewer-access">
+                    <span class="truncate type-xs opacity-70" data-field="viewer-access">
                       {line()}
                     </span>
                   )}
@@ -78,7 +79,7 @@ export default function Viewer(): JSX.Element {
               </div>
               <Show when={interactive()}>
                 <span
-                  class="hidden shrink-0 type-hint font-normal whitespace-nowrap opacity-70 sm:inline"
+                  class="hidden shrink-0 type-xs font-normal whitespace-nowrap opacity-70 sm:inline"
                   data-field="escape-hint"
                 >
                   Esc goes to the computer, Shift+Esc leaves
@@ -87,7 +88,7 @@ export default function Viewer(): JSX.Element {
               <Show when={computers().length > 1}>
                 <MenuV2 gutter={6} placement="bottom-end">
                   <MenuV2.Trigger
-                    class="flex h-8 max-w-44 min-w-0 cursor-pointer items-center gap-1.5 rounded-full bg-[color-mix(in_oklab,var(--fg)_8%,transparent)] pr-2.5 pl-3.5 type-label font-medium text-fg hover:bg-[color-mix(in_oklab,var(--fg)_12%,transparent)] aria-expanded:bg-[color-mix(in_oklab,var(--fg)_12%,transparent)]"
+                    class="type-base flex h-control-xl max-w-44 min-w-0 cursor-pointer items-center gap-1.5 rounded-base bg-tertiary pr-2 pl-3 text-primary transition-colors duration-(--duration-fast) hover:bg-secondary aria-expanded:bg-secondary"
                     aria-label="Computer"
                     data-action="computer-switch"
                   >
@@ -102,7 +103,7 @@ export default function Viewer(): JSX.Element {
                             <MenuV2.RadioItem value={c.id} closeOnSelect>
                               <span class="flex-1 truncate">{c.name}</span>
                               <Show when={!c.online}>
-                                <span class="type-hint ml-3 text-fg4">Offline</span>
+                                <span class="type-xs ml-3 text-quaternary">Offline</span>
                               </Show>
                             </MenuV2.RadioItem>
                           )}
@@ -119,7 +120,7 @@ export default function Viewer(): JSX.Element {
                     when={canControl(computer())}
                     fallback={
                       <span
-                        class="shrink-0 px-2 type-label whitespace-nowrap text-fg3"
+                        class="shrink-0 px-2 type-sm whitespace-nowrap text-tertiary"
                         data-field="takeover-unavailable"
                       >
                         {computer().online ? "View only" : "Offline"}
@@ -128,7 +129,7 @@ export default function Viewer(): JSX.Element {
                   >
                     <button
                       type="button"
-                      class={cn(pill, "bg-fg text-bg")}
+                      class={cn(pill, "bg-neutral text-invert")}
                       data-action="computer-takeover"
                       onClick={() => void takeOver(computer().id)}
                     >
@@ -139,7 +140,7 @@ export default function Viewer(): JSX.Element {
               >
                 <button
                   type="button"
-                  class={cn(pill, "bg-fg text-bg")}
+                  class={cn(pill, "bg-neutral text-invert")}
                   data-action="computer-release"
                   onClick={() => void release(computer().id)}
                 >
@@ -148,16 +149,16 @@ export default function Viewer(): JSX.Element {
               </Show>
               <button
                 type="button"
-                class="grid size-8 shrink-0 cursor-pointer place-items-center rounded-full text-current opacity-70 hover:bg-[color-mix(in_oklab,var(--fg)_10%,transparent)] hover:opacity-100"
+                class="grid size-control-xl shrink-0 cursor-pointer place-items-center rounded-base icon-secondary transition-colors duration-(--duration-fast) hover:bg-quaternary hover:icon-primary"
                 aria-label="Hide the screen"
                 title="Hide the screen"
                 data-action="computer-hide"
                 onClick={closeViewer}
               >
-                <RemixIcon icon={CloseIcon} size={16} />
+                <RemixIcon icon={CloseIcon} size={14} />
               </button>
             </div>
-            <div class="min-h-0 flex-1 overflow-hidden rounded-pop bg-black">
+            <div class="min-h-0 flex-1 overflow-hidden rounded-xl bg-black">
               <Show when={computer().id} keyed>
                 {(id) => (
                   <LiveScreen pcId={id} interactive={interactive()} agentName={agentName() ?? ""} class="size-full" />

@@ -139,6 +139,32 @@ describe("CodeBlock", () => {
     expect(block(screen.container).textContent).not.toContain("import math")
   })
 
+  it("paints code in the theme's syntax colours", async () => {
+    await using screen = await render(() => <RichText tree={fence('def greet():\n    return "hi"  # wave')} />)
+    const tokenColor = (text: string) =>
+      [...pre(screen.container).querySelectorAll<HTMLElement>(".chat-code-text span")].find(
+        (span) => span.textContent === text,
+      )
+    const themed = (token: string) => {
+      const probe = document.createElement("span")
+      probe.style.color = `var(${token})`
+      document.body.append(probe)
+      const value = getComputedStyle(probe).color
+      probe.remove()
+      return value
+    }
+
+    const keyword = await vi.waitFor(() => {
+      const found = tokenColor("def")
+      expect(found).toBeDefined()
+      return found!
+    })
+
+    expect(getComputedStyle(keyword).color).toBe(themed("--syntax-keyword"))
+    expect(getComputedStyle(tokenColor('"hi"')!).color).toBe(themed("--syntax-string"))
+    expect(getComputedStyle(tokenColor("# wave")!).color).toBe(themed("--syntax-comment"))
+  })
+
   it("scrolls a long fence sideways in the markdown file viewer", async () => {
     const text = ["# Notes", "", "A long fence:", "", "```ts", LONG, "```"].join("\n")
     await using screen = await render(() => (

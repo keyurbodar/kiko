@@ -9,10 +9,10 @@ export const UNREADABLE = {
 } as const
 
 export const SUBHEADER =
-  "flex h-10 min-h-10 shrink-0 items-center gap-2 border-b border-[var(--line)] px-3 in-data-[panel-mode=inline]:mb-3 in-data-[panel-mode=inline]:h-7 in-data-[panel-mode=inline]:min-h-7 in-data-[panel-mode=inline]:border-b-transparent"
+  "flex h-10 min-h-10 shrink-0 items-center gap-2 border-b border-[var(--stroke-tertiary)] px-3 in-data-[panel-mode=inline]:mb-3 in-data-[panel-mode=inline]:h-7 in-data-[panel-mode=inline]:min-h-7 in-data-[panel-mode=inline]:border-b-transparent"
 
 export const ACTION =
-  "grid size-7 shrink-0 place-items-center rounded-control text-[var(--text-300)] transition-[background-color,color] duration-(--dur-hover) ease-kiko hover:bg-hover hover:text-fg aria-pressed:bg-active aria-pressed:text-fg disabled:opacity-50"
+  "grid size-7 shrink-0 place-items-center rounded-base text-[var(--text-tertiary)] transition-[background-color,color] duration-(--duration-fast) ease-sharp hover:bg-tertiary hover:text-primary aria-pressed:bg-secondary aria-pressed:text-primary disabled:opacity-50"
 
 export function SurfaceAction(props: {
   label: string
@@ -54,7 +54,7 @@ export function SurfaceAction(props: {
 
 export function SurfaceNotice(props: { children: JSX.Element }) {
   return (
-    <div role="status" class="shrink-0 bg-panel px-3 py-1.5 text-hint text-fg2" data-component="file-notice">
+    <div role="status" class="shrink-0 bg-editor px-3 py-1.5 text-xs text-secondary" data-component="file-notice">
       {props.children}
     </div>
   )
@@ -65,7 +65,7 @@ export function SurfaceLoading() {
     <div
       role="status"
       aria-label="Loading file"
-      class="flex min-h-0 flex-1 items-center justify-center text-fg3"
+      class="flex min-h-0 flex-1 items-center justify-center text-tertiary"
       data-component="file-loading"
     >
       <RemixIcon icon={LoaderIcon} size={20} class="motion-spin" />
@@ -77,15 +77,15 @@ export function SurfaceFailure(props: { message: string; onRetry?: () => void })
   return (
     <div
       role="alert"
-      class="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 px-6 text-center text-hint leading-relaxed"
+      class="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 px-6 text-center text-xs leading-relaxed"
       data-component="file-failure"
     >
-      <p class="text-bad">{props.message}</p>
+      <p class="text-danger">{props.message}</p>
       <Show when={props.onRetry}>
         {(retry) => (
           <button
             type="button"
-            class="rounded-control border border-[var(--line)] px-2.5 py-1 text-hint text-fg hover:bg-hover"
+            class="rounded-base border border-[var(--stroke-tertiary)] px-2.5 py-1 text-xs text-primary hover:bg-tertiary"
             data-action="retry-file"
             onClick={() => retry()()}
           >
@@ -104,10 +104,12 @@ export function NoPreview(props: { name: string; href: string }) {
       class="flex min-h-0 flex-1 flex-col items-center justify-center gap-1 px-6 text-center"
       data-component="file-no-preview"
     >
-      <p class="text-msg font-medium text-fg">No preview for this file</p>
-      <p class="max-w-sm text-label leading-relaxed text-fg3">Save it to open in an app that supports {ext()} files.</p>
+      <p class="text-lg text-primary">No preview for this file</p>
+      <p class="max-w-sm text-sm leading-relaxed text-tertiary">
+        Save it to open in an app that supports {ext()} files.
+      </p>
       <a
-        class="mt-3 inline-flex h-7 items-center gap-1.5 rounded-control border border-[var(--line)] px-2.5 text-hint text-fg hover:bg-hover"
+        class="mt-3 inline-flex h-7 items-center gap-1.5 rounded-base border border-[var(--stroke-tertiary)] px-2.5 text-xs text-primary hover:bg-tertiary"
         href={props.href}
         download={props.name}
         data-action="download"

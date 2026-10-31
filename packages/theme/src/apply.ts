@@ -1,7 +1,16 @@
 import { displayVars } from "./display"
 import { EMPTY_IMPORTED, IMPORTED_KEY, parseImported, themeFor, type Imported } from "./imported"
 import { DEFAULT_LOOK, parseLook, type Look } from "./look"
-import { PALETTES, resolveAppearance, tokensFor, type ThemeAppearance, type ThemeMode, type ThemeId } from "./palette"
+import {
+  appearanceOfTheme,
+  isDarkThemeId,
+  PALETTES,
+  resolveAppearance,
+  tokensFor,
+  type ThemeAppearance,
+  type ThemeId,
+  type ThemeMode,
+} from "./palette"
 
 export const CACHE_KEY = "kiko:look"
 
@@ -29,7 +38,12 @@ export function dropLegacyImported(): void {
 }
 
 const half = (look: Look, h: ThemeAppearance) => ({
-  ...tokensFor(h, look.darkTheme, look.display.contrast, importedOn ? themeFor(look.imported, h) : undefined),
+  ...tokensFor(
+    h,
+    h === "dark" ? look.darkTheme : look.lightTheme,
+    look.display.contrast,
+    importedOn ? themeFor(look.imported, h) : undefined,
+  ),
   ...displayVars(look.display),
 })
 
@@ -52,10 +66,10 @@ function paint(look: Look): void {
   applied = new Set(Object.keys(next))
   root.classList.toggle("dark", appearance === "dark")
   root.style.colorScheme = appearance
-  const canvas = next["--bg"] ?? PALETTES[appearance].canvas
+  const canvas = next["--bg-chrome"] ?? PALETTES[appearance].chrome
   root.style.backgroundColor = canvas
   root.style.setProperty("--boot-bg", canvas)
-  root.style.setProperty("--boot-fg", next["--fg"] ?? PALETTES[appearance].text)
+  root.style.setProperty("--boot-fg", next["--text-primary"] ?? PALETTES[appearance].base)
   for (const meta of document.querySelectorAll('meta[name="theme-color"]')) meta.setAttribute("content", canvas)
 }
 
@@ -130,8 +144,9 @@ export function writeCache(text: string | null, look: Look): void {
 }
 
 export function selectBuiltin(look: Look, id: ThemeId): Look {
-  const mode = id === "snow" ? "light" : "dark"
+  const mode = appearanceOfTheme(id)
   const active = { ...look.imported.active }
   delete active[mode]
-  return { ...look, mode, darkTheme: id === "snow" ? look.darkTheme : id, imported: { ...look.imported, active } }
+  const theme = isDarkThemeId(id) ? { darkTheme: id } : { lightTheme: id }
+  return { ...look, ...theme, mode, imported: { ...look.imported, active } }
 }

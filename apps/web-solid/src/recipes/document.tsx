@@ -19,7 +19,7 @@ import { localizeWhen, nextRunLabel } from "./model"
 import { cards, followRecipes, installsFor, setInstallPaused } from "./state"
 
 const chip =
-  "type-ui flex h-9 min-w-0 shrink-0 cursor-pointer items-center gap-2 rounded-full bg-panel px-3.5 text-fg2 outline-none transition-[background-color,color,transform] duration-(--dur-hover) hover:bg-active hover:text-fg focus-visible:bg-active active:scale-[0.97]"
+  "type-base flex h-9 min-w-0 shrink-0 cursor-pointer items-center gap-2 rounded-full bg-editor px-3.5 text-secondary outline-none transition-[background-color,color,transform] duration-(--duration-fast) hover:bg-secondary hover:text-primary focus-visible:bg-secondary active:scale-(--press-scale)"
 
 type Base = { id: string; sha256: string }
 
@@ -128,7 +128,7 @@ function WhenChip(props: { value: string; onCommit: (value: string) => void }) {
         </button>
       }
     >
-      <span class={cn(chip, "cursor-text bg-fill text-fg")}>
+      <span class={cn(chip, "cursor-text bg-tertiary text-primary")}>
         <RemixIcon icon={ClockIcon} size={16} class="shrink-0" />
         <input
           ref={(el) => {
@@ -266,7 +266,7 @@ function RunChip(props: { installs: readonly RecipeInstall[] }) {
       when={props.installs.length}
       fallback={
         <span
-          class={cn(chip, "cursor-default text-fg3 hover:bg-panel hover:text-fg3 active:scale-100")}
+          class={cn(chip, "cursor-default text-tertiary hover:bg-editor hover:text-tertiary active:scale-100")}
           data-run="none"
         >
           Not running
@@ -277,7 +277,7 @@ function RunChip(props: { installs: readonly RecipeInstall[] }) {
         type="button"
         role="switch"
         aria-checked={active()}
-        class={cn(chip, active() ? "text-ok hover:text-ok" : "text-fg3")}
+        class={cn(chip, active() ? "text-success hover:text-success" : "text-tertiary")}
         data-action="recipe-toggle"
         onClick={toggle}
       >
@@ -321,7 +321,7 @@ function Prose(props: { body: string; onCommit: (body: string) => void }) {
             }
           }}
         >
-          <Show when={props.body} fallback={<p class="text-fg4">Click to write what this recipe does.</p>}>
+          <Show when={props.body} fallback={<p class="text-quaternary">Click to write what this recipe does.</p>}>
             <RichText tree={parseRichText(props.body)} />
           </Show>
         </div>
@@ -359,21 +359,23 @@ function NextRun(props: { installs: readonly RecipeInstall[] }) {
     room.chatById(install.roomId)?.name ?? user.chat(install.roomId)?.title ?? "a chat"
   return (
     <section
-      class="flex items-center gap-4 rounded-card bg-panel px-5 py-4"
+      class="flex items-center gap-4 rounded-xl bg-editor px-5 py-4"
       aria-label="Next run"
       data-component="recipe-next-run"
     >
       <Show
         when={props.installs.length}
-        fallback={<p class="type-ui text-fg3">Not added to a chat yet. Add it from Recipes to start it.</p>}
+        fallback={<p class="type-base text-tertiary">Not added to a chat yet. Add it from Recipes to start it.</p>}
       >
-        <Show when={upcoming()} fallback={<p class="type-ui text-fg3">Paused. Turn it on to run again.</p>}>
+        <Show when={upcoming()} fallback={<p class="type-base text-tertiary">Paused. Turn it on to run again.</p>}>
           {(next) => (
             <>
               <IdentityAvatar seed={next().i.agent} size={32} />
               <div class="flex min-w-0 flex-1 flex-col">
-                <span class="type-ui truncate text-fg">{nextRunLabel(next().r.dueUtc, Date.now(), next().r.tz)}</span>
-                <span class="type-label truncate text-fg3">In {chatName(next().i)}</span>
+                <span class="type-base truncate text-primary">
+                  {nextRunLabel(next().r.dueUtc, Date.now(), next().r.tz)}
+                </span>
+                <span class="type-sm truncate text-tertiary">In {chatName(next().i)}</span>
               </div>
             </>
           )}

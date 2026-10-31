@@ -51,9 +51,9 @@ async function runNow(routine: Routine): Promise<boolean> {
   return false
 }
 
-const faint = "text-fg4"
+const faint = "text-quaternary"
 const tool =
-  "grid size-7 shrink-0 place-items-center rounded-row text-fg3 transition-[background-color,transform] duration-[120ms] active:scale-[0.97] hover:bg-hover hover:text-fg disabled:opacity-(--opacity-disabled)"
+  "grid size-7 shrink-0 place-items-center rounded-base text-tertiary transition-[background-color,transform] duration-[120ms] active:scale-[0.97] hover:bg-tertiary hover:text-primary disabled:opacity-(--opacity-disabled)"
 function Tool(props: {
   label: string
   action: string
@@ -94,7 +94,7 @@ function RoutineRow(props: { routine: Routine; recipe?: RecipeCard }) {
   }
   return (
     <li
-      class="flex items-center gap-1 rounded-row pr-1 transition-colors duration-[120ms] hover:bg-hover"
+      class="flex items-center gap-1 rounded-base pr-1 transition-colors duration-[120ms] hover:bg-tertiary"
       data-routine={props.routine.id}
       data-status={props.routine.status}
     >
@@ -103,7 +103,7 @@ function RoutineRow(props: { routine: Routine; recipe?: RecipeCard }) {
           when={props.recipe}
           fallback={
             <span
-              class={`grid size-7 shrink-0 place-items-center rounded-control bg-fill ${on() ? "text-fg2" : "text-fg4"}`}
+              class={`grid size-7 shrink-0 place-items-center rounded-base bg-tertiary ${on() ? "text-secondary" : "text-quaternary"}`}
               aria-hidden="true"
             >
               <RemixIcon icon={ClockIcon} size={16} />
@@ -113,10 +113,10 @@ function RoutineRow(props: { routine: Routine; recipe?: RecipeCard }) {
           {(recipe) => <RecipeIcon recipe={recipe()} size={34} />}
         </Show>
         <span class="flex min-w-0 flex-1 flex-col">
-          <span class={`truncate text-hint ${on() ? "text-fg" : "text-fg3"}`}>{props.routine.name}</span>
-          <span class={`truncate text-hint ${faint}`} data-component="routine-trigger">
+          <span class={`truncate text-xs ${on() ? "text-primary" : "text-tertiary"}`}>{props.routine.name}</span>
+          <span class={`truncate text-xs ${faint}`} data-component="routine-trigger">
             <Show when={!ran() && !on()}>
-              <span class="mr-1.5 rounded bg-fill px-1 text-micro">Paused</span>
+              <span class="mr-1.5 rounded bg-tertiary px-1 text-xs">Paused</span>
             </Show>
             {ran() ? "Started just now" : triggerLabel(props.routine.trigger, props.routine.tz)}
           </span>
@@ -139,7 +139,7 @@ function RoutineRow(props: { routine: Routine; recipe?: RecipeCard }) {
   )
 }
 
-const heading = "px-2 pt-2 pb-1 text-label text-fg3"
+const heading = "px-2 pt-2 pb-1 text-sm text-tertiary"
 
 export function RoutinesPage(props: { chatId: string }) {
   const listed = createQuery(() => (routinesOf(props.chatId).length ? owner.queries.recipes(undefined) : null))
@@ -164,7 +164,7 @@ export function RoutinesPage(props: { chatId: string }) {
                 action={
                   <Link
                     to="/recipes"
-                    class="flex h-control items-center rounded-control bg-fill px-3 type-ui text-fg transition-[background-color,transform] duration-(--dur-hover) ease-kiko hover:bg-fill-hover active:scale-[0.98]"
+                    class="flex h-control-xl items-center rounded-base bg-tertiary px-3 type-base text-primary transition-[background-color,transform] duration-(--duration-fast) ease-sharp hover:bg-quaternary active:scale-[0.98]"
                     data-action="browse-recipes"
                   >
                     Browse recipes

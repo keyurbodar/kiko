@@ -12,7 +12,15 @@ import {
 } from "@kiko/avatar"
 import { DEFAULT_DISPLAY, readDisplay, type Display } from "./display"
 import { EMPTY_IMPORTED, readImported, type Imported } from "./imported"
-import { DEFAULT_DARK_THEME, isDarkThemeId, type DarkThemeId, type ThemeMode } from "./palette"
+import {
+  DEFAULT_DARK_THEME,
+  DEFAULT_LIGHT_THEME,
+  isDarkThemeId,
+  isLightThemeId,
+  type DarkThemeId,
+  type LightThemeId,
+  type ThemeMode,
+} from "./palette"
 
 export type Mode = ThemeMode
 export const MODES: readonly Mode[] = ["system", "light", "dark"]
@@ -28,6 +36,7 @@ export type AvatarPins = {
 export type Look = {
   mode: Mode
   darkTheme: DarkThemeId
+  lightTheme: LightThemeId
   avatars: Readonly<Record<string, AvatarPins>>
   display: Display
   imported: Imported
@@ -36,6 +45,7 @@ export type Look = {
 export const DEFAULT_LOOK: Look = {
   mode: "dark",
   darkTheme: DEFAULT_DARK_THEME,
+  lightTheme: DEFAULT_LIGHT_THEME,
   avatars: {},
   display: DEFAULT_DISPLAY,
   imported: EMPTY_IMPORTED,
@@ -118,7 +128,8 @@ export function parseLook(text: string | null): Look {
       : {}
   return {
     mode: one(raw.mode, MODES) ?? DEFAULT_LOOK.mode,
-    darkTheme: raw.version === 5 && isDarkThemeId(raw.darkTheme) ? raw.darkTheme : DEFAULT_DARK_THEME,
+    darkTheme: isDarkThemeId(raw.darkTheme) ? raw.darkTheme : DEFAULT_DARK_THEME,
+    lightTheme: isLightThemeId(raw.lightTheme) ? raw.lightTheme : DEFAULT_LIGHT_THEME,
     avatars,
     display: readDisplay(raw.display),
     imported: readImported(raw.imported),
@@ -127,7 +138,7 @@ export function parseLook(text: string | null): Look {
 
 export function isCurrentLook(text: string | null): boolean {
   try {
-    return text !== null && (JSON.parse(text) as { version?: unknown }).version === 5
+    return text !== null && (JSON.parse(text) as { version?: unknown }).version === 6
   } catch {
     return false
   }
@@ -135,10 +146,11 @@ export function isCurrentLook(text: string | null): boolean {
 
 export function formatLook(look: Look): string {
   return JSON.stringify({
-    version: 5,
+    version: 6,
     kind: "look",
     mode: look.mode,
     darkTheme: look.darkTheme,
+    lightTheme: look.lightTheme,
     avatars: look.avatars,
     display: look.display,
     imported: { v: 1, ...look.imported },

@@ -16,8 +16,8 @@
 }
 .question-body .question-hint {
   margin-top: 4px;
-  color: var(--fg3);
-  font-size: var(--type-hint);
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
   line-height: 16px;
 }
 .question-options {
@@ -30,10 +30,10 @@
   margin-top: 4px;
 }
 .question-kind {
-  color: var(--fg2);
+  color: var(--text-secondary);
 }
 .question-kind b {
-  color: var(--fg);
+  color: var(--text-primary);
   font-weight: 600;
 }
 .question-option {
@@ -41,28 +41,28 @@
   width: 100%;
   align-items: center;
   gap: 8px;
-  border-radius: var(--radius-tile);
-  padding: 10px 12px;
-  background: var(--panel);
+  border-radius: var(--radius-lg);
+  padding: 6px 6px 6px 10px;
+  background: var(--bg-tertiary);
   text-align: start;
   transition:
-    background var(--dur-hover),
-    transform var(--dur-hover) var(--ease-kiko);
+    background var(--duration-fast),
+    transform var(--duration-fast) var(--ease-sharp);
   outline: none;
-  color: color-mix(in srgb, var(--fg) 85%, transparent);
+  color: var(--text-primary);
   cursor: pointer;
 }
 @media (hover: hover) and (pointer: fine) {
   .question-option:hover {
-    background: var(--hover);
+    background: var(--bg-secondary);
   }
 }
 .question-option:active {
-  transform: scale(0.99);
+  transform: scale(var(--press-scale));
 }
 .question-option[data-pressed] {
-  background: var(--active);
-  color: var(--fg);
+  background: var(--bg-active);
+  color: var(--text-primary);
 }
 .question-option-copy {
   display: flex;
@@ -70,32 +70,36 @@
   min-width: 0;
   flex-direction: column;
   gap: 2px;
-  font-size: var(--type-ui);
-  line-height: 20px;
-  font-weight: 500;
+  font-size: var(--font-size-base);
+  line-height: var(--line-height-base);
+  font-weight: 400;
 }
 .question-option-copy .question-description {
-  color: var(--fg3);
-  font-size: var(--type-hint);
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
   line-height: 16px;
   font-weight: 400;
 }
 .question-option kbd {
-  display: flex;
-  width: 20px;
-  height: 20px;
+  display: inline-flex;
+  min-width: 18px;
+  height: 18px;
   flex: none;
   align-items: center;
   justify-content: center;
-  color: var(--fg3);
-  font-size: var(--type-caption);
-  font-weight: 500;
+  padding-inline: 5px;
+  color: var(--text-secondary);
+  background: var(--bg-quaternary);
+  border-radius: 3px;
+  font-family: inherit;
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-sm);
 }
 .question-check {
-  width: 16px;
-  height: 16px;
+  width: 14px;
+  height: 14px;
   flex: none;
-  color: var(--fg);
+  color: var(--text-primary);
 }
 
 [data-component="question-panel"] .composer-card-kind:not([data-owner]) {
@@ -132,8 +136,8 @@
   .question-previous {
     display: grid;
     place-items: center;
-    width: 32px;
-    height: 32px;
+    width: 28px;
+    height: 28px;
     padding: 0;
   }
 }
@@ -142,32 +146,33 @@
   display: flex;
   align-items: center;
   justify-content: end;
-  gap: 6px;
-  padding: 10px 4px 4px 0;
+  gap: 4px;
+  padding: 8px 0 0;
 }
 .question-submit,
 .question-previous {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  height: 32px;
-  gap: 4px;
-  padding: 0 14px;
-  border-radius: var(--radius-control);
+  height: 28px;
+  gap: 6px;
+  padding: 0 10px;
+  border-radius: var(--radius-lg);
   transition:
-    background var(--dur-hover),
-    opacity var(--dur-hover),
-    transform var(--dur-hover) var(--ease-kiko);
-  font-size: var(--type-label);
-  font-weight: 500;
+    color var(--duration-fast) ease,
+    background-color var(--duration-fast) ease,
+    transform var(--duration-instant) var(--ease-sharp);
+  font-size: var(--font-size-base);
+  line-height: var(--line-height-base);
   cursor: pointer;
 }
 .question-submit {
-  color: var(--bg);
-  background: var(--fg);
+  color: var(--text-invert);
+  background: var(--bg-neutral);
+  font-weight: 500;
 }
 .question-previous {
-  color: var(--fg2);
+  color: var(--text-secondary);
 }
 .question-previous svg {
   width: 12px;
@@ -175,15 +180,19 @@
 }
 @media (hover: hover) and (pointer: fine) {
   .question-previous:hover {
-    color: var(--fg);
-    background: var(--active);
+    color: var(--text-primary);
+    background: var(--bg-quaternary);
+  }
+  .question-submit:hover:not(:disabled) {
+    background: var(--bg-neutral-hover);
   }
 }
 .question-submit:active:not(:disabled),
 .question-previous:active {
-  transform: scale(0.97);
+  transform: scale(var(--press-scale));
 }
 .question-submit:disabled {
-  opacity: 0.4;
+  color: var(--icon-quaternary);
+  background: var(--bg-tertiary);
   pointer-events: none;
 }

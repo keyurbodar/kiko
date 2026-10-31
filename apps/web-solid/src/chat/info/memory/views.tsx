@@ -23,8 +23,8 @@ import { memoryFor } from "./instance"
 import { ago, matching, mergeResults, ordered, originOf, replacedMark } from "./lines"
 import type { MemoryStore } from "./store"
 
-const quiet = "rounded-control px-1.5 py-0.5 text-hint text-fg3 hover:bg-hover hover:text-fg"
-const action = "grid size-6 place-items-center rounded-control text-fg3 hover:bg-hover hover:text-fg"
+const quiet = "rounded-base px-1.5 py-0.5 text-xs text-tertiary hover:bg-tertiary hover:text-primary"
+const action = "grid size-6 place-items-center rounded-base text-tertiary hover:bg-tertiary hover:text-primary"
 
 const sentence = (text: string) => text.charAt(0).toUpperCase() + text.slice(1)
 
@@ -72,26 +72,26 @@ function Line(props: { line: LifeLine; store: MemoryStore }) {
   const [sure, setSure] = createSignal(false)
   return (
     <li
-      class="group/row rounded-row px-2.5 py-2 transition-colors duration-[120ms] hover:bg-hover focus-within:bg-hover"
+      class="group/row rounded-base px-2.5 py-2 transition-colors duration-[120ms] hover:bg-tertiary focus-within:bg-tertiary"
       data-component="memory-line"
       data-pos={l().pos}
       data-pinned={l().pinned ? "" : undefined}
     >
       <button
         type="button"
-        class={`block w-full text-left text-ui leading-snug ${open() ? "" : "line-clamp-3"} ${replacedMark(l()) ? "text-fg3 line-through" : "text-fg"}`}
+        class={`block w-full text-left text-base leading-snug ${open() ? "" : "line-clamp-3"} ${replacedMark(l()) ? "text-tertiary line-through" : "text-primary"}`}
         aria-expanded={open()}
         onClick={() => setOpen(!open())}
       >
         {sentence(l().text)}
       </button>
-      <div class="mt-1 flex h-6 items-center gap-1.5 text-hint text-fg3">
+      <div class="mt-1 flex h-6 items-center gap-1.5 text-xs text-tertiary">
         <Show when={l().pinned}>
           <RemixIcon icon={PinFillIcon} size={12} class="shrink-0" aria-label="Pinned" aria-hidden={false} />
         </Show>
         <Origin line={l()} />
-        <Show when={replacedMark(l())}>{(mark) => <span class="rounded bg-fill px-1 text-hint">{mark()}</span>}</Show>
-        <span class="ml-auto shrink-0 text-fg4 group-hover/row:hidden group-focus-within/row:hidden">
+        <Show when={replacedMark(l())}>{(mark) => <span class="rounded bg-tertiary px-1 text-xs">{mark()}</span>}</Show>
+        <span class="ml-auto shrink-0 text-quaternary group-hover/row:hidden group-focus-within/row:hidden">
           {ago(l().at)}
         </span>
         <Show when={l().pos >= 0}>
@@ -110,7 +110,7 @@ function Line(props: { line: LifeLine; store: MemoryStore }) {
             </button>
             <button
               type="button"
-              class={sure() ? "h-6 rounded-control px-1.5 text-hint text-bad hover:bg-bad-wash" : action}
+              class={sure() ? "h-6 rounded-base px-1.5 text-xs text-danger hover:bg-danger-tertiary" : action}
               data-action="redact"
               aria-label={sure() ? "Remove for good" : "Remove"}
               title="Remove"
@@ -132,7 +132,7 @@ function Section(props: { title: string; icon?: boolean; lines: LifeLine[]; stor
   return (
     <Show when={props.lines.length}>
       <section class="flex flex-col gap-0.5" data-group={props.title}>
-        <h3 class="flex items-center gap-1.5 px-2.5 pt-1 pb-0.5 type-label text-fg3">
+        <h3 class="flex items-center gap-1.5 px-2.5 pt-1 pb-0.5 type-sm text-tertiary">
           <Show when={props.icon}>
             <RemixIcon icon={PinIcon} size={12} />
           </Show>
@@ -151,17 +151,17 @@ function ViewLine(props: { text: string; store: MemoryStore }) {
   const opened = () => (id() ? props.store.state.opened[id()!] : undefined)
   return (
     <div class="flex flex-col">
-      <Show when={id()} fallback={<span class="py-0.5 text-label leading-snug text-fg3">{props.text}</span>}>
+      <Show when={id()} fallback={<span class="py-0.5 text-sm leading-snug text-tertiary">{props.text}</span>}>
         <button
           type="button"
-          class="py-0.5 text-left text-label leading-snug text-fg3 hover:text-fg"
+          class="py-0.5 text-left text-sm leading-snug text-tertiary hover:text-primary"
           data-component="memory-summary"
           onClick={() => void props.store.zoom(id()!)}
         >
           {props.text}
         </button>
         <Show when={opened()}>
-          <div class="ml-3 border-l-[1.5px] border-line pl-2">
+          <div class="ml-3 border-l-[1.5px] border-tertiary pl-2">
             <For each={opened()}>{(t) => <ViewLine text={t} store={props.store} />}</For>
           </div>
         </Show>
@@ -184,7 +184,7 @@ function MemoryMore(props: { store: MemoryStore }) {
       <MenuV2 gutter={6} placement="bottom-end">
         <MenuV2.Trigger
           ref={trigger}
-          class="grid size-8 shrink-0 place-items-center rounded-control text-fg2 hover:bg-hover hover:text-fg aria-expanded:bg-hover"
+          class="grid size-8 shrink-0 place-items-center rounded-base text-secondary hover:bg-tertiary hover:text-primary aria-expanded:bg-tertiary"
           aria-label="More memory options"
           data-component="memory-more"
         >
@@ -195,7 +195,7 @@ function MemoryMore(props: { store: MemoryStore }) {
             <MenuV2.Item data-action="memory-model" onSelect={() => setPicking(true)}>
               <span class="flex min-w-0 flex-1 flex-col">
                 <span>Memory model…</span>
-                <span class="truncate type-hint text-fg4">
+                <span class="truncate type-xs text-quaternary">
                   {current()?.split("/").slice(1).join("/") ?? `${leadName()}'s model`}
                 </span>
               </span>
@@ -241,12 +241,12 @@ export function MemoryList(props: { store: MemoryStore }) {
   return (
     <nav class="flex min-h-0 flex-1 flex-col" aria-label="Memory" data-component="memory-list">
       <div class="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-none px-2.5 pb-3">
-        <div class="sticky top-0 z-10 flex shrink-0 items-center gap-1 bg-bg">
-          <label class="flex h-8 min-w-0 flex-1 items-center gap-2 rounded-row bg-hover px-2.5 text-fg3 focus-within:text-fg">
+        <div class="sticky top-0 z-10 flex shrink-0 items-center gap-1 bg-chrome">
+          <label class="flex h-8 min-w-0 flex-1 items-center gap-2 rounded-base bg-tertiary px-2.5 text-tertiary focus-within:text-primary">
             <RemixIcon icon={SearchIcon} size={16} />
             <input
               type="search"
-              class="h-full min-w-0 flex-1 bg-transparent text-ui text-fg outline-none placeholder:text-fg3"
+              class="h-full min-w-0 flex-1 bg-transparent text-base text-primary outline-none placeholder:text-tertiary"
               placeholder="Search memory"
               aria-label="Search memory"
               value={query()}
@@ -269,7 +269,7 @@ export function MemoryList(props: { store: MemoryStore }) {
           </button>
         </Show>
         <Show when={empty() && searching()}>
-          <p class="px-1 py-6 text-center text-label text-fg3">Nothing matches "{query().trim()}"</p>
+          <p class="px-1 py-6 text-center text-sm text-tertiary">Nothing matches "{query().trim()}"</p>
         </Show>
         <Show when={empty() && !searching()}>
           <PanelEmpty
@@ -282,10 +282,10 @@ export function MemoryList(props: { store: MemoryStore }) {
       </div>
       <div class="flex shrink-0 flex-col gap-2 px-2.5 py-2.5">
         <Show when={s().view.length}>
-          <section class="flex flex-col rounded-pop bg-panel px-3 py-1" data-component="memory-view">
+          <section class="flex flex-col rounded-xl bg-editor px-3 py-1" data-component="memory-view">
             <button
               type="button"
-              class="flex h-8 items-center gap-2 text-left text-label text-fg3 hover:text-fg"
+              class="flex h-8 items-center gap-2 text-left text-sm text-tertiary hover:text-primary"
               aria-expanded={reading()}
               onClick={() => setReading(!reading())}
             >
@@ -303,7 +303,7 @@ export function MemoryList(props: { store: MemoryStore }) {
           </section>
         </Show>
         <form
-          class="flex h-10 items-center gap-2 rounded-full bg-raise pr-1 pl-4"
+          class="flex h-10 items-center gap-2 rounded-full bg-elevated pr-1 pl-4"
           data-component="memory-note"
           onSubmit={(e) => {
             e.preventDefault()
@@ -316,7 +316,7 @@ export function MemoryList(props: { store: MemoryStore }) {
         >
           <input
             name="note"
-            class="min-w-0 flex-1 bg-transparent text-ui text-fg outline-none placeholder:text-fg3"
+            class="min-w-0 flex-1 bg-transparent text-base text-primary outline-none placeholder:text-tertiary"
             placeholder={`Tell ${leadName()} something to remember`}
             aria-label="Add a memory"
             maxLength={280}
@@ -324,7 +324,7 @@ export function MemoryList(props: { store: MemoryStore }) {
           />
           <button
             type="submit"
-            class={`grid size-8 shrink-0 place-items-center rounded-full transition-[background-color,color,transform] duration-(--dur-hover) ease-kiko active:scale-[0.97] ${draft().trim() ? "bg-fg text-bg" : "bg-active text-fg4"}`}
+            class={`grid size-8 shrink-0 place-items-center rounded-full transition-[background-color,color,transform] duration-(--duration-fast) ease-sharp active:scale-[0.97] ${draft().trim() ? "bg-neutral text-invert" : "bg-secondary text-quaternary"}`}
             aria-label="Remember"
           >
             <RemixIcon icon={ArrowUpIcon} size={16} />
@@ -339,7 +339,7 @@ export function MemoryError(props: { store: MemoryStore }) {
   return (
     <Show when={props.store.state.error}>
       <p
-        class="mx-2.5 rounded-control bg-bad-wash px-3 py-2 text-label text-bad"
+        class="mx-2.5 rounded-base bg-danger-tertiary px-3 py-2 text-sm text-danger"
         role="alert"
         data-component="memory-error"
       >

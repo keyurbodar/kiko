@@ -20,14 +20,14 @@ const LABEL: Record<Status, string> = {
 }
 
 const PILL: Record<Status, string> = {
-  action: "bg-[color-mix(in_oklab,var(--warn)_18%,transparent)] text-warn",
-  working: "bg-[color-mix(in_oklab,var(--warn)_18%,transparent)] text-warn",
-  done: "bg-[color-mix(in_oklab,var(--ok)_16%,transparent)] text-ok",
-  offline: "bg-[color-mix(in_oklab,var(--fg)_8%,transparent)] text-fg2",
+  action: "bg-warning-tertiary text-warning",
+  working: "bg-warning-tertiary text-warning",
+  done: "bg-success-tertiary text-success",
+  offline: "bg-tertiary text-secondary",
 }
 
 const button =
-  "h-9 shrink-0 cursor-pointer rounded-full px-4 text-ui font-medium whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-(--opacity-disabled)"
+  "inline-flex h-control-lg shrink-0 cursor-pointer items-center rounded-base px-2.5 type-base whitespace-nowrap transition-[background-color,transform] duration-(--duration-instant) active:scale-(--press-scale) disabled:cursor-not-allowed disabled:opacity-(--opacity-disabled)"
 
 function Dot(): JSX.Element {
   return <span class="size-1.5 rounded-full bg-current" aria-hidden="true" />
@@ -65,12 +65,12 @@ export default function ComputerCard(props: { message: ChatMessage }): JSX.Eleme
       data-status={status()}
       data-message-id={props.message.id}
     >
-      <Bubble variant="secondary" class="w-full max-w-[min(100%,30rem)]">
-        <BubbleContent class="flex flex-col gap-2.5 p-3.5">
+      <Bubble variant="outline" class="w-full max-w-[min(100%,30rem)]">
+        <BubbleContent class="flex flex-col gap-2 rounded-lg p-3">
           <div class="flex items-center justify-between gap-3">
-            <span class="text-ui font-semibold">Computer</span>
+            <span class="type-base font-semibold">Computer</span>
             <span
-              class={cn("inline-flex h-7 items-center gap-1.5 rounded-full px-2.5 text-ui", PILL[status()])}
+              class={cn("inline-flex h-control-sm items-center gap-1.5 rounded-full px-2 type-sm", PILL[status()])}
               data-field="status"
             >
               <Show when={open()} fallback={<Dot />}>
@@ -79,13 +79,13 @@ export default function ComputerCard(props: { message: ChatMessage }): JSX.Eleme
               {LABEL[status()]}
             </span>
           </div>
-          <p class="text-msg leading-snug" data-field="reason">
+          <p class="type-lg text-primary" data-field="reason">
             {event().reason}
           </p>
           <Show when={watching()}>
             <button
               type="button"
-              class="relative block w-full cursor-pointer overflow-hidden rounded-pop bg-black/60 outline-none"
+              class="relative block w-full cursor-pointer overflow-hidden rounded-lg bg-black/60 outline-none"
               style={{ "aspect-ratio": String(ratio()) }}
               aria-label="Open the screen"
               data-action="computer-open"
@@ -99,14 +99,18 @@ export default function ComputerCard(props: { message: ChatMessage }): JSX.Eleme
               <Show
                 when={status() === "action"}
                 fallback={
-                  <button type="button" class={cn(button, "bg-bg text-fg")} onClick={() => openViewer(event().pc)}>
+                  <button
+                    type="button"
+                    class={cn(button, "bg-tertiary text-primary hover:bg-secondary")}
+                    onClick={() => openViewer(event().pc)}
+                  >
                     Open
                   </button>
                 }
               >
                 <button
                   type="button"
-                  class={cn(button, "bg-fg text-bg")}
+                  class={cn(button, "bg-neutral font-medium text-invert hover:bg-neutral-hover")}
                   data-action="computer-takeover"
                   disabled={!computer()?.online || computer()?.caps.input === false}
                   onClick={() => void takeOver(event().pc)}
@@ -116,14 +120,14 @@ export default function ComputerCard(props: { message: ChatMessage }): JSX.Eleme
               </Show>
               <button
                 type="button"
-                class={cn(button, "bg-[color-mix(in_oklab,var(--fg)_10%,transparent)] text-fg")}
+                class={cn(button, "text-secondary hover:bg-quaternary hover:text-primary")}
                 data-action="computer-done"
                 onClick={() => void release(event().pc)}
               >
                 I’m done
               </button>
               <Show when={status() === "working"}>
-                <span class="text-label text-fg2">{agentName()} is paused while you work.</span>
+                <span class="type-sm text-tertiary">{agentName()} is paused while you work.</span>
               </Show>
             </div>
           </Show>

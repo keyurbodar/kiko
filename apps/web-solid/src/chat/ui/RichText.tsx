@@ -23,7 +23,7 @@ export function RichText(props: { text?: string; class?: string }): JSX.Element 
                         <Mention slug={segment.text.slice(1).toLowerCase()} text={segment.text} />
                       </Match>
                       <Match when={segment.kind === "hashtag"}>
-                        <span class="font-medium">{segment.text}</span>
+                        <span class="font-semibold">{segment.text}</span>
                       </Match>
                     </Switch>
                   }
@@ -33,7 +33,7 @@ export function RichText(props: { text?: string; class?: string }): JSX.Element 
                       when={segment.suspicious}
                       fallback={
                         <a
-                          class="text-inherit underline underline-offset-2"
+                          class="text-link no-underline underline-offset-2 hover:underline"
                           href={href()}
                           target="_blank"
                           rel="noopener noreferrer"
@@ -44,7 +44,7 @@ export function RichText(props: { text?: string; class?: string }): JSX.Element 
                     >
                       <button
                         type="button"
-                        class="cursor-pointer text-inherit underline underline-offset-2"
+                        class="cursor-pointer text-link no-underline underline-offset-2 hover:underline"
                         data-component="chat-masked-link"
                         onClick={() => setMaskedHref(href())}
                       >

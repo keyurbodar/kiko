@@ -12,9 +12,9 @@ const chatTitle = (roomId: string) => room.chatById(roomId)?.name ?? user.chat(r
 
 function AuthorFace(props: { author: Author }) {
   return (
-    <Switch fallback={<RemixIcon icon={GroupIcon} size={16} class="shrink-0 text-fg3" />}>
+    <Switch fallback={<RemixIcon icon={GroupIcon} size={16} class="shrink-0 text-tertiary" />}>
       <Match when={props.author === "you"}>
-        <RemixIcon icon={UserIcon} size={16} class="shrink-0 text-fg3" />
+        <RemixIcon icon={UserIcon} size={16} class="shrink-0 text-tertiary" />
       </Match>
       <Match when={props.author.startsWith("agent:")}>
         <IdentityAvatar seed={props.author.slice(6)} size={18} class="shrink-0" />
@@ -40,7 +40,7 @@ function Row(props: { author: Author; count: number }) {
         <AuthorFace author={props.author} />
         <span class="truncate">{authorLabel(props.author)}</span>
       </span>
-      <span class="type-hint ml-3 text-fg4">{props.count}</span>
+      <span class="type-xs ml-3 text-quaternary">{props.count}</span>
     </MenuV2.RadioItem>
   )
 }
@@ -54,7 +54,7 @@ export function AuthorMenu(props: {
   return (
     <MenuV2 gutter={6} placement="bottom-start">
       <MenuV2.Trigger
-        class="type-ui flex h-control max-w-64 min-w-0 cursor-pointer items-center gap-2 rounded-control px-3 font-medium text-fg2 transition-[background-color,color,transform] duration-(--dur-hover) hover:bg-hover hover:text-fg active:scale-[0.97] aria-expanded:bg-hover aria-expanded:text-fg data-[picked]:bg-active data-[picked]:text-fg"
+        class="type-base flex h-control-xl max-w-64 min-w-0 cursor-pointer items-center gap-2 rounded-base px-3 text-secondary transition-[background-color,color,transform] duration-(--duration-fast) hover:bg-tertiary hover:text-primary active:scale-(--press-scale) aria-expanded:bg-tertiary aria-expanded:text-primary data-[picked]:bg-secondary data-[picked]:text-primary"
         aria-label={`Show files from ${authorLabel(props.value)}`}
         data-action="filter-author"
         data-picked={props.value === "all" ? undefined : ""}

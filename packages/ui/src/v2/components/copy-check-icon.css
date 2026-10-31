@@ -10,8 +10,8 @@
   transform-box: view-box;
   transform-origin: 50% 50%;
   transition:
-    opacity var(--dur-hover) var(--ease-kiko),
-    transform var(--dur-pop) var(--ease-kiko);
+    opacity var(--duration-fast) var(--ease-sharp),
+    transform var(--duration-normal) var(--ease-sharp);
 }
 
 [data-component="copy-check-icon"] > .copy-check-icon-check {

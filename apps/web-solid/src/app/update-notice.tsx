@@ -44,7 +44,7 @@ export default function UpdateNotice() {
     <Show when={notice()}>
       {(current) => (
         <div
-          class="motion-page-in mx-3 mb-2 flex min-h-11 items-center gap-3 rounded-tile bg-panel py-1.5 pr-1.5 pl-3.5 type-label text-fg2"
+          class="motion-page-in mx-3 mb-2 flex min-h-10 items-center gap-3 rounded-lg bg-quaternary py-1.5 pr-1.5 pl-3 type-base text-primary"
           role="status"
           data-component="update-notice"
           data-kind={current().kind}
@@ -52,7 +52,11 @@ export default function UpdateNotice() {
           <span
             class="min-w-0 flex-1"
             classList={{ "motion-shine": busy(current()) }}
-            style={busy(current()) ? { "--run-text": "var(--fg3)", "--visible-animation-state": "running" } : undefined}
+            style={
+              busy(current())
+                ? { "--run-text": "var(--text-tertiary)", "--visible-animation-state": "running" }
+                : undefined
+            }
           >
             {lineOf(current())}
           </span>

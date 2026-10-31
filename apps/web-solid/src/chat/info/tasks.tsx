@@ -23,8 +23,8 @@ export function TasksView() {
       >
         {(group) => (
           <section>
-            <h3 class="px-2 pb-1 type-label text-fg3">
-              {TASK_LABEL[group.status]} <span class="text-fg4">{group.tasks.length}</span>
+            <h3 class="px-2 pb-1 type-sm text-tertiary">
+              {TASK_LABEL[group.status]} <span class="text-quaternary">{group.tasks.length}</span>
             </h3>
             <TaskList
               tasks={group.tasks}

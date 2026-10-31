@@ -50,7 +50,7 @@ function Node(props: { node: RichNode; streaming?: boolean; onMasked: (link: Mas
           return (
             <button
               type="button"
-              class="cursor-pointer text-inherit underline underline-offset-2"
+              class="rich-link cursor-pointer"
               data-component="chat-masked-link"
               onClick={(e) => props.onMasked({ href: m().href, text: e.currentTarget.textContent?.trim() ?? "" })}
             >

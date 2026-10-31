@@ -119,11 +119,11 @@ export function FileChip(props: { file: FileTarget; label: string; bare?: boolea
           <MenuV2.Context.Portal>
             <MenuV2.Context.Content class="min-w-[160px]">
               <MenuV2.Item onSelect={() => open()}>
-                <RemixIcon icon={FileIcon} class="size-4 shrink-0" />
+                <RemixIcon icon={FileIcon} size={14} class="shrink-0" />
                 {folder() ? "Show in files" : "Open"}
               </MenuV2.Item>
               <MenuV2.Item onSelect={() => void copy()}>
-                <RemixIcon icon={CopyIcon} class="size-4 shrink-0" />
+                <RemixIcon icon={CopyIcon} size={14} class="shrink-0" />
                 Copy path
               </MenuV2.Item>
             </MenuV2.Context.Content>

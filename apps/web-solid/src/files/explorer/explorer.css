@@ -16,18 +16,18 @@
   bottom: 0;
   left: 2.5px;
   width: 1px;
-  background: var(--line);
+  background: var(--stroke-tertiary);
   content: "";
-  transition: background-color var(--dur-hover) var(--ease-kiko);
+  transition: background-color var(--duration-fast) var(--ease-sharp);
 }
 
 .fe-handle:focus-visible::after,
 .fe-handle[data-dragging]::after {
-  background: var(--border-300);
+  background: var(--stroke-primary);
 }
 
 @media (hover: hover) and (pointer: fine) {
   .fe-handle:hover::after {
-    background: var(--border-300);
+    background: var(--stroke-primary);
   }
 }

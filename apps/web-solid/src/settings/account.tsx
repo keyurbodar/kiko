@@ -25,7 +25,7 @@ import { connection } from "../state/connection"
 import { Button, Group, IconButton, Row } from "./kit"
 import { StorageGroup } from "./storage-group"
 
-const SHINE = { "--run-text": "var(--fg3)", "--visible-animation-state": "running" }
+const SHINE = { "--run-text": "var(--text-tertiary)", "--visible-animation-state": "running" }
 
 const COPIED_MS = 1_200
 
@@ -42,7 +42,12 @@ const BUSY: Record<string, string> = { Updating: "Updating your backend", Restar
 
 function Shine(props: { children: JSX.Element; [data: `data-${string}`]: string | undefined }) {
   return (
-    <span class="motion-shine type-label text-[var(--fg3)]" style={SHINE} role="status" data-part={props["data-part"]}>
+    <span
+      class="motion-shine type-sm text-[var(--text-tertiary)]"
+      style={SHINE}
+      role="status"
+      data-part={props["data-part"]}
+    >
       {props.children}
     </span>
   )
@@ -63,12 +68,12 @@ function Profile() {
         {(src) => <img src={src()} alt="" class="size-10 shrink-0 rounded-full object-cover" data-field="avatar" />}
       </Show>
       <div class="flex min-w-0 flex-col">
-        <span class="truncate type-row text-fg" data-field="profile-name">
+        <span class="truncate type-base text-primary" data-field="profile-name">
           {name()}
         </span>
         <Show when={profile()?.email}>
           {(email) => (
-            <span class="flex min-w-0 items-center gap-1.5 type-label text-[var(--fg3)]">
+            <span class="flex min-w-0 items-center gap-1.5 type-sm text-[var(--text-tertiary)]">
               <Show when={profile()?.provider}>
                 {(p) => (
                   <ProviderIcon
@@ -98,12 +103,12 @@ function Health() {
   return (
     <Switch>
       <Match when={state() === "ok"}>
-        <span class="type-label text-ok" data-field="backend-health">
+        <span class="type-sm text-success" data-field="backend-health">
           Healthy
         </span>
       </Match>
       <Match when={state() === "down"}>
-        <span class="type-label text-[var(--danger)]" data-field="backend-health">
+        <span class="type-sm text-[var(--text-danger)]" data-field="backend-health">
           Not reachable
         </span>
       </Match>
@@ -135,29 +140,29 @@ function Version() {
             <Shine>Checking</Shine>
           </Match>
           <Match when={view().kind === "update"}>
-            <span class="type-label text-fg" data-field="backend-status">
+            <span class="type-sm text-primary" data-field="backend-status">
               A new version is ready
             </span>
           </Match>
           <Match when={view().kind === "failed"}>
-            <span class="type-label text-[var(--danger)]" data-field="backend-status">
+            <span class="type-sm text-[var(--text-danger)]" data-field="backend-status">
               Update didn't finish
             </span>
           </Match>
           <Match when={view().kind === "reconnect"}>
-            <span class="type-label text-[var(--fg3)]" data-field="backend-status">
+            <span class="type-sm text-[var(--text-tertiary)]" data-field="backend-status">
               Sign in to Cloudflare to update
             </span>
           </Match>
           <Match when={true}>
-            <span class="type-label text-[var(--fg3)]" data-field="backend-status">
+            <span class="type-sm text-[var(--text-tertiary)]" data-field="backend-status">
               <span data-field="backend-version">{backendVersion() ?? "Unknown"}</span>
               {SKEW_TEXT[currentSkew() ?? "unknown"]}
             </span>
           </Match>
         </Switch>
         <Show when={backendVersion() !== APP_VERSION}>
-          <span class="type-hint text-[var(--fg4)]">
+          <span class="type-xs text-[var(--text-quaternary)]">
             App <span data-field="app-version">{APP_VERSION}</span>
           </span>
         </Show>
@@ -203,7 +208,7 @@ function Address() {
   return (
     <Row label="Address" id="address">
       <span class="flex min-w-0 items-center gap-1">
-        <span class="truncate font-mono text-label text-fg2" data-field="backend-address">
+        <span class="truncate font-mono text-sm text-secondary" data-field="backend-address">
           {address().replace(/^https?:\/\//, "")}
         </span>
         <IconButton
@@ -211,7 +216,7 @@ function Address() {
           data-action="copy-address"
           onClick={() => void copy()}
         >
-          <CopyCheckIcon copied={copied()} size={16} class={cn(copied() && "text-ok")} />
+          <CopyCheckIcon copied={copied()} size={16} class={cn(copied() && "text-success")} />
         </IconButton>
       </span>
     </Row>
@@ -233,13 +238,13 @@ function FileStorage() {
           <Show
             when={storage() === "built-in"}
             fallback={
-              <span class="type-label text-[var(--fg3)]" data-field="file-storage">
+              <span class="type-sm text-[var(--text-tertiary)]" data-field="file-storage">
                 R2
               </span>
             }
           >
             <a
-              class="link-grow type-label text-fg"
+              class="link-grow type-sm text-primary"
               href="https://developers.cloudflare.com/r2/pricing/"
               target="_blank"
               rel="noreferrer"
@@ -258,13 +263,16 @@ function Server() {
   onMount(() => void refreshBackend().then(() => refreshLatest()))
   return (
     <Group title="Your Kiko server" data-component="account-backend">
-      <div class="flex items-center gap-3 px-4 py-3 shadow-[inset_0_-1px_0_var(--border-100)]" data-setting="backend">
-        <span class="grid size-8 shrink-0 place-items-center rounded-control bg-[#fff] text-[#f38020]">
+      <div
+        class="flex items-center gap-3 px-4 py-3 shadow-[inset_0_-1px_0_var(--stroke-tertiary)]"
+        data-setting="backend"
+      >
+        <span class="grid size-8 shrink-0 place-items-center rounded-base bg-[#fff] text-[#f38020]">
           <ProviderIcon id="cloudflare-workers-ai" width="18" height="18" />
         </span>
         <span class="flex min-w-0 flex-1 flex-col">
-          <span class="truncate type-ui font-medium text-fg">Running on your Cloudflare</span>
-          <span class="truncate type-label text-[var(--fg3)]">Your chats never leave your account</span>
+          <span class="truncate type-base text-primary">Running on your Cloudflare</span>
+          <span class="truncate type-sm text-[var(--text-tertiary)]">Your chats never leave your account</span>
         </span>
         <Health />
       </div>
@@ -334,7 +342,7 @@ function DisconnectBackend() {
         </Button>
       </Row>
       <Row
-        label={<span class="text-[var(--danger)]">Disconnect server</span>}
+        label={<span class="text-[var(--text-danger)]">Disconnect server</span>}
         id="disconnect"
         description={
           <>
@@ -342,7 +350,7 @@ function DisconnectBackend() {
             connecting that account again brings them back.
             <Show when={problem()}>
               {(text) => (
-                <span class="mt-1 block text-[var(--danger)]" role="alert" data-field="disconnect-problem">
+                <span class="mt-1 block text-[var(--text-danger)]" role="alert" data-field="disconnect-problem">
                   {text()}
                 </span>
               )}

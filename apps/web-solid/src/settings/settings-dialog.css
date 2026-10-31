@@ -1,11 +1,13 @@
 .settings-dialog {
-  width: min(1240px, calc(100vw - 48px));
-  height: min(820px, calc(100dvh - 48px));
+  width: min(1080px, calc(100vw - 48px));
+  height: min(760px, calc(100dvh - 48px));
   overflow: hidden;
-  color: var(--fg);
-  background: var(--bg);
-  border-radius: var(--radius-hero);
-  box-shadow: var(--edge), var(--shadow-float);
+  color: var(--text-primary);
+  background: var(--bg-editor);
+  border-radius: var(--radius-xl);
+  box-shadow:
+    0 0 0 1px var(--stroke-secondary),
+    var(--box-shadow-dialog);
 }
 
 [data-component="settings"] {
@@ -18,65 +20,76 @@
 .settings-nav {
   position: relative;
   display: flex;
-  width: 240px;
+  width: 220px;
   flex-shrink: 0;
   flex-direction: column;
-  padding: 22px 12px 14px;
+  padding: 0 var(--spacing-sidebar-inset) 12px;
   overflow-y: auto;
   overscroll-behavior: contain;
-  background: var(--side);
+  background: var(--bg-sidebar);
+  box-shadow: inset -1px 0 0 var(--stroke-tertiary);
 }
 
 .settings-title {
-  padding: 0 10px 14px;
-  color: var(--fg);
+  display: flex;
+  height: var(--spacing-top-bar-height);
+  flex-shrink: 0;
+  align-items: center;
+  padding: 0 6px;
+  color: var(--text-primary);
   font-family: var(--font-family-sans);
-  font-size: 18px;
+  font-size: var(--font-size-lg);
   font-weight: 600;
-  line-height: 24px;
+  letter-spacing: var(--letter-spacing-lg);
+  line-height: var(--line-height-lg);
 }
 
 .settings-nav-heading {
-  padding: 16px 10px 6px;
-  color: var(--fg3);
-  font-size: 12.5px;
+  display: flex;
+  min-height: var(--spacing-sidebar-group-label);
+  align-items: center;
+  margin-top: 8px;
+  padding: 4px 2px 4px 6px;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-sm);
 }
 
 .settings-nav-foot {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   margin-top: auto;
-  padding: 12px 10px 0;
-  color: var(--fg3);
-  font-size: 12px;
-  line-height: 16px;
+  padding: 12px 6px 0;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-sm);
 }
 
 .settings-nav-foot [data-field="app-version"] {
-  color: var(--fg4);
+  color: var(--text-quaternary);
 }
 
 .settings-status-dot {
   width: 6px;
   height: 6px;
   flex-shrink: 0;
-  background: var(--ok);
+  background: var(--text-success);
   border-radius: 3px;
-  transition: background-color var(--dur-pop) var(--ease-out);
+  transition: background-color var(--duration-normal) var(--ease-sharp);
 }
 
 [data-health="waiting"] > .settings-status-dot {
-  background: var(--fg4);
+  background: var(--text-quaternary);
 }
 
 [data-health="unreachable"] > .settings-status-dot {
-  background: var(--bad);
+  background: var(--text-danger);
 }
 
 @media (prefers-reduced-motion: no-preference) {
   [data-health="waiting"] > .settings-status-dot {
-    animation: settings-dot-breathe var(--dur-shimmer) var(--ease-out) infinite;
+    animation: settings-dot-breathe var(--duration-2s) var(--ease-sharp) infinite;
   }
 }
 
@@ -96,6 +109,10 @@
   margin-bottom: 4px;
 }
 
+.settings-nav > .settings-nav-group:first-of-type {
+  margin-top: 4px;
+}
+
 .settings-nav-group {
   display: flex;
   flex-direction: column;
@@ -104,43 +121,49 @@
 
 .settings-nav-row {
   display: flex;
-  height: 34px;
+  height: var(--spacing-control-lg);
   flex-shrink: 0;
   align-items: center;
-  gap: 11px;
-  padding: 0 10px;
-  color: var(--fg2);
-  font-size: 14px;
-  border-radius: var(--radius-control);
+  gap: 6px;
+  padding: 0 6px;
+  color: var(--text-secondary);
+  font-size: var(--font-size-base);
+  letter-spacing: var(--letter-spacing-base);
+  line-height: var(--line-height-base);
+  border-radius: var(--radius-base);
   position: relative;
   z-index: 1;
   cursor: pointer;
   transition:
-    background var(--dur-hover) var(--ease-out),
-    color var(--dur-hover) var(--ease-out),
-    transform var(--dur-press) var(--ease-out);
+    background var(--duration-fast) var(--ease-sharp),
+    color var(--duration-fast) var(--ease-sharp),
+    transform var(--duration-fast) var(--ease-sharp);
 }
 
 .settings-nav-row:active {
-  transform: scale(0.98);
-  transition-duration: var(--dur-hover), var(--dur-hover), 80ms;
+  transform: scale(var(--press-scale));
+  transition-duration: var(--duration-fast), var(--duration-fast), var(--duration-instant);
 }
 
 @media (hover: hover) and (pointer: fine) {
   .settings-nav-row:hover {
-    color: var(--fg);
-    background: var(--hover);
+    color: var(--text-primary);
+    background: var(--bg-quaternary);
   }
 }
 
 .settings-nav-row[aria-current="page"] {
-  color: var(--fg);
-  background: var(--active);
+  color: var(--text-primary);
+  background: var(--bg-quaternary);
+}
+
+.settings-nav-row[aria-current="page"] .settings-nav-icon {
+  color: var(--icon-primary);
 }
 
 .settings-nav-glide {
-  background: var(--active);
-  border-radius: var(--radius-control);
+  background: var(--bg-quaternary);
+  border-radius: var(--radius-base);
 }
 
 @media (width >= 768px) {
@@ -158,20 +181,21 @@
 @media (prefers-reduced-motion: no-preference) {
   .settings-nav-glide:not([data-jump]) {
     transition:
-      transform var(--dur-pop) var(--ease-snap),
-      width var(--dur-pop) var(--ease-snap),
-      height var(--dur-pop) var(--ease-snap),
+      transform var(--duration-normal) var(--ease-drawer),
+      width var(--duration-normal) var(--ease-drawer),
+      height var(--duration-normal) var(--ease-drawer),
       opacity 80ms linear;
   }
 }
 
 .settings-nav-icon {
   display: flex;
-  width: 20px;
+  width: 14px;
   flex: none;
   align-items: center;
   justify-content: center;
-  color: currentColor;
+  color: var(--icon-secondary);
+  transition: color var(--duration-fast) var(--ease-sharp);
 }
 
 .settings-nav-label {
@@ -185,7 +209,9 @@
 
 .settings-nav-empty {
   padding: 24px 8px;
-  color: var(--fg4);
+  color: var(--text-tertiary);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-sm);
   text-align: center;
 }
 
@@ -203,8 +229,9 @@
   .settings-nav {
     width: auto;
     flex: 1;
-    padding: 56px 16px 16px;
-    background: var(--bg);
+    padding: 48px 16px 16px;
+    background: var(--bg-editor);
+    box-shadow: none;
   }
 
   [data-view="page"] > .settings-nav,
@@ -213,9 +240,11 @@
   }
 
   .settings-title {
+    height: auto;
     padding: 0 4px 16px;
-    font-size: var(--type-page);
-    line-height: var(--type-page-line);
+    font-size: var(--font-size-3xl);
+    letter-spacing: var(--letter-spacing-3xl);
+    line-height: var(--line-height-3xl);
   }
 
   .settings-search {
@@ -224,11 +253,10 @@
 
   .settings-nav-heading {
     display: flex;
-    height: var(--spacing-section-label);
+    height: var(--spacing-sidebar-group-label);
     align-items: center;
+    margin-top: 0;
     padding: 12px 4px 0;
-    color: var(--fg3);
-    font-size: var(--type-label);
   }
 
   .settings-nav-group {
@@ -236,29 +264,27 @@
   }
 
   .settings-nav-row {
-    height: var(--spacing-chat-row);
+    height: var(--spacing-sidebar-row-tall);
     gap: 14px;
     padding: 0 12px;
-    color: var(--fg);
-    font-size: var(--type-ui);
-    border-radius: var(--radius-row);
+    color: var(--text-primary);
+    font-size: var(--font-size-base);
+    border-radius: var(--radius-base);
   }
 
-  .settings-nav-row > svg:first-child {
-    width: 18px;
-    height: 18px;
-    color: var(--fg2);
+  .settings-nav-icon {
+    width: 16px;
   }
 
   .settings-nav-row:active,
   .settings-nav-row[aria-current="page"] {
-    background: var(--hover);
+    background: var(--bg-tertiary);
   }
 
   .settings-nav-chevron {
     display: block;
     flex-shrink: 0;
-    color: var(--fg4);
+    color: var(--icon-tertiary);
   }
 
   .settings-nav-foot {
@@ -276,20 +302,20 @@
     gap: 4px;
     margin: 0 0 4px -4px;
     padding: 2px 4px;
-    color: var(--fg3);
-    font-size: 13px;
-    line-height: 20px;
-    border-radius: var(--radius-row);
+    color: var(--text-tertiary);
+    font-size: var(--font-size-base);
+    line-height: var(--line-height-base);
+    border-radius: var(--radius-base);
     cursor: pointer;
-    transition: color var(--dur-hover) var(--ease-kiko);
+    transition: color var(--duration-fast) var(--ease-sharp);
   }
 
   .settings-back:active {
-    color: var(--fg);
+    color: var(--text-primary);
   }
 
   .settings-page.motion-page-in {
-    animation: settings-push var(--dur-step) var(--ease-kiko) backwards;
+    animation: settings-push var(--duration-slower) var(--ease-sharp) backwards;
   }
 
   .settings-close {

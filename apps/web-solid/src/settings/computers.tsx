@@ -25,7 +25,7 @@ const REMOVE_CONFIRM_MS = 4_000
 
 const COPIED_MS = 1_200
 
-const SHINE = { "--run-text": "var(--fg3)", "--visible-animation-state": "running" }
+const SHINE = { "--run-text": "var(--text-tertiary)", "--visible-animation-state": "running" }
 
 function command(shell: Shell, url: string): string {
   const origin = new URL(url).origin
@@ -62,7 +62,7 @@ function Pairing(props: { pair: PairCode; onNew: () => void; onClose: () => void
   return (
     <div class="flex flex-col gap-3 px-4 py-3.5" data-component="computer-pairing">
       <div class="flex flex-wrap items-center justify-between gap-2">
-        <span class="type-ui font-medium text-fg">Run this on the computer you want to add</span>
+        <span class="type-base text-primary">Run this on the computer you want to add</span>
         <Segmented<Shell>
           label="Operating system"
           value={shell()}
@@ -86,7 +86,7 @@ function Pairing(props: { pair: PairCode; onNew: () => void; onClose: () => void
       >
         <div class="relative">
           <pre
-            class="overflow-x-auto rounded-tile bg-[color-mix(in_oklab,var(--fg)_6%,transparent)] py-3 pr-24 pl-3 font-mono text-hint leading-relaxed whitespace-pre-wrap break-all text-fg"
+            class="overflow-x-auto rounded-xl bg-[color-mix(in_oklab,var(--text-primary)_6%,transparent)] py-3 pr-24 pl-3 font-mono text-xs leading-relaxed whitespace-pre-wrap break-all text-primary"
             data-field="computer-command"
           >
             {text()}
@@ -94,12 +94,12 @@ function Pairing(props: { pair: PairCode; onNew: () => void; onClose: () => void
           <button
             type="button"
             aria-label={copied() ? "Copied" : "Copy the command"}
-            class="absolute top-2 right-2 flex h-7 cursor-pointer items-center gap-1.5 rounded-control px-2 type-label text-fg2 transition-[background-color,color,transform] duration-(--dur-hover) ease-kiko hover:bg-[var(--hover)] hover:text-fg active:scale-[0.96]"
+            class="absolute top-2 right-2 flex h-7 cursor-pointer items-center gap-1.5 rounded-base px-2 type-sm text-secondary transition-[background-color,color,transform] duration-(--duration-fast) ease-sharp hover:bg-[var(--bg-tertiary)] hover:text-primary active:scale-(--press-scale)"
             data-action="computer-copy"
             data-copied={copied() ? "" : undefined}
             onClick={() => void copy()}
           >
-            <CopyCheckIcon copied={copied()} size={16} class={cn(copied() && "text-ok")} />
+            <CopyCheckIcon copied={copied()} size={16} class={cn(copied() && "text-success")} />
             <Show when={copied()}>
               <span>Copied</span>
             </Show>
@@ -107,10 +107,10 @@ function Pairing(props: { pair: PairCode; onNew: () => void; onClose: () => void
         </div>
         <div class="flex items-center justify-between gap-3">
           <span class="flex min-w-0 flex-col gap-0.5" role="status" data-field="computer-waiting">
-            <span class="motion-shine w-fit type-ui text-[var(--fg3)]" style={SHINE}>
+            <span class="motion-shine w-fit type-base text-[var(--text-tertiary)]" style={SHINE}>
               Waiting for your computer
             </span>
-            <span class="type-hint text-[var(--fg4)]">
+            <span class="type-xs text-[var(--text-quaternary)]">
               The code works once and expires in <span>{clock(left())}</span>
             </span>
           </span>
@@ -167,7 +167,7 @@ function Row(props: { computer: ComputerSummary; onError: (message: string | nul
               <span
                 class={cn(
                   "size-1.5 shrink-0 rounded-full",
-                  props.computer.online ? "bg-ok" : "bg-[color-mix(in_oklab,var(--fg)_30%,transparent)]",
+                  props.computer.online ? "bg-success" : "bg-[color-mix(in_oklab,var(--text-primary)_30%,transparent)]",
                 )}
                 role="img"
                 aria-label={props.computer.online ? "Online" : "Offline"}
@@ -200,7 +200,7 @@ function Row(props: { computer: ComputerSummary; onError: (message: string | nul
           <span>{meta(props.computer)}</span>
           <Show when={accessHint(props.computer)}>
             {(line) => (
-              <span class="text-[var(--fg4)]" data-field="access">
+              <span class="text-[var(--text-quaternary)]" data-field="access">
                 {line()}
               </span>
             )}
@@ -265,11 +265,11 @@ export default function Computers(): JSX.Element {
           fallback={
             <Show when={!pair()}>
               <div class="flex flex-col items-center gap-1 px-6 py-10 text-center" data-component="computers-empty">
-                <span class="mb-3 grid size-12 place-items-center rounded-pop bg-[var(--fill-control)] text-[var(--fg2)]">
+                <span class="mb-3 grid size-12 place-items-center rounded-xl bg-[var(--bg-tertiary)] text-[var(--text-secondary)]">
                   <RemixIcon icon={MonitorIcon} size={24} />
                 </span>
-                <span class="type-row text-fg">No computers yet</span>
-                <span class="max-w-sm type-hint leading-[18px] text-[var(--fg3)]">
+                <span class="type-base text-primary">No computers yet</span>
+                <span class="max-w-sm type-xs leading-[18px] text-[var(--text-tertiary)]">
                   Add your Mac, PC or a server. Your agents can run commands there, and you can watch and take over.
                 </span>
                 <Button

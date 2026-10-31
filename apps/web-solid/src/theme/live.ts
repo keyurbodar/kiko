@@ -14,7 +14,7 @@ import {
 } from "@kiko/theme/apply"
 import { type Imported, type ImportedTheme, MAX_IMPORTED } from "@kiko/theme/imported"
 import { setAvatarPicks } from "../avatar/picks"
-import { isDarkThemeId, type ThemeId } from "@kiko/theme/palette"
+import { isDarkThemeId, isLightThemeId, type ThemeId } from "@kiko/theme/palette"
 import { hasAuth } from "../lib/storage"
 import { DEFAULT_LOOK, formatLook, isCurrentLook, parseLook, type Look } from "@kiko/theme/look"
 
@@ -159,8 +159,10 @@ export function chooseBuiltin(id: ThemeId): void {
 
 export function pickTheme(appearance: "light" | "dark", id: string): void {
   const active = { ...themes().active }
-  if (isDarkThemeId(id) || id === "snow") delete active[appearance]
+  const builtin = isDarkThemeId(id) || isLightThemeId(id)
+  if (builtin) delete active[appearance]
   else active[appearance] = id
   const darkTheme = isDarkThemeId(id) ? id : look().darkTheme
-  saveLook({ ...look(), darkTheme, imported: { ...themes(), active } })
+  const lightTheme = isLightThemeId(id) ? id : look().lightTheme
+  saveLook({ ...look(), darkTheme, lightTheme, imported: { ...themes(), active } })
 }

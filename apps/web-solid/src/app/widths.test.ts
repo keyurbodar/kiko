@@ -29,10 +29,10 @@ describe("right panel width", () => {
 describe("fitted sidebar", () => {
   it("counts a collapsed sidebar as the rail instead of the width floor", () => {
     expect(fitSidebar(1440, RAIL)).toBe(RAIL)
-    expect(fitSidebar(1440, 240)).toBe(296)
+    expect(fitSidebar(1440, 240)).toBe(280)
   })
 
   it("leaves the chat its minimum width", () => {
-    expect(fitSidebar(600, 296)).toBe(240)
+    expect(fitSidebar(600, 280)).toBe(240)
   })
 })

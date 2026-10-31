@@ -44,7 +44,7 @@ export function DateChip(props: {
     <div
       class={cn(
         "chat-chip-anchor pointer-events-none absolute top-[calc(0.625rem+var(--top-bar-h,0px))] right-5 left-3 z-20 flex-col items-center",
-        "invisible flex opacity-0 transition-[opacity,visibility] duration-(--dur-hover) ease-kiko motion-reduce:transition-none",
+        "invisible flex opacity-0 transition-[opacity,visibility] duration-(--duration-fast) ease-sharp motion-reduce:transition-none",
         "data-[visible]:visible data-[visible]:opacity-100",
         props.class,
       )}
@@ -56,23 +56,25 @@ export function DateChip(props: {
       <DismissableLayerV2
         active={open()}
         class={cn(
-          "flex w-max max-w-full flex-col items-stretch overflow-clip text-fg",
+          "flex w-max max-w-full flex-col items-stretch overflow-clip text-primary",
           open()
-            ? "w-[320px] max-w-full rounded-sheet bg-raise shadow-popover"
-            : "rounded-full bg-bg shadow-[0_6px_16px_-6px_oklch(0%_0_none/0.22),0_0_0_1px_color-mix(in_oklab,var(--fg)_6%,transparent)]",
+            ? "w-[320px] max-w-full rounded-2xl bg-elevated shadow-(--popup-shadow)"
+            : "rounded-full bg-elevated shadow-[var(--hairline),var(--box-shadow-sm)]",
         )}
         excludedElements={() => [trigger]}
         onDismiss={close}
       >
-        <div class={cn("relative flex items-center justify-center", open() ? "min-h-11 px-3 pt-2" : "min-h-6")}>
+        <div
+          class={cn("relative flex items-center justify-center", open() ? "min-h-10 px-3 pt-2" : "min-h-control-md")}
+        >
           <button
             ref={(element) => {
               trigger = element
             }}
             type="button"
             class={cn(
-              "chat-chip pointer-events-auto min-h-6 cursor-pointer rounded-full px-3 py-1 type-label font-semibold text-fg2 transition-colors duration-(--dur-hover) hover:bg-hover aria-expanded:bg-hover",
-              open() && "bg-active",
+              "chat-chip pointer-events-auto h-control-md cursor-pointer rounded-full px-2.5 type-sm text-quaternary transition-colors duration-(--duration-fast) hover:bg-quaternary hover:text-secondary aria-expanded:text-primary",
+              open() && "bg-quaternary",
             )}
             data-component="chat-day-chip"
             aria-expanded={open()}
@@ -91,11 +93,11 @@ export function DateChip(props: {
           <Show when={open()}>
             <button
               type="button"
-              class="pointer-events-auto absolute top-[calc(50%+4px)] right-3 grid size-7 -translate-y-1/2 cursor-pointer place-items-center rounded-full text-fg2 hover:bg-hover hover:text-fg"
+              class="pointer-events-auto absolute top-[calc(50%+4px)] right-2 grid size-control-md -translate-y-1/2 cursor-pointer place-items-center rounded-base text-secondary transition-colors hover:bg-quaternary hover:text-primary"
               aria-label="Close calendar"
               onClick={close}
             >
-              <RemixIcon icon={CloseIcon} class="size-4" />
+              <RemixIcon icon={CloseIcon} size={13} />
             </button>
           </Show>
         </div>

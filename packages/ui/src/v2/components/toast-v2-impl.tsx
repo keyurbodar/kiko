@@ -419,11 +419,7 @@ function ToastCard(props: {
       >
         <RemixIcon icon={CloseIcon} />
       </button>
-      <div
-        ref={content}
-        class="toast-v2-content"
-        data-actions={actions().length > 0 || copyText() !== undefined || undefined}
-      >
+      <div ref={content} class="toast-v2-content">
         <div class="toast-v2-body">
           <Show when={options().title || icon()}>
             <div class="toast-v2-head">

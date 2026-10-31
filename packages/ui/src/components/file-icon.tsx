@@ -123,7 +123,6 @@ function badgeFor(path: string): Badge | undefined {
 
 export const fileTone = (path: string): Tone | undefined => badgeFor(path)?.tone
 
-const LABEL_FONT = "Satoshi, system-ui, sans-serif"
 const OUTLINE = 'fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"'
 
 function labelWidth(label: string) {
@@ -140,7 +139,7 @@ function pageMarkup(found: Badge | undefined): string {
     `<path d="M4 12.8V5a2 2 0 0 1 2-2h8l6 6v10" ${OUTLINE}/>` +
     `<path d="M14 3v4a2 2 0 0 0 2 2h4" ${OUTLINE}/>` +
     stub +
-    `<text x="2.4" y="21.1" font-family="${LABEL_FONT}" font-size="6.6" font-weight="800" textLength="${width.toFixed(1)}" lengthAdjust="spacingAndGlyphs" style="fill:light-dark(${found.tone[0]},${found.tone[1]})">${found.label}</text>`
+    `<text x="2.4" y="21.1" font-size="6.6" font-weight="600" textLength="${width.toFixed(1)}" lengthAdjust="spacingAndGlyphs" style="font-family:var(--font-family-sans,system-ui,sans-serif);fill:light-dark(${found.tone[0]},${found.tone[1]})">${found.label}</text>`
   )
 }
 

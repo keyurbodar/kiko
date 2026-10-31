@@ -83,10 +83,10 @@ export function AddPicker(props: { card: RecipeCard; roomId?: string | null; nav
 
   return (
     <div class="flex flex-col gap-1.5" data-component="recipe-picker">
-      <label class="mb-1 flex h-9 items-center gap-2 rounded-full bg-panel px-3.5 text-fg3">
+      <label class="mb-1 flex h-9 items-center gap-2 rounded-full bg-editor px-3.5 text-tertiary">
         <RemixIcon icon={SearchIcon} size={16} />
         <input
-          class="min-w-0 flex-1 bg-transparent text-label text-fg outline-none placeholder:text-fg3"
+          class="min-w-0 flex-1 bg-transparent text-sm text-primary outline-none placeholder:text-tertiary"
           placeholder={`Add ${props.card.title} to…`}
           aria-label={`Choose a chat for ${props.card.title}`}
           value={query()}
@@ -99,14 +99,14 @@ export function AddPicker(props: { card: RecipeCard; roomId?: string | null; nav
         />
       </label>
       <Show when={isWaiting(props.card.slug)}>
-        <p class="px-2 text-hint text-fg3">Checking your apps…</p>
+        <p class="px-2 text-xs text-tertiary">Checking your apps…</p>
       </Show>
       <div class="flex max-h-[min(360px,50dvh)] flex-col gap-0.5 overflow-y-auto" role="listbox" aria-label="Chats">
         <For each={options()}>
           {(o, i) => (
             <>
               <Show when={o.kind === "own" && i() > 0}>
-                <div class="mx-2 my-1.5 h-px bg-line" />
+                <div class="mx-2 my-1.5 h-px bg-tertiary" />
               </Show>
               <button
                 type="button"
@@ -114,9 +114,9 @@ export function AddPicker(props: { card: RecipeCard; roomId?: string | null; nav
                 aria-selected={cursor() === i()}
                 disabled={added(o)}
                 class={cn(
-                  "flex min-h-11 cursor-pointer items-center gap-3 rounded-pop px-2 py-1.5 text-left disabled:cursor-default",
+                  "flex min-h-11 cursor-pointer items-center gap-3 rounded-xl px-2 py-1.5 text-left disabled:cursor-default",
                   o.kind === "member" && "pl-11",
-                  cursor() === i() && !added(o) && "bg-panel",
+                  cursor() === i() && !added(o) && "bg-editor",
                 )}
                 data-option={o.key}
                 onMouseEnter={() => !added(o) && setCursor(i())}
@@ -128,9 +128,9 @@ export function AddPicker(props: { card: RecipeCard; roomId?: string | null; nav
                       <>
                         <ChatAvatar faces={room.chatFaces(c().roomId)} size={30} />
                         <span class="min-w-0 flex-1">
-                          <span class="block truncate text-label font-medium text-fg">{c().name}</span>
+                          <span class="block truncate text-sm text-primary">{c().name}</span>
                           <Show when={c().targets.length > 1}>
-                            <span class="block truncate text-hint text-fg3">
+                            <span class="block truncate text-xs text-tertiary">
                               {expanded() === c().roomId ? "Choose who" : `${c().targets.length} agents`}
                             </span>
                           </Show>
@@ -142,23 +142,21 @@ export function AddPicker(props: { card: RecipeCard; roomId?: string | null; nav
                     {(m) => (
                       <>
                         <IdentityAvatar seed={m().target.agent} size={26} />
-                        <span class="min-w-0 flex-1 truncate text-label text-fg">{m().target.name}</span>
+                        <span class="min-w-0 flex-1 truncate text-sm text-primary">{m().target.name}</span>
                       </>
                     )}
                   </Match>
                   <Match when={o.kind === "own"}>
                     <RecipeIcon recipe={props.card} size={30} />
                     <span class="min-w-0 flex-1">
-                      <span class="block truncate text-label font-medium text-fg">
-                        New chat with {props.card.agent.name}
-                      </span>
-                      <span class="block truncate text-hint text-fg3">
+                      <span class="block truncate text-sm text-primary">New chat with {props.card.agent.name}</span>
+                      <span class="block truncate text-xs text-tertiary">
                         {isOwning(props.card.slug) ? "Making the chat…" : "An agent just for this"}
                       </span>
                     </span>
                   </Match>
                 </Switch>
-                <span class="shrink-0 text-hint text-fg3">
+                <span class="shrink-0 text-xs text-tertiary">
                   <Show when={!added(o)} fallback="Added">
                     <Show when={o.kind === "chat" && o.targets.length > 1}>
                       <RemixIcon
@@ -168,7 +166,7 @@ export function AddPicker(props: { card: RecipeCard; roomId?: string | null; nav
                       />
                     </Show>
                     <Show when={cursor() === i() && !(o.kind === "chat" && o.targets.length > 1)}>
-                      <kbd class="rounded-control border border-line px-1.5 py-px font-sans text-hint">↵</kbd>
+                      <kbd class="rounded-base border border-tertiary px-1.5 py-px font-sans text-xs">↵</kbd>
                     </Show>
                   </Show>
                 </span>

@@ -16,7 +16,7 @@ import {
 } from "solid-js"
 import { Portal } from "solid-js/web"
 import { RemixIcon } from "@kiko/ui/remix-icon"
-import { AttachIcon, ChevronDownIcon, EnterIcon, PlusIcon } from "@kiko/ui/icons"
+import { ArrowUpIcon, AttachIcon, ChevronDownIcon, PlusIcon } from "@kiko/ui/icons"
 import { useI18n } from "@kiko/ui/context/i18n"
 import { MenuV2 } from "@kiko/ui/v2/menu-v2"
 import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
@@ -128,6 +128,7 @@ export function PromptInputV2(props: PromptInputV2Props) {
   let richHost!: HTMLDivElement
   let form: HTMLFormElement | undefined
   const syncBlank = () => setBlank(field()?.isEmpty() ?? true)
+  const focusBare = (event: PointerEvent) => event.target === event.currentTarget && field()?.focus()
   const dropArea = createMemo(() => {
     if (state.drag !== "active") return null
     const column = richHost?.closest('[data-component="chat-shell"]') ?? richHost?.closest("form")
@@ -299,6 +300,7 @@ export function PromptInputV2(props: PromptInputV2Props) {
           data-editing={props.editing ? "" : undefined}
           data-focused={focused() ? "" : undefined}
           data-dragging={state.drag === "active" ? "" : undefined}
+          onPointerDown={focusBare}
           onFocusIn={() => setFocused(true)}
           onFocusOut={(event) => {
             if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setFocused(false)
@@ -316,11 +318,7 @@ export function PromptInputV2(props: PromptInputV2Props) {
               onDismiss={props.onDismissRejected}
             />
           </Show>
-          <div
-            class="composer-main"
-            data-component="prompt-input-box"
-            onPointerDown={(e) => e.target === e.currentTarget && field()?.focus()}
-          >
+          <div class="composer-main" data-component="prompt-input-box" onPointerDown={focusBare}>
             <div class="composer-field">
               <div ref={richHost} class="composer-rich" classList={{ "opacity-50": props.disabled }} />
               <Show when={blank()}>
@@ -333,41 +331,41 @@ export function PromptInputV2(props: PromptInputV2Props) {
                 </Show>
               </Show>
             </div>
-            <Show when={!props.answering}>
-              <SubmitButton
-                stop={stopping()}
-                disabled={!stopping() && !props.controller.canSubmit()}
-                blocked={view.submit.blocked?.() ?? null}
-                sendLabel={i18n.t("ui.promptInput.send")}
-                describedBy={statusID}
-                onSubmit={() => (stopping() ? props.stop?.() : props.controller.submit())}
-              />
-            </Show>
           </div>
+          <Show when={!props.answering}>
+            <div class="composer-toolbar" onPointerDown={focusBare}>
+              <div class="composer-tray" onPointerDown={focusBare}>
+                <Show
+                  when={props.plus}
+                  fallback={<AttachButton controller={props.controller} label={i18n.t("ui.promptInput.add")} />}
+                >
+                  {props.plus}
+                </Show>
+                <Show when={!props.readOnly && props.recipient}>
+                  {(recipient) => (
+                    <Recipient recipient={recipient()} controller={props.controller} people={props.people} />
+                  )}
+                </Show>
+              </div>
+              <div class="composer-actions" onPointerDown={focusBare}>
+                {props.tray}
+                <SubmitButton
+                  stop={stopping()}
+                  disabled={!stopping() && !props.controller.canSubmit()}
+                  blocked={view.submit.blocked?.() ?? null}
+                  sendLabel={i18n.t("ui.promptInput.send")}
+                  describedBy={statusID}
+                  onSubmit={() => (stopping() ? props.stop?.() : props.controller.submit())}
+                />
+              </div>
+            </div>
+          </Show>
           <div id={statusID} role="status" class="sr-only">
             {submitStatus()}
           </div>
         </div>
-        <div class="composer-footer">
-          <div class="composer-tray">
-            <Show when={!props.answering}>
-              <Show
-                when={props.plus}
-                fallback={<AttachButton controller={props.controller} label={i18n.t("ui.promptInput.add")} />}
-              >
-                {props.plus}
-              </Show>
-            </Show>
-            <Show when={!props.answering && !props.readOnly && props.recipient}>
-              {(recipient) => <Recipient recipient={recipient()} controller={props.controller} people={props.people} />}
-            </Show>
-          </div>
-          <p class="composer-disclaimer">{props.recipient?.title ?? "Kiko"} is AI and can make mistakes.</p>
-          <div class="composer-actions">
-            <Show when={!props.answering}>{props.tray}</Show>
-          </div>
-        </div>
         {props.below}
+        <p class="composer-disclaimer">{props.recipient?.title ?? "Kiko"} is AI and can make mistakes.</p>
       </form>
     </div>
   )
@@ -383,7 +381,7 @@ function AttachButton(props: { controller: PromptInputV2Interaction; label: stri
         aria-label={props.label}
         onClick={() => props.controller.attach()}
       >
-        <RemixIcon icon={PlusIcon} size={18} />
+        <RemixIcon icon={PlusIcon} size={14} />
       </button>
     </TooltipV2>
   )
@@ -396,7 +394,7 @@ function RecipientFace(props: { recipient: Token }) {
     <>
       <span class="composer-agent-face">
         <Show when={seed()} keyed>
-          {(face) => <IdentityAvatar seed={face} size={16} class={painted() ? "composer-agent-avatar" : ""} />}
+          {(face) => <IdentityAvatar seed={face} size={14} class={painted() ? "composer-agent-avatar" : ""} />}
         </Show>
       </span>
       <span class="composer-agent-name">{props.recipient.title}</span>
@@ -441,7 +439,7 @@ function Recipient(props: { recipient: Token; controller: PromptInputV2Interacti
                     onSelect={() => props.controller.mention(item)}
                     data-agent={item.kind === "agent" ? item.slug : undefined}
                   >
-                    <IdentityAvatar seed={item.kind === "agent" ? item.slug : item.id} size={18} />
+                    <IdentityAvatar seed={item.kind === "agent" ? item.slug : item.id} size={14} />
                     <span class="truncate">{item.title}</span>
                   </MenuV2.Item>
                 )}
@@ -454,7 +452,7 @@ function Recipient(props: { recipient: Token; controller: PromptInputV2Interacti
                       data-action="add-someone"
                       onSelect={() => requestAnimationFrame(() => people().onAddingChange(true))}
                     >
-                      <RemixIcon icon={PlusIcon} size={16} class="text-fg2" />
+                      <RemixIcon icon={PlusIcon} size={14} class="icon-secondary" />
                       <span class="truncate">Add someone…</span>
                     </MenuV2.Item>
                   </>
@@ -499,7 +497,7 @@ function SubmitButton(props: {
           props.onSubmit()
         }}
       >
-        <RemixIcon icon={EnterIcon} class="composer-send-arrow size-[18px]" />
+        <RemixIcon icon={ArrowUpIcon} size={14} class="composer-send-arrow" />
         <span class="composer-send-square" aria-hidden="true" />
       </button>
     </TooltipV2>

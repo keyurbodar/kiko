@@ -12,9 +12,9 @@ export function Properties(props: { children: JSX.Element }) {
 
 export function Property(props: { label: string; field?: string; children: JSX.Element }) {
   return (
-    <div class="grid grid-cols-[5.5rem_minmax(0,1fr)] items-start text-hint">
-      <dt class="flex h-7 items-center text-fg3">{props.label}</dt>
-      <dd class="flex min-h-7 min-w-0 items-center truncate text-fg" data-field={props.field}>
+    <div class="grid grid-cols-[5.5rem_minmax(0,1fr)] items-start text-xs">
+      <dt class="flex h-7 items-center text-tertiary">{props.label}</dt>
+      <dd class="flex min-h-7 min-w-0 items-center truncate text-primary" data-field={props.field}>
         {props.children}
       </dd>
     </div>
@@ -41,13 +41,13 @@ export function DangerRow(props: {
     <div class="mt-auto p-2" data-card="danger">
       <button
         type="button"
-        class="flex w-full flex-col rounded-row px-3 py-2 text-left hover:bg-hover"
+        class="flex w-full flex-col rounded-base px-3 py-2 text-left hover:bg-tertiary"
         data-action={props.action}
         onClick={() => props.onClick()}
         onBlur={() => props.onBlur?.()}
       >
-        <span class="text-label text-bad">{props.label}</span>
-        <span class="text-hint text-fg4">{props.description}</span>
+        <span class="text-sm text-danger">{props.label}</span>
+        <span class="text-xs text-quaternary">{props.description}</span>
       </button>
     </div>
   )

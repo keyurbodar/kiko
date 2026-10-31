@@ -96,14 +96,14 @@ function MenuRow(props: {
       onClick={props.onRun}
     >
       <span class="composer-plus-glyph">
-        <RemixIcon icon={row.icon} size={18} />
+        <RemixIcon icon={row.icon} size={14} />
       </span>
       <span class="composer-plus-label">{row.label}</span>
       <Show when={row.kind === "action" ? row.hint : undefined}>
         {(hint) => <span class="composer-plus-hint">{hint()}</span>}
       </Show>
       <Show when={row.kind === "sub"}>
-        <RemixIcon icon={ChevronRightIcon} size={16} class="composer-plus-more" />
+        <RemixIcon icon={ChevronRightIcon} size={12} class="composer-plus-more" />
       </Show>
     </button>
   )
@@ -176,11 +176,11 @@ function SubPanel(props: {
                 onClick={() => pick(token)}
               >
                 <span class="composer-plus-glyph">
-                  <TokenGlyph token={token} size={18} />
+                  <TokenGlyph token={token} size={14} />
                 </span>
                 <span class="composer-plus-label">{token.title}</span>
                 <Show when={props.kind === "apps"}>
-                  <RemixIcon icon={CheckIcon} size={16} class="composer-plus-check" />
+                  <RemixIcon icon={CheckIcon} size={12} class="composer-plus-check" />
                 </Show>
                 <Show when={token.hint}>
                   <span class="composer-plus-hint">{token.hint}</span>
@@ -191,24 +191,28 @@ function SubPanel(props: {
         </Show>
       </div>
       <Show when={props.kind === "mention"}>
+        <div class="composer-plus-rule" role="separator" />
         <button
           type="button"
           role="menuitem"
-          class="composer-plus-row composer-plus-add"
+          class="composer-plus-row"
           onPointerDown={(event) => event.preventDefault()}
           onClick={props.onAddSomeone}
         >
           <span class="composer-plus-glyph">
-            <RemixIcon icon={PlusIcon} size={18} />
+            <RemixIcon icon={PlusIcon} size={14} />
           </span>
           <span class="composer-plus-label">Add someone to this chat</span>
         </button>
       </Show>
       <Show when={SUB_FOOTER[props.kind]}>
         {(label) => (
-          <button type="button" class="composer-plus-foot" onClick={() => props.footer?.()}>
-            {label()}
-          </button>
+          <>
+            <div class="composer-plus-rule" role="separator" />
+            <button type="button" class="composer-plus-row composer-plus-foot" onClick={() => props.footer?.()}>
+              <span class="composer-plus-label">{label()}</span>
+            </button>
+          </>
         )}
       </Show>
     </div>
@@ -349,7 +353,7 @@ export function PlusMenu(props: PlusMenuProps) {
           setOpen(true)
         }}
       >
-        <RemixIcon icon={PlusIcon} size={18} />
+        <RemixIcon icon={PlusIcon} size={14} />
       </button>
       <Show when={open()}>
         <Portal>

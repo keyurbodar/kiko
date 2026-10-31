@@ -22,7 +22,7 @@ const addCustomProvider = (input: {
 function Field(props: { id: string; label: string; placeholder: string; ref: (el: HTMLInputElement) => void }) {
   return (
     <div class="flex flex-col gap-1.5">
-      <label class="type-label text-[var(--fg3)]" for={props.id}>
+      <label class="type-sm text-[var(--text-tertiary)]" for={props.id}>
         {props.label}
       </label>
       <input
@@ -105,7 +105,7 @@ export function CustomProviderDialog(props: { open: boolean; onClose: () => void
         <Field id="custom-url" label="Base URL" placeholder={PLACEHOLDER[api()]} ref={(el) => (url = el)} />
         <SecretInput id="custom-key" label="API key" ref={(el) => (key = el)} />
         <Show when={error()}>
-          <p class="type-label text-[var(--danger)]" role="alert" data-component="custom-provider-error">
+          <p class="type-sm text-[var(--text-danger)]" role="alert" data-component="custom-provider-error">
             {error()}
           </p>
         </Show>

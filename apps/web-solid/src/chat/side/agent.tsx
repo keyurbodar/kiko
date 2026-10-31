@@ -30,7 +30,7 @@ export function AgentPage(props: { slug: string; chatId: string; onRemoved: () =
           </button>
         }
       >
-        <h2 class="type-row text-fg">{member()?.name ?? props.slug}</h2>
+        <h2 class="type-base text-primary">{member()?.name ?? props.slug}</h2>
       </Profile>
       <Properties>
         <Property label="Role" field="role">

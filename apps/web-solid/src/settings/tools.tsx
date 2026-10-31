@@ -17,10 +17,12 @@ const SEARCH_AFTER = 6
 
 function Glyph(props: { entry: Entry }): JSX.Element {
   return (
-    <span class="grid size-8 shrink-0 place-items-center rounded-control bg-[var(--raise)] text-[var(--fg2)]">
+    <span class="grid size-8 shrink-0 place-items-center rounded-base bg-[var(--bg-elevated)] text-[var(--text-secondary)]">
       <Show
         when={APPS[props.entry.id].icon}
-        fallback={<span class="text-ui font-semibold text-fg">{props.entry.name.slice(0, 1).toUpperCase()}</span>}
+        fallback={
+          <span class="text-base font-semibold text-primary">{props.entry.name.slice(0, 1).toUpperCase()}</span>
+        }
       >
         {(Icon) => {
           const I = Icon()
@@ -98,30 +100,33 @@ export default function Tools(): JSX.Element {
           {(entry) => (
             <button
               type="button"
-              class="group flex min-h-control-big w-full cursor-pointer items-center gap-3 rounded-row px-2.5 py-2 text-left transition-[background-color,transform] duration-(--dur-hover) ease-kiko hover:bg-[var(--hover)] active:scale-[0.99]"
+              class="group flex min-h-12 w-full cursor-pointer items-center gap-3 rounded-base px-2.5 py-2 text-left transition-[background-color,transform] duration-(--duration-fast) ease-sharp hover:bg-quaternary active:scale-(--press-scale)"
               data-tool={entry.key}
               onClick={() => setOpenId(entry.id)}
             >
               <Glyph entry={entry} />
               <span class="flex min-w-0 flex-1 flex-col">
-                <span class="truncate type-row text-fg">{entry.name}</span>
-                <span class="truncate type-label text-[var(--fg3)]">{entry.about}</span>
+                <span class="truncate type-base text-primary">{entry.name}</span>
+                <span class="truncate type-sm text-[var(--text-tertiary)]">{entry.about}</span>
               </span>
               <Show
                 when={entry.state}
                 fallback={
-                  <span class="flex shrink-0 items-center gap-0.5 type-label text-fg2 transition-colors duration-(--dur-hover) group-hover:text-fg">
+                  <span class="flex shrink-0 items-center gap-0.5 type-sm text-secondary transition-colors duration-(--duration-fast) group-hover:text-primary">
                     Connect
                     <RemixIcon
                       icon={ChevronRightIcon}
                       size={16}
-                      class="transition-transform duration-(--dur-hover) ease-kiko group-hover:translate-x-0.5"
+                      class="transition-transform duration-(--duration-fast) ease-sharp group-hover:translate-x-0.5"
                     />
                   </span>
                 }
               >
                 <span
-                  class={cn("shrink-0 type-label", entry.state === "Key rejected" ? "text-[var(--danger)]" : "text-ok")}
+                  class={cn(
+                    "shrink-0 type-sm",
+                    entry.state === "Key rejected" ? "text-[var(--text-danger)]" : "text-success",
+                  )}
                   data-field="tool-state"
                 >
                   {entry.state}

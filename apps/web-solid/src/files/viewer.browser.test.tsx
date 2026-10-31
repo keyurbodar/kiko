@@ -94,3 +94,34 @@ it("opens the source of a page the agent rewrote while it was shown rendered", a
   await expect.poll(() => editorText(screen.container)).toBe("<p>v2</p>")
   expect(server.requested).not.toContain("page-v1")
 })
+
+it("paints code in the theme's syntax colours", async () => {
+  using _server = serve({ "id-js": 'const name = "kiko"\n// done' })
+  const root = document.documentElement.style
+  root.setProperty("--syntax-keyword", "rgb(1, 2, 3)")
+  root.setProperty("--syntax-string", "rgb(4, 5, 6)")
+  root.setProperty("--syntax-comment", "rgb(7, 8, 9)")
+  using _restore = {
+    [Symbol.dispose]: () =>
+      ["--syntax-keyword", "--syntax-string", "--syntax-comment"].forEach((p) => root.removeProperty(p)),
+  }
+  await using screen = await render(() => (
+    <FileViewer
+      roomId={ROOM}
+      path="src/name.js"
+      file={textFile("id-js", "src/name.js", "text/javascript")}
+      kind="text"
+      rendered={false}
+      wrap={false}
+      reveal={null}
+    />
+  ))
+  const colorOf = (text: string) => {
+    const spans = screen.container.querySelectorAll<HTMLElement>('[data-component="file-editor"] .cm-content span')
+    const hit = [...spans].find((span) => span.textContent?.trim() === text)
+    return hit ? getComputedStyle(hit).color : null
+  }
+  await expect.poll(() => colorOf("const")).toBe("rgb(1, 2, 3)")
+  expect(colorOf("kiko")).toBe("rgb(4, 5, 6)")
+  expect(colorOf("// done")).toBe("rgb(7, 8, 9)")
+})

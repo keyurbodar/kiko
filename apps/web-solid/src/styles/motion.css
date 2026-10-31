@@ -1,26 +1,24 @@
 :root {
-  --default-transition-duration: var(--dur-hover);
-  --default-transition-timing-function: var(--ease-out);
+  --default-transition-duration: var(--duration-fast);
+  --default-transition-timing-function: var(--ease-sharp);
 
   --dur-exit: 140ms;
   --dur-page: 140ms;
-  --press-scale: 0.975;
-  --press-scale-icon: 0.94;
 
-  --motion-fast: var(--dur-hover);
-  --motion-base: var(--dur-pop);
-  --motion-ease-out: var(--ease-kiko);
+  --motion-fast: var(--duration-fast);
+  --motion-base: var(--duration-normal);
+  --motion-ease-out: var(--ease-sharp);
   --motion-ease-in: cubic-bezier(0.4, 0, 1, 1);
-  --motion-ease-settle: var(--ease-kiko);
+  --motion-ease-settle: var(--ease-sharp);
   --motion-rise: 260ms;
   --motion-reveal: 320ms;
-  --motion-spin: 800ms;
+  --motion-spin: var(--duration-1s);
   --motion-ease-linear: linear;
-  --motion-ease-in-out: var(--ease-kiko);
-  --motion-dialog: var(--dur-pop);
-  --motion-collapse: var(--dur-pop);
+  --motion-ease-in-out: var(--ease-sharp);
+  --motion-dialog: var(--duration-normal);
+  --motion-collapse: var(--duration-normal);
   --motion-slide: 200ms;
-  --motion-run-chevron: var(--dur-pop);
+  --motion-run-chevron: var(--duration-slow);
   --dur-land: 160ms;
   --dur-shift: 200ms;
   --land-stagger: 40ms;
@@ -33,7 +31,6 @@
     --dur-exit: 0ms;
     --dur-page: 0ms;
     --press-scale: 1;
-    --press-scale-icon: 1;
     --dur-land: 0ms;
     --dur-shift: 0ms;
     --land-stagger: 0ms;
@@ -51,6 +48,18 @@
   animation: motion-spin var(--motion-spin) linear infinite;
 }
 
+@keyframes motion-spin-pulse {
+  50% {
+    opacity: 0.4;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .motion-spin {
+    animation: motion-spin-pulse var(--duration-2s) ease infinite;
+  }
+}
+
 @keyframes motion-shimmer {
   from {
     background-position: 300% 0;
@@ -62,14 +71,19 @@
 
 .motion-skeleton {
   background:
-    linear-gradient(90deg, transparent 0%, color-mix(in oklab, var(--fg) 6%, transparent) 50%, transparent 100%) 0 0 /
-      50% 100% no-repeat,
-    color-mix(in oklab, var(--fg3) 15%, transparent);
+    linear-gradient(
+        90deg,
+        transparent 0%,
+        color-mix(in oklab, var(--text-primary) 6%, transparent) 50%,
+        transparent 100%
+      )
+      0 0 / 50% 100% no-repeat,
+    color-mix(in oklab, var(--text-tertiary) 15%, transparent);
 }
 
 @media (prefers-reduced-motion: no-preference) {
   .motion-skeleton {
-    animation: motion-shimmer var(--dur-shimmer) linear infinite;
+    animation: motion-shimmer var(--duration-2s) linear infinite;
   }
 }
 
@@ -98,7 +112,7 @@
 
   .motion-bubble-in {
     transform-origin: bottom right;
-    animation: motion-bubble-in var(--dur-pop) var(--ease-pop) both;
+    animation: motion-bubble-in var(--duration-normal) var(--ease-sharp) both;
   }
 
   @keyframes motion-reply-in {
@@ -113,7 +127,7 @@
   }
 
   .motion-reply-in {
-    animation: motion-reply-in var(--dur-land) var(--ease-out) both;
+    animation: motion-reply-in var(--dur-land) var(--ease-sharp) both;
   }
 
   [data-component="chat-vrow"]:has(.motion-reply-in) ~ [data-component="chat-vrow"] .motion-reply-in {
@@ -148,7 +162,7 @@
   @keyframes motion-dialog-in {
     from {
       opacity: 0;
-      transform: translate(-50%, -50%) scale(0.96);
+      transform: translate(-50%, -50%) scale(0.97);
     }
     to {
       opacity: 1;
@@ -163,87 +177,51 @@
     }
     to {
       opacity: 0;
-      transform: translate(-50%, -50%) scale(0.98);
-    }
-  }
-
-  @keyframes motion-popover-in {
-    from {
-      opacity: 0;
-      transform: scale(0.98);
-    }
-    to {
-      opacity: 1;
-      transform: scale(1);
+      transform: translate(-50%, -50%) scale(0.97);
     }
   }
 
   [data-component="modal-v2-overlay"][data-expanded] {
-    animation: motion-overlay-in var(--dur-pop) var(--ease-kiko) both;
+    animation: motion-overlay-in var(--duration-normal) var(--ease-sharp) both;
   }
 
   [data-component="modal-v2-overlay"][data-closed] {
-    animation: motion-overlay-out var(--dur-exit) var(--motion-ease-in) both;
+    animation: motion-overlay-out var(--duration-fast) var(--ease-sharp) both;
   }
 
   [data-component="modal-v2-content"][data-expanded] {
-    animation: motion-dialog-in var(--dur-pop) var(--ease-kiko) both;
+    animation: motion-dialog-in var(--duration-normal) var(--ease-sharp) both;
   }
 
   [data-component="modal-v2-content"][data-closed] {
-    animation: motion-dialog-out var(--dur-exit) var(--motion-ease-in) both;
+    animation: motion-dialog-out var(--duration-fast) var(--ease-sharp) both;
   }
 
-  @keyframes motion-origin-in {
+  @keyframes motion-popup-in {
     from {
       opacity: 0;
-      transform: scale(0.98);
-    }
-    to {
-      opacity: 1;
-      transform: scale(1);
+      transform: translate3d(var(--popup-nudge-x, 0px), var(--popup-nudge-y, 0px), 0) scale(0.98);
     }
   }
 
-  @keyframes motion-origin-out {
-    from {
-      opacity: 1;
-      transform: scale(1);
-    }
+  @keyframes motion-popup-out {
     to {
       opacity: 0;
-      transform: scale(0.98);
-    }
-  }
-
-  @keyframes motion-tooltip-in {
-    from {
-      opacity: 0;
-      transform: translateY(2px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
+      transform: translate3d(var(--popup-nudge-x, 0px), var(--popup-nudge-y, 0px), 0) scale(0.98);
     }
   }
 
   [data-component="menu-v2-content"][data-expanded],
   [data-component="hover-card-v2-content"][data-expanded],
+  [data-component="tooltip-v2"][data-expanded],
   .motion-popover-in {
-    animation: motion-origin-in var(--dur-pop) var(--ease-out) both;
+    animation: motion-popup-in var(--duration-fast) var(--ease-sharp) both;
   }
 
   [data-component="menu-v2-content"][data-closed],
-  [data-component="hover-card-v2-content"][data-closed] {
-    animation: motion-origin-out 100ms var(--motion-ease-in) both;
-  }
-
-  [data-component="tooltip-v2"][data-expanded] {
-    animation: motion-tooltip-in var(--dur-hover) var(--ease-kiko) both;
-  }
-
+  [data-component="hover-card-v2-content"][data-closed],
   [data-component="tooltip-v2"][data-closed] {
-    animation: motion-overlay-out 80ms linear both;
+    animation: motion-popup-out var(--duration-fast) var(--ease-sharp) both;
   }
 
   [data-component="tooltip-v2"][data-instant] {
@@ -273,53 +251,49 @@
   }
 
   .motion-collapse[data-expanded] {
-    animation: motion-collapse-down var(--motion-collapse) var(--ease-kiko);
+    animation: motion-collapse-down var(--motion-collapse) var(--ease-sharp);
   }
 
   .motion-collapse[data-closed] {
-    animation: motion-collapse-up var(--dur-exit) var(--ease-kiko);
+    animation: motion-collapse-up var(--dur-exit) var(--ease-sharp);
   }
 
   .motion-switch {
-    transition: background-color var(--dur-pop) var(--ease-kiko);
+    transition: background-color var(--duration-normal) var(--ease-sharp);
   }
 
   .motion-switch > span {
     transition:
-      transform var(--dur-pop) var(--ease-kiko),
-      background-color var(--dur-pop) var(--ease-kiko);
+      transform var(--duration-normal) var(--ease-sharp),
+      background-color var(--duration-normal) var(--ease-sharp);
   }
 
   .motion-slide {
-    transition: flex-basis var(--motion-slide) var(--ease-kiko);
+    transition: flex-basis var(--motion-slide) var(--ease-sharp);
   }
 
   .motion-busy {
-    animation: motion-overlay-in var(--dur-pop) var(--ease-kiko) both;
+    animation: motion-overlay-in var(--duration-normal) var(--ease-sharp) both;
   }
 
   @keyframes motion-shine {
     from {
-      background-position:
-        -4.5rem 0,
-        0 0;
+      background-position: 200% 0;
     }
     to {
-      background-position:
-        calc(100% + 4.5rem) 0,
-        0 0;
+      background-position: -200% 0;
     }
   }
 
   @media (forced-colors: none) {
     .motion-shine {
-      animation: motion-shine var(--dur-shimmer) steps(30) infinite;
+      animation: motion-shine var(--duration-2s) steps(30) infinite;
       animation-play-state: var(--visible-animation-state, paused);
     }
   }
 
   .motion-run-fold {
-    transition: grid-template-rows var(--motion-collapse) var(--ease-kiko);
+    transition: grid-template-rows var(--motion-collapse) var(--ease-sharp);
   }
 
   @starting-style {
@@ -329,7 +303,7 @@
   }
 
   .motion-run-chevron {
-    transition: transform var(--motion-run-chevron) var(--ease-kiko);
+    transition: transform var(--motion-run-chevron) var(--ease-sharp);
   }
 
   @keyframes motion-page-in {
@@ -340,7 +314,7 @@
   }
 
   .motion-page-in {
-    animation: motion-page-in var(--dur-page) var(--ease-kiko) backwards;
+    animation: motion-page-in var(--dur-page) var(--ease-sharp) backwards;
   }
 
   @keyframes motion-shake {
@@ -369,8 +343,8 @@
   bottom: 0;
   left: 0;
   z-index: 0;
-  background: var(--active);
-  border-radius: var(--radius-control);
+  background: var(--bg-secondary);
+  border-radius: var(--radius-base);
   pointer-events: none;
 }
 
@@ -382,9 +356,9 @@
 @media (prefers-reduced-motion: no-preference) {
   .pill-indicator[data-settled]:not([data-resizing="true"]) {
     transition:
-      transform var(--dur-pop) var(--ease-kiko),
-      width var(--dur-pop) var(--ease-kiko),
-      height var(--dur-pop) var(--ease-kiko);
+      transform var(--duration-normal) var(--ease-sharp),
+      width var(--duration-normal) var(--ease-sharp),
+      height var(--duration-normal) var(--ease-sharp);
   }
 }
 
@@ -395,7 +369,7 @@
     left: 0;
     z-index: 0;
     border-radius: inherit;
-    background: var(--hover);
+    background: var(--bg-tertiary);
     pointer-events: none;
     opacity: 1;
   }
@@ -408,11 +382,11 @@
 @media (prefers-reduced-motion: no-preference) {
   [data-slot="glide"]:not([data-jump]) {
     transition:
-      transform var(--dur-hover) var(--ease-kiko),
-      width var(--dur-hover) var(--ease-kiko),
-      height var(--dur-hover) var(--ease-kiko),
+      transform var(--duration-fast) var(--ease-sharp),
+      width var(--duration-fast) var(--ease-sharp),
+      height var(--duration-fast) var(--ease-sharp),
       opacity 80ms linear,
-      background-color var(--dur-hover) var(--ease-kiko);
+      background-color var(--duration-fast) var(--ease-sharp);
   }
 }
 
@@ -434,7 +408,7 @@
 
 @media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
   .link-grow {
-    transition: background-size var(--dur-pop) var(--ease-kiko);
+    transition: background-size var(--duration-normal) var(--ease-sharp);
   }
 }
 
@@ -444,7 +418,7 @@
 
 @media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
   [data-look] [data-component="identity-avatar"] > img {
-    transition: transform 240ms var(--ease-kiko);
+    transition: transform 240ms var(--ease-sharp);
   }
 
   [data-look]:hover [data-component="identity-avatar"] > img {
@@ -489,7 +463,7 @@
   .composer-send-arrow {
     transform-box: view-box;
     transform-origin: 50% 50%;
-    transition: transform var(--dur-pop) var(--ease-kiko);
+    transition: transform var(--duration-normal) var(--ease-sharp);
   }
 
   .sidebar-shell .nav-row[data-hint="chat.new"]:hover .nav-icon > svg,
@@ -506,7 +480,7 @@
 
   .sidebar-shell .nav-row[data-component="sidebar-files"]:hover .nav-icon > svg,
   .sidebar-shell .nav-row[data-component="sidebar-files"]:focus-visible .nav-icon > svg {
-    animation: motion-folder-open var(--dur-pop) var(--ease-kiko);
+    animation: motion-folder-open var(--duration-normal) var(--ease-sharp);
   }
 
   .sidebar-shell [data-component="sidebar-settings"]:hover > svg,
@@ -521,25 +495,25 @@
 
   .composer-dock .composer-send:not(:disabled):not([data-mode="stop"]):hover .composer-send-arrow,
   .composer-dock .composer-send:not(:disabled):not([data-mode="stop"]):focus-visible .composer-send-arrow {
-    transform: translateX(-2px);
+    transform: translateY(-1px);
   }
 
   .reasoning-trigger:hover .reasoning-needle,
   .reasoning-trigger:focus-visible .reasoning-needle {
     transform-box: view-box;
     transform-origin: 50% 82%;
-    animation: motion-needle-sweep var(--dur-pop) var(--ease-kiko);
+    animation: motion-needle-sweep var(--duration-normal) var(--ease-sharp);
   }
 
   .palette-row:hover .palette-clip,
   .palette-row:focus-visible .palette-clip {
-    animation: motion-icon-wiggle var(--dur-pop) var(--ease-kiko);
+    animation: motion-icon-wiggle var(--duration-normal) var(--ease-sharp);
   }
 
   [data-disclosure] > svg:last-child {
     transform-box: view-box;
     transform-origin: 50% 50%;
-    transition: transform var(--dur-hover) var(--ease-kiko);
+    transition: transform var(--duration-fast) var(--ease-sharp);
   }
 
   [data-disclosure]:not([aria-expanded="true"]):hover > svg:last-child {

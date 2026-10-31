@@ -2,50 +2,74 @@
   display: inline-flex;
 }
 
+.composer-plus-panel,
+.composer-plus-sub {
+  display: flex;
+  flex-direction: column;
+  padding: 6px 0;
+  color: var(--text-primary);
+  background: var(--bg-elevated);
+  border-radius: var(--radius-2xl);
+  box-shadow: var(--popup-shadow);
+  font-size: var(--font-size-base);
+  line-height: var(--line-height-base);
+  letter-spacing: var(--letter-spacing-base);
+  user-select: none;
+}
+
 .composer-plus-panel {
   position: fixed;
   bottom: var(--plus-bottom, 8px);
   left: var(--plus-left, 8px);
   z-index: 50;
   width: 244px;
-  padding: 6px;
-  background: var(--popover);
-  border-radius: 16px;
-  box-shadow:
-    inset 0 0 0 1px var(--line2),
-    var(--float-shadow);
+  outline: none;
 }
 
 .composer-plus-row {
+  position: relative;
   display: flex;
   width: 100%;
-  height: 36px;
+  min-height: 30px;
+  flex: none;
   align-items: center;
-  gap: 8px;
-  padding: 0 8px;
-  color: var(--text-200);
+  gap: 10px;
+  padding: 0 14px;
+  color: var(--text-primary);
   background: none;
   border: 0;
-  border-radius: 10px;
+  border-radius: 0;
+  outline: none;
   font: inherit;
-  font-size: 14px;
-  line-height: 20px;
   text-align: start;
   cursor: pointer;
 }
 
-.composer-plus-row[data-active] {
-  color: var(--text-100);
-  background: var(--hover);
+.composer-plus-row::before {
+  position: absolute;
+  inset: 0 6px;
+  z-index: 0;
+  border-radius: var(--radius-lg);
+  content: "";
+  pointer-events: none;
+}
+
+.composer-plus-row:is([data-active], [aria-expanded="true"])::before {
+  background: var(--bg-quaternary);
+}
+
+.composer-plus-row > * {
+  position: relative;
+  z-index: 1;
 }
 
 .composer-plus-glyph {
   display: grid;
-  width: 18px;
-  height: 18px;
+  width: 14px;
+  height: 14px;
   flex: none;
   place-items: center;
-  color: var(--text-300);
+  color: var(--icon-secondary);
 }
 
 .composer-plus-label {
@@ -58,20 +82,23 @@
 
 .composer-plus-hint {
   flex: none;
-  color: var(--text-400);
-  font-size: 12px;
+  margin-inline-start: 10px;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-sm);
 }
 
 .composer-plus-more,
 .composer-plus-check {
   flex: none;
-  color: var(--text-400);
+  color: var(--icon-tertiary);
 }
 
 .composer-plus-rule {
   height: 1px;
-  margin: 5px 6px;
-  background: var(--border-100);
+  flex: none;
+  margin: 4px 14px;
+  background: var(--stroke-tertiary);
 }
 
 .composer-plus-sub {
@@ -79,12 +106,6 @@
   top: -6px;
   left: calc(100% + 6px);
   width: 264px;
-  padding: 6px;
-  background: var(--popover);
-  border-radius: 16px;
-  box-shadow:
-    inset 0 0 0 1px var(--line2),
-    var(--float-shadow);
 }
 
 .composer-plus-panel[data-flip] .composer-plus-sub {
@@ -94,73 +115,66 @@
 
 .composer-plus-search {
   display: block;
-  padding: 2px 2px 6px;
+  margin: -6px 0 6px;
+  padding: 0 6px;
+  border-bottom: 1px solid var(--stroke-tertiary);
 }
 
 .composer-plus-search input {
   width: 100%;
-  height: 32px;
+  height: 36px;
   padding: 0 8px;
-  color: var(--text-100);
-  background: var(--fill-field);
+  color: var(--text-primary);
+  background: none;
   border: 0;
-  border-radius: 10px;
   outline: none;
   font: inherit;
-  font-size: 13px;
 }
 
 .composer-plus-search input::placeholder {
-  color: var(--text-400);
+  color: var(--text-tertiary);
 }
 
 .composer-plus-list {
-  max-height: 256px;
+  max-height: 248px;
   overflow-y: auto;
   overscroll-behavior: contain;
+  scroll-padding-block: 6px;
   scrollbar-width: thin;
 }
 
 .composer-plus-empty {
-  padding: 10px 8px;
-  color: var(--text-400);
-  font-size: 13px;
-}
-
-.composer-plus-add {
-  margin-top: 4px;
-  border-top: 1px solid var(--border-100);
-  border-radius: 0 0 10px 10px;
+  display: flex;
+  min-height: 30px;
+  align-items: center;
+  padding: 0 14px;
+  color: var(--text-tertiary);
 }
 
 .composer-plus-foot {
-  width: 100%;
-  height: 32px;
-  margin-top: 4px;
-  padding: 0 8px;
-  color: var(--text-300);
-  background: none;
-  border: 0;
-  border-radius: 10px;
-  font: inherit;
-  font-size: 13px;
-  text-align: start;
-  cursor: pointer;
+  color: var(--text-secondary);
+}
+
+.composer-plus-foot[data-active] {
+  color: var(--text-primary);
 }
 
 @media (hover: hover) and (pointer: fine) {
   .composer-plus-foot:hover {
-    color: var(--text-100);
-    background: var(--hover);
+    color: var(--text-primary);
+  }
+
+  .composer-plus-foot:hover::before {
+    background: var(--bg-quaternary);
   }
 }
 
 @media (prefers-reduced-motion: no-preference) {
   .composer-plus-panel {
-    animation: composer-plus-in 120ms var(--ease-kiko) both;
+    animation: composer-plus-in var(--duration-fast) var(--ease-sharp) both;
   }
   .composer-plus-sub {
-    animation: composer-plus-sub-in 120ms var(--ease-kiko) both;
+    animation: composer-plus-sub-in var(--duration-fast) var(--ease-sharp) both;
   }
   .composer-plus-panel[data-flip] .composer-plus-sub {
     animation-name: composer-plus-sub-in-flip;
@@ -170,21 +184,21 @@
 @keyframes composer-plus-in {
   from {
     opacity: 0;
-    transform: scale(0.98);
+    transform: translateY(2px) scale(0.98);
   }
 }
 
 @keyframes composer-plus-sub-in {
   from {
     opacity: 0;
-    transform: translateX(-4px);
+    transform: translateX(-2px) scale(0.98);
   }
 }
 
 @keyframes composer-plus-sub-in-flip {
   from {
     opacity: 0;
-    transform: translateX(4px);
+    transform: translateX(2px) scale(0.98);
   }
 }
 

@@ -24,7 +24,7 @@ function Block(props: { block: OfficeBlock; urls: ReadonlyMap<string, string> })
       <Match when={props.block.kind === "heading" ? (props.block as { level: number; text: string }) : null}>
         {(heading) => (
           <h2
-            class="font-semibold text-fg"
+            class="font-semibold text-primary"
             style={{ "font-size": `${Math.max(13, 22 - heading().level * 2)}px`, "line-height": 1.3 }}
           >
             {heading().text}
@@ -32,18 +32,18 @@ function Block(props: { block: OfficeBlock; urls: ReadonlyMap<string, string> })
         )}
       </Match>
       <Match when={props.block.kind === "paragraph" ? (props.block as { text: string }) : null}>
-        {(paragraph) => <p class="whitespace-pre-wrap text-ui leading-relaxed text-fg2">{paragraph().text}</p>}
+        {(paragraph) => <p class="whitespace-pre-wrap text-base leading-relaxed text-secondary">{paragraph().text}</p>}
       </Match>
       <Match when={props.block.kind === "list" ? (props.block as { ordered: boolean; items: string[] }) : null}>
         {(list) => (
           <Switch>
             <Match when={list().ordered}>
-              <ol class="list-decimal space-y-1 pl-5 text-ui leading-relaxed text-fg2">
+              <ol class="list-decimal space-y-1 pl-5 text-base leading-relaxed text-secondary">
                 <For each={list().items}>{(item) => <li>{item}</li>}</For>
               </ol>
             </Match>
             <Match when={!list().ordered}>
-              <ul class="list-disc space-y-1 pl-5 text-ui leading-relaxed text-fg2">
+              <ul class="list-disc space-y-1 pl-5 text-base leading-relaxed text-secondary">
                 <For each={list().items}>{(item) => <li>{item}</li>}</For>
               </ul>
             </Match>
@@ -53,14 +53,14 @@ function Block(props: { block: OfficeBlock; urls: ReadonlyMap<string, string> })
       <Match when={props.block.kind === "table" ? (props.block as { rows: string[][] }) : null}>
         {(table) => (
           <div class="overflow-x-auto">
-            <table class="w-full border-separate border-spacing-0 text-hint">
+            <table class="w-full border-separate border-spacing-0 text-xs">
               <tbody>
                 <For each={table().rows}>
                   {(row) => (
                     <tr>
                       <For each={row}>
                         {(cell) => (
-                          <td class="border border-[var(--line)] px-2.5 py-1.5 align-top whitespace-pre-wrap text-fg2">
+                          <td class="border border-[var(--stroke-tertiary)] px-2.5 py-1.5 align-top whitespace-pre-wrap text-secondary">
                             {cell}
                           </td>
                         )}
@@ -76,7 +76,7 @@ function Block(props: { block: OfficeBlock; urls: ReadonlyMap<string, string> })
       <Match when={props.block.kind === "image" ? (props.block as { path: string }) : null}>
         {(image) => (
           <Show when={props.urls.get(image().path)}>
-            {(url) => <img src={url()} alt="" class="max-w-full rounded-control" loading="lazy" />}
+            {(url) => <img src={url()} alt="" class="max-w-full rounded-base" loading="lazy" />}
           </Show>
         )}
       </Match>
@@ -86,7 +86,7 @@ function Block(props: { block: OfficeBlock; urls: ReadonlyMap<string, string> })
 
 function Docx(props: { blocks: readonly OfficeBlock[]; urls: ReadonlyMap<string, string> }): JSX.Element {
   return (
-    <div class="min-h-0 flex-1 overflow-auto bg-panel">
+    <div class="min-h-0 flex-1 overflow-auto bg-editor">
       <div class="mx-auto flex max-w-[72ch] flex-col gap-3 px-6 py-6">
         <For each={props.blocks}>{(block) => <Block block={block} urls={props.urls} />}</For>
       </div>
@@ -99,7 +99,7 @@ function Presentation(props: { slides: PptxModel["slides"]; urls: ReadonlyMap<st
   const slide = () => props.slides[Math.min(page(), props.slides.length - 1)]
   return (
     <div class="flex min-h-0 flex-1 flex-col" data-component="file-presentation">
-      <div class="flex h-10 min-h-10 shrink-0 items-center gap-1 border-b border-[var(--border-100)] px-2 text-hint text-fg3">
+      <div class="flex h-10 min-h-10 shrink-0 items-center gap-1 border-b border-[var(--stroke-tertiary)] px-2 text-xs text-tertiary">
         <SurfaceAction
           label="Previous slide"
           icon={ChevronLeftIcon}
@@ -118,10 +118,10 @@ function Presentation(props: { slides: PptxModel["slides"]; urls: ReadonlyMap<st
           onPress={() => setPage((value) => Math.min(props.slides.length - 1, value + 1))}
         />
       </div>
-      <div class="min-h-0 flex-1 overflow-auto bg-panel px-6 py-6">
+      <div class="min-h-0 flex-1 overflow-auto bg-editor px-6 py-6">
         <Show when={slide()}>
           {(current) => (
-            <div class="mx-auto flex aspect-video w-full max-w-[860px] flex-col gap-2 overflow-hidden rounded-control bg-white p-8 text-black">
+            <div class="mx-auto flex aspect-video w-full max-w-[860px] flex-col gap-2 overflow-hidden rounded-base bg-white p-8 text-black">
               <For each={current().blocks}>{(block) => <Block block={block} urls={props.urls} />}</For>
             </div>
           )}
@@ -142,7 +142,7 @@ function Sheet(props: { sheets: readonly SheetModel[]; name: string; truncated: 
   return (
     <div class="flex min-h-0 flex-1 flex-col" data-component="file-sheet">
       <Show when={props.sheets.length > 1}>
-        <div class="flex h-10 min-h-10 shrink-0 items-center gap-2 border-b border-[var(--border-100)] px-2">
+        <div class="flex h-10 min-h-10 shrink-0 items-center gap-2 border-b border-[var(--stroke-tertiary)] px-2">
           <Tabs value={active()} onChange={(next: string) => setActive(next)} class="min-w-0">
             <Tabs.List class="relative flex gap-1 overflow-x-auto" aria-label="Sheets">
               <TabsPill />
@@ -150,7 +150,7 @@ function Sheet(props: { sheets: readonly SheetModel[]; name: string; truncated: 
                 {(item) => (
                   <Tabs.Trigger
                     value={item.name}
-                    class="relative z-10 shrink-0 rounded-control px-2.5 py-1 text-hint text-fg2 data-[selected]:text-fg"
+                    class="relative z-10 shrink-0 rounded-base px-2.5 py-1 text-xs text-secondary data-[selected]:text-primary"
                   >
                     {item.name}
                   </Tabs.Trigger>
@@ -177,7 +177,7 @@ function Sheet(props: { sheets: readonly SheetModel[]; name: string; truncated: 
       </Show>
       <div
         role="status"
-        class="flex h-8 shrink-0 items-center border-t border-[var(--border-100)] px-3 text-hint text-fg3"
+        class="flex h-8 shrink-0 items-center border-t border-[var(--stroke-tertiary)] px-3 text-xs text-tertiary"
       >
         {Math.max(0, (sheet()?.rows.length ?? 0) - 1).toLocaleString()} rows, {columnCount().toLocaleString()} columns
       </div>
@@ -259,7 +259,7 @@ export default function OfficeViewer(props: {
       <Show when={model()?.truncated}>
         <SurfaceNotice>Preview limited. Save the file to read the full document.</SurfaceNotice>
       </Show>
-      <div class="flex h-8 min-h-8 shrink-0 items-center justify-end border-t border-[var(--border-100)] px-3 text-hint text-fg3">
+      <div class="flex h-8 min-h-8 shrink-0 items-center justify-end border-t border-[var(--stroke-tertiary)] px-3 text-xs text-tertiary">
         {formatBytes(props.size)}
       </div>
     </div>

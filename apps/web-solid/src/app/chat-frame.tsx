@@ -2,7 +2,7 @@ import { Outlet, useLocation } from "@tanstack/solid-router"
 import { ChatView } from "./chat-view"
 import { coversChat } from "./sections"
 
-const PAGE = "absolute inset-0 z-10 flex min-h-0 min-w-0 flex-col overflow-hidden bg-bg"
+const PAGE = "absolute inset-0 z-10 flex min-h-0 min-w-0 flex-col overflow-hidden bg-chrome"
 
 export function ChatFrame() {
   const pathname = useLocation({ select: (location) => location.pathname })

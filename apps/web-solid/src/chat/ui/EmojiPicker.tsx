@@ -130,7 +130,7 @@ export function EmojiPicker(props: EmojiPickerProps): JSX.Element {
   return (
     <div
       class={cn(
-        "flex h-[400px] w-[340px] max-w-[calc(100vw-16px)] flex-col overflow-hidden rounded-sheet bg-raise text-fg shadow-popover",
+        "flex h-[400px] w-[340px] max-w-[calc(100vw-16px)] flex-col overflow-hidden rounded-3xl bg-elevated text-primary shadow-popup",
         props.class,
       )}
       data-component="emoji-picker"
@@ -164,7 +164,7 @@ export function EmojiPicker(props: EmojiPickerProps): JSX.Element {
         <Show
           when={sections().some((section) => section.cells.length > 0) || (query().trim() === "" && data.loading)}
           fallback={
-            <p class="py-10 text-center text-label text-fg2" data-component="emoji-empty">
+            <p class="py-10 text-center text-sm text-secondary" data-component="emoji-empty">
               No emoji found
             </p>
           }
@@ -179,7 +179,7 @@ export function EmojiPicker(props: EmojiPickerProps): JSX.Element {
                   }}
                   data-component="emoji-section"
                 >
-                  <h3 class="sticky top-0 z-[1] flex h-8 items-center bg-raise px-1.5 type-label text-fg3">
+                  <h3 class="sticky top-0 z-[1] flex h-8 items-center bg-elevated px-1.5 type-sm text-tertiary">
                     {section.title}
                   </h3>
                   <div class="grid grid-cols-8" role="listbox" aria-label={section.title}>
@@ -189,7 +189,7 @@ export function EmojiPicker(props: EmojiPickerProps): JSX.Element {
                           type="button"
                           tabIndex={-1}
                           role="option"
-                          class="grid size-10 cursor-default place-items-center rounded-row p-0 font-emoji text-[28px] leading-none data-[active]:bg-[var(--active)]"
+                          class="grid size-10 cursor-default place-items-center rounded-base p-0 font-emoji text-[28px] leading-none data-[active]:bg-[var(--bg-secondary)]"
                           data-at={`${index()}:${at()}`}
                           data-emoji={cell.emoji}
                           data-active={isActive(`${index()}:${at()}`) ? "" : undefined}

@@ -1,3 +1,5 @@
+import { CheckIcon, ChevronDownIcon } from "@kiko/ui/icons"
+import { RemixIcon } from "@kiko/ui/remix-icon"
 import { DismissableLayerV2 } from "@kiko/ui/v2/dismissable-layer-v2"
 import { For, Show, createEffect, createSignal, createUniqueId, onCleanup, type JSX } from "solid-js"
 import { Portal } from "solid-js/web"
@@ -131,19 +133,11 @@ export function Select<T>(props: {
           }
         }}
       >
-        <span class="flex min-w-0 items-center gap-2">
+        <span class="flex min-w-0 items-center gap-1.5">
           <Show when={chosen()?.icon}>{chosen()!.icon}</Show>
           <span class="truncate">{chosen()?.label}</span>
         </span>
-        <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
-          <path
-            d="M4 6l4 4 4-4"
-            stroke="currentColor"
-            stroke-width="1.5"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          />
-        </svg>
+        <RemixIcon icon={ChevronDownIcon} size={12} />
       </button>
       <Show when={open()}>
         <Portal>
@@ -151,7 +145,7 @@ export function Select<T>(props: {
             active={open()}
             onDismiss={close}
             excludedElements={() => [trigger]}
-            class="motion-popover-in bg-[var(--popover)] pointer-events-auto fixed z-[80] flex max-w-[min(320px,calc(100vw-16px))] origin-top items-start overflow-y-auto rounded-control p-1 shadow-[var(--edge),var(--shadow-pop)]"
+            class="motion-popover-in pointer-events-auto fixed [--popup-nudge-y:-2px] z-[80] flex max-h-[min(360px,calc(100vh-16px))] max-w-[min(320px,calc(100vw-16px))] origin-top items-start overflow-y-auto rounded-xl bg-elevated py-1.5 text-primary shadow-[var(--popup-shadow)]"
             style={place()}
             onKeyDown={onPanelKey}
             data-kb-top-layer=""
@@ -180,22 +174,22 @@ export function Select<T>(props: {
                       id={`${id}-${i()}`}
                       role="option"
                       aria-selected={selected()}
-                      class="flex min-h-7 min-w-0 cursor-pointer items-center gap-2 rounded-micro px-2 py-1 text-ui text-fg"
-                      classList={{ "bg-fill-hover": active() === i() }}
+                      class="kit-option"
+                      data-highlighted={active() === i() || undefined}
                       data-option={String(option.value)}
                       onPointerMove={() => setActive(i())}
                       onClick={() => pick(option.value)}
                     >
-                      <span class="grid size-4 shrink-0 place-items-center" aria-hidden="true">
-                        <Show when={selected()}>
-                          <span class="size-2 rounded-full bg-fg" />
-                        </Show>
-                      </span>
                       <Show when={option.icon}>{option.icon}</Show>
                       <span class="min-w-0 flex-1 truncate">
                         {option.label}
                         <Show when={option.note}>
-                          <span class="ml-1.5 text-[var(--kit-meta)]">{option.note}</span>
+                          <span class="ml-1.5 text-tertiary">{option.note}</span>
+                        </Show>
+                      </span>
+                      <span class="kit-option-check" aria-hidden="true">
+                        <Show when={selected()}>
+                          <RemixIcon icon={CheckIcon} size={14} />
                         </Show>
                       </span>
                     </div>
@@ -206,7 +200,7 @@ export function Select<T>(props: {
             <Show when={hasActions()}>
               <div class="flex shrink-0 flex-col">
                 <For each={props.options}>
-                  {(option) => <div class="flex h-8 items-center justify-end gap-0.5 pr-0.5">{option.actions}</div>}
+                  {(option) => <div class="flex h-[30px] items-center justify-end gap-0.5 pr-2">{option.actions}</div>}
                 </For>
               </div>
             </Show>

@@ -55,7 +55,11 @@ function StatusFoot() {
       <span class="settings-status-dot" aria-hidden="true" />
       <span
         class={cn("min-w-0 flex-1 truncate", health() === "waiting" && "motion-shine")}
-        style={health() === "waiting" ? { "--run-text": "var(--fg4)", "--visible-animation-state": "running" } : {}}
+        style={
+          health() === "waiting"
+            ? { "--run-text": "var(--text-quaternary)", "--visible-animation-state": "running" }
+            : {}
+        }
         role="status"
       >
         {HEALTH_LABEL[health()]}
@@ -129,10 +133,10 @@ export function SettingsDialog(props: ParentProps) {
       onClick={() => void navigate({ to: s.to })}
     >
       <span class="settings-nav-icon">
-        <RemixIcon icon={s.icon} size={20} />
+        <RemixIcon icon={s.icon} size={14} />
       </span>
       <span class="settings-nav-label">{s.label}</span>
-      <RemixIcon icon={ChevronRightIcon} size={16} class="settings-nav-chevron" />
+      <RemixIcon icon={ChevronRightIcon} size={14} class="settings-nav-chevron" />
     </button>
   )
 
@@ -185,7 +189,7 @@ export function SettingsDialog(props: ParentProps) {
             >
               <div
                 ref={page}
-                class="settings-page mx-auto w-full max-w-[764px] px-5 py-6 pb-16 @min-[560px]/settings:px-8 @min-[560px]/settings:pt-12"
+                class="settings-page mx-auto w-full max-w-[764px] px-5 py-6 pb-16 @min-[560px]/settings:px-12 @min-[560px]/settings:pt-10"
               >
                 <button
                   type="button"
@@ -195,8 +199,8 @@ export function SettingsDialog(props: ParentProps) {
                 >
                   <RemixIcon
                     icon={ChevronLeftIcon}
-                    size={16}
-                    class="transition-transform duration-(--dur-hover) group-hover:-translate-x-0.5 group-active:-translate-x-0.5"
+                    size={14}
+                    class="transition-transform duration-(--duration-fast) group-hover:-translate-x-0.5 group-active:-translate-x-0.5"
                   />
                   Settings
                 </button>
@@ -209,11 +213,11 @@ export function SettingsDialog(props: ParentProps) {
               type="button"
               aria-label="Close"
               title="Close"
-              class={cn(iconButtonClass, "settings-close absolute top-5 right-5")}
+              class={cn(iconButtonClass, "settings-close absolute top-2 right-2")}
               data-action="close-dialog"
               onClick={closeSettings}
             >
-              <RemixIcon icon={CloseIcon} class="size-4" />
+              <RemixIcon icon={CloseIcon} size={14} />
             </button>
           </div>
         </ModalV2.Content>

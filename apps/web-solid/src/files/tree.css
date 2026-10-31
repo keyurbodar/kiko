@@ -10,18 +10,20 @@
   height: 28px;
   min-width: 0;
   flex: 1;
-  padding: 0 9px;
+  padding: 0 8px;
   border: 1px solid transparent;
-  border-radius: var(--radius-tail);
+  border-radius: var(--radius-base);
   background: transparent;
-  color: var(--fg);
-  font-size: 12px;
+  color: var(--text-primary);
+  font-size: var(--font-size-base);
   outline: none;
-  transition: background-color var(--dur-hover) var(--ease-kiko);
+  transition:
+    background-color var(--duration-fast) var(--ease-sharp),
+    border-color var(--duration-fast) var(--ease-sharp);
 }
 
 .kt-search::placeholder {
-  color: var(--fg3);
+  color: var(--text-tertiary);
 }
 
 .kt-search::-webkit-search-cancel-button {
@@ -30,13 +32,14 @@
 
 @media (hover: hover) and (pointer: fine) {
   .kt-search:hover {
-    background: color-mix(in oklab, var(--fg) 3%, transparent);
+    background: var(--bg-quinary);
   }
 }
 
 .kt-search:focus-visible {
   outline: none;
-  background: var(--bg);
+  border-color: var(--stroke-secondary);
+  background: var(--bg-input-field);
 }
 
 .kt-host {
@@ -82,7 +85,7 @@
 
 @media (prefers-reduced-motion: no-preference) {
   .kt-morph > svg {
-    transition: opacity var(--dur-hover) var(--ease-kiko);
+    transition: opacity var(--duration-fast) var(--ease-sharp);
   }
 }
 
@@ -92,13 +95,13 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 10px;
+  gap: 8px;
   padding: 24px 20px 40px;
-  color: var(--text-400);
+  color: var(--icon-tertiary);
   text-align: center;
 }
 
 .kt-empty > p {
   max-width: 220px;
-  color: var(--text-300);
+  color: var(--text-tertiary);
 }

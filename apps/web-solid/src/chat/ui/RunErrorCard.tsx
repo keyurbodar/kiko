@@ -2,8 +2,6 @@ import { AlertCircleIcon, InfoIcon } from "@kiko/ui/icons"
 import { RemixIcon } from "@kiko/ui/remix-icon"
 import { HoverCardV2 } from "@kiko/ui/v2/hover-card-v2"
 import { createSignal, For, Show, type JSX } from "solid-js"
-import { cn } from "../../lib/cn"
-import { GROUP_GUTTER } from "./MessageRow"
 import type { RowAction } from "./SystemRow"
 import "./run-error.css"
 
@@ -19,7 +17,7 @@ export function RunErrorCard(props: {
   return (
     <div
       role="alert"
-      class={cn("mx-auto w-full max-w-(--chat-content-max-width) px-4 pt-(--run-gap) pb-(--row-gap)", GROUP_GUTTER)}
+      class="mx-auto w-full max-w-(--chat-content-max-width) px-4 pt-(--run-gap) pb-(--row-gap)"
       data-component="run-error"
       data-latest={props.latest ? "" : undefined}
       data-message-id={props["data-message-id"]}
@@ -42,7 +40,7 @@ export function RunErrorCard(props: {
             disabled={!props.note}
             onClick={() => setOpen((now) => !now)}
           >
-            <RemixIcon icon={AlertCircleIcon} size={16} class="run-error-icon" />
+            <RemixIcon icon={AlertCircleIcon} size={14} class="run-error-icon" />
             <span class="run-error-label">{props.label}</span>
             <Show when={props.reason}>
               <span class="run-error-reason">{props.reason}</span>

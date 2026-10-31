@@ -1,9 +1,9 @@
 .composer-cards,
 .composer-card-choices {
-  --card-active: var(--fg);
-  --card-complete: var(--ok);
-  --card-outline: var(--line2);
-  --card-surface: var(--raise);
+  --card-active: var(--text-primary);
+  --card-complete: var(--text-success);
+  --card-outline: var(--stroke-tertiary);
+  --card-surface: var(--bg-input);
 }
 .composer-cards {
   position: relative;
@@ -25,9 +25,9 @@
 .composer-card-surface {
   container-type: inline-size;
   background: var(--card-surface);
-  border-radius: var(--radius-sheet, 20px);
-  box-shadow: var(--float-shadow);
-  padding: 10px;
+  border: 1px solid var(--card-outline);
+  border-radius: var(--radius-xl);
+  padding: 6px;
   min-width: 0;
 }
 .composer-card-row {
@@ -38,23 +38,23 @@
   min-height: var(--composer-banner-icon-column, 24px);
   width: 100%;
   text-align: start;
-  font-size: var(--type-label);
+  font-size: var(--font-size-sm);
   line-height: 18px;
 }
 button.composer-card-row {
   cursor: pointer;
-  border-radius: var(--radius-tail);
+  border-radius: var(--radius-base);
 }
 .composer-card-icon {
   display: flex;
   justify-content: center;
   align-items: center;
   width: var(--composer-banner-icon-column, 24px);
-  color: var(--fg3);
+  color: var(--icon-secondary);
 }
 .composer-card-icon svg {
-  width: 12px;
-  height: 12px;
+  width: 14px;
+  height: 14px;
 }
 .composer-card-title {
   display: flex;
@@ -66,10 +66,10 @@ button.composer-card-row {
   min-width: 0;
   flex: 1;
   font-weight: 500;
-  color: color-mix(in srgb, var(--fg) 80%, transparent);
+  color: var(--text-primary);
 }
 .composer-card-kind {
-  color: var(--fg3);
+  color: var(--text-tertiary);
   flex-shrink: 0;
 }
 .composer-card-actions {
@@ -77,8 +77,8 @@ button.composer-card-row {
   align-items: center;
   justify-content: end;
   gap: 4px;
-  color: var(--fg3);
-  font-size: var(--type-caption);
+  color: var(--text-tertiary);
+  font-size: var(--font-size-base);
 }
 .composer-card-toggle {
   width: 14px;
@@ -96,9 +96,9 @@ button.composer-card-row {
   overscroll-behavior: contain;
 }
 .composer-card-body p {
-  font-size: var(--type-ui);
+  font-size: var(--font-size-base);
   line-height: 20px;
-  color: color-mix(in srgb, var(--fg) 85%, transparent);
+  color: var(--text-secondary);
   margin: 0 0 8px;
   overflow-wrap: anywhere;
 }
@@ -109,7 +109,7 @@ button.composer-card-row {
   width: 96%;
   margin: 0 auto 4px;
   border: 1px solid var(--card-outline);
-  border-radius: var(--radius-tile);
+  border-radius: var(--radius-lg);
   background: var(--card-surface);
   cursor: pointer;
 }
@@ -122,7 +122,7 @@ button.composer-card-row {
   height: 4px;
   border: 1px solid var(--card-outline);
   border-bottom: 0;
-  border-radius: var(--radius-pop) var(--radius-pop) 0 0;
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
   background: var(--card-surface);
 }
 .composer-card-peek > span {
@@ -130,27 +130,27 @@ button.composer-card-row {
   right: 8px;
   bottom: 100%;
   padding-bottom: 5px;
-  font-size: var(--type-caption);
-  color: var(--fg3);
+  font-size: var(--font-size-base);
+  color: var(--text-tertiary);
   white-space: nowrap;
 }
 .composer-card-choices {
   width: var(--kb-popper-anchor-width);
   max-width: calc(100vw - 32px);
-  padding: 4px;
-  background: var(--popover);
-  border-radius: var(--radius-card);
-  box-shadow: var(--float-shadow);
+  padding: 6px;
+  background: var(--bg-elevated);
+  border-radius: var(--radius-2xl);
+  box-shadow: var(--popup-shadow);
   z-index: 50;
 }
 .composer-card-choice {
   container-type: inline-size;
-  padding: 7px 4px;
-  border-radius: var(--radius-row);
+  padding: 3px 0;
+  border-radius: var(--radius-lg);
 }
 @media (hover: hover) and (pointer: fine) {
   .composer-card-choice > .composer-card-row:hover {
-    background: var(--active);
+    background: var(--bg-quaternary);
   }
 }
 .task-segments {
@@ -164,20 +164,20 @@ button.composer-card-row {
   flex: 1;
   height: 3px;
   border-radius: var(--radius-full);
-  background: color-mix(in srgb, var(--fg3) 25%, transparent);
+  background: color-mix(in srgb, var(--text-tertiary) 25%, transparent);
 }
 .task-segments i[data-status="done"] {
-  background: var(--card-complete, var(--ok));
+  background: var(--card-complete, var(--text-success));
 }
 .task-segments i[data-status="doing"],
 .task-segments i[data-status="review"] {
-  background: var(--card-active, var(--fg));
+  background: var(--card-active, var(--text-primary));
 }
 .composer-card-progress {
   display: inline-flex;
   min-width: var(--composer-banner-icon-column, 24px);
   justify-content: center;
-  font-size: var(--type-hint);
+  font-size: var(--font-size-xs);
   font-weight: 500;
 }
 @media (max-width: 560px) {
@@ -215,7 +215,7 @@ button.composer-card-row {
 
 @media (prefers-reduced-motion: no-preference) {
   .composer-card-surface {
-    animation: composer-row-in var(--dur-pop, 200ms) var(--ease-kiko, ease) both;
+    animation: composer-row-in var(--duration-normal, 200ms) var(--ease-sharp, ease) both;
   }
 }
 
@@ -235,14 +235,14 @@ button.composer-card-row {
   min-width: 0;
   min-height: 32px;
   padding: 6px 8px;
-  border-radius: var(--radius-row);
-  font-size: var(--type-ui);
+  border-radius: var(--radius-base);
+  font-size: var(--font-size-base);
   line-height: 20px;
-  transition: background var(--dur-hover) var(--ease-kiko);
+  transition: background var(--duration-fast) var(--ease-sharp);
 }
 @media (hover: hover) and (pointer: fine) {
   .task-step:hover {
-    background: var(--hover);
+    background: var(--bg-quaternary);
   }
 }
 .task-glyph {
@@ -251,7 +251,7 @@ button.composer-card-row {
   width: 16px;
   height: 16px;
   margin-top: 2px;
-  color: var(--fg4);
+  color: var(--text-quaternary);
 }
 .task-glyph svg {
   width: 16px;
@@ -259,32 +259,32 @@ button.composer-card-row {
   overflow: visible;
 }
 .task-glyph[data-status="doing"] {
-  color: var(--fg);
+  color: var(--text-primary);
 }
 .task-glyph[data-status="doing"] .task-glyph-ring {
-  stroke: var(--fg4);
+  stroke: var(--text-quaternary);
 }
 .task-glyph[data-status="doing"] .task-glyph-arc {
   transform-origin: 8px 8px;
   animation: task-spin 1s linear infinite;
 }
 .task-glyph[data-status="done"] {
-  color: var(--ok);
+  color: var(--text-success);
 }
 .task-glyph[data-status="done"] .task-glyph-mark {
   stroke-dasharray: 12;
-  animation: task-draw var(--dur-pop) var(--ease-kiko) both;
+  animation: task-draw var(--duration-normal) var(--ease-sharp) both;
 }
 .task-glyph[data-status="cancelled"] {
-  color: var(--bad);
+  color: var(--text-danger);
 }
 .task-glyph[data-status="blocked"],
 .task-glyph[data-status="review"] {
-  color: var(--fg2);
+  color: var(--text-secondary);
 }
 .task-step-content {
   min-width: 0;
-  color: var(--fg);
+  color: var(--text-primary);
   overflow-wrap: anywhere;
 }
 .task-step-title {
@@ -292,19 +292,19 @@ button.composer-card-row {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  transition: color var(--dur-pop) var(--ease-kiko);
+  transition: color var(--duration-normal) var(--ease-sharp);
 }
 .task-steps[data-details] .task-step-title {
   white-space: normal;
 }
 .task-step-title[data-closed] {
-  color: var(--fg4);
+  color: var(--text-quaternary);
   text-decoration: line-through;
-  text-decoration-color: var(--fg4);
+  text-decoration-color: var(--text-quaternary);
 }
 .task-step[data-status="todo"] .task-step-title,
 .task-step[data-status="blocked"] .task-step-title {
-  color: var(--fg2);
+  color: var(--text-secondary);
 }
 .task-step-detail {
   display: -webkit-box;
@@ -313,16 +313,16 @@ button.composer-card-row {
   overflow: hidden;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
-  font-size: var(--type-label);
+  font-size: var(--font-size-sm);
   line-height: 18px;
-  color: var(--fg3);
+  color: var(--text-tertiary);
   overflow-wrap: anywhere;
 }
 .task-step-state {
   margin-top: 2px;
-  font-size: var(--type-hint);
+  font-size: var(--font-size-xs);
   line-height: 16px;
-  color: var(--fg4);
+  color: var(--text-quaternary);
 }
 .task-step-owner {
   display: inline-flex;
@@ -375,7 +375,7 @@ button.composer-card-row {
   display: flex;
   flex-direction: column;
   transform: translateY(calc(var(--odometer-n) * -1lh));
-  transition: transform var(--dur-step) var(--ease-kiko);
+  transition: transform var(--duration-slower) var(--ease-sharp);
 }
 @media (prefers-reduced-motion: reduce) {
   .odometer-reel {
@@ -387,38 +387,39 @@ button.composer-card-row {
   display: flex;
   align-items: center;
   gap: 10px;
-  min-height: 40px;
+  min-height: 36px;
   margin: 0 0 8px;
-  padding: 0 14px;
+  padding: 0 12px;
   overflow: hidden;
-  border-radius: var(--radius-pop);
-  background: var(--raise);
-  color: var(--fg);
-  font-size: var(--type-ui);
+  border: 1px solid var(--stroke-tertiary);
+  border-radius: var(--radius-xl);
+  background: var(--bg-input);
+  color: var(--text-primary);
+  font-size: var(--font-size-base);
   line-height: 20px;
-  animation: composer-settled-in var(--dur-pop) var(--ease-kiko) both;
+  animation: composer-settled-in var(--duration-normal) var(--ease-sharp) both;
 }
 .composer-card-settled[data-state="skipped"] {
-  color: var(--fg3);
+  color: var(--text-tertiary);
   animation:
-    composer-settled-in var(--dur-pop) var(--ease-kiko) both,
-    composer-settled-out var(--dur-step) var(--ease-kiko) 1200ms forwards;
+    composer-settled-in var(--duration-normal) var(--ease-sharp) both,
+    composer-settled-out var(--duration-slower) var(--ease-sharp) 1200ms forwards;
 }
 .composer-card-settled[data-state="answered"] {
   animation:
-    composer-settled-in var(--dur-pop) var(--ease-kiko) both,
-    composer-settled-out var(--dur-step) var(--ease-kiko) 1600ms forwards;
+    composer-settled-in var(--duration-normal) var(--ease-sharp) both,
+    composer-settled-out var(--duration-slower) var(--ease-sharp) 1600ms forwards;
 }
 .composer-card-stamp {
   display: inline-flex;
-  width: 18px;
-  height: 18px;
-  color: var(--ok);
-  animation: task-tick var(--dur-pop) var(--ease-kiko) 100ms both;
+  width: 14px;
+  height: 14px;
+  color: var(--icon-success);
+  animation: task-tick var(--duration-normal) var(--ease-sharp) 100ms both;
 }
 .composer-card-stamp svg {
-  width: 18px;
-  height: 18px;
+  width: 14px;
+  height: 14px;
 }
 @keyframes composer-settled-in {
   from {

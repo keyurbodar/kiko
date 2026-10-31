@@ -20,9 +20,11 @@ describe("composer height", () => {
     await userEvent.click(editor)
     await userEvent.keyboard("So I have this Discord server")
     const oneLine = editor.offsetHeight
+    const line = Number.parseFloat(getComputedStyle(editor).lineHeight)
     await userEvent.keyboard("{Shift>}{Enter}{/Shift}second line{Shift>}{Enter}{/Shift}third line")
 
-    await expect.poll(() => editor.offsetHeight).toBeGreaterThanOrEqual(oneLine * 3)
+    await expect.poll(() => editor.offsetHeight).toBeGreaterThanOrEqual(line * 3)
+    expect(editor.offsetHeight).toBeGreaterThan(oneLine)
     expect(editor.scrollHeight - editor.clientHeight).toBeLessThanOrEqual(1)
   })
 })

@@ -25,7 +25,7 @@ import { readOnly } from "./update-flow"
 import BrowserChip from "../chat/BrowserChip"
 
 const JUMP_CLASS =
-  "pointer-events-auto relative grid size-[26px] place-items-center rounded-control border border-[color-mix(in_oklab,var(--fg)_15%,transparent)] bg-[color-mix(in_oklab,var(--fg)_10%,transparent)] text-fg shadow-md backdrop-blur-md"
+  "pointer-events-auto relative grid size-[26px] place-items-center rounded-base border border-[color-mix(in_oklab,var(--text-primary)_15%,transparent)] bg-[color-mix(in_oklab,var(--text-primary)_10%,transparent)] text-primary shadow-md backdrop-blur-md"
 
 export function ChatView(props: { covered: boolean }) {
   useRefusalToasts()
@@ -274,7 +274,7 @@ export function ChatView(props: { covered: boolean }) {
           <div class="pointer-events-none absolute right-3 bottom-[calc(100%+8px)] z-6">
             <button
               type="button"
-              class={`${JUMP_CLASS} text-label font-medium text-info`}
+              class={`${JUMP_CLASS} text-sm font-medium text-accent`}
               data-component="composer-jump-mention"
               title="Next mention"
               aria-label="Next mention"
@@ -282,7 +282,7 @@ export function ChatView(props: { covered: boolean }) {
             >
               <span aria-hidden="true">@</span>
               <span
-                class="absolute -top-1.5 -right-1.5 h-4 min-w-4 rounded-full bg-info px-1 text-center text-hint leading-4 text-[var(--on-fg)]"
+                class="absolute -top-1.5 -right-1.5 h-4 min-w-4 rounded-full bg-accent px-1 text-center text-xs leading-4 text-[var(--text-invert)]"
                 data-component="composer-jump-count"
               >
                 {mentions().length}

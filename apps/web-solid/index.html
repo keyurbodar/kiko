@@ -7,7 +7,7 @@
       content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content"
     />
     <meta name="color-scheme" content="dark light" />
-    <meta name="theme-color" content="#121212" />
+    <meta name="theme-color" content="#141414" />
     <title>Kiko</title>
     <link rel="icon" href="/favicon.ico" sizes="48x48" />
     <link rel="icon" type="image/png" href="/favicon-32x32.png" sizes="32x32" />
@@ -21,359 +21,390 @@
           mode = "dark"
         /* boot-palettes:start */
         ;(function () {
-          var CHIP_TONES = {
-            file: { c: 0.136, h: 237 },
-            mention: { c: 0.11, h: 215 },
-            pdf: { c: 0.16, h: 24 },
-            word: { c: 0.136, h: 248 },
-            sheet: { c: 0.134, h: 148 },
-            slides: { c: 0.134, h: 56 },
-            epub: { c: 0.16, h: 291 },
-          }
-          var clamp01 = (n) => Math.min(1, Math.max(0, n))
-          function hexRgb(hex) {
-            let value = Number.parseInt(hex.replace("#", "").slice(0, 6), 16)
-            return [((value >> 16) & 255) / 255, ((value >> 8) & 255) / 255, (value & 255) / 255]
-          }
-          function channelLinear(value) {
-            return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4
-          }
-          function channelSrgb(value) {
-            return value <= 0.0031308 ? 12.92 * value : 1.055 * value ** 0.4166666666666667 - 0.055
-          }
-          function luminance(rgb) {
-            let [r, g, b] = rgb.map(channelLinear)
-            return 0.2126 * r + 0.7152 * g + 0.0722 * b
-          }
-          function contrast(a, b) {
-            let [high, low] = [luminance(a), luminance(b)].sort((x, y) => y - x)
-            return (high + 0.05) / (low + 0.05)
-          }
-          function oklchRgb(l, c, h) {
-            let rad = (h * Math.PI) / 180,
-              a = c * Math.cos(rad),
-              b = c * Math.sin(rad),
-              lRoot = l + 0.3963377774 * a + 0.2158037573 * b,
-              mRoot = l - 0.1055613458 * a - 0.0638541728 * b,
-              sRoot = l - 0.0894841775 * a - 1.291485548 * b,
-              [lr, mr, sr] = [lRoot ** 3, mRoot ** 3, sRoot ** 3]
-            return [
-              4.0767416621 * lr - 3.3077115913 * mr + 0.2309699292 * sr,
-              -1.2684380046 * lr + 2.6097574011 * mr - 0.3413193965 * sr,
-              -0.0041960863 * lr - 0.7034186147 * mr + 1.707614701 * sr,
-            ].map((value) => clamp01(channelSrgb(clamp01(value))))
-          }
-          function toHex(rgb) {
-            return `#${rgb
-              .map((value) =>
-                Math.round(clamp01(value) * 255)
-                  .toString(16)
-                  .padStart(2, "0"),
-              )
-              .join("")}`
-          }
-          function mix(base, top, alpha) {
-            return base.map((value, index) => value * (1 - alpha) + top[index] * alpha)
-          }
-          var WHITE = [1, 1, 1],
-            BLACK = [0, 0, 0]
-          function chipSurfaces(appearance, p) {
-            let dark = appearance === "dark",
-              canvas = hexRgb(p.canvas),
-              surfaces = [
-                canvas,
-                hexRgb(p.sidebar),
-                dark ? mix(canvas, WHITE, 0.07) : WHITE,
-                dark ? mix(canvas, WHITE, 0.0565) : WHITE,
-                mix(canvas, dark ? WHITE : BLACK, dark ? 0.1 : 0.062),
-              ],
-              seen = new Set()
-            return surfaces
-              .filter((rgb) => {
-                let key = toHex(rgb)
-                if (seen.has(key)) return !1
-                return (seen.add(key), !0)
-              })
-              .map((rgb) => ({ rgb, luminance: luminance(rgb) }))
-          }
-          function contrastOn(rgb, surfaces) {
-            return Math.min(...surfaces.map((surface) => contrast(rgb, surface.rgb)))
-          }
-          function solveChipTone(tone, surfaces) {
-            let hexAt = (lightness2) => toHex(oklchRgb(lightness2, tone.c, tone.h)),
-              measures = (lightness2) => contrastOn(hexRgb(hexAt(lightness2)), surfaces)
-            if (measures(0.62) >= 5) return hexAt(0.62)
-            let lighter = surfaces.some((surface) => surface.luminance < 0.179),
-              low = 0,
-              high = 1
-            for (let step = 0; step < 18; step += 1) {
-              let mid = (low + high) / 2
-              if (measures(mid) >= 5)
-                if (lighter) high = mid
-                else low = mid
-              else if (lighter) low = mid
-              else high = mid
-            }
-            let lightness = lighter ? high : low
-            while (measures(lightness) < 5 && lightness > 0 && lightness < 1)
-              lightness = clamp01(lightness + (lighter ? 0.002 : -0.002))
-            return hexAt(lightness)
-          }
-          function chipTokens(appearance, p) {
-            let surfaces = chipSurfaces(appearance, p)
-            return Object.fromEntries(
-              Object.entries(CHIP_TONES).map(([tone, accent]) => [`--chip-${tone}`, solveChipTone(accent, surfaces)]),
-            )
-          }
           var PALETTE_KEYS = [
-              "canvas",
+              "chrome",
               "sidebar",
-              "text",
-              "muted",
-              "faint",
-              "action",
-              "actionHover",
-              "onAction",
+              "editor",
+              "base",
+              "accent",
+              "onPrimary",
+              "focus",
+              "success",
+              "warn",
               "danger",
-              "gold",
+              "red",
+              "orange",
+              "yellow",
+              "green",
+              "cyan",
+              "blue",
+              "magenta",
+              "purple",
             ],
-            DARK_THEME_IDS = ["kiko", "glacier", "slate", "graphite", "moss", "tide", "dusk", "plum"],
-            THEME_IDS = [...DARK_THEME_IDS, "snow"],
-            DEFAULT_DARK_THEME = "kiko"
-          var THEMES = {
-            kiko: {
-              label: "Kiko",
-              accent: "#5b9cf6",
-              palette: {
-                canvas: "#121212",
-                sidebar: "#171717",
-                text: "#ededed",
-                muted: "#a6a6a6",
-                faint: "#878787",
-                action: "#ededed",
-                actionHover: "#ffffff",
-                onAction: "#141414",
-                danger: "#ef6a6a",
-                gold: "#e8c47b",
+            DARK_THEME_IDS = ["dark", "dark-high-contrast", "dark-colorblind"],
+            LIGHT_THEME_IDS = ["light", "light-high-contrast", "light-colorblind"],
+            THEME_IDS = [...DARK_THEME_IDS, ...LIGHT_THEME_IDS],
+            DEFAULT_DARK_THEME = "dark",
+            DEFAULT_LIGHT_THEME = "light",
+            isDarkThemeId = (value) => DARK_THEME_IDS.some((id) => id === value),
+            isLightThemeId = (value) => LIGHT_THEME_IDS.some((id) => id === value),
+            appearanceOfTheme = (id) => (isDarkThemeId(id) ? "dark" : "light"),
+            THEMES = {
+              dark: {
+                label: "Dark",
+                ladder: "standard",
+                palette: {
+                  chrome: "#141414",
+                  sidebar: "#181818",
+                  editor: "#181818",
+                  base: "#f0f0f0",
+                  accent: "#599ce7",
+                  onPrimary: "#191c22",
+                  focus: "#f0f0f0",
+                  success: "#3fa266",
+                  warn: "#f1b467",
+                  danger: "#e34671",
+                  red: "#fc6b83",
+                  orange: "#d08770",
+                  yellow: "#f1b467",
+                  green: "#3fa266",
+                  cyan: "#81a1c1",
+                  blue: "#7bafe9",
+                  magenta: "#b48ead",
+                  purple: "#9386f2",
+                },
               },
-            },
-            glacier: {
-              label: "Glacier",
-              accent: "#96c8eb",
-              palette: {
-                canvas: "#08131c",
-                sidebar: "#101a24",
-                text: "#e7f0f6",
-                muted: "#a5b7c4",
-                faint: "#a5b7c4",
-                action: "#e7f0f6",
-                actionHover: "#96c8eb",
-                onAction: "#08131c",
-                danger: "#ffb4ac",
-                gold: "#e8c47b",
+              "dark-high-contrast": {
+                label: "Dark High Contrast",
+                ladder: "high-contrast",
+                palette: {
+                  chrome: "#0a0a0a",
+                  sidebar: "#0a0a0a",
+                  editor: "#0a0a0a",
+                  base: "#f0f0f0",
+                  accent: "#6cb6ff",
+                  onPrimary: "#191c22",
+                  focus: "#ffcc00",
+                  success: "#50d080",
+                  warn: "#ffd866",
+                  danger: "#ff6b6b",
+                  red: "#ff6b6b",
+                  orange: "#ffb070",
+                  yellow: "#ffd866",
+                  green: "#50d080",
+                  cyan: "#6cb6ff",
+                  blue: "#7bafe9",
+                  magenta: "#d9a0d9",
+                  purple: "#9386f2",
+                },
               },
-            },
-            slate: {
-              label: "Slate",
-              accent: "#becde1",
-              palette: {
-                canvas: "#0c0d10",
-                sidebar: "#121418",
-                text: "#e9ecf0",
-                muted: "#9298a2",
-                faint: "#9298a2",
-                action: "#e9ecf0",
-                actionHover: "#becde1",
-                onAction: "#0c0d10",
-                danger: "#ffb4ac",
-                gold: "#e8c47b",
+              "dark-colorblind": {
+                label: "Dark Colorblind",
+                ladder: "standard",
+                palette: {
+                  chrome: "#141414",
+                  sidebar: "#101010",
+                  editor: "#191919",
+                  base: "#f5f5f5",
+                  accent: "#79b2fd",
+                  onPrimary: "#f5f5f5",
+                  focus: "#1f87fc",
+                  success: "#79b2fd",
+                  warn: "#f59725",
+                  danger: "#ff905e",
+                  red: "#ff6e6c",
+                  orange: "#ff905e",
+                  yellow: "#f59725",
+                  green: "#32c878",
+                  cyan: "#5bc6b3",
+                  blue: "#79b2fd",
+                  magenta: "#ff7ab2",
+                  purple: "#b49cfe",
+                },
               },
-            },
-            graphite: {
-              label: "Graphite",
-              accent: "#dcdcdc",
-              palette: {
-                canvas: "#0c0c0c",
-                sidebar: "#131313",
-                text: "#ededed",
-                muted: "#959595",
-                faint: "#959595",
-                action: "#ededed",
-                actionHover: "#dcdcdc",
-                onAction: "#0c0c0c",
-                danger: "#ffb4ac",
-                gold: "#e8c47b",
+              light: {
+                label: "Light",
+                ladder: "standard",
+                palette: {
+                  chrome: "#f5f5f5",
+                  sidebar: "#f5f5f5",
+                  editor: "#ffffff",
+                  base: "#1c1c1c",
+                  accent: "#0b6dd3",
+                  onPrimary: "#ffffff",
+                  focus: "#1680f3",
+                  success: "#00854a",
+                  warn: "#aa6300",
+                  danger: "#cd2834",
+                  red: "#cd2834",
+                  orange: "#c14c00",
+                  yellow: "#aa6300",
+                  green: "#00854a",
+                  cyan: "#008273",
+                  blue: "#0b6dd3",
+                  magenta: "#c62378",
+                  purple: "#7547d0",
+                },
               },
-            },
-            moss: {
-              label: "Moss",
-              accent: "#86a38d",
-              palette: {
-                canvas: "#0a0e0c",
-                sidebar: "#0f1512",
-                text: "#e8efe9",
-                muted: "#8fa196",
-                faint: "#8fa196",
-                action: "#e8efe9",
-                actionHover: "#86a38d",
-                onAction: "#0a0e0c",
-                danger: "#ffb4ac",
-                gold: "#e8c47b",
+              "light-high-contrast": {
+                label: "Light High Contrast",
+                ladder: "high-contrast",
+                palette: {
+                  chrome: "#fcfcfc",
+                  sidebar: "#fcfcfc",
+                  editor: "#fcfcfc",
+                  base: "#0f0f0f",
+                  accent: "#0756aa",
+                  onPrimary: "#fcfcfc",
+                  focus: "#0c56a8",
+                  success: "#006537",
+                  warn: "#814a00",
+                  danger: "#a91f29",
+                  red: "#a91f29",
+                  orange: "#973a00",
+                  yellow: "#814a00",
+                  green: "#006537",
+                  cyan: "#006357",
+                  blue: "#0756aa",
+                  magenta: "#a41b62",
+                  purple: "#673db6",
+                },
               },
-            },
-            tide: {
-              label: "Tide",
-              accent: "#78afc8",
-              palette: {
-                canvas: "#080c10",
-                sidebar: "#0c1318",
-                text: "#e6eff3",
-                muted: "#8a9ea8",
-                faint: "#8a9ea8",
-                action: "#e6eff3",
-                actionHover: "#78afc8",
-                onAction: "#080c10",
-                danger: "#ffb4ac",
-                gold: "#e8c47b",
+              "light-colorblind": {
+                label: "Light Colorblind",
+                ladder: "standard",
+                palette: {
+                  chrome: "#fcfcfc",
+                  sidebar: "#f5f5f5",
+                  editor: "#ffffff",
+                  base: "#1c1c1c",
+                  accent: "#0b6dd3",
+                  onPrimary: "#ffffff",
+                  focus: "#1680f3",
+                  success: "#0b6dd3",
+                  warn: "#aa6300",
+                  danger: "#c14c00",
+                  red: "#cd2834",
+                  orange: "#c14c00",
+                  yellow: "#aa6300",
+                  green: "#00854a",
+                  cyan: "#008273",
+                  blue: "#0b6dd3",
+                  magenta: "#c62378",
+                  purple: "#7547d0",
+                },
               },
-            },
-            dusk: {
-              label: "Dusk",
-              accent: "#e6aa82",
-              palette: {
-                canvas: "#0f0c0b",
-                sidebar: "#181311",
-                text: "#f1ebe6",
-                muted: "#a59a92",
-                faint: "#a59a92",
-                action: "#f1ebe6",
-                actionHover: "#e6aa82",
-                onAction: "#0f0c0b",
-                danger: "#ffb4ac",
-                gold: "#e8c47b",
-              },
-            },
-            plum: {
-              label: "Plum",
-              accent: "#afa0dc",
-              palette: {
-                canvas: "#0d0c11",
-                sidebar: "#14121a",
-                text: "#ece9f2",
-                muted: "#9a95a6",
-                faint: "#9a95a6",
-                action: "#ece9f2",
-                actionHover: "#afa0dc",
-                onAction: "#0d0c11",
-                danger: "#ffb4ac",
-                gold: "#e8c47b",
-              },
-            },
-            snow: {
-              label: "Paper",
-              accent: "#2f6fe4",
-              palette: {
-                canvas: "#ffffff",
-                sidebar: "#f7f7f6",
-                text: "#1b1b1b",
-                muted: "#5c5c5c",
-                faint: "#808080",
-                action: "#1b1b1b",
-                actionHover: "#000000",
-                onAction: "#ffffff",
-                danger: "#d6453f",
-                gold: "#a86b00",
-              },
-            },
-          }
-          function paletteFor(mode, darkTheme = DEFAULT_DARK_THEME) {
-            return THEMES[mode === "light" ? "snow" : darkTheme].palette
+            }
+          function paletteFor(appearance, id) {
+            let theme = id && appearanceOfTheme(id) === appearance ? id : appearance === "dark" ? "dark" : "light"
+            return THEMES[theme].palette
           }
           var PALETTES = { light: paletteFor("light"), dark: paletteFor("dark") },
-            round = (n, places) => Math.round(n * 10 ** places) / 10 ** places,
-            ROLES = [
-              ["--bg", ({ p }) => p.canvas],
-              ["--side", ({ p }) => p.sidebar],
-              ["--panel", ({ solid, dark }) => solid(dark ? 2.9 : 1.6)],
-              ["--raise", ({ solid, dark }) => solid(dark ? 5.8 : 2.4)],
-              ["--hover", ({ clear, dark }) => clear(dark ? 8 : 4)],
-              ["--active", ({ clear, dark }) => clear(dark ? 11.3 : 6.5)],
-              ["--fill", ({ clear, dark }) => clear(dark ? 8.2 : 8)],
-              ["--fill-field", ({ clear, dark }) => clear(dark ? 4.6 : 2.4)],
-              ["--fill-hover", ({ clear, dark }) => clear(dark ? 6.4 : 4)],
-              ["--fill-control", ({ clear, dark }) => clear(dark ? 9.1 : 6.5)],
-              ["--fill-control-hover", ({ clear, dark }) => clear(dark ? 12.8 : 12)],
-              ["--fill-selected", ({ clear, dark }) => clear(dark ? 9.1 : 6.5)],
-              ["--fill-pressed", ({ clear, dark }) => clear(dark ? 12.8 : 12)],
-              ["--ghost", ({ clear, dark }) => clear(dark ? 8.2 : 8)],
-              ["--field-ring", ({ clear, dark }) => (dark ? "transparent" : clear(8))],
-              ["--me", ({ solid, dark }) => solid(dark ? 11.8 : 5.5)],
-              ["--kiko-bubble", ({ solid, dark }) => solid(dark ? 5.8 : 3)],
-              ["--line", ({ solid, dark }) => solid(dark ? 10.2 : 8)],
-              ["--line2", ({ solid, dark }) => solid(dark ? 15.5 : 12)],
-              ["--line3", ({ clear }) => clear(20)],
-              ["--fg", ({ p }) => p.text],
-              ["--fg2", ({ p }) => p.muted],
-              ["--fg3", ({ p }) => p.faint],
-              ["--fg4", ({ solid, dark }) => solid(dark ? 39.2 : 40)],
-              ["--on-fg", ({ p }) => p.onAction],
-              ["--ok", ({ dark }) => (dark ? "#5cc489" : "#1f9d55")],
-              ["--bad", ({ p }) => p.danger],
-              ["--warn", ({ p }) => p.gold],
-              ["--info", ({ accent }) => accent],
-              ["--accent-fill", ({ accent }) => `oklch(from ${accent} 0.59 min(calc(c * 1.4), 0.17) h)`],
-              ["--accent-fill-hover", ({ accent }) => `oklch(from ${accent} 0.65 min(calc(c * 1.4), 0.17) h)`],
-              ["--on-accent", () => "#ffffff"],
-              ["--accent-edge", () => "color-mix(in srgb, var(--accent-fill) 22%, transparent)"],
-              ["--leaf", ({ dark }) => (dark ? "#7fd19c" : "#2f9e5b")],
-              ["--info-wash", ({ accent, dark }) => `color-mix(in oklab, ${accent} ${dark ? 14 : 11}%, transparent)`],
-              ["--bad-wash", ({ p }) => `color-mix(in oklab, ${p.danger} 12%, transparent)`],
-              ["--scrollbar-thumb", ({ clear }) => clear(18)],
-              ["--scrollbar-thumb-hover", ({ clear }) => clear(30)],
+            LADDERS = {
+              standard: {
+                text: [100, 74, 60, 36],
+                icon: [100, 66, 52, 28],
+                bg: [20, 14, 8, 6, 4],
+                stroke: [20, 12, 8, 4],
+              },
+              "high-contrast": {
+                text: [100, 84, 72, 60],
+                icon: [100, 76, 64, 52],
+                bg: [36, 24, 14, 8, 5],
+                stroke: [48, 36, 28, 20],
+              },
+            },
+            TIERS = ["primary", "secondary", "tertiary", "quaternary", "quinary"],
+            HUES = ["red", "orange", "yellow", "green", "cyan", "blue", "magenta", "purple"],
+            TONES = { accent: "accent", danger: "danger", warning: "warn", success: "success" },
+            round = (n) => Math.round(n * 100) / 100
+          function ladderTokens(ink, ladder) {
+            let l = LADDERS[ladder],
+              base = ink.p.base,
+              tier = (role, shares) =>
+                shares.map((n, i) => [`--${role}-${TIERS[i]}`, i === 0 && n === 100 ? base : ink.wash(base, n)])
+            return [
+              ...tier("text", l.text),
+              ...tier("icon", l.icon),
+              ...tier("bg", l.bg),
+              ...tier("stroke", l.stroke),
+              ["--bg-active", ink.wash(base, 16)],
+              ["--bg-focused", ink.wash(base, 22)],
+            ]
+          }
+          function surfaceTokens({ p, dark, wash, over }) {
+            return [
+              ["--bg-chrome", p.chrome],
+              ["--bg-sidebar", p.sidebar],
+              ["--bg-editor", p.editor],
+              ["--bg-elevated", p.editor],
+              ["--bg-input", p.editor],
+              ["--bg-input-field", wash(p.base, 3)],
+              ["--bg-card", wash(p.base, 6)],
+              ["--bg-tertiary-opaque", over(p.base, 8, p.chrome)],
+              ["--bg-quaternary-opaque", over(p.base, 6, p.chrome)],
+              ["--bg-tertiary-opaque-elevated", over(p.base, 8, p.editor)],
+              ["--bg-quaternary-opaque-elevated", over(p.base, 6, p.editor)],
+              ["--bg-neutral", p.base],
+              ["--bg-neutral-hover", `color-mix(in oklab, ${p.chrome} 10%, ${p.base})`],
+              ["--bg-scrim", dark ? "#00000099" : "#00000066"],
+              ["--text-invert", p.editor],
+              ["--text-on-accent", p.onPrimary],
+              ["--icon-on-accent", p.onPrimary],
+              ["--text-link", p.blue],
+              ["--stroke-focused", wash(p.focus, 15)],
+              ["--stroke-accent", wash(p.accent, 56)],
+              ["--focus-ring", p.accent],
+              ["--selection-bg", wash(p.base, 14)],
+              ["--editor-selection-bg", wash(p.accent, 42)],
+              ["--scrollbar-thumb", wash(p.base, 14)],
+              ["--scrollbar-thumb-hover", wash(p.base, 22)],
+              ["--scrollbar-thumb-active", wash(p.base, 26)],
+              ["--diff-added-line", wash(p.success, 20)],
+              ["--diff-added-text", wash(p.success, 13)],
+              ["--diff-removed-line", wash(p.danger, 20)],
+              ["--diff-removed-text", wash(p.danger, 13)],
+            ]
+          }
+          function hoverOf(tone, fill, base) {
+            if (tone === "danger") return `color-mix(in srgb, ${fill} 85%, black)`
+            if (tone === "success") return `color-mix(in srgb, ${fill} 85%, white)`
+            return `color-mix(in oklab, ${base} 10%, ${fill})`
+          }
+          function toneTokens({ p, wash }) {
+            let tones = Object.entries(TONES).flatMap(([tone, key]) => {
+                let fill = p[key]
+                return [
+                  [`--bg-${tone}`, fill],
+                  [`--bg-${tone}-hover`, hoverOf(tone, fill, p.base)],
+                  [`--bg-${tone}-secondary`, wash(fill, 24)],
+                  [`--bg-${tone}-tertiary`, wash(fill, 12)],
+                  [`--bg-${tone}-quaternary`, wash(fill, 8)],
+                  [`--bg-${tone}-soft`, wash(fill, 10)],
+                  [`--bg-${tone}-soft-hover`, wash(fill, 18)],
+                  [`--text-${tone}`, fill],
+                  [`--icon-${tone}`, fill],
+                  [`--stroke-${tone}`, wash(fill, 56)],
+                ]
+              }),
+              hues = HUES.flatMap((hue) => [
+                [`--text-${hue}`, p[hue]],
+                [`--bg-${hue}`, p[hue]],
+                [`--bg-${hue}-tertiary`, wash(p[hue], 12)],
+                [`--stroke-${hue}`, wash(p[hue], 32)],
+              ])
+            return [...tones, ...hues]
+          }
+          function shadowTokens({ dark, p }) {
+            let [primary, secondary, tertiary] = dark
+                ? ["#00000033", "#0000001f", "#0000000f"]
+                : ["#0000000f", "#00000009", "#00000005"],
+              hairline = `color-mix(in oklab, ${p.base} 8%, transparent)`
+            return [
+              ["--shadow-primary", primary],
+              ["--shadow-secondary", secondary],
+              ["--shadow-tertiary", tertiary],
+              ["--box-shadow-sm", `0 2px 8px 0 ${secondary}`],
+              ["--box-shadow-base", `0 0 0 1px ${hairline}, 0 0 4px 0 ${secondary}, 0 8px 24px -2px ${secondary}`],
               [
-                "--card-shadow",
-                ({ clear, dark }) =>
-                  dark
-                    ? "inset 0 1px 0 rgb(255 255 255 / 3%)"
-                    : `0 0 0 1px ${clear(6)}, 0 1px 2px rgb(0 0 0 / 4%), 0 8px 24px -16px rgb(0 0 0 / 18%)`,
+                "--box-shadow-popup",
+                dark
+                  ? "0 10px 15px -3px #00000066, 0 4px 6px -2px #0000004d"
+                  : "0 10px 15px -3px #0000001a, 0 4px 6px -2px #0000000d",
+              ],
+              [
+                "--box-shadow-lg",
+                `0 0 4px 0 rgb(255 255 255 / 0.05) inset, 0 0 3px 0 ${secondary}, 0 16px 24px 0 ${tertiary}`,
+              ],
+              [
+                "--box-shadow-dialog",
+                `0 0 0 1px ${hairline}, ${dark ? "0 0 2px 0 #00000066, 0 6px 16px 0 #00000066" : "0 0 2px 0 #0000000f, 0 6px 16px 0 #0000000f"}`,
+              ],
+              [
+                "--box-shadow-command",
+                dark
+                  ? "0 25px 50px -12px #00000080, 0 12px 24px -8px #00000066"
+                  : "0 25px 50px -12px #00000040, 0 12px 24px -8px #00000026",
               ],
             ]
-          function tokensFor(mode, darkTheme = DEFAULT_DARK_THEME, contrast2 = 100, imported) {
-            let p = imported?.palette ?? paletteFor(mode, darkTheme),
-              accent = imported?.accent ?? THEMES[mode === "light" ? "snow" : darkTheme].accent,
-              share = (n) => Math.min(100, round((n * contrast2) / 100, 2)),
+          }
+          var SYNTAX_KEYS = ["keyword", "string", "func", "comment"],
+            SYNTAX = {
+              dark: {
+                foreground: "#d6d6dd",
+                keyword: "#82d2ce",
+                string: "#e394dc",
+                function: "#efb080",
+                comment: "#6e7781",
+                constant: "#f8c762",
+                number: "#ebc88d",
+                type: "#f8c762",
+                punctuation: "#d6d6dd",
+              },
+              light: {
+                foreground: "#141414eb",
+                keyword: "#b3003f",
+                string: "#8f84e0",
+                function: "#db704b",
+                comment: "#141414ad",
+                constant: "#206595",
+                number: "#b8448b",
+                type: "#206595",
+                punctuation: "#141414ad",
+              },
+            }
+          function syntaxTokens(appearance, own) {
+            let base = SYNTAX[appearance],
+              colours = own
+                ? { ...base, keyword: own.keyword, string: own.string, function: own.func, comment: own.comment }
+                : base
+            return Object.entries(colours).map(([role, colour]) => [`--syntax-${role}`, colour])
+          }
+          function tokensFor(appearance, id, contrast = 100, imported) {
+            let themeId = id && appearanceOfTheme(id) === appearance ? id : appearance === "dark" ? "dark" : "light",
+              p = imported?.palette ?? THEMES[themeId].palette,
+              ladder = imported ? "standard" : THEMES[themeId].ladder,
+              share = (n) => Math.min(100, round((n * contrast) / 100)),
               ink = {
                 p,
-                accent,
-                dark: mode === "dark",
-                solid: (n) => `color-mix(in oklab, ${p.text} ${share(n)}%, ${p.canvas})`,
-                clear: (n) => `color-mix(in oklab, ${p.text} ${share(n)}%, transparent)`,
+                dark: appearance === "dark",
+                share,
+                wash: (color, n) => `color-mix(in oklab, ${color} ${share(n)}%, transparent)`,
+                over: (color, n, under) => `color-mix(in oklab, ${color} ${share(n)}%, ${under})`,
               }
-            return { ...Object.fromEntries(ROLES.map(([token, value]) => [token, value(ink)])), ...chipTokens(mode, p) }
+            return Object.fromEntries([
+              ...surfaceTokens(ink),
+              ...ladderTokens(ink, ladder),
+              ...toneTokens(ink),
+              ...shadowTokens(ink),
+              ...syntaxTokens(appearance, imported?.syntax),
+            ])
           }
           var TYPE = {
-            page: { size: 40, line: 44, weight: 400, face: "display", scales: !1 },
-            section: { size: 26, line: 32, weight: 400, face: "display", scales: !1 },
-            wordmark: { size: 24, line: 26, weight: 400, face: "display", scales: !1 },
-            msg: { size: 15, line: 24, weight: 400, face: "sans", scales: !0 },
-            bubble: { size: 15, line: 24, weight: 400, face: "sans", scales: !0 },
-            ui: { size: 14, line: 20, weight: 400, face: "sans", scales: !0 },
-            row: { size: 13.5, line: 18, weight: 500, face: "sans", scales: !0 },
-            label: { size: 12.5, line: 17, weight: 500, face: "sans", scales: !0 },
-            hint: { size: 11.5, line: 15, weight: 500, face: "sans", scales: !0 },
-            caption: { size: 13, line: 18, weight: 400, face: "sans", scales: !0 },
-            micro: { size: 11, line: 14, weight: 600, face: "sans", scales: !1 },
-            nano: { size: 10, line: 13, weight: 500, face: "sans", scales: !1 },
-            heading: { size: 16, line: 22, weight: 600, face: "sans", scales: !0 },
-            code: { size: 13, line: 21, weight: 400, face: "mono", scales: !0 },
+            xs: { size: 11, line: 14, tracking: 0.07, face: "sans", scales: !0 },
+            sm: { size: 12, line: 16, tracking: 0, face: "sans", scales: !0 },
+            base: { size: 13, line: 18, tracking: -0.08, face: "sans", scales: !0 },
+            lg: { size: 14, line: 22, tracking: -0.15, face: "sans", scales: !0 },
+            xl: { size: 17, line: 21, tracking: 0.08, face: "sans", scales: !1 },
+            "2xl": { size: 20, line: 22, tracking: -0.46, face: "sans", scales: !1 },
+            "3xl": { size: 22, line: 26, tracking: -0.26, face: "sans", scales: !1 },
+            code: { size: 12, line: 18, tracking: 0, face: "mono", scales: !0 },
+            "display-sm": { size: 18, line: 24, tracking: -0.1, face: "serif", scales: !1 },
+            display: { size: 24, line: 30, tracking: -0.3, face: "serif", scales: !1 },
+            "display-lg": { size: 30, line: 36, tracking: -0.5, face: "serif", scales: !1 },
+            "display-xl": { size: 36, line: 42, tracking: -0.7, face: "serif", scales: !1 },
           }
-          var round2 = (n) => Math.round(n * 100) / 100
+          var SANS_STACK =
+            '"Geist Variable", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji"'
+          var MONO_STACK =
+              '"Geist Mono Variable", ui-monospace, SFMono-Regular, "Roboto Mono", Menlo, Monaco, "Liberation Mono", "DejaVu Sans Mono", "Courier New", monospace',
+            round2 = (n) => Math.round(n * 100) / 100
           function typeVars(base) {
             let vars = {}
             for (let [name, t] of Object.entries(TYPE)) {
               let size = t.scales ? round2(t.size + base - 14) : t.size
-              ;((vars[`--type-${name}`] = `${size}px`),
-                (vars[`--type-${name}-line`] = `${round2((t.line / t.size) * size)}px`))
+              ;((vars[`--font-size-${name}`] = `${size}px`),
+                (vars[`--line-height-${name}`] = `${round2((t.line / t.size) * size)}px`))
             }
             return vars
           }
@@ -389,12 +420,10 @@
               smoothing: !0,
             },
             CHAT_WIDTHS = {
-              comfortable: { label: "Comfortable", width: "820px" },
+              comfortable: { label: "Comfortable", width: "720px" },
               wide: { label: "Wide", width: "1152px" },
               full: { label: "Full", width: "100%" },
-            },
-            SANS_STACK = 'Satoshi, -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif',
-            MONO_STACK = '"JetBrains Mono", "SF Mono", Menlo, Consolas, ui-monospace, monospace'
+            }
           function quoteFamily(name) {
             let bare = name.trim()
             if (bare.length === 0) return ""
@@ -455,28 +484,53 @@
               "--font-smoothing": display.smoothing ? "antialiased" : "auto",
             }
           }
-          var SYNTAX_KEYS = ["keyword", "string", "func", "comment"]
           var MAX_IMPORTED = 50,
             HEX = /^#[0-9a-f]{6}$/i,
             ID = /^[\w:./-]{1,160}$/
           var APPEARANCES = ["light", "dark"],
             EMPTY_IMPORTED = { themes: [], active: {} }
-          var isObject2 = (v) => typeof v === "object" && v !== null && !Array.isArray(v)
+          var isObject2 = (v) => typeof v === "object" && v !== null && !Array.isArray(v),
+            LEGACY_KEYS = ["canvas", "sidebar", "text", "danger", "gold"]
+          function legacyPalette(raw, accent, appearance) {
+            let old = {}
+            for (let key of LEGACY_KEYS) {
+              let value = raw[key]
+              if (typeof value !== "string" || !HEX.test(value)) return null
+              old[key] = value
+            }
+            if (typeof accent !== "string" || !HEX.test(accent)) return null
+            return {
+              ...PALETTES[appearance],
+              chrome: old.canvas,
+              sidebar: old.sidebar,
+              editor: old.canvas,
+              base: old.text,
+              accent,
+              focus: accent,
+              warn: old.gold,
+              danger: old.danger,
+            }
+          }
+          function readPalette(raw, accent, appearance) {
+            if ("canvas" in raw) return legacyPalette(raw, accent, appearance)
+            let palette = {}
+            for (let key of PALETTE_KEYS) {
+              let value = raw[key]
+              if (typeof value !== "string" || !HEX.test(value)) return null
+              palette[key] = value
+            }
+            return palette
+          }
           function readTheme(raw) {
             if (!isObject2(raw) || !isObject2(raw.palette)) return null
-            let { id, name, source, appearance, accent } = raw
+            let { id, name, source, appearance } = raw
             if (typeof id !== "string" || !ID.test(id)) return null
             if (typeof name !== "string" || name.length === 0 || name.length > 48) return null
             if (typeof source !== "string" || source.length > 160) return null
             if (!APPEARANCES.includes(appearance)) return null
-            if (typeof accent !== "string" || !HEX.test(accent)) return null
-            let palette = {}
-            for (let key of PALETTE_KEYS) {
-              let value = raw.palette[key]
-              if (typeof value !== "string" || !HEX.test(value)) return null
-              palette[key] = value
-            }
-            let theme = { id, name, source, appearance, accent, palette },
+            let palette = readPalette(raw.palette, raw.accent, appearance)
+            if (!palette) return null
+            let theme = { id, name, source, appearance, palette },
               syntax = readSyntax(raw.syntax)
             return syntax ? { ...theme, syntax } : theme
           }
@@ -526,6 +580,9 @@
           Object.assign(boot, {
             THEMES,
             DEFAULT_DARK_THEME,
+            DEFAULT_LIGHT_THEME,
+            isDarkThemeId,
+            isLightThemeId,
             tokensFor,
             readDisplay,
             displayVars,
@@ -534,7 +591,8 @@
           })
         })()
         /* boot-palettes:end */
-        var id = boot.DEFAULT_DARK_THEME,
+        var darkId = boot.DEFAULT_DARK_THEME,
+          lightId = boot.DEFAULT_LIGHT_THEME,
           display = boot.readDisplay(null),
           imported = boot.parseImported(null)
         function stored(key) {
@@ -556,13 +614,10 @@
           var look = c && (c.v === 5 || c.v === 6) && typeof c.text === "string" && json(c.text)
           if (look && !Array.isArray(look) && look.kind === "look") {
             if (["dark", "light", "system"].includes(look.mode)) mode = look.mode
-            if (
-              look.version === 5 &&
-              typeof look.darkTheme === "string" &&
-              look.darkTheme !== "snow" &&
-              Object.hasOwn(boot.THEMES, look.darkTheme)
-            )
-              id = look.darkTheme
+            if (Object.hasOwn(boot.THEMES, look.darkTheme) && boot.isDarkThemeId(look.darkTheme))
+              darkId = look.darkTheme
+            if (Object.hasOwn(boot.THEMES, look.lightTheme) && boot.isLightThemeId(look.lightTheme))
+              lightId = look.lightTheme
             display = boot.readDisplay(look.display)
           }
           imported = boot.parseImported(
@@ -574,15 +629,15 @@
           (mode === "system" && typeof matchMedia === "function" && matchMedia("(prefers-color-scheme: light)").matches)
         var appearance = light ? "light" : "dark"
         var t = Object.assign(
-          boot.tokensFor(appearance, id, display.contrast, boot.themeFor(imported, appearance)),
+          boot.tokensFor(appearance, light ? lightId : darkId, display.contrast, boot.themeFor(imported, appearance)),
           boot.displayVars(display),
         )
         d.classList.toggle("dark", !light)
         d.style.colorScheme = light ? "light" : "dark"
         for (var k in t) d.style.setProperty(k, t[k])
-        d.style.setProperty("--boot-bg", t["--bg"])
-        d.style.setProperty("--boot-fg", t["--fg"])
-        d.style.backgroundColor = t["--bg"]
+        d.style.setProperty("--boot-bg", t["--bg-chrome"])
+        d.style.setProperty("--boot-fg", t["--text-primary"])
+        d.style.backgroundColor = t["--bg-chrome"]
       })()
     </script>
     <style>
@@ -590,11 +645,11 @@
       body {
         margin: 0;
         height: 100%;
-        background: var(--boot-bg, #191919);
-        color: var(--boot-fg, #efefef);
+        background: var(--boot-bg, #141414);
+        color: var(--boot-fg, #f0f0f0);
       }
       body {
-        font: var(--font-md, 14px) var(--font-family-sans, system-ui, sans-serif);
+        font: var(--font-size-base, 13px) / var(--line-height-base, 18px) var(--font-family-sans, system-ui, sans-serif);
       }
       #root {
         height: 100%;
@@ -633,17 +688,17 @@
         left: 0;
         right: 0;
         text-align: center;
-        font: var(--type-ui, 14px) / var(--type-ui-line, 1.43) var(--font-family-sans, system-ui, sans-serif);
-        color: var(--fg2, #9c9c9c);
+        font: inherit;
+        color: var(--text-secondary, #f0f0f0bd);
       }
       #boot-error button {
-        height: 32px;
+        height: 24px;
         margin-left: 8px;
-        padding: 0 12px;
+        padding: 0 8px;
         border: 0;
-        border-radius: 8px;
-        background: var(--raise, #303030);
-        color: var(--fg, #efefef);
+        border-radius: 6px;
+        background: var(--bg-tertiary, #f0f0f014);
+        color: var(--text-primary, #f0f0f0);
         font: inherit;
         cursor: pointer;
       }

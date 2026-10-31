@@ -7,20 +7,43 @@ import { userEvent } from "vitest/browser"
 import { render } from "../../test/render"
 import { Button } from "./kit"
 
-const VARIANTS = ["primary", "secondary", "ghost", "danger"] as const
+const VARIANTS = ["primary", "secondary", "accent", "danger", "ghost", "outline"] as const
+const SIZES = { sm: 20, md: 24, lg: 28, xl: 32 } as const
 const transparent = "rgba(0, 0, 0, 0)"
 
 describe("kit buttons", () => {
-  it("gives primary, secondary and danger a visible fill and leaves ghost clear until hover", async () => {
+  it("fills primary, secondary, accent and danger and leaves ghost and outline clear until hover", async () => {
     await using screen = await render(() => (
       <For each={VARIANTS}>{(variant) => <Button variant={variant}>{variant}</Button>}</For>
     ))
-    const fill = (name: string) => getComputedStyle(screen.getByRole("button", { name }).element()).backgroundColor
-    expect(fill("primary")).not.toBe(transparent)
-    expect(fill("secondary")).not.toBe(transparent)
-    expect(fill("danger")).not.toBe(transparent)
-    expect(fill("primary")).not.toBe(fill("secondary"))
-    expect(fill("ghost")).toBe(transparent)
+    const style = (name: string) => getComputedStyle(screen.getByRole("button", { name }).element())
+    const fills = ["primary", "secondary", "accent", "danger"].map((name) => style(name).backgroundColor)
+    expect(fills).not.toContain(transparent)
+    expect(new Set(fills).size).toBe(fills.length)
+    expect(style("ghost").backgroundColor).toBe(transparent)
+    expect(style("outline").backgroundColor).toBe(transparent)
+    expect(style("outline").borderTopColor).not.toBe(transparent)
+  })
+
+  it("sizes buttons on the 20, 24, 28 and 32 control grid", async () => {
+    await using screen = await render(() => (
+      <For each={Object.keys(SIZES) as (keyof typeof SIZES)[]}>{(size) => <Button size={size}>{size}</Button>}</For>
+    ))
+    for (const [size, height] of Object.entries(SIZES)) {
+      expect(screen.getByRole("button", { name: size }).element().getBoundingClientRect().height).toBe(height)
+    }
+  })
+
+  it("tints a toned secondary button instead of filling it solid", async () => {
+    await using screen = await render(() => (
+      <>
+        <Button variant="danger">Solid</Button>
+        <Button tone="danger">Soft</Button>
+      </>
+    ))
+    const style = (name: string) => getComputedStyle(screen.getByRole("button", { name }).element())
+    expect(style("Soft").backgroundColor).not.toBe(style("Solid").backgroundColor)
+    expect(style("Soft").color).toBe(style("Solid").backgroundColor)
   })
 
   it("styles a button with no variant as secondary", async () => {

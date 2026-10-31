@@ -11,8 +11,40 @@ const rule = (selector: string, mode: "light" | "dark") =>
     .map(([k, v]) => `  ${k}: ${v};`)
     .join("\n")}\n}`
 
+const ROLES = [
+  ["bg-", "bg-", "background-color"],
+  ["text-", "text-", "color"],
+  ["icon-", "icon-", "color"],
+  ["stroke-", "border-", "border-color"],
+] as const
+
+function utilities(): string {
+  const names = Object.keys(tokensFor("dark"))
+  return ROLES.flatMap(([token, utility, property]) =>
+    names
+      .filter((name) => name.startsWith(`--${token}`))
+      .map((name) => `@utility ${utility}${name.slice(token.length + 2)} {\n  ${property}: var(${name});\n}`),
+  ).join("\n\n")
+}
+
+const shadows = () =>
+  `@theme inline {\n${Object.keys(tokensFor("dark"))
+    .filter((name) => name.startsWith("--box-shadow-"))
+    .map((name) => `  --shadow-${name.slice("--box-shadow-".length)}: var(${name});`)
+    .join("\n")}\n}`
+
 export function paletteBlock(): string {
-  return `${START}\n${rule(":root", "dark")}\n\n${rule(":root:not(.dark)", "light")}\n${END}`
+  return [
+    START,
+    rule(":root", "dark"),
+    "",
+    rule(":root:not(.dark)", "light"),
+    "",
+    shadows(),
+    "",
+    utilities(),
+    END,
+  ].join("\n")
 }
 
 export function withPalette(css: string): string {
@@ -36,10 +68,10 @@ export async function withBootPalettes(html: string): Promise<string> {
           build.onResolve({ filter: /^kiko-boot$/ }, () => ({ path: "kiko-boot", namespace: "boot" }))
           build.onLoad({ filter: /.*/, namespace: "boot" }, () => ({
             loader: "js",
-            contents: `import { THEMES, DEFAULT_DARK_THEME, tokensFor } from ${JSON.stringify(join(import.meta.dir, "../src/palette.ts"))};
+            contents: `import { THEMES, DEFAULT_DARK_THEME, DEFAULT_LIGHT_THEME, isDarkThemeId, isLightThemeId, tokensFor } from ${JSON.stringify(join(import.meta.dir, "../src/palette.ts"))};
 import { readDisplay, displayVars } from ${JSON.stringify(join(import.meta.dir, "../src/display.ts"))};
 import { parseImported, themeFor } from ${JSON.stringify(join(import.meta.dir, "../src/imported.ts"))};
-Object.assign(boot, { THEMES, DEFAULT_DARK_THEME, tokensFor, readDisplay, displayVars, parseImported, themeFor });`,
+Object.assign(boot, { THEMES, DEFAULT_DARK_THEME, DEFAULT_LIGHT_THEME, isDarkThemeId, isLightThemeId, tokensFor, readDisplay, displayVars, parseImported, themeFor });`,
           }))
         },
       },

@@ -1,17 +1,17 @@
 .file-card {
-  --plate: var(--bg-000);
+  --plate: var(--bg-elevated);
   --rest: scale(0.84);
   --lift-ease: cubic-bezier(0.15, 0.65, 0.7, 1);
   position: relative;
   min-width: 0;
-  border-radius: var(--radius-tile);
+  border-radius: var(--radius-xl);
   background: transparent;
   padding: 0;
-  transition: transform var(--dur-slow) var(--press-spring);
+  transition: transform var(--duration-slower) var(--ease-sharp);
 }
 
 .file-card[data-compact] {
-  border-radius: var(--radius-tile);
+  border-radius: var(--radius-xl);
   padding: 0;
 }
 
@@ -30,24 +30,24 @@
   display: block;
   aspect-ratio: 16 / 10;
   overflow: hidden;
-  border-radius: var(--radius-tile);
-  background-color: var(--bg-000);
-  box-shadow: var(--edge);
+  border-radius: var(--radius-xl);
+  background-color: var(--bg-editor);
+  box-shadow: var(--hairline);
   transition:
-    background-color var(--dur-hover) var(--ease-out),
-    box-shadow var(--dur-hover) var(--ease-out);
+    background-color var(--duration-fast) var(--ease-sharp),
+    box-shadow var(--duration-fast) var(--ease-sharp);
 }
 
 .file-card[data-compact] .file-card-plate {
-  border-radius: var(--radius-control);
+  border-radius: var(--radius-base);
 }
 
 .file-card-sheet {
   position: absolute;
   inset: 0;
   overflow: hidden;
-  border-radius: var(--radius-row);
-  background: var(--bg);
+  border-radius: var(--radius-base);
+  background: var(--bg-chrome);
   box-shadow: 0 1px 3px rgb(0 0 0 / 0.14);
   transform: var(--rest);
   transform-origin: 50% 100%;
@@ -55,7 +55,7 @@
 }
 
 .file-card[data-compact] .file-card-sheet {
-  border-radius: var(--radius-control);
+  border-radius: var(--radius-base);
 }
 
 .file-card-sheet::after {
@@ -64,7 +64,7 @@
   background: linear-gradient(to bottom, transparent 40%, color-mix(in oklab, var(--plate) 70%, transparent));
   content: "";
   pointer-events: none;
-  transition: opacity 180ms var(--ease-kiko);
+  transition: opacity 180ms var(--ease-sharp);
 }
 
 .file-card-sheet:is([data-kind="html"], [data-kind="picture"]) {
@@ -84,7 +84,7 @@
 }
 
 .file-card-icon {
-  transition: transform 180ms var(--ease-kiko);
+  transition: transform 180ms var(--ease-sharp);
 }
 
 .file-card-picture {
@@ -108,8 +108,8 @@
 
 .file-card-md {
   padding: 22px 24px;
-  color: var(--fg);
-  font-size: var(--type-ui);
+  color: var(--text-primary);
+  font-size: var(--font-size-base);
   line-height: 1.5;
   text-rendering: geometricPrecision;
 }
@@ -121,35 +121,35 @@
 .file-card-lines {
   margin: 0;
   padding: 10px 12px;
-  color: var(--fg2);
+  color: var(--text-secondary);
   font-family: var(--font-sans);
-  font-size: var(--type-micro);
+  font-size: var(--font-size-xs);
   line-height: 14px;
   white-space: pre;
 }
 
 .file-card-lines[data-mono] {
   font-family: var(--font-mono);
-  font-size: var(--type-micro);
+  font-size: var(--font-size-xs);
 }
 
 .file-card[data-compact] .file-card-lines {
   padding: 7px 8px;
-  font-size: var(--type-nano);
+  font-size: var(--font-size-xs);
   line-height: 11px;
 }
 
 .file-card-table {
   min-width: 100%;
   border-collapse: collapse;
-  color: var(--fg2);
-  font-size: var(--type-micro);
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
   line-height: 13px;
   white-space: nowrap;
 }
 
 .file-card[data-compact] .file-card-table {
-  font-size: var(--type-nano);
+  font-size: var(--font-size-xs);
   line-height: 10px;
 }
 
@@ -157,14 +157,14 @@
   max-width: 96px;
   overflow: hidden;
   padding: 3px 8px;
-  border-right: 1px solid var(--line);
-  border-bottom: 1px solid var(--line);
+  border-right: 1px solid var(--stroke-tertiary);
+  border-bottom: 1px solid var(--stroke-tertiary);
   text-overflow: ellipsis;
 }
 
 .file-card-table tr[data-head] td {
-  background: var(--raise);
-  color: var(--fg);
+  background: var(--bg-elevated);
+  color: var(--text-primary);
   font-weight: 600;
 }
 
@@ -181,11 +181,11 @@
 }
 
 .file-card[data-compact] .file-card-name {
-  font-size: var(--type-label);
+  font-size: var(--font-size-sm);
 }
 
 .file-card[data-compact] .file-card-meta {
-  font-size: var(--type-hint);
+  font-size: var(--font-size-xs);
 }
 
 .file-card-action {
@@ -193,21 +193,21 @@
   top: 8px;
   right: 8px;
   display: grid;
-  width: 28px;
-  height: 28px;
+  width: 24px;
+  height: 24px;
   place-items: center;
-  border-radius: var(--radius-control);
-  background: var(--raise);
-  box-shadow: 0 1px 3px rgb(0 0 0 / 0.18);
-  color: var(--fg);
+  border-radius: var(--radius-base);
+  background: var(--bg-elevated);
+  box-shadow: var(--popup-shadow);
+  color: var(--icon-secondary);
   opacity: 0;
   outline: none;
   pointer-events: none;
   transform: scale(0.85);
   transition:
-    opacity var(--dur-pop) var(--ease-kiko),
-    transform var(--dur-pop) var(--ease-kiko),
-    background-color var(--dur-hover) var(--ease-kiko);
+    opacity var(--duration-normal) var(--ease-sharp),
+    transform var(--duration-normal) var(--ease-sharp),
+    background-color var(--duration-fast) var(--ease-sharp);
 }
 
 .file-card[data-compact] .file-card-action {
@@ -221,7 +221,7 @@
 }
 
 .file-card:has(.file-card-hit:focus-visible) {
-  background: var(--hover);
+  background: var(--bg-quaternary);
 }
 
 .file-card:has(.file-card-hit:focus-visible) .file-card-sheet {
@@ -229,13 +229,13 @@
 }
 
 .file-card:has(.file-card-hit:active) {
-  transform: scale(0.99);
-  transition: transform var(--dur-press) var(--ease-out);
+  transform: scale(var(--press-scale));
+  transition: transform var(--duration-fast) var(--ease-sharp);
 }
 
 @media (hover: hover) and (pointer: fine) {
   .file-card:hover .file-card-plate {
-    box-shadow: var(--edge-strong);
+    box-shadow: var(--hairline-strong);
   }
 
   .file-card:hover .file-card-sheet {
@@ -259,13 +259,13 @@
   }
 
   .file-card-action:hover {
-    background: var(--raise);
+    color: var(--icon-primary);
   }
 }
 
 @media (prefers-reduced-motion: no-preference) {
   .file-card-sheet[data-fresh] > * {
-    animation: file-card-in 160ms var(--ease-kiko) both;
+    animation: file-card-in 160ms var(--ease-sharp) both;
   }
 }
 

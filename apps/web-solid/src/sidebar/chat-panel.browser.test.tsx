@@ -179,7 +179,9 @@ describe("chat sections", () => {
     const name = row.querySelector(".chat-name") as HTMLElement
     const time = row.querySelector(".chat-time") as HTMLElement
     const avatarStyle = getComputedStyle(avatar)
-    expect(getComputedStyle(row).height).toBe(getComputedStyle(row).getPropertyValue("--spacing-chat-row").trim())
+    expect(getComputedStyle(row).height).toBe("48px")
+    expect(getComputedStyle(row).borderRadius).toBe("6px")
+    expect(avatar.getBoundingClientRect().left - row.getBoundingClientRect().left).toBe(6)
     expect(avatarStyle.backgroundColor).toBe("rgba(0, 0, 0, 0)")
     expect(avatarStyle.backgroundImage).toBe("none")
     expect(avatarStyle.borderRadius).toBe("0px")
