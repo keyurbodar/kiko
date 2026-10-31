@@ -40,6 +40,8 @@ import {
   ComputerSummary,
   ClaimResult,
   KernelResult,
+  TerminalEvent,
+  TerminalSummary,
   UserEvent,
   UserSettings,
   UserSettingsPatch,
@@ -316,9 +318,38 @@ export const OwnerRpcs = RpcGroup.make(
     error: Lookup,
   }),
   Rpc.make("pc.take", { payload: { pcId: ComputerId }, error: Refusable }),
-  Rpc.make("pc.release", { payload: { pcId: ComputerId }, error: Lookup }),
+  Rpc.make("pc.release", { payload: { pcId: ComputerId }, error: Refusable }),
   Rpc.make("pc.rtc", { payload: { pcId: ComputerId, signal: ComputerSignal }, error: Lookup }),
   Rpc.make("pc.input", { payload: { pcId: ComputerId, events: Schema.Array(ComputerInput) }, error: Lookup }),
+
+  Rpc.make("terminal.list", {
+    payload: { pcId: ComputerId },
+    success: Schema.Array(TerminalSummary),
+    error: Refusable,
+  }),
+  Rpc.make("terminal.open", {
+    payload: { pcId: ComputerId, cols: Count, rows: Count },
+    success: TerminalSummary,
+    error: Refusable,
+  }),
+  Rpc.make("terminal.attach", {
+    payload: { pcId: ComputerId, terminalId: Id, cols: Count, rows: Count },
+    success: TerminalEvent,
+    error: Refusable,
+    stream: true,
+  }),
+  Rpc.make("terminal.input", {
+    payload: { pcId: ComputerId, terminalId: Id, data: Schema.String.check(Schema.isMaxLength(65_536)) },
+    error: Refusable,
+  }),
+  Rpc.make("terminal.resize", {
+    payload: { pcId: ComputerId, terminalId: Id, cols: Count, rows: Count },
+    error: Refusable,
+  }),
+  Rpc.make("terminal.ack", {
+    payload: { pcId: ComputerId, terminalId: Id, bytes: Count },
+    error: Refusable,
+  }),
 
   Rpc.make("recipes.list", { success: RecipeList, error: Base }),
   Rpc.make("recipes.install", {

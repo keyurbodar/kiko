@@ -17,14 +17,18 @@ import {
 import { CONNECT_HEADERS, CONNECT_SKEW_MS, connectMessage, verify } from "@kiko/computer/sign"
 import type { DesktopInfo } from "@kiko/computer/driver"
 import { decodeFrame } from "@kiko/computer/frame"
-import type { AgentSlug, ComputerSummary, RoomId } from "@kiko/protocol"
+import type { AgentSlug, ComputerSummary, RoomId, TerminalEvent } from "@kiko/protocol"
 import type { Env } from "../index"
 import { ago } from "../lib/ago"
 import { BACKEND } from "../lib/version"
 import { socketView } from "../owner/socket"
+import type { RequestId } from "../rpc/wire"
 import type { ComputerRow, ComputerStore, NewComputer } from "./store"
+import { terminalStream, terminalText } from "./terminals"
+import type { PcTaken } from "./types"
 
 const HOLD_MS = 30 * 60_000
+const HOLD_ACK_MS = 1_500
 const PRESENCE_MS = 45_000
 const DEFAULT_DEADLINE_MS = 60_000
 const BUSY_PUSH_MS = 500
@@ -67,6 +71,7 @@ export type PcAgent = { slug: AgentSlug; roomId: RoomId; reason?: string }
 type PcHold = {
   holder: Holder
   heldBy?: string
+  heldEpoch?: number
   heldSince?: number
   agent?: PcAgent
   waiters?: PcAgent[]
@@ -85,6 +90,7 @@ export type PcAttachment = {
   hello: Hello | null
   holder: Holder
   heldBy?: string
+  heldEpoch?: number
   heldSince?: number
   agent?: PcAgent
   waiters?: PcAgent[]
@@ -94,6 +100,10 @@ export type PcAttachment = {
 type CallTarget = { ws: WebSocket; saved: PcAttachment; hello: Hello }
 
 export type CallOutcome = { ok: true; value: unknown } | { ok: false; code: FailCode; message: string }
+
+export type TerminalAttachOutcome =
+  | { ok: true; value: `term:${string}` }
+  | { ok: false; code: FailCode; message: string }
 
 export type PcReleased = { pcId: string; name: string; waiters: PcAgent[]; expired: boolean }
 
@@ -107,12 +117,21 @@ type Pending = {
   detach: () => void
 }
 
+type TerminalAttach = {
+  pcId: string
+  terminal: string
+  tab: WebSocket
+  requestId: RequestId
+  stream: string
+}
+
 export type HubDeps = {
   ctx: DurableObjectState
   env: Env
   store: ComputerStore
   ownerId: string
   released: (out: PcReleased) => void
+  taken: (out: PcTaken) => void
   wakeup: { set(at: number): Promise<void>; clear(): Promise<void> }
   fetch?: typeof fetch
   sleep?: (ms: number) => Promise<void>
@@ -156,9 +175,11 @@ function profileOf(message: Extract<LiveMessage, { t: "live" }>): {
 
 export class ComputerHub {
   private readonly pending = new Map<string, Pending>()
+  private readonly takes = new Map<string, { epoch: number; settle: (ok: boolean) => void }>()
   private readonly desk = new Map<string, { user: string; name: string; until: number }>()
   private readonly relaying = new Set<string>()
   private readonly profiles = new Map<string, { fps: number; maxWidth: number; quality: number }>()
+  private readonly attaches = new Map<string, TerminalAttach>()
   private readonly memory = new Map<string, PcHold>()
   private readonly desktop = new Map<string, DesktopInfo>()
   private readonly marks = new Map<string, PcMark>()
@@ -214,6 +235,7 @@ export class ComputerHub {
     return {
       holder: saved.holder,
       ...(saved.heldBy ? { heldBy: saved.heldBy } : {}),
+      ...(saved.heldEpoch === undefined ? {} : { heldEpoch: saved.heldEpoch }),
       ...(saved.heldSince ? { heldSince: saved.heldSince } : {}),
       ...(saved.agent ? { agent: saved.agent } : {}),
       ...(saved.waiters?.length ? { waiters: saved.waiters } : {}),
@@ -347,9 +369,9 @@ export class ComputerHub {
   sendState(tab: WebSocket): void {
     const text = JSON.stringify({ t: "pcState", computers: this.summaries(tab) })
     if (this.sentTo.get(tab) === text) return
-    this.sentTo.set(tab, text)
     try {
-      tab.send(text)
+      if ((tab.send(text) as unknown as boolean | undefined) === false) return
+      this.sentTo.set(tab, text)
     } catch {}
   }
 
@@ -441,6 +463,7 @@ export class ComputerHub {
       } catch {}
     }
     this.relaying.delete(id)
+    this.dropTerminalsFor(id, "the computer reconnected")
     const pair = new WebSocketPair()
     const client = pair[0]
     const server = pair[1]
@@ -480,7 +503,9 @@ export class ComputerHub {
       return
     }
     if (frame.t === "result") return this.result(frame)
+    if (frame.t === "held") return this.held(saved.id, frame)
     if (frame.t === "rtc") return this.daemonRtc(saved.id, frame.session, frame.signal)
+    if (frame.t === "terminal") return this.terminalEvent(frame)
     if (frame.t === "humanInput") {
       this.enterHuman(saved.id)
       this.push()
@@ -588,6 +613,8 @@ export class ComputerHub {
     }
     if (op === "driver" && saved.holder === "human")
       return { ok: false, code: "busy", message: `the human has control of ${row.name} right now` }
+    if (op === "terminal_send" && saved.holder === "human")
+      return { ok: false, code: "busy", message: "the owner has control of this terminal" }
     let parsed: unknown
     try {
       parsed = Schema.decodeUnknownSync(Calls[op].args)(args)
@@ -708,6 +735,7 @@ export class ComputerHub {
   }
 
   leave(tab: WebSocket): void {
+    this.dropTabTerminals(tab)
     this.dropHuman(tab)
   }
 
@@ -784,14 +812,132 @@ export class ComputerHub {
     }
   }
 
-  input(pcId: string, events: readonly InputEvent[]): void {
+  input(pcId: string, session: string, events: readonly InputEvent[]): boolean {
+    if (!this.owns(pcId, session)) return false
     const ws = this.socket(pcId)
-    if (ws) this.send(ws, { t: "input", events })
+    if (!ws) return false
+    this.send(ws, { t: "input", events })
+    return true
   }
 
   ack(pcId: string, seq: number): void {
     const ws = this.socket(pcId)
     if (ws) this.send(ws, { t: "ack", seq })
+  }
+
+  attachTerminal(
+    tab: WebSocket,
+    requestId: RequestId,
+    pcId: string,
+    terminalId: string,
+    cols: number,
+    rows: number,
+  ): TerminalAttachOutcome {
+    const row = this.d.store.get(pcId)
+    if (!row) return { ok: false, code: "unsupported", message: "there is no such computer" }
+    const target = this.target(pcId)
+    if (!target) return { ok: false, code: "failed", message: this.offlineMessage(row) }
+    if (!target.hello.caps.terminal)
+      return { ok: false, code: "unsupported", message: `${row.name} does not allow terminal sessions` }
+    const id = crypto.randomUUID()
+    const stream = terminalStream(id)
+    this.dropTerminal(tab, terminalId)
+    this.attaches.set(id, { pcId, terminal: terminalId, tab, requestId, stream })
+    this.send(target.ws, {
+      t: "terminal",
+      on: true,
+      id,
+      terminal: terminalId,
+      cols: clamp(cols, 20, 500),
+      rows: clamp(rows, 5, 200),
+    })
+    return { ok: true, value: stream }
+  }
+
+  private terminalEvent(frame: Extract<FromDaemon, { t: "terminal" }>): void {
+    const attach = this.attaches.get(frame.id)
+    if (!attach) return
+    this.sendTerminal(attach, frame.event)
+  }
+
+  private sendTerminal(attach: TerminalAttach, event: TerminalEvent): void {
+    try {
+      attach.tab.send(terminalText(attach.requestId, event))
+    } catch {}
+  }
+
+  private dropTerminal(tab: WebSocket, terminalId: string): void {
+    for (const [id, attach] of this.attaches) {
+      if (attach.tab !== tab || attach.terminal !== terminalId) continue
+      this.attaches.delete(id)
+      this.sendTo(attach.pcId, { t: "terminal", on: false, id })
+    }
+  }
+
+  private terminalAttachOf(tab: WebSocket, pcId: string, terminalId: string): [string, TerminalAttach] | null {
+    for (const [id, attach] of this.attaches)
+      if (attach.tab === tab && attach.pcId === pcId && attach.terminal === terminalId) return [id, attach]
+    return null
+  }
+
+  private owns(pcId: string, session: string | undefined): boolean {
+    const hold = this.hold(pcId)
+    return hold.holder === "human" && session !== undefined && hold.heldBy === session
+  }
+
+  private controls(tab: WebSocket, pcId: string): CallOutcome | null {
+    if (this.hold(pcId).holder !== "human")
+      return { ok: false, code: "busy", message: "take over this computer before using its terminal" }
+    if (!this.owns(pcId, this.sessionOf(tab)))
+      return { ok: false, code: "busy", message: "another viewer has control of this computer" }
+    return null
+  }
+
+  terminalInput(tab: WebSocket, pcId: string, terminalId: string, data: string): CallOutcome {
+    const held = this.terminalAttachOf(tab, pcId, terminalId)
+    if (!held) return { ok: false, code: "failed", message: "open the terminal before typing into it" }
+    const refused = this.controls(tab, pcId)
+    if (refused) return refused
+    this.sendTo(pcId, { t: "terminalInput", id: held[0], data })
+    return { ok: true, value: undefined }
+  }
+
+  terminalResize(tab: WebSocket, pcId: string, terminalId: string, cols: number, rows: number): CallOutcome {
+    const held = this.terminalAttachOf(tab, pcId, terminalId)
+    if (!held) return { ok: false, code: "failed", message: "open the terminal before resizing it" }
+    const refused = this.controls(tab, pcId)
+    if (refused) return refused
+    this.sendTo(pcId, { t: "terminalResize", id: held[0], cols: clamp(cols, 20, 500), rows: clamp(rows, 5, 200) })
+    return { ok: true, value: undefined }
+  }
+
+  terminalAck(tab: WebSocket, pcId: string, terminalId: string, bytes: number): void {
+    const held = this.terminalAttachOf(tab, pcId, terminalId)
+    if (held) this.sendTo(pcId, { t: "terminalAck", id: held[0], bytes })
+  }
+
+  endTerminal(stream: string): void {
+    for (const [id, attach] of this.attaches) {
+      if (attach.stream !== stream) continue
+      this.attaches.delete(id)
+      this.sendTo(attach.pcId, { t: "terminal", on: false, id })
+    }
+  }
+
+  private dropTerminalsFor(pcId: string, message: string): void {
+    for (const [id, attach] of this.attaches) {
+      if (attach.pcId !== pcId) continue
+      this.attaches.delete(id)
+      this.sendTerminal(attach, { type: "error", message })
+    }
+  }
+
+  private dropTabTerminals(tab: WebSocket): void {
+    for (const [id, attach] of this.attaches) {
+      if (attach.tab !== tab) continue
+      this.attaches.delete(id)
+      this.sendTo(attach.pcId, { t: "terminal", on: false, id })
+    }
   }
 
   private send(ws: WebSocket, frame: ToDaemon): void {
@@ -819,7 +965,36 @@ export class ComputerHub {
 
   private tellHolder(pcId: string, holder: Holder): void {
     const ws = this.socket(pcId)
-    if (ws) this.send(ws, { t: "control", holder })
+    if (!ws) return
+    const hold = this.hold(pcId)
+    this.send(ws, {
+      t: "control",
+      holder,
+      ...(hold.heldEpoch === undefined ? {} : { epoch: hold.heldEpoch }),
+      ...(holder === "human" && hold.heldBy ? { session: hold.heldBy } : {}),
+    })
+  }
+
+  private held(pcId: string, frame: Extract<FromDaemon, { t: "held" }>): void {
+    const waiting = this.takes.get(pcId)
+    if (!waiting) return
+    if (frame.epoch !== undefined && frame.epoch !== waiting.epoch) return
+    waiting.settle(frame.holder === "human")
+  }
+
+  private awaitHeld(pcId: string, epoch: number): Promise<boolean> {
+    const previous = this.takes.get(pcId)
+    if (previous) previous.settle(true)
+    return new Promise((resolve) => {
+      const settle = (ok: boolean) => {
+        const current = this.takes.get(pcId)
+        if (current?.epoch !== epoch) return
+        this.takes.delete(pcId)
+        resolve(ok)
+      }
+      this.takes.set(pcId, { epoch, settle })
+      void this.pause(HOLD_ACK_MS).then(() => settle(true))
+    })
   }
 
   private enterHuman(pcId: string): void {
@@ -830,13 +1005,23 @@ export class ComputerHub {
     this.arm()
   }
 
-  take(pcId: string, tab: WebSocket): boolean {
+  async take(pcId: string, tab: WebSocket): Promise<boolean> {
     if (!this.socket(pcId)) return false
-    this.save(pcId, { ...this.hold(pcId), holder: "human", heldBy: this.session(tab), heldSince: Date.now() })
+    const before = this.hold(pcId)
+    const epoch = (before.heldEpoch ?? 0) + 1
+    this.save(pcId, {
+      ...before,
+      holder: "human",
+      heldBy: this.session(tab),
+      heldEpoch: epoch,
+      heldSince: Date.now(),
+    })
     this.tellHolder(pcId, "human")
     this.push()
     this.arm()
-    return true
+    if (before.holder !== "human" && before.waiters?.length)
+      this.d.taken({ pcId, name: this.name(pcId), waiters: before.waiters, epoch })
+    return this.awaitHeld(pcId, epoch)
   }
 
   link(pcId: string, agent: PcAgent): "human" | "agent" | "missing" {
@@ -848,8 +1033,16 @@ export class ComputerHub {
     return hold.holder
   }
 
+  releaseBy(pcId: string, session: string): "ok" | "other" {
+    const hold = this.hold(pcId)
+    if (hold.holder === "human" && hold.heldBy !== undefined && hold.heldBy !== session) return "other"
+    this.d.released(this.release(pcId))
+    return "ok"
+  }
+
   release(pcId: string, except?: string): PcReleased {
     const waiters = (this.hold(pcId).waiters ?? []).filter((w) => w.slug !== except)
+    this.takes.get(pcId)?.settle(true)
     this.desk.delete(pcId)
     this.save(pcId, { holder: "agent" })
     this.tellHolder(pcId, "agent")
@@ -888,6 +1081,7 @@ export class ComputerHub {
     const replaced = this.sockets(saved.id).some((other) => other !== ws && other.readyState === WebSocket.OPEN)
     if (!replaced) {
       this.relaying.delete(saved.id)
+      this.dropTerminalsFor(saved.id, `${this.name(saved.id)} disconnected`)
       this.memory.set(saved.id, { ...saved, hello: saved.hello ?? this.memory.get(saved.id)?.hello })
       this.marks.set(saved.id, {
         ...this.marks.get(saved.id),
@@ -911,8 +1105,10 @@ export class ComputerHub {
         ws.close(CLOSE.replaced, "removed")
       } catch {}
     this.dropCalls(id)
+    this.takes.get(id)?.settle(false)
     this.relaying.delete(id)
     this.profiles.delete(id)
+    this.dropTerminalsFor(id, "this computer was removed")
     this.desk.delete(id)
     this.memory.delete(id)
     this.desktop.delete(id)
@@ -936,4 +1132,8 @@ export class ComputerHub {
     this.push()
     return { ok: true }
   }
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, Math.round(value)))
 }

@@ -35,6 +35,7 @@ export interface Verdict {
 export interface Task {
   readonly id: string
   readonly track: Track
+  readonly kind?: "real" | "long" | "edge"
   readonly os: readonly Os[]
   readonly needs: readonly Need[]
   readonly heldOut: boolean

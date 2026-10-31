@@ -55,6 +55,7 @@ export class OwnerDO extends DurableObject<Env> {
     streams: makeStreams({ user: () => this.user(), room: (roomId) => this.room(roomId) }),
     user: () => this.user(),
     room: (roomId) => this.room(roomId).commands,
+    streamEnded: (stream) => this.user().pc.ended(stream),
   }
   private nextRunAt = 0
 
@@ -98,6 +99,7 @@ export class OwnerDO extends DurableObject<Env> {
       store: computers,
       ownerId: this.ownerId,
       released: (out) => this.user().computerReleased(out),
+      taken: (out) => this.user().computerTaken(out),
       wakeup: {
         set: (at) => this.user().setComputerWakeup(at),
         clear: () => this.user().clearComputerWakeup(),

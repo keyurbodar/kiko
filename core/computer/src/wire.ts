@@ -193,6 +193,21 @@ export const InputEvent = Schema.Union([
 ])
 export type InputEvent = typeof InputEvent.Type
 
+export const TerminalStream = Schema.Union([
+  Schema.Struct({
+    type: Schema.Literal("snapshot"),
+    history: Text,
+    cols: Count,
+    rows: Count,
+    status: TerminalStatus,
+    exitCode: Schema.NullOr(Schema.Int),
+  }),
+  Schema.Struct({ type: Schema.Literal("output"), data: Text }),
+  Schema.Struct({ type: Schema.Literal("exit"), code: Schema.NullOr(Schema.Int) }),
+  Schema.Struct({ type: Schema.Literal("error"), message: Text }),
+])
+export type TerminalStream = typeof TerminalStream.Type
+
 export const Holder = Schema.Literals(["agent", "human"])
 export type Holder = typeof Holder.Type
 
@@ -228,7 +243,12 @@ export const ToDaemon = Schema.Union([
     maxWidth: Schema.optionalKey(Count),
     quality: Schema.optionalKey(Count),
   }),
-  Schema.Struct({ t: Schema.Literal("control"), holder: Holder }),
+  Schema.Struct({
+    t: Schema.Literal("control"),
+    holder: Holder,
+    epoch: Schema.optionalKey(Count),
+    session: Schema.optionalKey(Id),
+  }),
   Schema.Struct({ t: Schema.Literal("input"), events: Schema.Array(InputEvent) }),
   Schema.Struct({ t: Schema.Literal("ack"), seq: Count }),
   Schema.Struct({
@@ -237,6 +257,17 @@ export const ToDaemon = Schema.Union([
     signal: RtcSignal,
     iceServers: Schema.optionalKey(Schema.Array(IceServer)),
   }),
+  Schema.Struct({
+    t: Schema.Literal("terminal"),
+    on: Schema.Boolean,
+    id: Id,
+    terminal: Schema.optionalKey(Id),
+    cols: Schema.optionalKey(Cols),
+    rows: Schema.optionalKey(Rows),
+  }),
+  Schema.Struct({ t: Schema.Literal("terminalInput"), id: Id, data: Text }),
+  Schema.Struct({ t: Schema.Literal("terminalResize"), id: Id, cols: Cols, rows: Rows }),
+  Schema.Struct({ t: Schema.Literal("terminalAck"), id: Id, bytes: Count }),
 ])
 export type ToDaemon = typeof ToDaemon.Type
 
@@ -251,6 +282,8 @@ export const FromDaemon = Schema.Union([
   }),
   Schema.Struct({ t: Schema.Literal("chunk"), id: Id, data: Text }),
   Schema.Struct({ t: Schema.Literal("humanInput") }),
+  Schema.Struct({ t: Schema.Literal("held"), holder: Holder, epoch: Schema.optionalKey(Count) }),
   Schema.Struct({ t: Schema.Literal("rtc"), session: Id, signal: RtcSignal }),
+  Schema.Struct({ t: Schema.Literal("terminal"), id: Id, event: TerminalStream }),
 ])
 export type FromDaemon = typeof FromDaemon.Type

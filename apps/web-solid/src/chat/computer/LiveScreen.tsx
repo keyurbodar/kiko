@@ -1,10 +1,13 @@
+import type { ComputerInput } from "@kiko/protocol"
 import { createEffect, createMemo, createSignal, on, onCleanup, Show, untrack, type JSX } from "solid-js"
 import { cn } from "../../lib/cn"
 import { connection } from "../../state/connection"
-import { computerById } from "../computers"
+import { computerById, takePending } from "../computers"
 import { accessHint } from "./access"
+import { createInputGate } from "./control"
 import { Cursor } from "./Cursor"
 import { bindInput, escapeEvents } from "./input"
+import { offlineNotice } from "./offline"
 import { type Cursor as AgentPoint, type Mode, type Session, startSession } from "./session"
 
 const DEFAULT_RATIO = 16 / 10
@@ -42,6 +45,7 @@ export default function LiveScreen(props: {
   let stage!: HTMLDivElement
   let sink!: HTMLTextAreaElement
   let session: Session | undefined
+  const gate = createInputGate<ComputerInput>((events) => session?.send(events))
 
   const showAgent = (point: AgentPoint) => {
     setAgent(point)
@@ -81,9 +85,21 @@ export default function LiveScreen(props: {
 
   createEffect(() => {
     if (!props.interactive) return
-    const unbind = bindInput({ stage, sink, send: (events) => session?.send(events) })
+    const unbind = bindInput({ stage, sink, send: (events) => gate.send(events) })
     sink.focus({ preventScroll: true })
-    onCleanup(unbind)
+    onCleanup(() => {
+      unbind()
+      gate.discard()
+    })
+  })
+
+  createEffect(() => {
+    if (!props.interactive) {
+      gate.discard()
+      return
+    }
+    if (takePending(props.pcId)) gate.hold()
+    else gate.release()
   })
 
   onCleanup(() => clearTimeout(agentTimer))
@@ -94,7 +110,7 @@ export default function LiveScreen(props: {
       if (event.key !== "Escape" || event.shiftKey || event.defaultPrevented) return
       if (event.target === sink) return
       event.preventDefault()
-      session?.send(escapeEvents(event))
+      gate.send(escapeEvents(event))
       sink.focus({ preventScroll: true })
     }
     document.addEventListener("keydown", remote)
@@ -103,9 +119,13 @@ export default function LiveScreen(props: {
     })
   })
 
+  const offline = () => {
+    const computer = computerById(props.pcId)
+    return computer && !computer.online ? offlineNotice(computer, Date.now()) : null
+  }
   const notice = () => {
     const computer = computerById(props.pcId)
-    if (!computer?.online) return "This computer is offline"
+    if (!computer) return "This computer is offline"
     const hint = accessHint(computer)
     if (hint) return hint
     if (!computer.caps.live) return "The live view is off on this computer"
@@ -174,7 +194,17 @@ export default function LiveScreen(props: {
           role="status"
           data-part="connecting"
         >
-          {notice()}
+          <Show when={offline()} fallback={notice()}>
+            {(notice) => (
+              <div class="flex flex-col gap-1" data-part="offline">
+                <span class="text-base font-medium text-white/90" data-field="offline-title">
+                  {notice().title}
+                </span>
+                <span data-field="offline-detail">{notice().detail}</span>
+                <span data-field="offline-fix">{notice().fix}</span>
+              </div>
+            )}
+          </Show>
         </div>
       </Show>
     </div>

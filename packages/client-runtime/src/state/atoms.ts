@@ -25,6 +25,7 @@ import * as AtomRegistry from "effect/reactivity/AtomRegistry"
 import { request, type RequestError } from "../rpc/client"
 import type { OwnerRpcInput, OwnerRpcSuccess, OwnerUnaryTag } from "../rpc/protocol"
 import { createRuntimeCommand, type AtomCommandConcurrency } from "./atomCommand"
+import { createTerminalAtoms } from "./computer"
 import * as Owner from "./ownerCommands"
 import { createQueryAtoms } from "./query"
 import type { SupervisorConnectionState } from "../connection/model"
@@ -238,6 +239,8 @@ export function createOwnerAtoms<E>(runtime: Atom.AtomRuntime<OwnerRuntimeServic
 
   const { sessionAtom, query } = createQueryAtoms(runtime)
 
+  const { terminalAtom } = createTerminalAtoms(runtime)
+
   const rpc = <const Tag extends OwnerUnaryTag>(tag: Tag, concurrency?: AtomCommandConcurrency<RpcCommandInput<Tag>>) =>
     createRuntimeCommand(runtime, {
       label: tag,
@@ -439,6 +442,11 @@ export function createOwnerAtoms<E>(runtime: Atom.AtomRuntime<OwnerRuntimeServic
     pcRelease: rpc("pc.release"),
     pcRtc: rpc("pc.rtc"),
     pcInput: rpc("pc.input"),
+    terminalList: rpc("terminal.list"),
+    terminalOpen: rpc("terminal.open"),
+    terminalInput: rpc("terminal.input"),
+    terminalResize: rpc("terminal.resize"),
+    terminalAck: rpc("terminal.ack"),
     recipesInstall: rpc("recipes.install"),
     recipesUninstall: rpc("recipes.uninstall"),
     recipesEdit: rpc("recipes.edit"),
@@ -468,6 +476,7 @@ export function createOwnerAtoms<E>(runtime: Atom.AtomRuntime<OwnerRuntimeServic
     createChatAtom,
     retryConnectionAtom,
     roomTypingAtom,
+    terminalAtom,
     cachedRoomAtom,
     seedNewRoom,
     sessionAtom,

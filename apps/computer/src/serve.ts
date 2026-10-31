@@ -12,6 +12,7 @@ import { createLogger, type Logger } from "./log"
 import { VERSION } from "./platform"
 import { hasPty } from "./terminal/pty"
 import { TerminalManager } from "./terminal/manager"
+import { createTerminalLink } from "./terminal/link"
 import { createUpdater, updateTarget, type Updater } from "./update"
 
 const REPAIR_POLL_MS = 30_000
@@ -40,14 +41,19 @@ export async function serve(dir = configDir()): Promise<number> {
   }
   const policy = await loadPolicy(dir)
   const livePolicy = cachedPolicy({ live: policy.live, input: policy.input }, () => loadPolicy(dir))
-  let live: Live = emptyLive({ logger: log, setHolder })
-  let driver: Driver | null = null
   let link: ReturnType<typeof runLink> | null = null
+  let live: Live = emptyLive({ logger: log, setHolder, send: (frame) => link?.frame(frame) })
+  let driver: Driver | null = null
   let detection = detect(log, policy, null, dir)
   let liveCaps: LiveCaps = policy
   let liveStarting = false
   let update: Updater | null = null
   const terminals = new TerminalManager()
+  const terminalLink = createTerminalLink({
+    manager: () => (hasPty() ? terminals : null),
+    holder: () => holder,
+    send: (frame) => link?.frame(frame),
+  })
   const refresh = () => {
     detection = detect(log, liveCaps, driver?.state() ?? null, dir)
     link?.reconnect()
@@ -80,6 +86,7 @@ export async function serve(dir = configDir()): Promise<number> {
     policy: () => loadPolicy(dir),
     driver: () => driver,
     terminal: () => (hasPty() ? terminals : null),
+    terminals: terminalLink,
     paused: () => paused(dir),
     live: {
       rtc: (frame) => live.frames.rtc(frame),
@@ -109,6 +116,7 @@ export async function serve(dir = configDir()): Promise<number> {
     log.info("stopping")
     link?.stop()
     driver?.close()
+    terminalLink.close()
     terminals.closeAll()
     void live.close()
     process.exit(0)
