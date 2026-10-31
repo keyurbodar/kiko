@@ -24,6 +24,19 @@ import { fixScript } from "./terminal/fix-script"
 import { gitBranch } from "./terminal/git-branch"
 import { terminalTasksA } from "./terminal/registry-a"
 import { terminalTasksB } from "./terminal/registry-b"
+import { desktopCalcColumn } from "./desktop/desktop-101-calc-column"
+import { desktopSaveAs } from "./desktop/desktop-102-save-as-folder"
+import { desktopBatchRename } from "./desktop/desktop-103-batch-rename"
+import { desktopPreference } from "./desktop/desktop-104-app-preference"
+import { desktopReport } from "./desktop/desktop-105-report-chart"
+import { desktopBigForm } from "./desktop/desktop-106-big-form"
+import { desktopModal } from "./desktop/desktop-107-modal-midtask"
+import { desktopMinimized } from "./desktop/desktop-108-minimized-window"
+import { desktopSameTitle } from "./desktop/desktop-109-same-title"
+import { desktopHidpi } from "./desktop/desktop-110-hidpi"
+import { desktopGermanKeyboard } from "./desktop/desktop-111-german-keyboard"
+import { desktopNotification } from "./desktop/desktop-112-notification"
+import { desktopOwnerTyping } from "./desktop/desktop-113-owner-typing"
 
 export const TASKS: readonly Task[] = [
   ...terminalTasksA,
@@ -51,4 +64,17 @@ export const TASKS: readonly Task[] = [
   desktopRadio,
   desktopTree,
   desktopWindows,
+  desktopCalcColumn,
+  desktopSaveAs,
+  desktopBatchRename,
+  desktopPreference,
+  desktopReport,
+  desktopBigForm,
+  desktopModal,
+  desktopMinimized,
+  desktopSameTitle,
+  desktopHidpi,
+  desktopGermanKeyboard,
+  desktopNotification,
+  desktopOwnerTyping,
 ]
