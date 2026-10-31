@@ -6,6 +6,7 @@ import { rpc } from "./dev-guard"
 export const USER_ID_HEADER = "x-kiko-user-id"
 export const HANDLE_HEADER = "x-kiko-handle"
 export const ROOM_ID_HEADER = "x-kiko-room-id"
+export const LIVE_PC_HEADER = "x-kiko-live-pc"
 
 export class NameError extends Schema.TaggedError<NameError>()("NameError", {
   message: Schema.String,

@@ -7,7 +7,6 @@ import { rtcConfig, videoMid, videoPayloadType, type PeerModule } from "./rtc-li
 const INPUT_CHANNEL = "input"
 const H264_CLOCK = 90_000
 const CONNECT_TIMEOUT_MS = 30_000
-const KEYFRAME_DELAY_MS = 250
 const CHANNEL_BACKLOG = 256 * 1024
 
 export type SessionEvents = {
@@ -15,7 +14,6 @@ export type SessionEvents = {
   input(session: string, events: readonly InputEvent[]): void
   closed(session: string): void
   watching(session: string): void
-  needKeyframe(): void
 }
 
 export type Session = {
@@ -37,7 +35,6 @@ export function createSession(id: string, rtc: PeerModule, events: SessionEvents
   let channel: Channel | null = null
   let config: { timestamp: number } | null = null
   let timer: ReturnType<typeof setTimeout> | null = null
-  let keyframeTimer: ReturnType<typeof setTimeout> | null = null
   let closed = false
   const queued: RtcSignal[] = []
 
@@ -45,9 +42,7 @@ export function createSession(id: string, rtc: PeerModule, events: SessionEvents
     if (closed) return
     closed = true
     clear(timer)
-    clear(keyframeTimer)
     timer = null
-    keyframeTimer = null
     try {
       channel?.close()
     } catch {}
@@ -114,7 +109,6 @@ export function createSession(id: string, rtc: PeerModule, events: SessionEvents
       clear(timer)
       timer = null
       events.watching(id)
-      keyframeTimer = setTimeout(() => events.needKeyframe(), KEYFRAME_DELAY_MS)
     })
     out.onClosed(close)
     track = out

@@ -80,3 +80,32 @@ describe("computer connect", () => {
     expect(response?.status).toBe(426)
   })
 })
+
+describe("computer live viewer", () => {
+  const live = (path: string, headers: Record<string, string> = {}) =>
+    new Request(`https://kiko.example${path}`, { headers: { upgrade: "websocket", ...headers } })
+
+  it("refuses a viewer with no session, before reaching the owner", async () => {
+    let reached = false
+    const response = await computerRoute(
+      live("/api/pc/live/pc1"),
+      env(() => {
+        reached = true
+      }),
+    )
+    expect(response?.status).toBe(401)
+    expect(reached).toBe(false)
+  })
+
+  it("refuses a path with no computer id", async () => {
+    let reached = false
+    const response = await computerRoute(
+      live("/api/pc/live/"),
+      env(() => {
+        reached = true
+      }),
+    )
+    expect(response?.status).toBe(404)
+    expect(reached).toBe(false)
+  })
+})
