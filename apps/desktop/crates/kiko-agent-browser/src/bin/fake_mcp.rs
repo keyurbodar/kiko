@@ -78,6 +78,7 @@ fn data(name: &str, arguments: &Value) -> Result<Value, String> {
             Ok(json!({ "tabId": arguments.get("tab").cloned().unwrap_or(Value::Null) }))
         }
         "agent_browser_tab_close" => Ok(json!({ "closed": true })),
+        "agent_browser_get_cdp_url" => Ok(json!({ "cdpUrl": "ws://127.0.0.1:9222/devtools/browser/fake" })),
         "agent_browser_snapshot" => {
             snapshot_refs();
             Ok(snapshot())

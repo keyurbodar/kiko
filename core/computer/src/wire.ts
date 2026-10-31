@@ -1,5 +1,5 @@
 import * as Schema from "effect/Schema"
-import { BrowserStatus, DesktopInfo, Display, DriverCall, Permissions } from "./driver"
+import { BrowserStatus, DesktopInfo, Display, DriverCall, Permissions, Tab } from "./driver"
 
 export { Display }
 
@@ -66,6 +66,7 @@ const OPS = [
   "read",
   "write",
   "driver",
+  "browser_tabs",
   "terminal_open",
   "terminal_send",
   "terminal_read",
@@ -85,6 +86,8 @@ export const TERMINAL_OPS: ReadonlySet<Op> = new Set<Op>([
   "terminal_close",
   "terminal_list",
 ])
+
+export const BROWSER_OPS: ReadonlySet<Op> = new Set<Op>(["browser_tabs"])
 
 export const Calls = {
   shell: {
@@ -117,6 +120,10 @@ export const Calls = {
   driver: {
     args: DriverCall,
     value: Schema.Unknown,
+  },
+  browser_tabs: {
+    args: Schema.Struct({}),
+    value: Schema.Struct({ tabs: Schema.Array(Tab) }),
   },
   terminal_open: {
     args: Schema.Struct({
@@ -219,6 +226,20 @@ export const TerminalStream = Schema.Union([
 ])
 export type TerminalStream = typeof TerminalStream.Type
 
+export const BrowserStream = Schema.Union([
+  Schema.Struct({
+    type: Schema.Literal("start"),
+    tab: Text,
+    width: Count,
+    height: Count,
+    viewportWidth: Count,
+    viewportHeight: Count,
+  }),
+  Schema.Struct({ type: Schema.Literal("error"), message: Text }),
+  Schema.Struct({ type: Schema.Literal("end") }),
+])
+export type BrowserStream = typeof BrowserStream.Type
+
 export const Holder = Schema.Literals(["agent", "human"])
 export type Holder = typeof Holder.Type
 
@@ -279,6 +300,17 @@ export const ToDaemon = Schema.Union([
   Schema.Struct({ t: Schema.Literal("terminalInput"), id: Id, data: Text }),
   Schema.Struct({ t: Schema.Literal("terminalResize"), id: Id, cols: Cols, rows: Rows }),
   Schema.Struct({ t: Schema.Literal("terminalAck"), id: Id, bytes: Count }),
+  Schema.Struct({
+    t: Schema.Literal("browser"),
+    on: Schema.Boolean,
+    id: Id,
+    tab: Schema.optionalKey(Text),
+    maxWidth: Schema.optionalKey(Count),
+    maxHeight: Schema.optionalKey(Count),
+    quality: Schema.optionalKey(Count),
+  }),
+  Schema.Struct({ t: Schema.Literal("browserInput"), id: Id, events: Schema.Array(InputEvent) }),
+  Schema.Struct({ t: Schema.Literal("browserAck"), id: Id, bytes: Count }),
 ])
 export type ToDaemon = typeof ToDaemon.Type
 
@@ -296,6 +328,7 @@ export const FromDaemon = Schema.Union([
   Schema.Struct({ t: Schema.Literal("held"), holder: Holder, epoch: Schema.optionalKey(Count) }),
   Schema.Struct({ t: Schema.Literal("rtc"), session: Id, signal: RtcSignal }),
   Schema.Struct({ t: Schema.Literal("terminal"), id: Id, event: TerminalStream }),
+  Schema.Struct({ t: Schema.Literal("browser"), id: Id, event: BrowserStream }),
 ])
 export type FromDaemon = typeof FromDaemon.Type
 

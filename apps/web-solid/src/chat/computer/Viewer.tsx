@@ -1,13 +1,15 @@
 import { RemixIcon } from "@kiko/ui/remix-icon"
 import { ChevronDownIcon, CloseIcon, PlusIcon } from "@kiko/ui/icons"
 import { MenuV2 } from "@kiko/ui/v2/menu-v2"
-import type { TerminalSummary } from "@kiko/protocol"
+import type { BrowserTab, TerminalSummary } from "@kiko/protocol"
 import { createEffect, createSignal, For, on, onCleanup, Show, type JSX } from "solid-js"
 import { cn } from "../../lib/cn"
 import { agentDisplayName } from "../../lib/names"
 import { user } from "../../state/user"
 import { closeViewer, computerById, computers, openViewer, release, takeOver, viewerFor } from "../computers"
 import { accessHint, canControl } from "./access"
+import BrowserView from "./BrowserView"
+import { listBrowserTabs } from "./browsers"
 import LiveScreen from "./LiveScreen"
 import TerminalView from "./TerminalView"
 import { listTerminals, openTerminal } from "./terminals"
@@ -18,15 +20,22 @@ const pill =
 const tab =
   "h-control-md cursor-pointer rounded-base px-2.5 type-sm font-medium whitespace-nowrap transition-colors duration-(--duration-fast)"
 
+const BROWSER = "browser:"
+
 export default function Viewer(): JSX.Element {
   const [terminals, setTerminals] = createSignal<readonly TerminalSummary[]>([])
+  const [browsers, setBrowsers] = createSignal<readonly BrowserTab[]>([])
   const [active, setActive] = createSignal("desktop")
   const [opening, setOpening] = createSignal(false)
   const pc = () => computerById(viewerFor() ?? "")
+  const browserOf = (id: string) => (id.startsWith(BROWSER) ? id.slice(BROWSER.length) : null)
+  const activeBrowser = () => browserOf(active())
   const canTake = () => {
     const computer = pc()
     if (!computer?.online) return false
-    return active() === "desktop" ? canControl(computer) : computer.caps.terminal === true
+    if (active() === "desktop") return canControl(computer)
+    if (activeBrowser()) return computer.caps.browser === true
+    return computer.caps.terminal === true
   }
   const control = (): "watching" | "you" | "other" => {
     const computer = pc()
@@ -48,10 +57,14 @@ export default function Viewer(): JSX.Element {
   let panel: HTMLDivElement | undefined
 
   const refresh = async (pcId: string) => {
-    const open = await listTerminals(pcId)
+    const [open, tabs] = await Promise.all([listTerminals(pcId), listBrowserTabs(pcId)])
     if (viewerFor() !== pcId) return
     setTerminals(open)
-    if (active() !== "desktop" && !open.some((terminal) => terminal.id === active())) setActive("desktop")
+    setBrowsers(tabs)
+    if (active() === "desktop") return
+    const known =
+      open.some((terminal) => terminal.id === active()) || tabs.some((tab) => active() === `${BROWSER}${tab.id}`)
+    if (!known) setActive("desktop")
   }
 
   const addTerminal = async () => {
@@ -69,6 +82,7 @@ export default function Viewer(): JSX.Element {
     on(viewerFor, (pcId) => {
       setActive("desktop")
       setTerminals([])
+      setBrowsers([])
       if (pcId) void refresh(pcId)
     }),
   )
@@ -224,7 +238,14 @@ export default function Viewer(): JSX.Element {
                 <RemixIcon icon={CloseIcon} size={14} />
               </button>
             </div>
-            <Show when={terminals().length > 0 || computer().caps.terminal}>
+            <Show
+              when={
+                terminals().length > 0 ||
+                browsers().length > 0 ||
+                computer().caps.terminal === true ||
+                computer().caps.browser === true
+              }
+            >
               <div class="flex shrink-0 items-center gap-1 overflow-x-auto px-1" data-part="terminal-tabs">
                 <button
                   type="button"
@@ -239,6 +260,25 @@ export default function Viewer(): JSX.Element {
                 >
                   Desktop
                 </button>
+                <For each={browsers()}>
+                  {(browser) => (
+                    <button
+                      type="button"
+                      class={cn(
+                        tab,
+                        "max-w-56 truncate",
+                        active() === `${BROWSER}${browser.id}`
+                          ? "bg-tertiary text-primary"
+                          : "text-secondary hover:bg-quaternary hover:text-primary",
+                      )}
+                      data-action="computer-tab-browser"
+                      data-browser-id={browser.id}
+                      onClick={() => setActive(`${BROWSER}${browser.id}`)}
+                    >
+                      {browser.title.trim() || browser.url || "Browser"}
+                    </button>
+                  )}
+                </For>
                 <For each={terminals()}>
                   {(terminal) => (
                     <button
@@ -275,20 +315,22 @@ export default function Viewer(): JSX.Element {
               <Show when={computer().id} keyed>
                 {(id) => (
                   <Show
-                    when={active() === "desktop" ? undefined : active()}
-                    keyed
+                    when={active() === "desktop"}
                     fallback={
-                      <LiveScreen
-                        pcId={id}
-                        interactive={interactive()}
-                        agentName={agentName() ?? ""}
-                        class="size-full"
-                      />
+                      <Show
+                        when={activeBrowser()}
+                        keyed
+                        fallback={
+                          <TerminalView pcId={id} terminalId={active()} interactive={interactive()} class="size-full" />
+                        }
+                      >
+                        {(browserId) => (
+                          <BrowserView pcId={id} tab={browserId} interactive={interactive()} class="size-full" />
+                        )}
+                      </Show>
                     }
                   >
-                    {(terminalId) => (
-                      <TerminalView pcId={id} terminalId={terminalId} interactive={interactive()} class="size-full" />
-                    )}
+                    <LiveScreen pcId={id} interactive={interactive()} agentName={agentName() ?? ""} class="size-full" />
                   </Show>
                 )}
               </Show>

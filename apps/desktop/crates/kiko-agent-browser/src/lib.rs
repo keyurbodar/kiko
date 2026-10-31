@@ -411,6 +411,15 @@ impl Engine {
         let data = self.tool("agent_browser_eval", json!({ "script": params.expression }))?;
         Ok(data.get("result").cloned().unwrap_or(Value::Null))
     }
+
+    fn cdp(&self) -> Outcome<String> {
+        let data = self.tool("agent_browser_get_cdp_url", json!({}))?;
+        data.get("cdpUrl")
+            .and_then(Value::as_str)
+            .filter(|url| !url.is_empty())
+            .map(str::to_string)
+            .ok_or_else(|| Error::Failed("the browser engine named no devtools socket".into()))
+    }
 }
 
 impl Drop for Engine {
@@ -457,6 +466,10 @@ impl Browser for Engine {
 
     fn eval(&mut self, params: &BrowserEvalParams) -> kiko_driver::Result<Value> {
         Engine::eval(self, params).map_err(Into::into)
+    }
+
+    fn cdp(&mut self) -> kiko_driver::Result<String> {
+        Engine::cdp(self).map_err(Into::into)
     }
 }
 

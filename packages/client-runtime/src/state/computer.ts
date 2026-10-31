@@ -1,4 +1,4 @@
-import type { ComputerFrame, TerminalEvent } from "@kiko/protocol"
+import type { BrowserEvent, ComputerFrame, TerminalEvent } from "@kiko/protocol"
 import * as Effect from "effect/Effect"
 import * as Option from "effect/Option"
 import * as Stream from "effect/Stream"
@@ -9,15 +9,24 @@ import type { OwnerRuntimeServices } from "./runtime"
 const FEED_ITEMS = 128
 const FEED_CHARS = 512 * 1024
 const DEFAULT_SIZE = { cols: 120, rows: 30 }
+const BROWSER_ITEMS = 4
 
 export type TerminalItem = { readonly seq: number; readonly event: TerminalEvent }
 export type TerminalFeed = { readonly seq: number; readonly items: readonly TerminalItem[] }
 
+export type BrowserItem = { readonly seq: number; readonly event: BrowserEvent }
+export type BrowserFeed = { readonly seq: number; readonly items: readonly BrowserItem[] }
+export type BrowserSize = { readonly maxWidth: number; readonly maxHeight: number }
+
 const emptyFeed: TerminalFeed = { seq: 0, items: [] }
+const emptyBrowserFeed: BrowserFeed = { seq: 0, items: [] }
 
 const terminalSizes = new Map<string, { cols: number; rows: number }>()
 
 export const terminalKey = (pcId: string, terminalId: string): string => `${pcId}\u0000${terminalId}`
+
+export const browserKey = (pcId: string, tab: string, size: BrowserSize): string =>
+  `${pcId}\u0000${tab}\u0000${Math.round(size.maxWidth)}x${Math.round(size.maxHeight)}`
 
 export function setTerminalSize(key: string, cols: number, rows: number): void {
   terminalSizes.set(key, { cols, rows })
@@ -48,6 +57,11 @@ function append(feed: TerminalFeed, event: TerminalEvent): TerminalFeed {
   return { seq, items: trim([...feed.items, { seq, event }]) }
 }
 
+function appendBrowser(feed: BrowserFeed, event: BrowserEvent): BrowserFeed {
+  const seq = feed.seq + 1
+  return { seq, items: [...feed.items, { seq, event }].slice(-BROWSER_ITEMS) }
+}
+
 export function createComputerAtoms<E>(runtime: Atom.AtomRuntime<OwnerRuntimeServices, E>) {
   const framesAtom = Atom.family((pcId: string) =>
     runtime
@@ -73,5 +87,18 @@ export function createComputerAtoms<E>(runtime: Atom.AtomRuntime<OwnerRuntimeSer
       .pipe(Atom.withLabel(`kiko-terminal:${key}`))
   })
 
-  return { framesAtom, terminalAtom }
+  const browserAtom = Atom.family((key: string) => {
+    const [pcId = "", tab = "", size = ""] = key.split("\u0000")
+    const [maxWidth = 0, maxHeight = 0] = size.split("x").map(Number)
+    return runtime
+      .atom(
+        subscribe("browser.live", () => Effect.succeed({ pcId, tab, maxWidth, maxHeight })).pipe(
+          Stream.scan(() => emptyBrowserFeed, appendBrowser),
+        ),
+        { initialValue: emptyBrowserFeed },
+      )
+      .pipe(Atom.withLabel(`kiko-browser:${key}`))
+  })
+
+  return { framesAtom, terminalAtom, browserAtom }
 }

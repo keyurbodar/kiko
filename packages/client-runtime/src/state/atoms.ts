@@ -239,7 +239,7 @@ export function createOwnerAtoms<E>(runtime: Atom.AtomRuntime<OwnerRuntimeServic
 
   const { sessionAtom, query } = createQueryAtoms(runtime)
 
-  const { framesAtom, terminalAtom } = createComputerAtoms(runtime)
+  const { framesAtom, terminalAtom, browserAtom } = createComputerAtoms(runtime)
 
   const rpc = <const Tag extends OwnerUnaryTag>(tag: Tag, concurrency?: AtomCommandConcurrency<RpcCommandInput<Tag>>) =>
     createRuntimeCommand(runtime, {
@@ -448,6 +448,9 @@ export function createOwnerAtoms<E>(runtime: Atom.AtomRuntime<OwnerRuntimeServic
     terminalInput: rpc("terminal.input"),
     terminalResize: rpc("terminal.resize"),
     terminalAck: rpc("terminal.ack"),
+    browserTabs: rpc("browser.tabs"),
+    browserInput: rpc("browser.input"),
+    browserAck: rpc("browser.ack"),
     recipesInstall: rpc("recipes.install"),
     recipesUninstall: rpc("recipes.uninstall"),
     recipesEdit: rpc("recipes.edit"),
@@ -479,6 +482,7 @@ export function createOwnerAtoms<E>(runtime: Atom.AtomRuntime<OwnerRuntimeServic
     roomTypingAtom,
     computerFramesAtom: framesAtom,
     terminalAtom,
+    browserAtom,
     cachedRoomAtom,
     seedNewRoom,
     sessionAtom,

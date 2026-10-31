@@ -1,6 +1,7 @@
 import { Schema } from "effect"
 import {
   BinaryResult,
+  BROWSER_OPS,
   Calls,
   type FailCode,
   type FromDaemon,
@@ -18,8 +19,8 @@ import {
 } from "@kiko/computer/wire"
 import { CONNECT_HEADERS, CONNECT_SKEW_MS, connectMessage, verify } from "@kiko/computer/sign"
 import type { DesktopInfo } from "@kiko/computer/driver"
-import { decodeBinary, decodeFrame } from "@kiko/computer/frame"
-import type { AgentSlug, ComputerFrame, ComputerSummary, RoomId, TerminalEvent } from "@kiko/protocol"
+import { decodeBinary, decodeBrowserFrame, decodeFrame, type BrowserFrameHeader } from "@kiko/computer/frame"
+import type { AgentSlug, BrowserEvent, ComputerFrame, ComputerSummary, RoomId, TerminalEvent } from "@kiko/protocol"
 import type { Env } from "../index"
 import { ago } from "../lib/ago"
 import { encodeBase64 } from "../lib/base64"
@@ -27,6 +28,7 @@ import { BACKEND } from "../lib/version"
 import { dropStreams, socketView } from "../owner/socket"
 import type { RequestId } from "../rpc/wire"
 import { joinImages } from "./binary"
+import { browserStream, browserText } from "./browsers"
 import { frameChunk, frameSubs, frameText } from "./frames"
 import type { ComputerRow, ComputerStore, NewComputer } from "./store"
 import { terminalStream, terminalText } from "./terminals"
@@ -110,6 +112,10 @@ export type TerminalAttachOutcome =
   | { ok: true; value: `term:${string}` }
   | { ok: false; code: FailCode; message: string }
 
+export type BrowserAttachOutcome =
+  | { ok: true; value: `browser:${string}` }
+  | { ok: false; code: FailCode; message: string }
+
 export type PcReleased = { pcId: string; name: string; waiters: PcAgent[]; expired: boolean }
 
 type TabAttachment = { pcSession?: string; user?: { pcSession?: string } }
@@ -126,6 +132,14 @@ type TerminalAttach = {
   pcId: string
   terminal: string
   tab: WebSocket
+  requestId: RequestId
+  stream: string
+}
+
+type BrowserAttach = {
+  pcId: string
+  tab: string
+  socket: WebSocket
   requestId: RequestId
   stream: string
 }
@@ -153,6 +167,10 @@ function claimsDesk(op: Op, args: unknown): boolean {
   return call.params?.mode === "foreground"
 }
 
+function parsedArgs(args: unknown): { method?: unknown } {
+  return typeof args === "object" && args !== null ? (args as { method?: unknown }) : {}
+}
+
 export function pcSocketId(ws: WebSocket): string | null {
   return attachmentOf(ws)?.id ?? null
 }
@@ -163,6 +181,7 @@ export class ComputerHub {
   private readonly desk = new Map<string, { user: string; name: string; until: number }>()
   private readonly relaying = new Set<string>()
   private readonly attaches = new Map<string, TerminalAttach>()
+  private readonly browsers = new Map<string, BrowserAttach>()
   private readonly memory = new Map<string, PcHold>()
   private readonly desktop = new Map<string, DesktopInfo>()
   private readonly marks = new Map<string, PcMark>()
@@ -447,6 +466,7 @@ export class ComputerHub {
     }
     this.relaying.delete(id)
     this.dropTerminalsFor(id, "the computer reconnected")
+    this.dropBrowsersFor(id, `${this.name(id)} reconnected`)
     const pair = new WebSocketPair()
     const client = pair[0]
     const server = pair[1]
@@ -472,6 +492,8 @@ export class ComputerHub {
     this.marks.set(saved.id, { ...this.marks.get(saved.id), seenAt: Date.now() })
     if (typeof raw !== "string") {
       const bytes = new Uint8Array(raw)
+      const browser = decodeBrowserFrame(bytes)
+      if (browser) return this.browserFrame(browser.header, browser.image)
       const binary = decodeBinary(bytes)
       if (binary) return this.binaryResult(binary.header, binary.data)
       this.relayFrame(saved.id, bytes)
@@ -492,6 +514,7 @@ export class ComputerHub {
     if (frame.t === "held") return this.held(saved.id, frame)
     if (frame.t === "rtc") return this.daemonRtc(saved.id, frame.session, frame.signal)
     if (frame.t === "terminal") return this.terminalEvent(frame)
+    if (frame.t === "browser") return this.browserEvent(frame)
     if (frame.t === "humanInput") {
       this.enterHuman(saved.id)
       this.push()
@@ -592,23 +615,26 @@ export class ComputerHub {
     const { ws, saved, hello } = target
     const cap = TERMINAL_OPS.has(op)
       ? "terminal"
-      : op === "shell"
-        ? "shell"
-        : op === "read" || op === "write"
-          ? "files"
-          : "desktop"
+      : BROWSER_OPS.has(op)
+        ? "browser"
+        : op === "shell"
+          ? "shell"
+          : op === "read" || op === "write"
+            ? "files"
+            : "desktop"
     if (op === "driver") {
       if (!hello.caps.background)
         return { ok: false, code: "unsupported", message: `${row.name} does not allow background work` }
     } else if (!hello.caps[cap]) {
-      return {
-        ok: false,
-        code: "unsupported",
-        message: `${row.name} does not allow ${cap === "terminal" ? "terminal sessions" : cap}`,
-      }
+      const what = cap === "terminal" ? "terminal sessions" : cap === "browser" ? "browser work" : cap
+      return { ok: false, code: "unsupported", message: `${row.name} does not allow ${what}` }
     }
-    if (op === "driver" && saved.holder === "human")
+    if (op === "driver" && saved.holder === "human") {
+      const method = (parsedArgs(args) ?? {}).method
+      if (method === "browser.act" || method === "browser.open")
+        return { ok: false, code: "busy", message: "the owner has control of this browser tab" }
       return { ok: false, code: "busy", message: `the human has control of ${row.name} right now` }
+    }
     if (op === "terminal_send" && saved.holder === "human")
       return { ok: false, code: "busy", message: "the owner has control of this terminal" }
     let parsed: unknown
@@ -719,6 +745,7 @@ export class ComputerHub {
       this.syncRelay(pcId)
     }
     this.dropTabTerminals(tab)
+    this.dropTabBrowsers(tab)
     this.dropHuman(tab)
   }
 
@@ -870,7 +897,7 @@ export class ComputerHub {
 
   private controls(tab: WebSocket, pcId: string): CallOutcome | null {
     if (this.hold(pcId).holder !== "human")
-      return { ok: false, code: "busy", message: "take over this computer before using its terminal" }
+      return { ok: false, code: "busy", message: "take over this computer before using it" }
     if (!this.owns(pcId, this.sessionOf(tab)))
       return { ok: false, code: "busy", message: "another viewer has control of this computer" }
     return null
@@ -920,6 +947,126 @@ export class ComputerHub {
       if (attach.tab !== tab) continue
       this.attaches.delete(id)
       this.sendTo(attach.pcId, { t: "terminal", on: false, id })
+    }
+  }
+
+  attachBrowser(
+    socket: WebSocket,
+    requestId: RequestId,
+    pcId: string,
+    tab: string,
+    options: { maxWidth?: number; maxHeight?: number; quality?: number } = {},
+  ): BrowserAttachOutcome {
+    const row = this.d.store.get(pcId)
+    if (!row) return { ok: false, code: "unsupported", message: "there is no such computer" }
+    const target = this.target(pcId)
+    if (!target) return { ok: false, code: "failed", message: this.offlineMessage(row) }
+    if (!target.hello.caps.browser)
+      return { ok: false, code: "unsupported", message: `${row.name} does not allow browser work` }
+    const id = crypto.randomUUID()
+    const stream = browserStream(id)
+    this.dropTabBrowser(socket, tab)
+    this.dropBrowserTab(pcId, tab)
+    this.browsers.set(id, { pcId, tab, socket, requestId, stream })
+    this.send(target.ws, {
+      t: "browser",
+      on: true,
+      id,
+      tab,
+      ...(options.maxWidth === undefined ? {} : { maxWidth: clamp(options.maxWidth, 320, 4096) }),
+      ...(options.maxHeight === undefined ? {} : { maxHeight: clamp(options.maxHeight, 200, 4096) }),
+      ...(options.quality === undefined ? {} : { quality: clamp(options.quality, 20, 90) }),
+    })
+    return { ok: true, value: stream }
+  }
+
+  private browserEvent(frame: Extract<FromDaemon, { t: "browser" }>): void {
+    const attach = this.browsers.get(frame.id)
+    if (!attach) return
+    this.sendBrowser(attach, frame.event)
+  }
+
+  private browserFrame(header: BrowserFrameHeader, image: Uint8Array): void {
+    const attach = this.browsers.get(header.id)
+    if (!attach) return
+    this.sendBrowser(attach, {
+      type: "frame",
+      seq: header.seq,
+      tab: header.tab,
+      mime: "image/jpeg",
+      width: header.width,
+      height: header.height,
+      viewportWidth: header.viewportWidth,
+      viewportHeight: header.viewportHeight,
+      data: encodeBase64(image),
+    })
+  }
+
+  private sendBrowser(attach: BrowserAttach, event: BrowserEvent): void {
+    try {
+      attach.socket.send(browserText(attach.requestId, event))
+    } catch {}
+  }
+
+  private browserAttachOf(socket: WebSocket, pcId: string, tab: string): [string, BrowserAttach] | null {
+    for (const [id, attach] of this.browsers)
+      if (attach.socket === socket && attach.pcId === pcId && attach.tab === tab) return [id, attach]
+    return null
+  }
+
+  browserInput(socket: WebSocket, pcId: string, tab: string, events: readonly InputEvent[]): CallOutcome {
+    const held = this.browserAttachOf(socket, pcId, tab)
+    if (!held) return { ok: false, code: "failed", message: "open the browser tab before using it" }
+    const refused = this.controls(socket, pcId)
+    if (refused) return refused
+    this.sendTo(pcId, { t: "browserInput", id: held[0], events })
+    return { ok: true, value: undefined }
+  }
+
+  browserAck(socket: WebSocket, pcId: string, tab: string, bytes: number): void {
+    const held = this.browserAttachOf(socket, pcId, tab)
+    if (held) this.sendTo(pcId, { t: "browserAck", id: held[0], bytes })
+  }
+
+  endBrowser(stream: string): void {
+    for (const [id, attach] of this.browsers) {
+      if (attach.stream !== stream) continue
+      this.browsers.delete(id)
+      this.sendTo(attach.pcId, { t: "browser", on: false, id })
+    }
+  }
+
+  private dropBrowserTab(pcId: string, tab: string): void {
+    for (const [id, attach] of this.browsers) {
+      if (attach.pcId !== pcId || attach.tab !== tab) continue
+      this.browsers.delete(id)
+      this.sendTo(attach.pcId, { t: "browser", on: false, id })
+      this.sendBrowser(attach, { type: "end" })
+    }
+  }
+
+  private dropTabBrowser(socket: WebSocket, tab: string): void {
+    for (const [id, attach] of this.browsers) {
+      if (attach.socket !== socket || attach.tab !== tab) continue
+      this.browsers.delete(id)
+      this.sendTo(attach.pcId, { t: "browser", on: false, id })
+      this.sendBrowser(attach, { type: "end" })
+    }
+  }
+
+  private dropBrowsersFor(pcId: string, message: string): void {
+    for (const [id, attach] of this.browsers) {
+      if (attach.pcId !== pcId) continue
+      this.browsers.delete(id)
+      this.sendBrowser(attach, { type: "error", message })
+    }
+  }
+
+  private dropTabBrowsers(socket: WebSocket): void {
+    for (const [id, attach] of this.browsers) {
+      if (attach.socket !== socket) continue
+      this.browsers.delete(id)
+      this.sendTo(attach.pcId, { t: "browser", on: false, id })
     }
   }
 
@@ -1066,6 +1213,7 @@ export class ComputerHub {
     if (!replaced) {
       this.relaying.delete(saved.id)
       this.dropTerminalsFor(saved.id, `${this.name(saved.id)} disconnected`)
+      this.dropBrowsersFor(saved.id, `${this.name(saved.id)} disconnected`)
       this.memory.set(saved.id, { ...saved, hello: saved.hello ?? this.memory.get(saved.id)?.hello })
       this.marks.set(saved.id, {
         ...this.marks.get(saved.id),
@@ -1092,6 +1240,7 @@ export class ComputerHub {
     this.takes.get(id)?.settle(false)
     this.relaying.delete(id)
     this.dropTerminalsFor(id, "this computer was removed")
+    this.dropBrowsersFor(id, "this computer was removed")
     this.desk.delete(id)
     this.memory.delete(id)
     this.desktop.delete(id)

@@ -1,5 +1,6 @@
 import { assert, describe, it } from "@effect/vitest"
-import { encodeBinary, IMAGE_REF } from "@kiko/computer/frame"
+import { encodeBinary, encodeBrowserFrame, IMAGE_REF } from "@kiko/computer/frame"
+import { encodeBase64 } from "../lib/base64"
 import { OLDEST_PROTOCOL, PROTOCOL } from "@kiko/computer/wire"
 import type { AgentSlug, RoomId } from "@kiko/protocol"
 import * as Clock from "effect/Clock"
@@ -1087,6 +1088,222 @@ describe("terminal control", () => {
       computers.leave(open.ws)
 
       assert.isTrue(pc.sent.some((sent) => sent.t === "terminal" && sent.on === false && sent.id === frame?.id))
+    }),
+  )
+})
+
+const BROWSER = { ...HELLO, caps: { ...CAPS, browser: true } }
+
+function attachBrowser(
+  computers: ReturnType<typeof liveHub>,
+  pc: ReturnType<typeof pcSocket>,
+  tab: WebSocket,
+  tabId = "T1",
+) {
+  const outcome = computers.attachBrowser(tab, "req-b", "pc-1", tabId, { maxWidth: 1400 })
+  const frame = pc.sent.find((sent) => sent.t === "browser" && sent.on === true)
+  return { outcome, frame }
+}
+
+describe("browser attach", () => {
+  it.effect("asks the daemon for one tab's screencast and streams its events to the viewer", () =>
+    Effect.promise(async () => {
+      const pc = pcSocket("pc-1")
+      const open = terminalTab()
+      const computers = liveHub([open.ws], [pc.ws], ["pc-1"])
+      await computers.message(pc.ws, JSON.stringify(BROWSER))
+
+      const { outcome, frame } = attachBrowser(computers, pc, open.ws)
+      const start = { type: "start", tab: "T1", width: 1000, height: 500, viewportWidth: 1000, viewportHeight: 500 }
+      await computers.message(pc.ws, JSON.stringify({ t: "browser", id: frame?.id, event: start }))
+
+      assert.isTrue(outcome.ok)
+      assert.strictEqual(frame?.tab, "T1")
+      assert.strictEqual(frame?.maxWidth, 1400)
+      assert.deepStrictEqual(open.chunks().at(-1), { _tag: "Chunk", requestId: "req-b", values: [start] })
+    }),
+  )
+
+  it.effect("forwards a binary frame to the viewer with its size and viewport", () =>
+    Effect.promise(async () => {
+      const pc = pcSocket("pc-1")
+      const open = terminalTab()
+      const computers = liveHub([open.ws], [pc.ws], ["pc-1"])
+      await computers.message(pc.ws, JSON.stringify(BROWSER))
+      const { frame } = attachBrowser(computers, pc, open.ws)
+
+      const bytes = encodeBrowserFrame(
+        { id: frame?.id ?? "", tab: "T1", seq: 3, width: 800, height: 400, viewportWidth: 1000, viewportHeight: 500 },
+        new Uint8Array([9, 8, 7]),
+      )
+      await computers.message(pc.ws, bytes.buffer as ArrayBuffer)
+
+      const chunk = open.chunks().at(-1)
+      assert.strictEqual(chunk?.values[0]?.type, "frame")
+      assert.strictEqual(chunk?.values[0]?.data, encodeBase64(new Uint8Array([9, 8, 7])))
+    }),
+  )
+
+  it.effect("forwards the viewer's frame ack and refuses a tab that is not its own", () =>
+    Effect.promise(async () => {
+      const pc = pcSocket("pc-1")
+      const mine = terminalTab()
+      const other = terminalTab()
+      const computers = liveHub([mine.ws, other.ws], [pc.ws], ["pc-1"])
+      await computers.message(pc.ws, JSON.stringify(BROWSER))
+      attachBrowser(computers, pc, mine.ws)
+
+      computers.browserAck(mine.ws, "pc-1", "T1", 512)
+      const refused = computers.browserInput(other.ws, "pc-1", "T1", [{ k: "move", x: 0.5, y: 0.5 }])
+
+      assert.isTrue(pc.sent.some((sent) => sent.t === "browserAck" && sent.bytes === 512))
+      assert.isFalse(refused.ok)
+    }),
+  )
+
+  it.effect("refuses a computer that does not allow browser work", () =>
+    Effect.promise(async () => {
+      const pc = pcSocket("pc-1")
+      const open = terminalTab()
+      const computers = liveHub([open.ws], [pc.ws], ["pc-1"])
+      await computers.message(pc.ws, JSON.stringify(HELLO))
+
+      const { outcome } = attachBrowser(computers, pc, open.ws)
+
+      assert.isFalse(outcome.ok)
+      if (!outcome.ok) assert.match(outcome.message, /does not allow browser work/)
+    }),
+  )
+
+  it.effect("tells the viewer when the daemon disconnects", () =>
+    Effect.promise(async () => {
+      const pc = pcSocket("pc-1")
+      const open = terminalTab()
+      const computers = liveHub([open.ws], [pc.ws], ["pc-1"])
+      await computers.message(pc.ws, JSON.stringify(BROWSER))
+      attachBrowser(computers, pc, open.ws)
+
+      await computers.close(pc.ws)
+
+      assert.strictEqual(open.chunks().at(-1)?.values[0]?.type, "error")
+    }),
+  )
+
+  it.effect("asks the daemon to detach when the tab leaves", () =>
+    Effect.promise(async () => {
+      const pc = pcSocket("pc-1")
+      const open = terminalTab()
+      const computers = liveHub([open.ws], [pc.ws], ["pc-1"])
+      await computers.message(pc.ws, JSON.stringify(BROWSER))
+      const { frame } = attachBrowser(computers, pc, open.ws)
+
+      computers.leave(open.ws)
+
+      assert.isTrue(pc.sent.some((sent) => sent.t === "browser" && sent.on === false && sent.id === frame?.id))
+    }),
+  )
+})
+
+describe("browser control", () => {
+  it.effect("refuses owner input until the owner takes over, then forwards it", () =>
+    Effect.promise(async () => {
+      const pc = pcSocket("pc-1")
+      const open = terminalTab()
+      const computers = liveHub([open.ws], [pc.ws], ["pc-1"])
+      await computers.message(pc.ws, JSON.stringify(BROWSER))
+      attachBrowser(computers, pc, open.ws)
+
+      const before = computers.browserInput(open.ws, "pc-1", "T1", [{ k: "down", x: 0.5, y: 0.5, b: 0 }])
+      void computers.take("pc-1", open.ws)
+      const after = computers.browserInput(open.ws, "pc-1", "T1", [{ k: "down", x: 0.5, y: 0.5, b: 0 }])
+
+      assert.isFalse(before.ok)
+      assert.isTrue(after.ok)
+      assert.isTrue(pc.sent.some((sent) => sent.t === "browserInput"))
+    }),
+  )
+
+  it.effect("refuses input from another viewer while one tab holds", () =>
+    Effect.promise(async () => {
+      const pc = pcSocket("pc-1")
+      const mine = terminalTab()
+      const other = terminalTab()
+      const computers = liveHub([mine.ws, other.ws], [pc.ws], ["pc-1"])
+      await computers.message(pc.ws, JSON.stringify(BROWSER))
+      attachBrowser(computers, pc, mine.ws)
+      attachBrowser(computers, pc, other.ws)
+      void computers.take("pc-1", mine.ws)
+
+      const typed = computers.browserInput(other.ws, "pc-1", "T1", [{ k: "text", s: "x" }])
+
+      assert.isFalse(typed.ok)
+      if (!typed.ok) assert.match(typed.message, /another viewer has control/)
+    }),
+  )
+
+  it.effect("refuses the agent's browser tools while the owner holds the tab", () =>
+    Effect.promise(async () => {
+      const pc = pcSocket("pc-1")
+      const open = terminalTab()
+      const computers = liveHub([open.ws], [pc.ws], ["pc-1"])
+      await computers.message(
+        pc.ws,
+        JSON.stringify({ ...BROWSER, caps: { ...BROWSER.caps, desktop: true, background: true } }),
+      )
+      void computers.take("pc-1", open.ws)
+
+      const clicked = await computers.call("pc-1", "driver", {
+        method: "browser.act",
+        params: { tab: "T1", ref: 1, action: "click" },
+      })
+      const opened = await computers.call("pc-1", "driver", {
+        method: "browser.open",
+        params: { url: "https://example.com" },
+      })
+
+      for (const outcome of [clicked, opened]) {
+        assert.isFalse(outcome.ok)
+        if (!outcome.ok) {
+          assert.strictEqual(outcome.code, "busy")
+          assert.strictEqual(outcome.message, "the owner has control of this browser tab")
+        }
+      }
+    }),
+  )
+
+  it.effect("lists the agent's tabs without taking them over", () =>
+    Effect.promise(async () => {
+      const pc = pcSocket("pc-1")
+      const computers = liveHub([], [pc.ws], ["pc-1"])
+      await computers.message(pc.ws, JSON.stringify({ ...BROWSER, caps: { ...BROWSER.caps, background: true } }))
+      const listed = computers.call("pc-1", "browser_tabs", {})
+
+      const call = pc.sent.find((sent) => sent.t === "call")
+      await computers.message(
+        pc.ws,
+        JSON.stringify({
+          t: "result",
+          id: call?.id,
+          ok: true,
+          value: {
+            tabs: [
+              {
+                id: "T1",
+                browser: "agent-browser",
+                window_id: 0,
+                index: 0,
+                active: true,
+                title: "Fixture",
+                url: "https://example.com/",
+              },
+            ],
+          },
+        }),
+      )
+
+      const outcome = await listed
+      assert.isTrue(outcome.ok)
+      if (outcome.ok) assert.strictEqual((outcome.value as { tabs: unknown[] }).tabs.length, 1)
     }),
   )
 })

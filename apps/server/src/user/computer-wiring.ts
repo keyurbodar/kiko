@@ -180,6 +180,7 @@ export class ComputerWiring {
   ended(stream: string): void {
     if (stream.startsWith("pc:")) this.hub.syncRelay(stream.slice("pc:".length))
     else if (stream.startsWith("term:")) this.hub.endTerminal(stream)
+    else if (stream.startsWith("browser:")) this.hub.endBrowser(stream)
   }
 
   readonly take = Effect.fn("Computers.take")({ self: this }, function* (socket: WebSocket, pcId: string) {
@@ -268,6 +269,58 @@ export class ComputerWiring {
     function* (socket: WebSocket, pcId: string, terminalId: string, bytes: number) {
       const row = yield* this.row(pcId)
       this.hub.terminalAck(socket, row.id, terminalId, bytes)
+    },
+  )
+
+  readonly browserTabs = Effect.fn("Browser.tabs")({ self: this }, function* (pcId: string) {
+    const row = yield* this.row(pcId)
+    const out = yield* Effect.promise(() => this.hub.call(row.id, "browser_tabs", {}))
+    if (!out.ok) return yield* new RefusedError({ reason: out.code, message: out.message })
+    return (out.value as Value<"browser_tabs">).tabs.map((tab) => ({
+      id: tab.id,
+      browser: tab.browser,
+      title: tab.title,
+      url: tab.url,
+      active: tab.active,
+    }))
+  })
+
+  readonly browserLive = Effect.fn("Browser.live")(
+    { self: this },
+    function* (
+      socket: WebSocket,
+      requestId: RequestId,
+      pcId: string,
+      tab: string,
+      maxWidth?: number,
+      maxHeight?: number,
+      quality?: number,
+    ) {
+      const row = yield* this.row(pcId)
+      const out = this.hub.attachBrowser(socket, requestId, row.id, tab, {
+        ...(maxWidth === undefined ? {} : { maxWidth }),
+        ...(maxHeight === undefined ? {} : { maxHeight }),
+        ...(quality === undefined ? {} : { quality }),
+      })
+      if (!out.ok) return yield* new RefusedError({ reason: out.code, message: out.message })
+      subscribe(socket, { requestId, stream: out.value, cursor: 0 })
+    },
+  )
+
+  readonly browserInput = Effect.fn("Browser.input")(
+    { self: this },
+    function* (socket: WebSocket, pcId: string, tab: string, events: readonly ComputerInput[]) {
+      const row = yield* this.row(pcId)
+      const out = this.hub.browserInput(socket, row.id, tab, events)
+      if (!out.ok) return yield* new RefusedError({ reason: out.code, message: out.message })
+    },
+  )
+
+  readonly browserAck = Effect.fn("Browser.ack")(
+    { self: this },
+    function* (socket: WebSocket, pcId: string, tab: string, bytes: number) {
+      const row = yield* this.row(pcId)
+      this.hub.browserAck(socket, row.id, tab, bytes)
     },
   )
 

@@ -30,7 +30,9 @@ import { SoulRow } from "./user"
 import { ThinkingLevel } from "./catalog"
 import {
   AgentOp,
+  BrowserEvent,
   BrowserLinkResult,
+  BrowserTab,
   Chat,
   ChatOp,
   ComposioResult,
@@ -357,6 +359,25 @@ export const OwnerRpcs = RpcGroup.make(
     payload: { pcId: ComputerId, terminalId: Id, bytes: Count },
     error: Refusable,
   }),
+
+  Rpc.make("browser.tabs", { payload: { pcId: ComputerId }, success: Schema.Array(BrowserTab), error: Refusable }),
+  Rpc.make("browser.live", {
+    payload: {
+      pcId: ComputerId,
+      tab: Id,
+      maxWidth: Schema.optionalKey(Count),
+      maxHeight: Schema.optionalKey(Count),
+      quality: Schema.optionalKey(Count),
+    },
+    success: BrowserEvent,
+    error: Refusable,
+    stream: true,
+  }),
+  Rpc.make("browser.input", {
+    payload: { pcId: ComputerId, tab: Id, events: Schema.Array(ComputerInput) },
+    error: Refusable,
+  }),
+  Rpc.make("browser.ack", { payload: { pcId: ComputerId, tab: Id, bytes: Count }, error: Refusable }),
 
   Rpc.make("recipes.list", { success: RecipeList, error: Base }),
   Rpc.make("recipes.install", {

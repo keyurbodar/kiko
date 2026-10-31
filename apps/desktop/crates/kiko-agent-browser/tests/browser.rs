@@ -215,6 +215,17 @@ fn an_engine_that_dies_on_its_first_start_is_retried() {
 }
 
 #[test]
+fn names_the_devtools_socket_of_the_running_browser() {
+    let (_dir, mut engine) = start(vec![]);
+    assert!(engine.wait_ready(READY));
+    assert_eq!(
+        engine.cdp().expect("a devtools socket"),
+        "ws://127.0.0.1:9222/devtools/browser/fake"
+    );
+    engine.stop();
+}
+
+#[test]
 fn a_missing_engine_reports_no_browser() {
     let dir = tempfile::tempdir().expect("temp dir");
     let log = Arc::new(|line: String| println!("{line}"));
@@ -233,5 +244,6 @@ fn a_missing_engine_reports_no_browser() {
         })
         .unwrap_err();
     assert!(error.message.contains("not running"), "got {error}");
+    assert!(engine.cdp().is_err());
     engine.stop();
 }

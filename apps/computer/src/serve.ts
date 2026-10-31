@@ -1,5 +1,6 @@
 import { stat } from "node:fs/promises"
 import { PROTOCOL, type Holder } from "@kiko/computer/wire"
+import { createBrowserLink } from "./browser/link"
 import { detect, type Detection } from "./caps"
 import { configDir, loadConfig, loadKey, loadPolicy, paths, pausedCache, policyCache } from "./config"
 import { runLink, type Host } from "./connection"
@@ -54,6 +55,13 @@ export async function serve(dir = configDir()): Promise<number> {
     holder: () => holder,
     send: (frame) => link?.frame(frame),
   })
+  const browserLink = createBrowserLink({
+    driver: () => driver,
+    holder: () => holder,
+    send: (frame) => link?.frame(frame),
+    sendBinary: (bytes) => link?.binary(bytes),
+    warn: (message) => log.warn(message),
+  })
   const refresh = () => {
     detection = detect(log, liveCaps, driver?.state() ?? null, dir)
     link?.reconnect()
@@ -87,6 +95,7 @@ export async function serve(dir = configDir()): Promise<number> {
     driver: () => driver,
     terminal: () => (hasPty() ? terminals : null),
     terminals: terminalLink,
+    browser: browserLink,
     paused,
     live: {
       rtc: (frame) => live.frames.rtc(frame),
@@ -117,6 +126,7 @@ export async function serve(dir = configDir()): Promise<number> {
     link?.stop()
     driver?.close()
     terminalLink.close()
+    browserLink.close()
     terminals.closeAll()
     void live.close()
     process.exit(0)
