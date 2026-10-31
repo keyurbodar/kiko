@@ -84,6 +84,7 @@ export default function LiveScreen(props: {
   const pick = (id: string) => {
     setPicked(id)
     session?.pick(id)
+    if (props.interactive) sink.focus({ preventScroll: true })
   }
 
   createEffect(
