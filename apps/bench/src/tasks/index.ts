@@ -24,6 +24,7 @@ import { fixScript } from "./terminal/fix-script"
 import { gitBranch } from "./terminal/git-branch"
 import { terminalTasksA } from "./terminal/registry-a"
 import { terminalTasksB } from "./terminal/registry-b"
+import { terminalTasksC } from "./terminal/registry-c"
 
 export const TASKS: readonly Task[] = [
   ...terminalTasksA,
@@ -51,4 +52,5 @@ export const TASKS: readonly Task[] = [
   desktopRadio,
   desktopTree,
   desktopWindows,
+  ...terminalTasksC,
 ]

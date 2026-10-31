@@ -6,6 +6,7 @@ import type { Task } from "../../types"
 import { countMatches } from "./count-matches"
 import { fixScript } from "./fix-script"
 import { gitBranch } from "./git-branch"
+import { terminalTasksC } from "./registry-c"
 
 const currentOs = localOs()
 const runsHere = (task: Task): boolean => task.os.includes(currentOs)
@@ -61,4 +62,11 @@ describe("terminal tasks", () => {
       await removeMachine(machine)
     }
   })
+})
+
+describe("harder terminal tasks", () => {
+  for (const task of terminalTasksC) {
+    it.skipIf(!runsHere(task))(`${task.id} passes with the oracle`, () => expectOraclePasses(task))
+    it.skipIf(!runsHere(task))(`${task.id} fails without the oracle`, () => expectSetupAloneFails(task))
+  }
 })
