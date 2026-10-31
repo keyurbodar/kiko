@@ -1124,10 +1124,6 @@
   background: var(--bg-chrome);
 }
 
-.sidebar-shell .sidecar-scrim {
-  inset-inline-start: 0;
-}
-
 .sidebar-shell .sidecar-overlay {
   position: absolute;
   z-index: 30;

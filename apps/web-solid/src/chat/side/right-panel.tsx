@@ -71,7 +71,7 @@ function Tab(props: { chatId: string; surface: Surface; index: number; count: nu
         aria-selected={props.active}
         tabIndex={props.active ? 0 : -1}
         draggable
-        class="rp-tab flex h-6 max-w-36 shrink-0 cursor-pointer items-center gap-0.5 rounded-[6px] pr-2 pl-1.5 text-xs"
+        class="rp-tab flex h-6 max-w-36 shrink-0 cursor-pointer items-center gap-0.5 rounded-base pr-2 pl-1.5 type-sm"
         title={label()}
         data-component="right-panel-tab"
         data-surface={props.surface.id}
@@ -106,7 +106,7 @@ function Tab(props: { chatId: string; surface: Surface; index: number; count: nu
           type="button"
           tabIndex={-1}
           aria-label={`Close ${label()}`}
-          class="rp-tab-close relative flex size-4 shrink-0 items-center justify-center rounded-[4px]"
+          class="rp-tab-close relative flex size-4 shrink-0 items-center justify-center rounded-sm"
           data-action="close-surface"
           onClick={(event) => {
             event.stopPropagation()
@@ -363,13 +363,13 @@ function EmptyPanel(props: { chatId: string }) {
       onKeyDown={onKeyDown}
     >
       <div class="w-full max-w-xs py-6">
-        <h3 class="mb-3 text-center text-[13px] text-[var(--text-primary)]">Open a surface</h3>
+        <h3 class="type-base mb-3 text-center font-semibold text-primary">Open a surface</h3>
         <div class="flex flex-col gap-0.5">
           <For each={entries()}>
             {(entry, index) => (
               <button
                 type="button"
-                class="rp-launch flex h-8 w-full items-center gap-2.5 rounded-[8px] px-2.5 text-left text-[13px] text-[var(--text-primary)]"
+                class="rp-launch type-base flex h-control-xl w-full items-center gap-2.5 rounded-base px-2.5 text-left text-primary"
                 data-highlighted={at() === index() ? "" : undefined}
                 data-action={`open-${entry.kind}`}
                 onMouseEnter={() => setHighlight(index())}

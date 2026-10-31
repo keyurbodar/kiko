@@ -9,7 +9,8 @@ import { closeViewer, computerById, computers, openViewer, release, takeOver, vi
 import { accessHint, canControl } from "./access"
 import LiveScreen from "./LiveScreen"
 
-const pill = "h-8 shrink-0 cursor-pointer rounded-full px-3.5 type-sm font-medium whitespace-nowrap"
+const pill =
+  "type-base h-control-xl shrink-0 cursor-pointer rounded-base px-3 font-medium whitespace-nowrap transition-[background-color,scale] duration-(--duration-fast) hover:bg-(--bg-neutral-hover) active:scale-(--press-scale)"
 
 export default function Viewer(): JSX.Element {
   const pc = () => computerById(viewerFor() ?? "")
@@ -64,7 +65,7 @@ export default function Viewer(): JSX.Element {
               data-part="bar"
             >
               <div class="flex min-w-0 flex-1 flex-col">
-                <span class="truncate text-base font-medium" data-field="viewer-reason">
+                <span class="truncate text-base font-semibold" data-field="viewer-reason">
                   {reason() ??
                     (interactive() ? `You are controlling ${computer().name}` : `Watching ${computer().name}`)}
                 </span>
@@ -87,7 +88,7 @@ export default function Viewer(): JSX.Element {
               <Show when={computers().length > 1}>
                 <MenuV2 gutter={6} placement="bottom-end">
                   <MenuV2.Trigger
-                    class="flex h-8 max-w-44 min-w-0 cursor-pointer items-center gap-1.5 rounded-full bg-[color-mix(in_oklab,var(--text-primary)_8%,transparent)] pr-2.5 pl-3.5 type-sm font-medium text-primary hover:bg-[color-mix(in_oklab,var(--text-primary)_12%,transparent)] aria-expanded:bg-[color-mix(in_oklab,var(--text-primary)_12%,transparent)]"
+                    class="type-base flex h-control-xl max-w-44 min-w-0 cursor-pointer items-center gap-1.5 rounded-base bg-tertiary pr-2 pl-3 text-primary transition-colors duration-(--duration-fast) hover:bg-secondary aria-expanded:bg-secondary"
                     aria-label="Computer"
                     data-action="computer-switch"
                   >
@@ -148,13 +149,13 @@ export default function Viewer(): JSX.Element {
               </Show>
               <button
                 type="button"
-                class="grid size-8 shrink-0 cursor-pointer place-items-center rounded-full text-current opacity-70 hover:bg-[color-mix(in_oklab,var(--text-primary)_10%,transparent)] hover:opacity-100"
+                class="grid size-control-xl shrink-0 cursor-pointer place-items-center rounded-base icon-secondary transition-colors duration-(--duration-fast) hover:bg-quaternary hover:icon-primary"
                 aria-label="Hide the screen"
                 title="Hide the screen"
                 data-action="computer-hide"
                 onClick={closeViewer}
               >
-                <RemixIcon icon={CloseIcon} size={16} />
+                <RemixIcon icon={CloseIcon} size={14} />
               </button>
             </div>
             <div class="min-h-0 flex-1 overflow-hidden rounded-xl bg-black">
