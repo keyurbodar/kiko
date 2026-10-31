@@ -1,5 +1,5 @@
 import type { Task } from "../../types"
-import { bun, check, LIMITS, readText, readJson, run, verdict, writeJson, writeText } from "../helpers"
+import { bun, check, readText, readJson, run, verdict, writeJson, writeText } from "../helpers"
 
 const LONG = { turns: 60, seconds: 1200 } as const
 

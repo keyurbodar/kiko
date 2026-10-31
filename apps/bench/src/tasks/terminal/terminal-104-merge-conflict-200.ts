@@ -1,5 +1,5 @@
 import type { Machine, Task } from "../../types"
-import { bun, check, git, LIMITS, readText, run, verdict, writeJson, writeText } from "../helpers"
+import { check, git, LIMITS, readText, run, verdict, writeJson, writeText } from "../helpers"
 
 const FILLERS = 200
 

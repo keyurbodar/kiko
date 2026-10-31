@@ -1,5 +1,5 @@
 import type { Task } from "../../types"
-import { bun, check, LIMITS, mulberry32, pick, readJson, readText, verdict, writeJson, writeText } from "../helpers"
+import { check, LIMITS, mulberry32, pick, readJson, readText, verdict, writeJson, writeText } from "../helpers"
 import { crossAppState, launchCrossApp, runCrossAppOracle } from "./support"
 
 const WORDS = ["green-harbor", "amber-river", "silver-meadow", "copper-summit", "quiet-anchor", "rapid-willow"]

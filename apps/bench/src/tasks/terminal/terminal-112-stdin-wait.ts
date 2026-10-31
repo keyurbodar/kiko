@@ -1,5 +1,5 @@
 import type { Task } from "../../types"
-import { check, LIMITS, mulberry32, readText, run, verdict, writeJson, writeText } from "../helpers"
+import { check, mulberry32, readText, run, verdict, writeJson, writeText } from "../helpers"
 
 const hex = (rng: () => number, length: number): string =>
   Array.from({ length }, () => Math.floor(rng() * 16).toString(16)).join("")
