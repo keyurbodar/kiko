@@ -9,13 +9,13 @@ export interface EnvComputer {
   readonly restartAfterMs?: number
 }
 
-export interface EnvTopology {
+interface EnvTopology {
   readonly computers: readonly EnvComputer[]
 }
 
-export const TOPOLOGY_FILE = ".bench-env.json"
+const TOPOLOGY_FILE = ".bench-env.json"
 
-export const topologyPath = (workdir: string): string => join(workdir, TOPOLOGY_FILE)
+const topologyPath = (workdir: string): string => join(workdir, TOPOLOGY_FILE)
 
 export async function writeTopology(m: Machine, topology: EnvTopology): Promise<void> {
   await writeFile(topologyPath(m.workdir), JSON.stringify(topology, null, 2), "utf8")

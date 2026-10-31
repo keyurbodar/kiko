@@ -346,7 +346,7 @@ function browserMethod(name: string): string | undefined {
   return methods[name]
 }
 
-export type Route =
+type Route =
   | { readonly kind: "local" }
   | { readonly kind: "op"; readonly op: string }
   | { readonly kind: "driver"; readonly method: string }
