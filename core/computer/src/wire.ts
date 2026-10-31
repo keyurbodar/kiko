@@ -16,6 +16,7 @@ export const Caps = Schema.Struct({
   input: Schema.Boolean,
   background: Schema.optionalKey(Schema.Boolean),
   browser: Schema.optionalKey(Schema.Boolean),
+  terminal: Schema.optionalKey(Schema.Boolean),
 })
 export type Caps = typeof Caps.Type
 
@@ -79,6 +80,48 @@ export const Step = Schema.Union([
 ])
 export type Step = typeof Step.Type
 
+const TerminalStatus = Schema.Literals(["running", "exited"])
+const TerminalInfo = Schema.Struct({
+  id: Id,
+  name: Text,
+  cwd: Text,
+  shell: Text,
+  cols: Count,
+  rows: Count,
+  status: TerminalStatus,
+  exitCode: Schema.NullOr(Schema.Int),
+})
+const Cols = Schema.Int.check(Schema.isGreaterThanOrEqualTo(20), Schema.isLessThanOrEqualTo(500))
+const Rows = Schema.Int.check(Schema.isGreaterThanOrEqualTo(5), Schema.isLessThanOrEqualTo(200))
+const Lines = Schema.Int.check(Schema.isGreaterThanOrEqualTo(1), Schema.isLessThanOrEqualTo(5_000))
+
+const OPS = [
+  "shell",
+  "read",
+  "write",
+  "look",
+  "act",
+  "driver",
+  "terminal_open",
+  "terminal_send",
+  "terminal_read",
+  "terminal_wait",
+  "terminal_resize",
+  "terminal_close",
+  "terminal_list",
+] as const
+export type Op = (typeof OPS)[number]
+
+export const TERMINAL_OPS: ReadonlySet<Op> = new Set<Op>([
+  "terminal_open",
+  "terminal_send",
+  "terminal_read",
+  "terminal_wait",
+  "terminal_resize",
+  "terminal_close",
+  "terminal_list",
+])
+
 export const Calls = {
   shell: {
     args: Schema.Struct({ command: Text, cwd: Schema.optionalKey(Text), timeoutMs: Schema.optionalKey(Count) }),
@@ -131,8 +174,65 @@ export const Calls = {
     args: DriverCall,
     value: Schema.Unknown,
   },
-} as const
-export type Op = keyof typeof Calls
+  terminal_open: {
+    args: Schema.Struct({
+      cwd: Schema.optionalKey(Text),
+      shell: Schema.optionalKey(Text),
+      cols: Schema.optionalKey(Cols),
+      rows: Schema.optionalKey(Rows),
+      name: Schema.optionalKey(Text),
+    }),
+    value: TerminalInfo,
+  },
+  terminal_send: {
+    args: Schema.Struct({
+      id: Id,
+      text: Schema.optionalKey(Text),
+      keys: Schema.optionalKey(Schema.Array(Text)),
+    }),
+    value: Schema.Struct({ id: Id, bytes: Count }),
+  },
+  terminal_read: {
+    args: Schema.Struct({ id: Id, mode: Schema.Literals(["screen", "tail"]), lines: Schema.optionalKey(Lines) }),
+    value: Schema.Struct({
+      id: Id,
+      mode: Schema.Literals(["screen", "tail"]),
+      text: Text,
+      truncated: Schema.Boolean,
+      cols: Count,
+      rows: Count,
+      status: TerminalStatus,
+      exitCode: Schema.NullOr(Schema.Int),
+    }),
+  },
+  terminal_wait: {
+    args: Schema.Struct({
+      id: Id,
+      until: Text,
+      regex: Schema.optionalKey(Schema.Boolean),
+      timeoutMs: Schema.optionalKey(Count),
+    }),
+    value: Schema.Struct({
+      id: Id,
+      matched: Schema.Boolean,
+      timedOut: Schema.Boolean,
+      exited: Schema.Boolean,
+      text: Text,
+    }),
+  },
+  terminal_resize: {
+    args: Schema.Struct({ id: Id, cols: Cols, rows: Rows }),
+    value: Schema.Struct({ id: Id, cols: Count, rows: Count }),
+  },
+  terminal_close: {
+    args: Schema.Struct({ id: Id }),
+    value: Schema.Struct({ id: Id, closed: Schema.Boolean }),
+  },
+  terminal_list: {
+    args: Schema.Struct({}),
+    value: Schema.Struct({ terminals: Schema.Array(TerminalInfo) }),
+  },
+} as const satisfies Record<Op, { args: Schema.Top; value: Schema.Top }>
 export type Args<O extends Op> = (typeof Calls)[O]["args"]["Type"]
 export type Value<O extends Op> = (typeof Calls)[O]["value"]["Type"]
 
@@ -173,7 +273,7 @@ export const ToDaemon = Schema.Union([
   Schema.Struct({
     t: Schema.Literal("call"),
     id: Id,
-    op: Schema.Literals(["shell", "read", "write", "look", "act", "driver"]),
+    op: Schema.Literals(OPS),
     args: Schema.Unknown,
     deadlineMs: Count,
   }),

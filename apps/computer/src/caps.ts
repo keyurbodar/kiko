@@ -5,6 +5,7 @@ import { Desktop } from "./desktop"
 import type { Logger } from "./log"
 import type { LiveCaps } from "./live"
 import { findBinary } from "./live/binary"
+import { hasPty } from "./terminal/pty"
 
 export type Detection = {
   backend: Backend | null
@@ -24,13 +25,14 @@ function hasFfmpeg(configDir?: string): boolean {
   return findBinary("ffmpeg", configDir) !== null
 }
 
-function capsFor(desktop: boolean, ffmpeg: boolean, live: LiveCaps): Caps {
+function capsFor(desktop: boolean, ffmpeg: boolean, live: LiveCaps, terminal: boolean): Caps {
   return {
     shell: true,
     files: true,
     desktop,
     live: live.live && desktop && ffmpeg,
     input: live.input && desktop,
+    terminal,
   }
 }
 
@@ -47,11 +49,11 @@ function displaysOf(backend: Backend | null): Display[] {
   return [{ id: "primary", width: area.width, height: area.height, scale: 1 }]
 }
 
-function detectionOf(backend: Backend | null, ffmpeg: boolean, live: LiveCaps): Detection {
+function detectionOf(backend: Backend | null, ffmpeg: boolean, live: LiveCaps, terminal: boolean): Detection {
   return {
     backend,
     desktop: backend ? new Desktop(backend) : null,
-    caps: capsFor(backend !== null, ffmpeg, live),
+    caps: capsFor(backend !== null, ffmpeg, live, terminal),
     displays: displaysOf(backend),
     access: backend?.access() ?? null,
     reason: backend ? (ffmpeg ? null : FFMPEG_NOTE) : noBackendReason(),
@@ -59,11 +61,11 @@ function detectionOf(backend: Backend | null, ffmpeg: boolean, live: LiveCaps): 
 }
 
 export function presence(): Detection {
-  return detectionOf(createBackend(), hasFfmpeg(), { live: false, input: false })
+  return detectionOf(createBackend(), hasFfmpeg(), { live: false, input: false }, hasPty())
 }
 
 export function detect(log: Logger, live: LiveCaps = { live: false, input: false }, configDir?: string): Detection {
   const backend = createBackend()
   if (!backend) log.warn(`${noBackendReason()}; desktop tools are off`)
-  return detectionOf(backend, hasFfmpeg(configDir), live)
+  return detectionOf(backend, hasFfmpeg(configDir), live, hasPty())
 }

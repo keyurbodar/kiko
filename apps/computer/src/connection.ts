@@ -4,7 +4,9 @@ import { CONNECT_HEADERS, connectMessage, sign } from "@kiko/computer/sign"
 import {
   Calls,
   PROTOCOL,
+  TERMINAL_OPS,
   ToDaemon,
+  type Args,
   type FailCode,
   type FromDaemon,
   type Holder,
@@ -19,6 +21,7 @@ import type { LiveFrames } from "./live"
 import { Deadline } from "./deadline"
 import { Fail, failureCode, failureMessage, type Logger } from "./log"
 import { read, shell, write } from "./ops"
+import type { TerminalManager } from "./terminal/manager"
 
 const PING_MS = 20_000
 const PING = JSON.stringify({ _tag: "Ping" })
@@ -41,6 +44,7 @@ export type Host = {
   policy(): Promise<Policy>
   desktop(): Desktop | null
   driver(): Driver | null
+  terminal(): TerminalManager | null
   paused(): boolean
   live: LiveFrames
   holder(): Holder
@@ -385,9 +389,25 @@ class Link {
     if (op === "read") return read(args as Parameters<typeof read>[0], await this.host.policy())
     if (op === "write") return write(args as Parameters<typeof write>[0], await this.host.policy())
     if (op === "driver") return this.driver(args as DriverCall, context)
+    if (TERMINAL_OPS.has(op)) return this.terminal(op, args, context)
     const desktop = await this.desktop(op)
     if (op === "look") return desktop.look(args as Parameters<Desktop["look"]>[0], context)
     return desktop.act(args as Parameters<Desktop["act"]>[0], context)
+  }
+
+  private async terminal(op: Op, args: unknown, context: Deadline): Promise<unknown> {
+    const policy = await this.host.policy()
+    if (!policy.shell)
+      throw new Fail({ code: "denied", message: "policy.json turns off shell commands and terminals on this machine" })
+    const terminals = this.host.terminal()
+    if (!terminals) throw new Fail({ code: "unsupported", message: "this machine cannot open terminal sessions" })
+    if (op === "terminal_open") return terminals.open(args as Args<"terminal_open">)
+    if (op === "terminal_send") return terminals.send(args as Args<"terminal_send">)
+    if (op === "terminal_read") return terminals.read(args as Args<"terminal_read">)
+    if (op === "terminal_wait") return terminals.wait(args as Args<"terminal_wait">, context.signal)
+    if (op === "terminal_resize") return terminals.resize(args as Args<"terminal_resize">)
+    if (op === "terminal_close") return terminals.close(args as Args<"terminal_close">)
+    return terminals.list()
   }
 
   private async driver(call: DriverCall, context: Deadline): Promise<unknown> {

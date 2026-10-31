@@ -9,6 +9,8 @@ import { emptyLive, startLive, type Live } from "./live"
 import { createFeed } from "./feed"
 import { createLogger, type Logger } from "./log"
 import { VERSION } from "./platform"
+import { hasPty } from "./terminal/pty"
+import { TerminalManager } from "./terminal/manager"
 import { createUpdater, updateTarget, type Updater } from "./update"
 
 const REPAIR_POLL_MS = 30_000
@@ -41,6 +43,7 @@ export async function serve(dir = configDir()): Promise<number> {
   if (policy.desktop) detection.backend?.requestAccess()
   let driver: Driver | null = null
   let update: Updater | null = null
+  const terminals = new TerminalManager()
   const host: Host = {
     endpoint: { url: config.url, userId: config.userId, pcId: config.pcId, protocol: PROTOCOL },
     key,
@@ -48,6 +51,7 @@ export async function serve(dir = configDir()): Promise<number> {
     policy: () => loadPolicy(dir),
     desktop: () => detection.desktop,
     driver: () => driver,
+    terminal: () => (hasPty() ? terminals : null),
     paused: () => paused(dir),
     live: {
       rtc: (frame) => live.frames.rtc(frame),
@@ -95,6 +99,7 @@ export async function serve(dir = configDir()): Promise<number> {
     log.info("stopping")
     link.stop()
     driver?.close()
+    terminals.closeAll()
     void live.close()
     detection.backend?.close()
     process.exit(0)
@@ -186,6 +191,11 @@ export async function diagnose(dir = configDir()): Promise<{ checks: Check[]; de
     name: "shell",
     ok: true,
     detail: process.platform === "win32" ? "powershell -NoProfile -Command" : "/bin/sh -lc",
+  })
+  checks.push({
+    name: "terminal",
+    ok: hasPty(),
+    detail: hasPty() ? "terminal sessions are available" : "this Bun build has no pseudo-terminal support",
   })
   if (config) checks.push(await reachable(config.url))
   return { checks, detection }

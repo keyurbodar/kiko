@@ -4,6 +4,7 @@ import { declareEffect } from "@kiko/agent/effects"
 import type { Step, Value, View } from "@kiko/computer/wire"
 import { backgroundTools } from "./background"
 import { browserTools } from "./browser"
+import { terminalTools } from "./terminal"
 import {
   CALL_DEADLINE_MS,
   cut,
@@ -39,6 +40,7 @@ const MAX_WAIT_MS = 10_000
 const COMPUTER_RULES = [
   "computers are the human's own machines; each one is macOS, Linux or Windows, and computer_shell says which shell it runs. pass pc by name or id; with one machine, leave it out.",
   "prefer the shell and the file tools: they are exact and instant. use the screen only for a desktop app or a window.",
+  "for an interactive program, a REPL, or a full-screen app, open a terminal with terminal_open: it stays alive between your turns. terminal_send types and presses keys, terminal_wait waits for output, terminal_read reads the screen or the tail. computer_shell is only for one command that finishes.",
   "work in the background so the owner can keep using their computer: computer_windows lists every window, computer_see shows one window's controls with [ref] ids and a picture even when it is covered, and computer_use acts on them by ref without moving the owner's mouse or bringing the window forward. act by ref, not by pixels.",
   "for websites use the browser tools on the owner's own browser: browser_tabs lists every tab, browser_read reads any tab including ones in the background, browser_act clicks and types by ref, browser_open opens a new background tab. use the tab the owner already has open for that site instead of opening another.",
   "computer_look and computer_act, and on_screen true, use the owner's real screen, mouse and keyboard and interrupt them. use them only when the owner asked you to work on their screen, or after you asked and they agreed.",
@@ -404,6 +406,7 @@ export function computerExtension(deps: ComputerToolDeps): Extension {
       declareEffect("external", act),
       ...backgroundTools(deps).map((tool) => declareEffect(tool.replay === "safe" ? "read" : "external", tool)),
       ...browserTools(deps).map((tool) => declareEffect(tool.replay === "safe" ? "read" : "external", tool)),
+      ...terminalTools(deps).map((tool) => declareEffect(tool.replay === "safe" ? "read" : "external", tool)),
     ],
     sections: [section(COMPUTER_EXT, () => COMPUTER_RULES)],
   })

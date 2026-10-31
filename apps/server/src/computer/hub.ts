@@ -11,6 +11,7 @@ import {
   type Op,
   PROTOCOL,
   type RtcSignal,
+  TERMINAL_OPS,
   type ToDaemon,
 } from "@kiko/computer/wire"
 import { CONNECT_HEADERS, CONNECT_SKEW_MS, connectMessage, verify } from "@kiko/computer/sign"
@@ -411,12 +412,22 @@ export class ComputerHub {
     const saved = attachmentOf(ws)
     const hello = saved?.hello
     if (!saved || !hello) return { ok: false, code: "unsupported", message: `${row.name} is not ready yet` }
-    const cap = op === "shell" ? "shell" : op === "read" || op === "write" ? "files" : "desktop"
+    const cap = TERMINAL_OPS.has(op)
+      ? "terminal"
+      : op === "shell"
+        ? "shell"
+        : op === "read" || op === "write"
+          ? "files"
+          : "desktop"
     if (op === "driver") {
       if (!hello.caps.background)
         return { ok: false, code: "unsupported", message: `${row.name} does not allow background work` }
     } else if (!hello.caps[cap]) {
-      return { ok: false, code: "unsupported", message: `${row.name} does not allow ${cap}` }
+      return {
+        ok: false,
+        code: "unsupported",
+        message: `${row.name} does not allow ${cap === "terminal" ? "terminal sessions" : cap}`,
+      }
     }
     if (op === "act" && !hello.caps.input)
       return { ok: false, code: "unsupported", message: `${row.name} has input off` }

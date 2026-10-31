@@ -4,6 +4,7 @@ import { PROTOCOL } from "@kiko/computer/wire"
 import { type Host, runLink } from "./connection"
 import type { Deadline } from "./deadline"
 import type { Driver } from "./driver"
+import { TerminalManager } from "./terminal/manager"
 
 type Event = { code?: number; reason?: string; data?: unknown }
 type Listener = (event: Event) => void
@@ -56,6 +57,7 @@ async function host(): Promise<Host> {
     policy: async () => ({ shell: true, files: { allow: ["~"] }, desktop: false, live: false, input: false }),
     desktop: () => null,
     driver: () => null,
+    terminal: () => null,
     paused: () => false,
     live: { rtc() {}, live() {}, input() {}, control() {}, ack() {} },
     holder: () => "agent",
@@ -178,12 +180,107 @@ function sendDriver(socket: FakeSocket, id: string, args: unknown) {
   socket.emit("message", { data: JSON.stringify({ t: "call", id, op: "driver", args, deadlineMs: 5_000 }) })
 }
 
+function sendTerminal(socket: FakeSocket, id: string, op: string, args: unknown) {
+  socket.emit("message", { data: JSON.stringify({ t: "call", id, op, args, deadlineMs: 5_000 }) })
+}
+
+function fakeTerminals() {
+  const writes: string[] = []
+  const manager = new TerminalManager({
+    spawn: () => ({
+      pid: 7,
+      write: (data) => writes.push(data),
+      resize: () => {},
+      kill: () => {},
+      close: () => {},
+      exited: new Promise(() => {}),
+    }),
+    screen: () => ({ write: (_text, done) => done?.(), text: () => "", resize: () => {}, dispose: () => {} }),
+  })
+  return { manager, writes }
+}
+
 async function resultOf(socket: FakeSocket, id: string): Promise<Result> {
   await vi.waitFor(() => {
     assert.isTrue(socket.sent.some((frame) => (JSON.parse(frame as string) as Result).id === id))
   })
   return socket.sent.map((frame) => JSON.parse(frame as string) as Result).find((frame) => frame.id === id)!
 }
+
+describe("terminal calls", () => {
+  it("opens a terminal through the manager", async () => {
+    const { manager } = fakeTerminals()
+    const { link, socket } = await openLink({ ...(await host()), terminal: () => manager })
+    try {
+      sendTerminal(socket, "c1", "terminal_open", { name: "repl" })
+
+      const result = await resultOf(socket, "c1")
+
+      assert.isTrue(result.ok)
+      assert.strictEqual((result.value as { name: string }).name, "repl")
+    } finally {
+      manager.closeAll()
+      link.stop()
+      reset()
+    }
+  })
+
+  it("types into a terminal and reports the bytes", async () => {
+    const { manager, writes } = fakeTerminals()
+    const { link, socket } = await openLink({ ...(await host()), terminal: () => manager })
+    try {
+      const target = manager.open({ name: "repl" })
+      sendTerminal(socket, "c1", "terminal_send", { id: target.id, text: "ls", keys: ["enter"] })
+
+      const result = await resultOf(socket, "c1")
+
+      assert.isTrue(result.ok)
+      assert.deepStrictEqual((result.value as { bytes: number }).bytes, 3)
+      assert.deepStrictEqual(writes, ["ls\r"])
+    } finally {
+      manager.closeAll()
+      link.stop()
+      reset()
+    }
+  })
+
+  it("denies terminals when policy turns shell off", async () => {
+    const { manager } = fakeTerminals()
+    const { link, socket } = await openLink({
+      ...(await host()),
+      terminal: () => manager,
+      policy: async () => ({ ...(await desktopOn()), shell: false }),
+    })
+    try {
+      sendTerminal(socket, "c1", "terminal_open", {})
+
+      const result = await resultOf(socket, "c1")
+
+      assert.isFalse(result.ok)
+      assert.strictEqual(result.error?.code, "denied")
+      assert.strictEqual(manager.list().terminals.length, 0)
+    } finally {
+      manager.closeAll()
+      link.stop()
+      reset()
+    }
+  })
+
+  it("says a machine without a pty cannot open one", async () => {
+    const { link, socket } = await openLink(await host())
+    try {
+      sendTerminal(socket, "c1", "terminal_open", {})
+
+      const result = await resultOf(socket, "c1")
+
+      assert.isFalse(result.ok)
+      assert.strictEqual(result.error?.code, "unsupported")
+    } finally {
+      link.stop()
+      reset()
+    }
+  })
+})
 
 describe("driver calls", () => {
   it("forwards a driver call to the kiko app", async () => {
