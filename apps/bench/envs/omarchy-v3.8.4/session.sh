@@ -23,7 +23,7 @@ export GDK_BACKEND=x11
 export NO_AT_BRIDGE=0
 
 exec dbus-run-session -- bash -c '
-  Hyprland >/tmp/hyprland.log 2>&1 &
+  env -u DISPLAY Hyprland >/tmp/hyprland.log 2>&1 &
   hypr=$!
   signature=""
   for _ in $(seq 1 240); do
@@ -38,6 +38,14 @@ exec dbus-run-session -- bash -c '
   done
   export HYPRLAND_INSTANCE_SIGNATURE="$signature"
   hyprctl keyword monitor HEADLESS-1,1920x1080@60,0x0,1 >/dev/null 2>&1 || true
+  for _ in $(seq 1 120); do
+    if DISPLAY=:0 xdotool getdisplaygeometry >/dev/null 2>&1; then break; fi
+    sleep 0.5
+  done
+  if ! DISPLAY=:0 xdotool getdisplaygeometry >/dev/null 2>&1; then
+    echo "warning: XWayland is not answering on DISPLAY=:0, so the X11 fixture will not start" >&2
+    tail -n 50 /tmp/hyprland.log >&2 || true
+  fi
   gdbus call --session --dest org.a11y.Bus --object-path /org/a11y/bus \
     --method org.freedesktop.DBus.Properties.Set org.a11y.Status IsEnabled "<true>" >/dev/null 2>&1 || true
   exec "$@"

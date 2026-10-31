@@ -12,14 +12,14 @@ let
     gtk3
     at-spi2-core
     at-spi2-atk
-    libxdo
-    libX11
-    libXtst
-    libXi
-    libXrandr
-    libXext
-    libXfixes
-    libXcursor
+    xorg.libxdo
+    xorg.libX11
+    xorg.libXtst
+    xorg.libXi
+    xorg.libXrandr
+    xorg.libXext
+    xorg.libXfixes
+    xorg.libXcursor
     libxkbcommon
     wayland
     pango

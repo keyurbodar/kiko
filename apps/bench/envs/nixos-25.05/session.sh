@@ -21,7 +21,7 @@ export GI_TYPELIB_PATH="/run/current-system/sw/lib/girepository-1.0:${GI_TYPELIB
 export LIBGL_ALWAYS_SOFTWARE=1
 
 exec dbus-run-session -- bash -c '
-  gnome-shell --headless --virtual-monitor 1920x1080 >/tmp/gnome-shell.log 2>&1 &
+  env -u DISPLAY gnome-shell --headless --virtual-monitor 1920x1080 >/tmp/gnome-shell.log 2>&1 &
   shell=$!
   for _ in $(seq 1 240); do
     if [ -S "$XDG_RUNTIME_DIR/wayland-0" ]; then break; fi
@@ -32,6 +32,14 @@ exec dbus-run-session -- bash -c '
     fi
     sleep 0.5
   done
+  for _ in $(seq 1 120); do
+    if DISPLAY=:0 xdotool getdisplaygeometry >/dev/null 2>&1; then break; fi
+    sleep 0.5
+  done
+  if ! DISPLAY=:0 xdotool getdisplaygeometry >/dev/null 2>&1; then
+    echo "warning: XWayland is not answering on DISPLAY=:0, so the X11 fixture will not start" >&2
+    tail -n 50 /tmp/gnome-shell.log >&2 || true
+  fi
   gdbus call --session --dest org.a11y.Bus --object-path /org/a11y/bus \
     --method org.freedesktop.DBus.Properties.Set org.a11y.Status IsEnabled "<true>" >/dev/null 2>&1 || true
   exec "$@"
