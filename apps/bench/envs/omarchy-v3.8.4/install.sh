@@ -6,6 +6,8 @@ export OMARCHY_PATH="$HOME/.local/share/omarchy"
 export OMARCHY_INSTALL="$OMARCHY_PATH/install"
 export PATH="$OMARCHY_PATH/bin:$PATH"
 
+sudo pacman-key --init
+sudo pacman-key --populate archlinux
 sudo pacman -Syu --noconfirm
 sudo pacman -S --noconfirm --needed git base-devel gum openssh xdotool limine
 
@@ -50,7 +52,7 @@ run "$OMARCHY_INSTALL/config/user-dirs.sh"
 mkdir -p "$HOME/.config/hypr"
 printf 'monitor=HEADLESS-1,1920x1080@60,0x0,1\n' >"$HOME/.config/hypr/monitors.conf"
 
-for pkg in git python nodejs bun chromium vim tmux sqlite jq libreoffice-fresh; do
+for pkg in git python python-gobject nodejs bun chromium vim tmux sqlite jq libreoffice-fresh gtk3 curl zip unzip make; do
   sudo pacman -S --noconfirm --needed "$pkg" || echo "!! $pkg failed" >&2
 done
 

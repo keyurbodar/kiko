@@ -21,7 +21,7 @@ exec dbus-run-session -- bash -c '
   gnome-shell --headless --virtual-monitor 1920x1080 >/tmp/gnome-shell.log 2>&1 &
   shell=$!
   for _ in $(seq 1 240); do
-    if [ -S "$XDG_RUNTIME_DIR/wayland-0" ] && [ -e /tmp/.X11-unix/X0 ]; then break; fi
+    if [ -S "$XDG_RUNTIME_DIR/wayland-0" ]; then break; fi
     if ! kill -0 "$shell" 2>/dev/null; then
       echo "gnome-shell exited before the session came up" >&2
       tail -n 200 /tmp/gnome-shell.log >&2 || true

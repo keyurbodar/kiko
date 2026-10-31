@@ -182,7 +182,7 @@ jobs:
       matrix: ${{ fromJSON(needs.plan.outputs.container) }}
     steps:
       - name: Base packages
-        run: apt-get update && apt-get install -y --no-install-recommends git ca-certificates curl
+        run: apt-get update && apt-get install -y --no-install-recommends git ca-certificates curl nodejs unzip
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup
       - name: Environment packages
@@ -221,7 +221,7 @@ jobs:
   bench-vm:
     name: ${{ matrix.track }} ${{ matrix.env }} ${{ matrix.contender }} ${{ matrix.model }} ${{ matrix.shard }}
     needs: [plan, nixos-image, omarchy-image]
-    if: needs.plan.outputs.vm != '[]'
+    if: always() && needs.plan.result == 'success' && needs.plan.outputs.vm != '[]'
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 90
     strategy:
@@ -318,7 +318,7 @@ jobs:
       matrix: ${{ fromJSON(needs.plan.outputs.vcontainer) }}
     steps:
       - name: Base packages
-        run: apt-get update && apt-get install -y --no-install-recommends git ca-certificates curl
+        run: apt-get update && apt-get install -y --no-install-recommends git ca-certificates curl nodejs unzip
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup
       - name: Environment packages
@@ -335,7 +335,7 @@ jobs:
   validate-vm:
     name: Validate ${{ matrix.env }}
     needs: [plan, nixos-image, omarchy-image]
-    if: needs.plan.outputs.vvm != '[]'
+    if: always() && needs.plan.result == 'success' && needs.plan.outputs.vvm != '[]'
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 90
     strategy:
