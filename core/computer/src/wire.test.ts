@@ -41,6 +41,21 @@ describe("hello", () => {
 
     expect(hello.caps.terminal).toBe(true)
   })
+
+  it("decodes the calls a reconnecting daemon is still running or holding results for", () => {
+    const hello = Schema.decodeUnknownSync(Hello)({ ...OLD, resume: { running: ["c1"], recent: ["c2", "c3"] } })
+
+    expect(hello.resume).toEqual({ running: ["c1"], recent: ["c2", "c3"] })
+  })
+
+  it("rejects a resume report with no recent ids", () => {
+    expect(() => Schema.decodeUnknownSync(Hello)({ ...OLD, resume: { running: ["c1"] } })).toThrow()
+  })
+
+  it("rejects a resume report that is not a list of ids", () => {
+    expect(() => Schema.decodeUnknownSync(Hello)({ ...OLD, resume: { running: "c1", recent: [] } })).toThrow()
+    expect(() => Schema.decodeUnknownSync(Hello)({ ...OLD, resume: { running: [1], recent: [] } })).toThrow()
+  })
 })
 
 describe("terminal calls", () => {

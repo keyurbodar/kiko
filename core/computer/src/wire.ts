@@ -23,6 +23,12 @@ export type Caps = typeof Caps.Type
 export const Display = Schema.Struct({ id: Id, width: Count, height: Count, scale: Schema.Number })
 export type Display = typeof Display.Type
 
+export const Resume = Schema.Struct({
+  running: Schema.Array(Id),
+  recent: Schema.Array(Id),
+})
+export type Resume = typeof Resume.Type
+
 export const Hello = Schema.Struct({
   t: Schema.Literal("hello"),
   protocol: Count,
@@ -35,6 +41,7 @@ export const Hello = Schema.Struct({
   access: Schema.optionalKey(Schema.Struct({ screen: Schema.Boolean, input: Schema.Boolean })),
   driver: Schema.optionalKey(Schema.Struct({ permissions: Permissions, browsers: Schema.Array(BrowserStatus) })),
   note: Schema.optionalKey(Text),
+  resume: Schema.optionalKey(Resume),
 })
 export type Hello = typeof Hello.Type
 
