@@ -242,6 +242,40 @@ describe("install.ps1", () => {
     expect(body).toContain("Start-Process -FilePath 'powershell' -WindowStyle Hidden")
     expect(body).toContain("Remove-ItemProperty -Path '__RUN__' -Name 'kiko-computer'")
   })
+
+  it("pairs a running-app update before the swap and finishes only after the helper reports back", () => {
+    const body = installPs1(ORIGIN, signed(assets))
+    const updatePair = body.indexOf("$paired = $true")
+    const helper = body.indexOf("Start-Process -FilePath 'powershell'")
+    const wait = body.indexOf("if (Test-Path $result) { break }")
+    const done = body.indexOf("Say 'done.'")
+    expect(updatePair).toBeGreaterThanOrEqual(0)
+    expect(helper).toBeGreaterThan(updatePair)
+    expect(wait).toBeGreaterThan(helper)
+    expect(done).toBeGreaterThan(wait)
+    expect(body).toContain("if ($PairUrl -and -not $paired)")
+    expect(body).not.toContain("exit 0")
+  })
+
+  it("launches the helper with a quoted script path and restarts kiko through a result file", () => {
+    const body = installPs1(ORIGIN, signed(assets))
+    expect(body).toContain("'-File', ('\"' + $helper + '\"')")
+    expect(body).toContain("} finally {")
+    expect(body).toContain("Start-Process -FilePath '__EXE__'")
+    expect(body).toContain("Set-Content -Path '__RESULT__' -Value @($status, $detail)")
+    expect(body).toContain("Remove-Item -Force $result -ErrorAction SilentlyContinue")
+    expect(body).toContain("exit $code")
+  })
+
+  it("escapes quoted values before substituting them into the helper", () => {
+    const body = installPs1(ORIGIN, signed(assets))
+    expect(body).toContain(`function PsQuote([string]$Text) { return $Text.Replace("'", "''") }`)
+    for (const name of ["__EXE__", "__ZIP__", "__ROOT__", "__VERSION__", "__STAGING__", "__RESULT__"]) {
+      expect(body).toContain(`.Replace('${name}', (PsQuote $`)
+    }
+    expect(body).toContain(".Replace('__RUN__', (PsQuote $run))")
+    expect(body).toContain(".Replace('__LOCAL__', (PsQuote $local))")
+  })
 })
 
 describe("install route", () => {

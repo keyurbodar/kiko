@@ -451,6 +451,15 @@ $sums = @'
 ${release.sums}'@
 
 function Say([string]$Text) { Write-Host "kiko: $Text" }
+function PsQuote([string]$Text) { return $Text.Replace("'", "''") }
+function Pair([string]$Link, [string]$Label) {
+  if ($Label) {
+    & $core pair $Link --name $Label
+  } else {
+    & $core pair $Link
+  }
+  if ($LASTEXITCODE -ne 0) { throw 'kiko: pairing failed' }
+}
 
 if ($env:KIKO_PC_BASE) { $base = $env:KIKO_PC_BASE }
 if ($env:PROCESSOR_ARCHITECTURE -eq 'ARM64') { Say 'Windows on ARM runs the x64 build under emulation' }
@@ -470,7 +479,7 @@ if ($old) { $old | Stop-Process -Force }
 $oldDir = Join-Path '__LOCAL__' 'kiko-computer'
 if (Test-Path (Join-Path $oldDir 'bin\\kiko-computer.exe')) { Remove-Item -Recurse -Force $oldDir }
 '@
-$migrate = $migrate.Replace('__RUN__', $run).Replace('__LOCAL__', $local)
+$migrate = $migrate.Replace('__RUN__', (PsQuote $run)).Replace('__LOCAL__', (PsQuote $local))
 
 $want = ''
 foreach ($line in ($sums -split '\\r?\\n')) {
@@ -484,6 +493,7 @@ if (-not $want) { throw "kiko: the release has no checksum for $asset" }
 
 $same = ''
 if (Test-Path (Join-Path $root 'VERSION')) { $same = (Get-Content (Join-Path $root 'VERSION') -Raw).Trim() }
+$paired = $false
 New-Item -ItemType Directory -Force -Path $root | Out-Null
 
 if ($same -eq $version) {
@@ -500,51 +510,74 @@ if ($same -eq $version) {
   }
   if (Get-Process -Name 'kiko' -ErrorAction SilentlyContinue) {
     Say 'kiko is running, so it quits, replaces itself and starts again'
+    if ($PairUrl) {
+      Pair $PairUrl $Name
+      $paired = $true
+    }
+    $result = Join-Path $root 'update-result.txt'
     $swap = @'
 $ErrorActionPreference = 'Stop'
-& '__EXE__' --quit
-for ($i = 0; $i -lt 60; $i++) {
-  if (-not (Get-Process -Name 'kiko', 'kiko-core' -ErrorAction SilentlyContinue)) { break }
-  Start-Sleep -Milliseconds 500
-}
-if (Get-Process -Name 'kiko', 'kiko-core' -ErrorAction SilentlyContinue) {
+$code = 0
+$detail = 'installed __VERSION__'
+try {
+  & '__EXE__' --quit
+  for ($i = 0; $i -lt 60; $i++) {
+    if (-not (Get-Process -Name 'kiko', 'kiko-core' -ErrorAction SilentlyContinue)) { break }
+    Start-Sleep -Milliseconds 500
+  }
+  if (Get-Process -Name 'kiko', 'kiko-core' -ErrorAction SilentlyContinue) {
+    throw 'kiko did not quit'
+  }
+  Expand-Archive -Path '__ZIP__' -DestinationPath '__ROOT__' -Force
+  Set-Content -Path (Join-Path '__ROOT__' 'VERSION') -Value '__VERSION__' -NoNewline
+  Remove-Item -Force '__ZIP__'
+  Remove-Item -Recurse -Force '__STAGING__' -ErrorAction SilentlyContinue
+} catch {
+  $code = 1
+  $detail = $_.Exception.Message
+} finally {
   Start-Process -FilePath '__EXE__'
-  exit 1
+  $status = 'ok'
+  if ($code -ne 0) { $status = 'failed' }
+  Set-Content -Path '__RESULT__' -Value @($status, $detail)
 }
-Expand-Archive -Path '__ZIP__' -DestinationPath '__ROOT__' -Force
-Set-Content -Path (Join-Path '__ROOT__' 'VERSION') -Value '__VERSION__' -NoNewline
-Remove-Item -Force '__ZIP__'
-Remove-Item -Recurse -Force '__STAGING__'
-Start-Process -FilePath '__EXE__'
-__MIGRATE__
+exit $code
 '@
-$swap = $swap.Replace('__EXE__', $exe).Replace('__ZIP__', $zip).Replace('__ROOT__', $root).Replace('__VERSION__', $version).Replace('__STAGING__', $staging).Replace('__MIGRATE__', $migrate)
+    $swap = $swap.Replace('__EXE__', (PsQuote $exe)).Replace('__ZIP__', (PsQuote $zip)).Replace('__ROOT__', (PsQuote $root)).Replace('__VERSION__', (PsQuote $version)).Replace('__STAGING__', (PsQuote $staging)).Replace('__RESULT__', (PsQuote $result))
     $helper = Join-Path $staging 'swap.ps1'
     Set-Content -Path $helper -Value $swap -Encoding UTF8
     Set-ItemProperty -Path $run -Name 'kiko' -Value ('"' + $exe + '"')
-    Start-Process -FilePath 'powershell' -WindowStyle Hidden -ArgumentList @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $helper)
-    Say 'kiko starts at logon'
-    Say 'done.'
-    exit 0
+    Remove-Item -Force $result -ErrorAction SilentlyContinue
+    Start-Process -FilePath 'powershell' -WindowStyle Hidden -ArgumentList @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', ('"' + $helper + '"'))
+    for ($i = 0; $i -lt 120; $i++) {
+      if (Test-Path $result) { break }
+      Start-Sleep -Milliseconds 500
+    }
+    if (-not (Test-Path $result)) {
+      throw 'kiko: the update did not finish; kiko was restarted on the old or new version, check it'
+    }
+    $outcome = @(Get-Content $result)
+    Remove-Item -Force $result -ErrorAction SilentlyContinue
+    if ($outcome[0] -ne 'ok') {
+      $detail = 'unknown'
+      if ($outcome.Length -gt 1) { $detail = $outcome[1] }
+      throw "kiko: the update failed: $detail"
+    }
+  } else {
+    Say "installing kiko $version"
+    Expand-Archive -Path $zip -DestinationPath $root -Force
+    Set-Content -Path (Join-Path $root 'VERSION') -Value $version -NoNewline
+    Remove-Item -Force $zip
+    Remove-Item -Recurse -Force $staging -ErrorAction SilentlyContinue
   }
-  Say "installing kiko $version"
-  Expand-Archive -Path $zip -DestinationPath $root -Force
-  Set-Content -Path (Join-Path $root 'VERSION') -Value $version -NoNewline
-  Remove-Item -Force $zip
-  Remove-Item -Recurse -Force $staging -ErrorAction SilentlyContinue
 }
 
 Set-ItemProperty -Path $run -Name 'kiko' -Value ('"' + $exe + '"')
 Say 'kiko starts at logon'
 
-if ($PairUrl) {
-  if ($Name) {
-    & $core pair $PairUrl --name $Name
-  } else {
-    & $core pair $PairUrl
-  }
-  if ($LASTEXITCODE -ne 0) { throw 'kiko: pairing failed' }
-} elseif (-not $same) {
+if ($PairUrl -and -not $paired) {
+  Pair $PairUrl $Name
+} elseif (-not $same -and -not $PairUrl) {
   Say "no pair link yet. Open $origin in a browser, add this computer, then run:"
   Write-Host ('  "' + $core + '" pair "<pair-url>"')
 }

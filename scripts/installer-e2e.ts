@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto"
-import { copyFile, mkdir, readFile, writeFile } from "node:fs/promises"
+import { appendFile, copyFile, mkdir, readFile, writeFile } from "node:fs/promises"
 import { connect } from "node:net"
 import { join } from "node:path"
 import { installPs1, installSh } from "../apps/server/src/computer/install-route"
@@ -34,7 +34,11 @@ function serve(site: string, port: number): void {
     port,
     async fetch(request) {
       const url = new URL(request.url)
-      if (url.pathname === "/api/pc/pair") return Response.json({ id: "pc-e2e", name: "e2e", userId: "user-e2e" })
+      if (url.pathname === "/api/pc/pair") {
+        const body = await request.text()
+        await appendFile(join(site, "pair-requests.log"), `${JSON.stringify({ body })}\n`)
+        return Response.json({ id: "pc-e2e", name: "e2e", userId: "user-e2e" })
+      }
       const file = Bun.file(join(site, url.pathname.slice(1)))
       return (await file.exists()) ? new Response(file) : new Response("not found", { status: 404 })
     },

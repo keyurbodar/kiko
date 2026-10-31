@@ -4,6 +4,10 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+$env:LOCALAPPDATA = Join-Path $env:RUNNER_TEMP 'kiko local appdata'
+New-Item -ItemType Directory -Force -Path $env:LOCALAPPDATA | Out-Null
+$sid = [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+$driver = "\\.\pipe\kiko-driver-$sid"
 $root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $site = Join-Path $env:RUNNER_TEMP 'kiko-site'
 $origin = "http://127.0.0.1:$Port"
@@ -55,7 +59,7 @@ try {
   }
   Write-Host "kiko ($($proc.Id)) is running kiko-core ($($core.ProcessId))"
 
-  bun "$root\scripts\installer-e2e.ts" status '\\.\pipe\kiko-driver'
+  bun "$root\scripts\installer-e2e.ts" status $driver
   if ($LASTEXITCODE -ne 0) { Fail 'the driver pipe did not answer status' }
 
   $value = (Get-ItemProperty -Path $run -Name 'kiko').kiko
@@ -75,8 +79,14 @@ try {
   Write-Host 'installing a newer version over the running app'
   $next = (& bun "$root\scripts\installer-e2e.ts" version) + '-e2e'
   bun "$root\scripts\installer-e2e.ts" write $Assets $site $Port $next
-  & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $site 'install.ps1')
+  $pairLog = Join-Path $site 'pair-requests.log'
+  Remove-Item -Force $pairLog -ErrorAction SilentlyContinue
+  $updatePair = "$origin/pc#e2e-update"
+  & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $site 'install.ps1') $updatePair
   if ($LASTEXITCODE -ne 0) { Fail "the update installer exited with $LASTEXITCODE" }
+  if (-not (Test-Path $pairLog)) { Fail 'the update did not pair' }
+  $pairText = Get-Content $pairLog -Raw -ErrorAction SilentlyContinue
+  if (-not $pairText -or -not $pairText.Trim()) { Fail 'the update did not pair' }
   $oldApp = $proc.Id
   $oldCore = $core.ProcessId
   WaitFor { $null -eq (Get-Process -Id $oldApp -ErrorAction SilentlyContinue) } 'the old kiko to quit'
@@ -88,9 +98,28 @@ try {
     $null -ne $script:core
   } 'the updated kiko to run kiko-core'
   $proc = Get-Process -Id $core.ParentProcessId
-  bun "$root\scripts\installer-e2e.ts" status '\\.\pipe\kiko-driver'
+  bun "$root\scripts\installer-e2e.ts" status $driver
   if ($LASTEXITCODE -ne 0) { Fail 'the driver pipe did not answer status after the update' }
   if ((Get-Content (Join-Path $app 'VERSION') -Raw).Trim() -ne $next) { Fail 'the update did not write the new version' }
+
+  Write-Host 'an update that cannot write the version fails honestly and restarts kiko'
+  $versionFile = Join-Path $app 'VERSION'
+  (Get-Item $versionFile).IsReadOnly = $true
+  $broken = $next + '-broken'
+  bun "$root\scripts\installer-e2e.ts" write $Assets $site $Port $broken
+  $outFile = Join-Path $env:RUNNER_TEMP 'kiko-broken-update.out'
+  $errorFile = Join-Path $env:RUNNER_TEMP 'kiko-broken-update.err'
+  $brokenRun = Start-Process -FilePath 'powershell' -PassThru -Wait -WindowStyle Hidden `
+    -ArgumentList @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', ('"' + (Join-Path $site 'install.ps1') + '"')) `
+    -RedirectStandardOutput $outFile -RedirectStandardError $errorFile
+  if ($brokenRun.ExitCode -eq 0) { Fail 'a broken update exited zero' }
+  $errorText = (Get-Content $errorFile -Raw -ErrorAction SilentlyContinue) + (Get-Content $outFile -Raw -ErrorAction SilentlyContinue)
+  if ($errorText -notmatch 'the update failed') { Fail "a broken update did not report the failure: $errorText" }
+  WaitFor { $null -ne (Get-Process -Name 'kiko' -ErrorAction SilentlyContinue) } 'kiko to run after a failed update'
+  if ((Get-Content $versionFile -Raw).Trim() -ne $next) { Fail 'a broken update changed the installed version' }
+  (Get-Item $versionFile).IsReadOnly = $false
+  bun "$root\scripts\installer-e2e.ts" write $Assets $site $Port $next
+
   Write-Host 'installer e2e passed'
 } finally {
   & (Join-Path $app 'kiko.exe') --quit
