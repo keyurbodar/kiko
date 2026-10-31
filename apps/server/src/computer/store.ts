@@ -2,7 +2,7 @@ import type { DesktopInfo } from "@kiko/computer/driver"
 import type { ComputerCaps } from "@kiko/protocol"
 import { getSetting, setSetting } from "../lib/settings"
 
-export type ComputerOs = "macos" | "linux" | "windows"
+export type ComputerOs = "macos" | "linux"
 
 export type ComputerRow = {
   id: string

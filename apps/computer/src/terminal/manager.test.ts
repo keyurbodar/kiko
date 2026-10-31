@@ -129,13 +129,13 @@ describe("terminal_open", () => {
 })
 
 describe("terminal_send", () => {
-  it("writes the text and then the keys as separate input", async () => {
+  it("writes the text and the keys as one input", async () => {
     const { fake, manager } = harness()
     const opened = manager.open({})
 
     const sent = await manager.send({ id: opened.id, text: "ls", keys: ["enter"] })
 
-    expect(fake.writes).toEqual(["ls", "\r"])
+    expect(fake.writes).toEqual(["ls\r"])
     expect(sent.bytes).toBe(3)
   })
 

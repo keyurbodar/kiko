@@ -14,9 +14,10 @@ const report = (seed: number) => {
 export const download: Task = {
   id: "browser-005-download",
   track: "browser",
-  os: ["linux", "macos", "windows"],
+  os: ["linux", "macos"],
   needs: ["chrome"],
   heldOut: false,
+  kind: "real",
   prompt:
     "Download the sales report linked from the page in url.txt and submit the total of the amount column in the answer form.",
   limits: LIMITS,

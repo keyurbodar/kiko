@@ -78,7 +78,6 @@ def build_saveas():
         dialog = Gtk.FileChooserDialog(title="Save As", parent=win, action=Gtk.FileChooserAction.SAVE)
         dialog.add_buttons(Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL, Gtk.STOCK_SAVE, Gtk.ResponseType.OK)
         dialog.set_current_folder(work)
-        dialog.set_current_name(request["name"])
         dialog.set_do_overwrite_confirmation(False)
         response = dialog.run()
         if response == Gtk.ResponseType.OK:

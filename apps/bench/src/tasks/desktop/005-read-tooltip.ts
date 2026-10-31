@@ -16,6 +16,7 @@ export const desktopTooltip: Task = {
   os: ["linux"],
   needs: ["display"],
   heldOut: true,
+  kind: "real",
   prompt:
     "In the open window, hover the question mark to read the recovery code, type it into the recovery code field and submit it.",
   limits: LIMITS,

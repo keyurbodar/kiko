@@ -25,7 +25,6 @@ export function hasPty(): boolean {
 }
 
 export function defaultShell(platform = process.platform): string[] {
-  if (platform === "win32") return ["powershell.exe", "-NoLogo", "-NoProfile"]
   return [process.env.SHELL ?? (platform === "darwin" ? "/bin/zsh" : "/bin/bash")]
 }
 

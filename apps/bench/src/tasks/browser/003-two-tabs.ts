@@ -20,9 +20,10 @@ const scenario = (seed: number) => {
 export const twoTabs: Task = {
   id: "browser-003-two-tabs",
   track: "browser",
-  os: ["linux", "macos", "windows"],
+  os: ["linux", "macos"],
   needs: ["chrome"],
   heldOut: false,
+  kind: "real",
   prompt:
     "A customer wants to claim an order. Find their order number on the orders page linked from url.txt, then submit a claim for it on the claims page with the reason in request.json.",
   limits: LIMITS,

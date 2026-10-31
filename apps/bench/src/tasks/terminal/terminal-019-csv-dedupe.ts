@@ -88,9 +88,10 @@ const plan = (seed: number): { csv: string; expected: string } => {
 export const csvDedupe: Task = {
   id: "terminal-019-csv-dedupe",
   track: "terminal",
-  os: ["linux", "macos", "windows"],
+  os: ["linux", "macos"],
   needs: [],
   heldOut: true,
+  kind: "real",
   prompt:
     "signups.csv has duplicate emails. Write clean.csv with one row per email: the row with the latest updated timestamp, sorted by email, keeping the same header.",
   limits: LIMITS,

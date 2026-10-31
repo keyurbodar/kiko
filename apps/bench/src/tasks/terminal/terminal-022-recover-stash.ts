@@ -20,9 +20,10 @@ const mustGit = async (m: Machine, args: readonly string[]): Promise<void> => {
 export const recoverStash: Task = {
   id: "terminal-022-recover-stash",
   track: "terminal",
-  os: ["linux", "macos", "windows"],
+  os: ["linux", "macos"],
   needs: [],
   heldOut: true,
+  kind: "real",
   prompt:
     "Some work was stashed earlier. Restore it into the working tree and commit it with the message in request.json.",
   limits: LIMITS,

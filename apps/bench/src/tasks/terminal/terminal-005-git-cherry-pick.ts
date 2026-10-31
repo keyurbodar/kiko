@@ -21,9 +21,10 @@ const details = (seed: number): { readonly feature: string; readonly message: st
 export const gitCherryPick: Task = {
   id: "terminal-005-git-cherry-pick",
   track: "terminal",
-  os: ["linux", "macos", "windows"],
+  os: ["linux", "macos"],
   needs: [],
   heldOut: false,
+  kind: "real",
   prompt: "Cherry-pick the commit titled in request.json from branch release onto main. Do not bring the other commit.",
   limits: LIMITS,
   setup: async (m, seed) => {

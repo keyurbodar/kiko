@@ -13,6 +13,7 @@ export const desktopSettings: Task = {
   os: ["linux"],
   needs: ["display"],
   heldOut: false,
+  kind: "real",
   prompt: "In the open settings window, set the two switches to match request.json, then apply the change.",
   limits: LIMITS,
   setup: async (m, seed) => {

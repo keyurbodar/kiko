@@ -2,7 +2,7 @@ import { createHash } from "node:crypto"
 import { copyFile, mkdir, readFile, writeFile } from "node:fs/promises"
 import { connect } from "node:net"
 import { join } from "node:path"
-import { installPs1, installSh } from "../apps/server/src/computer/install-route"
+import { installSh } from "../apps/server/src/computer/install-route"
 import { COMPUTER_APPS, computerSums } from "../core/computer/src/install"
 
 const STATUS_TIMEOUT_MS = 10_000
@@ -25,7 +25,6 @@ async function publish(assets: string, site: string, base: string, release: stri
   if (present.length === 0) throw new Error(`no kiko app archives in ${assets}`)
   const manifest = { version: release, base, sums: computerSums(present) }
   await writeFile(join(site, "install.sh"), installSh(base, manifest))
-  await writeFile(join(site, "install.ps1"), installPs1(base, manifest))
 }
 
 function serve(site: string, port: number): void {

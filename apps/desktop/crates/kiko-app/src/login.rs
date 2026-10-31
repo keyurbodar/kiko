@@ -58,50 +58,6 @@ mod imp {
     }
 }
 
-#[cfg(target_os = "windows")]
-mod imp {
-    use std::io;
-
-    use winreg::RegKey;
-    use winreg::enums::{HKEY_CURRENT_USER, KEY_SET_VALUE};
-
-    const RUN: &str = r"Software\Microsoft\Windows\CurrentVersion\Run";
-    const VALUE: &str = "kiko";
-
-    fn key(write: bool) -> io::Result<RegKey> {
-        let root = RegKey::predef(HKEY_CURRENT_USER);
-        if write {
-            root.open_subkey_with_flags(RUN, KEY_SET_VALUE)
-        } else {
-            root.open_subkey(RUN)
-        }
-    }
-
-    pub fn enabled() -> bool {
-        key(false)
-            .and_then(|key| key.get_value::<String, _>(VALUE))
-            .is_ok()
-    }
-
-    pub fn set(on: bool) -> io::Result<()> {
-        let key = key(true)?;
-        if on {
-            let exe = std::env::current_exe()?;
-            key.set_value(VALUE, &format!("\"{}\"", exe.display()))
-        } else {
-            match key.delete_value(VALUE) {
-                Ok(()) => Ok(()),
-                Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
-                Err(error) => Err(error),
-            }
-        }
-    }
-
-    pub fn migrate() -> io::Result<()> {
-        Ok(())
-    }
-}
-
 #[cfg(target_os = "macos")]
 mod imp {
     use std::io;

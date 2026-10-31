@@ -22,6 +22,7 @@ export const confirmInstaller: Task = {
   os: ["linux", "macos"],
   needs: [],
   heldOut: false,
+  kind: "edge",
   prompt: "Run ./install.sh and accept its prompt so the install completes.",
   limits: LIMITS,
   setup: async (m, seed) => {

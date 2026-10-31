@@ -33,7 +33,7 @@ export const Hello = Schema.Struct({
   t: Schema.Literal("hello"),
   protocol: Count,
   version: Text,
-  os: Schema.Literals(["macos", "linux", "windows"]),
+  os: Schema.Literals(["macos", "linux"]),
   arch: Text,
   host: Text,
   caps: Caps,

@@ -4,7 +4,7 @@ const MAX_OUTPUT_CHARS = 12_000
 const TIMEOUT_MS = 120_000
 
 const DESCRIPTION =
-  "run one command line on the machine and return its exit code and the end of its output. macOS and linux run /bin/sh -lc, windows runs powershell, so write the command for that system. it starts in the working directory."
+  "run one command line on the machine and return its exit code and the end of its output. it runs /bin/sh -lc, so write the command for that shell. it starts in the working directory."
 
 const TOOLS: readonly ToolSpec[] = [
   {
@@ -43,9 +43,10 @@ export function baselineShell(): Contender {
       if (typeof command !== "string" || command.length === 0)
         return { text: "shell needs a command", images: [], isError: true }
       if (signal.aborted) return { text: "the call was cancelled", images: [], isError: true }
-      const cmd =
-        machine.os === "windows" ? ["powershell", "-NoProfile", "-Command", command] : ["/bin/sh", "-lc", command]
-      const out = await machine.exec(cmd, { cwd: machine.workdir, timeoutMs: TIMEOUT_MS })
+      const out = await machine.exec(["/bin/sh", "-lc", command], {
+        cwd: machine.workdir,
+        timeoutMs: TIMEOUT_MS,
+      })
       const body = [out.stdout.trim(), out.stderr.trim()].filter(Boolean).join("\n")
       return {
         text: `exit code ${out.code}\n\n${body ? tail(body) : "(no output)"}`,

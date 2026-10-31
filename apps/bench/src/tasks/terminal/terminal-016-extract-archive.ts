@@ -23,9 +23,10 @@ const token = (seed: number): string => {
 export const extractArchive: Task = {
   id: "terminal-016-extract-archive",
   track: "terminal",
-  os: ["linux", "macos", "windows"],
+  os: ["linux", "macos"],
   needs: [],
   heldOut: false,
+  kind: "real",
   prompt: "Extract archive.tar.gz and write the contents of the secret.txt inside it to answer.txt.",
   limits: LIMITS,
   setup: async (m, seed) => {

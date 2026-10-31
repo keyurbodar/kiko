@@ -24,6 +24,7 @@ export const pagerSearch: Task = {
   os: ["linux", "macos"],
   needs: [],
   heldOut: false,
+  kind: "edge",
   prompt: "The request id is buried in big.log. Write the whole line that contains REQUEST= to answer.txt.",
   limits: LIMITS,
   setup: async (m, seed) => {

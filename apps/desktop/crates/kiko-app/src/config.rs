@@ -5,8 +5,6 @@ use serde::Deserialize;
 
 const DRIVER_SOCKET: &str = "driver.sock";
 const CONTROL_SOCKET: &str = "control.sock";
-const DRIVER_PIPE: &str = "kiko-driver";
-const CONTROL_PIPE: &str = "kiko-control";
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct DaemonConfig {
@@ -37,12 +35,6 @@ pub fn app_dir() -> PathBuf {
             .join("Application Support")
             .join("kiko");
     }
-    if cfg!(windows) {
-        let base = env::var_os("APPDATA")
-            .map(PathBuf::from)
-            .unwrap_or_else(|| home().join("AppData").join("Roaming"));
-        return base.join("kiko");
-    }
     config_home().join("kiko")
 }
 
@@ -61,12 +53,6 @@ pub fn daemon_dir() -> PathBuf {
             .join("Library")
             .join("Application Support")
             .join("kiko-computer");
-    }
-    if cfg!(windows) {
-        let base = env::var_os("APPDATA")
-            .map(PathBuf::from)
-            .unwrap_or_else(|| home().join("AppData").join("Roaming"));
-        return base.join("kiko-computer");
     }
     config_home().join("kiko-computer")
 }
@@ -92,19 +78,11 @@ pub fn agent() -> Option<AgentState> {
 }
 
 pub fn socket_name() -> String {
-    if cfg!(windows) {
-        DRIVER_PIPE.to_string()
-    } else {
-        path_name(DRIVER_SOCKET)
-    }
+    path_name(DRIVER_SOCKET)
 }
 
 pub fn control_name() -> String {
-    if cfg!(windows) {
-        CONTROL_PIPE.to_string()
-    } else {
-        path_name(CONTROL_SOCKET)
-    }
+    path_name(CONTROL_SOCKET)
 }
 
 fn path_name(file: &str) -> String {
@@ -135,11 +113,7 @@ pub fn core_path() -> PathBuf {
 }
 
 fn core_name() -> &'static str {
-    if cfg!(windows) {
-        "kiko-core.exe"
-    } else {
-        "kiko-core"
-    }
+    "kiko-core"
 }
 
 pub fn cua_path() -> PathBuf {
@@ -150,15 +124,38 @@ pub fn cua_path() -> PathBuf {
 }
 
 fn cua_name() -> &'static str {
-    if cfg!(windows) {
-        "cua-driver.exe"
-    } else {
-        "cua-driver"
-    }
+    "cua-driver"
 }
 
 pub fn cua_socket() -> PathBuf {
     app_dir().join("cua-driver.sock")
+}
+
+pub fn agent_browser_path() -> PathBuf {
+    if let Some(path) = env::var_os("KIKO_AGENT_BROWSER") {
+        return PathBuf::from(path);
+    }
+    sibling("agent-browser")
+}
+
+pub fn browser_dir() -> PathBuf {
+    app_dir().join("browser")
+}
+
+pub fn browser_shot() -> PathBuf {
+    browser_dir().join("shot.jpg")
+}
+
+pub fn browser_env() -> Vec<(String, String)> {
+    vec![
+        ("AGENT_BROWSER_SESSION".into(), "kiko".into()),
+        ("AGENT_BROWSER_NAMESPACE".into(), "kiko".into()),
+        (
+            "AGENT_BROWSER_PROFILE".into(),
+            browser_dir().join("profile").to_string_lossy().into_owned(),
+        ),
+        ("AGENT_BROWSER_HEADED".into(), "false".into()),
+    ]
 }
 
 pub fn sibling(name: &str) -> PathBuf {
@@ -171,6 +168,7 @@ pub fn sibling(name: &str) -> PathBuf {
 pub fn ensure_dir() -> std::io::Result<()> {
     let dir = app_dir();
     std::fs::create_dir_all(&dir)?;
+    std::fs::create_dir_all(browser_dir())?;
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;

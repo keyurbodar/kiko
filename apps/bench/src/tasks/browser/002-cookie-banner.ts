@@ -12,9 +12,10 @@ const emailFor = (seed: number): string => {
 export const cookieBanner: Task = {
   id: "browser-002-cookie-banner",
   track: "browser",
-  os: ["linux", "macos", "windows"],
+  os: ["linux", "macos"],
   needs: ["chrome"],
   heldOut: false,
+  kind: "real",
   prompt:
     "Subscribe to product updates on the page whose address is in url.txt. Use the email address in request.json.",
   limits: LIMITS,

@@ -12,11 +12,9 @@ describe("machine", () => {
   it("strips a git hook's environment from commands", async () => {
     const machine = await createMachine("test-machine")
     machines.push(machine)
-    const command =
-      machine.os === "windows"
-        ? ["powershell", "-NoProfile", "-Command", "if ($env:GIT_DIR) { $env:GIT_DIR } else { 'unset' }"]
-        : ["/bin/sh", "-c", 'printf %s "${GIT_DIR-unset}"']
-    const out = await machine.exec(command, { env: { GIT_DIR: "/somewhere/else" } })
+    const out = await machine.exec(["/bin/sh", "-c", 'printf %s "${GIT_DIR-unset}"'], {
+      env: { GIT_DIR: "/somewhere/else" },
+    })
     expect(out.stdout.trim()).toBe("unset")
   })
 
@@ -39,18 +37,13 @@ describe("machine", () => {
 
   it("reports the local OS", () => {
     expect(localOs("darwin")).toBe("macos")
-    expect(localOs("win32")).toBe("windows")
     expect(localOs("linux")).toBe("linux")
   })
 
   it("spawns a process and stops it", async () => {
     const machine = await createMachine("test-machine")
     machines.push(machine)
-    const command =
-      machine.os === "windows"
-        ? ["powershell", "-NoProfile", "-Command", "Start-Sleep -Seconds 30"]
-        : ["/bin/sh", "-c", "sleep 30"]
-    const child = await machine.spawn(command)
+    const child = await machine.spawn(["/bin/sh", "-c", "sleep 30"])
     expect(child.pid).toBeGreaterThan(0)
     await child.stop()
   })

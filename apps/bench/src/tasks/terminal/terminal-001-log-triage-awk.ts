@@ -56,6 +56,7 @@ export const logTriage: Task = {
   os: ["linux", "macos"],
   needs: [],
   heldOut: false,
+  kind: "real",
   prompt:
     "Something is returning server errors in app.log. Write report.txt with one line per endpoint that returned a 5xx: the number of errors, a space, then the endpoint, most errors first. Endpoints with no errors do not belong in the file.",
   limits: LIMITS,

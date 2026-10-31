@@ -20,9 +20,10 @@ const details = (seed: number): { name: string; email: string; zip: string } => 
 export const formSignup: Task = {
   id: "browser-001-form-signup",
   track: "browser",
-  os: ["linux", "macos", "windows"],
+  os: ["linux", "macos"],
   needs: ["chrome"],
   heldOut: false,
+  kind: "real",
   prompt:
     "Sign up for the newsletter on the page whose address is in url.txt. Use the name, email and postal code in request.json.",
   limits: LIMITS,
