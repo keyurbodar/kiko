@@ -32,7 +32,7 @@ async function checkCount(m: Machine): Promise<Verdict> {
 }
 
 export const countMatches: Task = {
-  id: "terminal-001-count-matches",
+  id: "terminal-025-count-matches",
   track: "terminal",
   os: ["macos", "windows", "linux"],
   needs: [],

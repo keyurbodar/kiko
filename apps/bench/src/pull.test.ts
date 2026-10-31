@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs"
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
+import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
@@ -79,12 +79,13 @@ describe("pull", () => {
     expect(index.trim().split("\n")).toHaveLength(2)
   })
 
-  it("ignores validation ledgers", async () => {
+  it("copies validation ledgers without indexing them", async () => {
     const staging = await tempDir("bench-staging-")
     const plans = await tempDir("bench-plans-")
     const dir = join(staging, "bench-ubuntu")
     await mkdir(dir, { recursive: true })
     await writeFile(join(dir, "validate-run.tsv"), "task\tos\tmachine\tkind\tpass\tdetail\n", "utf8")
     expect(await harvestArtifacts(staging, plans, "1")).toEqual([])
+    expect(await readdir(plans)).toContain("validate-run.tsv")
   })
 })

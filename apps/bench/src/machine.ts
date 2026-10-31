@@ -1,4 +1,5 @@
 import { execFile, spawnSync, spawn as spawnProcess } from "node:child_process"
+import { closeSync, openSync } from "node:fs"
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
@@ -79,6 +80,7 @@ class LocalMachine implements Machine {
   readonly os: Os
   readonly id: string
   readonly workdir: string
+  readonly children = new Set<number>()
 
   constructor(id: string, workdir: string) {
     this.os = localOs()
@@ -101,17 +103,21 @@ class LocalMachine implements Machine {
     cmd: readonly string[],
     opts: { cwd?: string; env?: Record<string, string> } = {},
   ): Promise<{ pid: number; stop(): Promise<void> }> {
+    const log = openSync(join(this.workdir, ".spawn.log"), "a")
     const child = spawnProcess(cmd[0] ?? "", cmd.slice(1), {
       cwd: opts.cwd ?? this.workdir,
       env: commandEnv(opts.env),
-      stdio: "ignore",
+      stdio: ["ignore", log, log],
       detached: process.platform !== "win32",
     })
+    closeSync(log)
     const pid = child.pid
     if (pid === undefined) throw new Error(`could not start ${cmd[0] ?? "the command"}`)
+    this.children.add(pid)
     return {
       pid,
       stop: async () => {
+        this.children.delete(pid)
         killTree(pid)
       },
     }
@@ -137,5 +143,9 @@ export async function createMachine(id = `local-${localOs()}`): Promise<Machine>
 }
 
 export async function removeMachine(m: Machine): Promise<void> {
+  if (m instanceof LocalMachine) {
+    for (const pid of m.children) killTree(pid)
+    m.children.clear()
+  }
   await rm(m.workdir, { recursive: true, force: true })
 }

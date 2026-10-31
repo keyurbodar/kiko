@@ -38,7 +38,7 @@ async function checkDouble(m: Machine): Promise<Verdict> {
 }
 
 export const fixScript: Task = {
-  id: "terminal-002-fix-script",
+  id: "terminal-026-fix-script",
   track: "terminal",
   os: ["macos", "windows", "linux"],
   needs: [],

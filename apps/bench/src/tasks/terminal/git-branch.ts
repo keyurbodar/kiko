@@ -45,7 +45,7 @@ async function checkBranch(m: Machine): Promise<Verdict> {
 }
 
 export const gitBranch: Task = {
-  id: "terminal-003-git-branch",
+  id: "terminal-027-git-branch",
   track: "terminal",
   os: ["macos", "windows", "linux"],
   needs: [],

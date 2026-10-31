@@ -4,5 +4,7 @@
   "models": ["beam-free"],
   "reps": 2,
   "conditions": ["foreground"],
-  "seed": 1
+  "seed": 1,
+  "pattern": "terminal-02[5-7]-*",
+  "validate": { "runs": 10 }
 }

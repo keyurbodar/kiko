@@ -125,14 +125,10 @@ const matches = (task: Task, pattern: string): boolean =>
   pattern === "*" || task.id === pattern || new Bun.Glob(pattern).match(task.id)
 
 function selectTasks(pattern: string, track: string | undefined, os: Os): Task[] {
-  return TASKS.filter(
-    (task) =>
-      matches(task, pattern) &&
-      task.os.includes(os) &&
-      (!track || task.track === track) &&
-      task.needs.every((need) => need === "network"),
-  )
+  return TASKS.filter((task) => matches(task, pattern) && task.os.includes(os) && (!track || task.track === track))
 }
+
+const runnable = (task: Task): boolean => task.needs.every((need) => need === "network")
 
 const modelSpec = (id: string): ModelSpec => MODELS[id] ?? { id, vision: false }
 
@@ -360,6 +356,8 @@ interface CiConfig {
   readonly reps?: number
   readonly conditions?: readonly Condition[]
   readonly seed?: number
+  readonly pattern?: string
+  readonly validateRuns?: number
 }
 
 const stringList = (value: unknown): string[] | undefined =>
@@ -372,6 +370,8 @@ function readCi(flags: Parsed["flags"]): CiConfig {
   const conditions = stringList(raw.conditions)?.filter(
     (value): value is Condition => value === "foreground" || value === "background",
   )
+  const validate =
+    typeof raw.validate === "object" && raw.validate !== null ? (raw.validate as Record<string, unknown>) : {}
   return {
     ...(stringList(raw.tracks) ? { tracks: stringList(raw.tracks) } : {}),
     ...(stringList(raw.contenders) ? { contenders: stringList(raw.contenders) } : {}),
@@ -379,6 +379,8 @@ function readCi(flags: Parsed["flags"]): CiConfig {
     ...(conditions ? { conditions } : {}),
     ...(typeof raw.reps === "number" ? { reps: raw.reps } : {}),
     ...(typeof raw.seed === "number" ? { seed: raw.seed } : {}),
+    ...(typeof raw.pattern === "string" ? { pattern: raw.pattern } : {}),
+    ...(typeof validate.runs === "number" ? { validateRuns: validate.runs } : {}),
   }
 }
 
@@ -410,7 +412,7 @@ function buildPlan(flags: Parsed["flags"], ci: CiConfig | undefined): RunPlan {
     models,
     reps: Number(flagString(flags, "reps") ?? ci?.reps ?? 1),
     seed: Number(flagString(flags, "seed") ?? ci?.seed ?? 1),
-    pattern: flagString(flags, "task") ?? "*",
+    pattern: flagString(flags, "task") ?? ci?.pattern ?? "*",
   }
 }
 
@@ -485,7 +487,7 @@ async function run(flags: Parsed["flags"]): Promise<void> {
   let total = 0
   let passed = 0
   for (const track of plan.tracks) {
-    const tasks = selectTasks(plan.pattern, track, os)
+    const tasks = selectTasks(plan.pattern, track, os).filter(runnable)
     for (const condition of plan.conditions) {
       const group = await runGroup({
         tasks,
@@ -541,9 +543,14 @@ const detailOf = (verdict: Verdict, stable: boolean): string =>
 const validateRow = (task: Task, os: Os, machineId: string, kind: string, pass: boolean, detail: string): string =>
   [task.id, os, machineId, kind, pass ? "1" : "0", escape(detail)].join("\t")
 
+const runCount = (flags: Parsed["flags"]): number => {
+  const fromFlag = flagString(flags, "runs")
+  return fromFlag === undefined ? (readCi(flags).validateRuns ?? 1) : Number(fromFlag)
+}
+
 async function validate(flags: Parsed["flags"]): Promise<void> {
   const dir = resultsDir(flags)
-  const runs = Number(flagString(flags, "runs") ?? "1")
+  const runs = runCount(flags)
   const os = localOs()
   const machineId = flagString(flags, "machine") ?? `local-${os}`
   const tasks = selectTasks(flagString(flags, "task") ?? "*", flagString(flags, "track"), os)
@@ -552,14 +559,15 @@ async function validate(flags: Parsed["flags"]): Promise<void> {
   const lines: string[] = []
   const quarantined: string[] = []
   for (const task of tasks) {
-    const oracle = await checked(task, machineId, "oracle")
+    const oracles: Verdict[] = []
+    for (let run = 0; run < Math.max(runs, 1); run++) oracles.push(await checked(task, machineId, "oracle"))
     const nothing = await checked(task, machineId, "null")
-    const repeats: string[] = []
-    for (let run = 0; run < runs; run++) repeats.push(JSON.stringify((await checked(task, machineId, "oracle")).checks))
-    const stable = repeats.every((value) => value === repeats[0])
-    const good = oracle.pass && stable && !nothing.pass
+    const first = oracles[0] ?? failed("no oracle run")
+    const seen = oracles.map((verdict) => JSON.stringify(verdict.checks.map((entry) => [entry.name, entry.pass])))
+    const stable = seen.every((value) => value === seen[0])
+    const good = first.pass && stable && !nothing.pass
     lines.push(
-      validateRow(task, os, machineId, "oracle", oracle.pass && stable, detailOf(oracle, stable)),
+      validateRow(task, os, machineId, "oracle", first.pass && stable, detailOf(first, stable)),
       validateRow(task, os, machineId, "null", !nothing.pass, detailOf(nothing, true)),
     )
     if (!good) quarantined.push(task.id)

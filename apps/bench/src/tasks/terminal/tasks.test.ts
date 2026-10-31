@@ -36,22 +36,22 @@ async function expectSetupAloneFails(task: Task): Promise<void> {
 }
 
 describe("terminal tasks", () => {
-  it.skipIf(!runsHere(countMatches))("terminal-001-count-matches passes with the oracle", () =>
+  it.skipIf(!runsHere(countMatches))("terminal-025-count-matches passes with the oracle", () =>
     expectOraclePasses(countMatches),
   )
-  it.skipIf(!runsHere(countMatches))("terminal-001-count-matches fails without the oracle", () =>
+  it.skipIf(!runsHere(countMatches))("terminal-025-count-matches fails without the oracle", () =>
     expectSetupAloneFails(countMatches),
   )
-  it.skipIf(!runsHere(fixScript))("terminal-002-fix-script passes with the oracle", () => expectOraclePasses(fixScript))
-  it.skipIf(!runsHere(fixScript))("terminal-002-fix-script fails without the oracle", () =>
+  it.skipIf(!runsHere(fixScript))("terminal-026-fix-script passes with the oracle", () => expectOraclePasses(fixScript))
+  it.skipIf(!runsHere(fixScript))("terminal-026-fix-script fails without the oracle", () =>
     expectSetupAloneFails(fixScript),
   )
-  it.skipIf(!runsHere(gitBranch))("terminal-003-git-branch passes with the oracle", () => expectOraclePasses(gitBranch))
-  it.skipIf(!runsHere(gitBranch))("terminal-003-git-branch fails without the oracle", () =>
+  it.skipIf(!runsHere(gitBranch))("terminal-027-git-branch passes with the oracle", () => expectOraclePasses(gitBranch))
+  it.skipIf(!runsHere(gitBranch))("terminal-027-git-branch fails without the oracle", () =>
     expectSetupAloneFails(gitBranch),
   )
 
-  it("terminal-001-count-matches accepts a count written as UTF-16", async () => {
+  it("terminal-025-count-matches accepts a count written as UTF-16", async () => {
     const machine = await createMachine()
     try {
       await machine.writeText(join(machine.workdir, "count.txt"), "\uFFFD\uFFFD3\u0000\r\u0000\n\u0000")
