@@ -13,6 +13,7 @@ const KERNEL_TIMEOUT_SECONDS = 25 * 60 * 60
 const MAX_RETRY_AFTER_S = 5
 export const MAX_TABS = 8
 const TAKEOVER_MS = 30 * 60_000
+const TOUCH_MS = 60_000
 
 export const REAP_WAKEUP = "kernel_reap"
 
@@ -123,6 +124,7 @@ export class KernelLease {
   setTakeover(on: boolean): void {
     const now = this.#now()
     const row = this.deps.store.lease()
+    if (!on && row && !row.takeover && row.watchUntil === 0) return
     this.deps.store.patchLease(
       on
         ? { takeover: true, watchUntil: Math.max(row?.watchUntil ?? 0, now + TAKEOVER_MS), lastUse: now }
@@ -191,11 +193,13 @@ export class KernelLease {
   }
 
   #touch(row: LeaseRow, agentId: string, tabs?: Record<string, string>): void {
+    const now = this.#now()
     const next = { ...row.tabs }
     if (tabs && Object.keys(tabs).length) next[agentId] = tabs
     else if (tabs) delete next[agentId]
     else next[agentId] ??= {}
-    this.deps.store.patchLease({ lastUse: this.#now(), tabs: next })
+    if (JSON.stringify(next) === JSON.stringify(row.tabs) && now - row.lastUse < TOUCH_MS) return
+    this.deps.store.patchLease({ lastUse: now, tabs: next })
   }
 
   async #create(

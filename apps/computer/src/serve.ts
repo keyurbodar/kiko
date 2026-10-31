@@ -6,9 +6,12 @@ import { runLink, type Host } from "./connection"
 import { startDriver, type Driver } from "./driver"
 import { helloPayload } from "./hello"
 import { emptyLive, startLive, type Live, type LiveCaps } from "./live"
+import { cachedPolicy } from "./live/policy"
 import { createFeed } from "./feed"
 import { createLogger, type Logger } from "./log"
 import { VERSION } from "./platform"
+import { hasPty } from "./terminal/pty"
+import { TerminalManager } from "./terminal/manager"
 import { createUpdater, updateTarget, type Updater } from "./update"
 
 const REPAIR_POLL_MS = 30_000
@@ -36,6 +39,7 @@ export async function serve(dir = configDir()): Promise<number> {
     log.info(next === "human" ? "the owner took control of this screen" : "the owner handed this screen back")
   }
   const policy = await loadPolicy(dir)
+  const livePolicy = cachedPolicy({ live: policy.live, input: policy.input }, () => loadPolicy(dir))
   let live: Live = emptyLive({ logger: log, setHolder })
   let driver: Driver | null = null
   let link: ReturnType<typeof runLink> | null = null
@@ -43,6 +47,7 @@ export async function serve(dir = configDir()): Promise<number> {
   let liveCaps: LiveCaps = policy
   let liveStarting = false
   let update: Updater | null = null
+  const terminals = new TerminalManager()
   const refresh = () => {
     detection = detect(log, liveCaps, driver?.state() ?? null, dir)
     link?.reconnect()
@@ -55,7 +60,7 @@ export async function serve(dir = configDir()): Promise<number> {
       setHolder,
       send: (frame) => link?.frame(frame),
       sendBinary: (bytes) => link?.binary(bytes),
-      policy: () => policy,
+      policy: livePolicy,
       display: () => detection.displays[0],
       configDir: dir,
     }).then((started) => {
@@ -74,6 +79,7 @@ export async function serve(dir = configDir()): Promise<number> {
     hello: () => JSON.stringify(helloPayload(detection, driver)),
     policy: () => loadPolicy(dir),
     driver: () => driver,
+    terminal: () => (hasPty() ? terminals : null),
     paused: () => paused(dir),
     live: {
       rtc: (frame) => live.frames.rtc(frame),
@@ -103,6 +109,7 @@ export async function serve(dir = configDir()): Promise<number> {
     log.info("stopping")
     link?.stop()
     driver?.close()
+    terminals.closeAll()
     void live.close()
     process.exit(0)
   }
@@ -180,6 +187,11 @@ export async function diagnose(dir = configDir()): Promise<{ checks: Check[]; de
     name: "shell",
     ok: true,
     detail: process.platform === "win32" ? "powershell -NoProfile -Command" : "/bin/sh -lc",
+  })
+  checks.push({
+    name: "terminal",
+    ok: hasPty(),
+    detail: hasPty() ? "terminal sessions are available" : "this Bun build has no pseudo-terminal support",
   })
   if (config) checks.push(await reachable(config.url))
   return { checks, detection }

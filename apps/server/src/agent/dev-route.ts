@@ -1,4 +1,4 @@
-import { isAgentSlug, isRoomId } from "@kiko/protocol"
+import { isAgentSlug, isRoomId, type RoomId } from "@kiko/protocol"
 import { getSessionUser } from "../auth/auth"
 import type { Env } from "../index"
 import { devRequest } from "../lib/dev-guard"
@@ -32,6 +32,7 @@ export async function devAgentRoute(request: Request, env: Env): Promise<Respons
       "pass",
       "composio",
       "browser",
+      "browse",
     ].includes(action ?? "")
   )
     return null
@@ -94,6 +95,25 @@ export async function devAgentRoute(request: Request, env: Env): Promise<Respons
   return devRoomAction(request, env, user.id, action)
 }
 
+async function devBrowse(
+  env: Env,
+  userId: string,
+  roomId: RoomId,
+  body: { urls?: unknown; slug?: unknown },
+): Promise<Response> {
+  const urls = Array.isArray(body.urls)
+    ? body.urls.filter((url): url is string => typeof url === "string").slice(0, 4)
+    : []
+  if (!urls.length) return Response.json({ error: "bad urls" }, { status: 400 })
+  try {
+    return Response.json({
+      tabs: await ownerStub(env.OWNER, userId).agentCall(roomId, slugOf(body), "devBrowse", [urls]),
+    })
+  } catch (e) {
+    return Response.json({ error: e instanceof Error ? e.message : String(e) }, { status: 409 })
+  }
+}
+
 async function devRoomAction(request: Request, env: Env, userId: string, action: string | null): Promise<Response> {
   if (request.method !== "POST") return Response.json({ error: "method not allowed" }, { status: 405 })
   const body = (await request.json().catch(() => null)) as {
@@ -101,10 +121,12 @@ async function devRoomAction(request: Request, env: Env, userId: string, action:
     slugs?: unknown
     slug?: unknown
     turns?: unknown
+    urls?: unknown
   } | null
   if (typeof body?.roomId !== "string" || !isRoomId(body.roomId))
     return Response.json({ error: "bad room id" }, { status: 400 })
   const roomId = body.roomId
+  if (action === "browse") return devBrowse(env, userId, roomId, body)
   if (action === "seed") {
     const turns = Array.isArray(body.turns) ? (body.turns as { from?: unknown; text?: unknown }[]) : []
     if (

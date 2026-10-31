@@ -4,7 +4,9 @@ import { CONNECT_HEADERS, connectMessage, sign } from "@kiko/computer/sign"
 import {
   Calls,
   PROTOCOL,
+  TERMINAL_OPS,
   ToDaemon,
+  type Args,
   type FailCode,
   type FromDaemon,
   type Holder,
@@ -18,6 +20,7 @@ import type { LiveFrames } from "./live"
 import { abortReason, Deadline } from "./deadline"
 import { Fail, failureCode, failureMessage, type Logger } from "./log"
 import { read, shell, write } from "./ops"
+import type { TerminalManager } from "./terminal/manager"
 
 const PING_MS = 20_000
 const PING = JSON.stringify({ _tag: "Ping" })
@@ -28,6 +31,8 @@ const OPEN_TIMEOUT_MS = 20_000
 const DEFAULT_DEADLINE_MS = 60_000
 const MAX_DEADLINE_MS = 600_000
 const SILENT_MS = 2.5 * PING_MS
+const RECENT_MAX = 64
+const RECENT_MS = 120_000
 const CLOCK_SKEW_S = 60
 const PAUSED = "the owner paused the agent from the kiko menu"
 const INPUT_METHODS = new Set<DriverCall["method"]>(["desktop.call", "browser.act", "browser.open"])
@@ -40,6 +45,7 @@ export type Host = {
   hello(): string
   policy(): Promise<Policy>
   driver(): Driver | null
+  terminal(): TerminalManager | null
   paused(): boolean
   live: LiveFrames
   holder(): Holder
@@ -50,6 +56,8 @@ export type Host = {
 }
 
 type Call = Extract<Frame, { t: "call" }>
+type Result = Extract<FromDaemon, { t: "result" }>
+type Held = { at: number; frame: Result }
 
 const decodeFrame = Schema.decodeUnknownOption(ToDaemon)
 
@@ -98,6 +106,7 @@ class Link {
   private socket: WebSocket | null = null
   private ping: ReturnType<typeof setInterval> | null = null
   private pending = new Map<string, Deadline>()
+  private readonly recent = new Map<string, Held>()
   private stopping = false
   private rejection: Promise<void> | null = null
   private lastInbound = 0
@@ -134,8 +143,14 @@ class Link {
   stop(): void {
     this.stopping = true
     const socket = this.socket
-    this.release("the daemon is stopping")
+    this.cancelAll("the daemon is stopping")
     socket?.close(1000, "daemon stopping")
+  }
+
+  private cancelAll(reason: string): void {
+    for (const deadline of this.pending.values())
+      deadline.controller.abort(new Fail({ code: "cancelled", message: reason }))
+    this.pending.clear()
   }
 
   private async open(): Promise<void> {
@@ -163,7 +178,7 @@ class Link {
         try {
           socket?.close(4000, "connect timed out")
         } catch {}
-        if (socket) this.release("the worker did not answer", socket)
+        if (socket) this.release(socket)
         finish()
       }, OPEN_TIMEOUT_MS)
       socket = this.createSocket(url, headers, {
@@ -199,7 +214,7 @@ class Link {
       try {
         socket.close(code, reason)
       } catch {}
-      if (current) this.release("the daemon lost the worker", socket)
+      if (current) this.release(socket)
       if (current && !this.stopping)
         log.warn(`socket closed (${code}${reason ? `: ${reason}` : ""})${closeMeaning(code)}`)
       handlers.closed()
@@ -225,7 +240,7 @@ class Link {
     })
     socket.addEventListener("close", (event) => {
       const current = this.socket === socket
-      if (current) this.release("the worker closed the socket", socket)
+      if (current) this.release(socket)
       if (current && !this.stopping)
         log.warn(`socket closed (${event.code}${event.reason ? `: ${event.reason}` : ""})${closeMeaning(event.code)}`)
       handlers.closed()
@@ -235,13 +250,23 @@ class Link {
 
   private greet(socket: WebSocket, drop: (code: number, reason: string) => void): void {
     this.host.log.info(`connected to ${this.host.endpoint.url}`)
-    this.send(this.host.hello())
+    this.send(this.greeting())
     if (this.ping) clearInterval(this.ping)
     this.ping = setInterval(() => {
       if (this.socket !== socket) return
       if (Date.now() - this.lastInbound > SILENT_MS) return drop(4000, "no pong")
       this.send(PING)
     }, PING_MS)
+  }
+
+  private greeting(): string {
+    this.prune()
+    const hello = JSON.parse(this.host.hello()) as Record<string, unknown>
+    return JSON.stringify({ ...hello, resume: { running: [...this.pending.keys()], recent: [...this.recent.keys()] } })
+  }
+
+  private prune(at = Date.now()): void {
+    for (const [id, held] of this.recent) if (at - held.at > RECENT_MS) this.recent.delete(id)
   }
 
   private async explainRejection(url: string): Promise<void> {
@@ -326,23 +351,51 @@ class Link {
   }
 
   private async dispatch(frame: Call): Promise<void> {
+    const held = this.recall(frame.id)
+    if (held) return this.answer(held)
+    if (this.pending.has(frame.id)) return
     const context = new Deadline(clampDeadline(frame.deadlineMs))
     this.pending.set(frame.id, context)
     const timer = setTimeout(
       () => context.controller.abort(new Fail({ code: "timeout", message: `${frame.op} ran out of time` })),
       context.budgetMs,
     )
+    let result: Result
     try {
       const args = decodeArgs(frame.op, frame.args)
       const value = await this.execute(frame.op, args, context)
       if (context.aborted) throw abortReason(context.signal)
-      this.answer({ t: "result", id: frame.id, ok: true, value: encodeValue(frame.op, value) })
+      result = { t: "result", id: frame.id, ok: true, value: encodeValue(frame.op, value) }
     } catch (error) {
-      this.answer({ t: "result", id: frame.id, ok: false, error: failure(error) })
+      result = { t: "result", id: frame.id, ok: false, error: failure(error) }
     } finally {
       clearTimeout(timer)
       this.pending.delete(frame.id)
       if (this.pending.size === 0) this.host.onIdle?.()
+    }
+    this.remember(result)
+    this.answer(result)
+  }
+
+  private recall(id: string): Result | null {
+    const held = this.recent.get(id)
+    if (!held) return null
+    if (Date.now() - held.at > RECENT_MS) {
+      this.recent.delete(id)
+      return null
+    }
+    return held.frame
+  }
+
+  private remember(frame: Result): void {
+    const at = Date.now()
+    this.recent.delete(frame.id)
+    this.recent.set(frame.id, { at, frame })
+    this.prune(at)
+    while (this.recent.size > RECENT_MAX) {
+      const oldest = this.recent.keys().next().value
+      if (oldest === undefined) break
+      this.recent.delete(oldest)
     }
   }
 
@@ -351,7 +404,23 @@ class Link {
     if (op === "read") return read(args as Parameters<typeof read>[0], await this.host.policy(), context)
     if (op === "write") return write(args as Parameters<typeof write>[0], await this.host.policy(), context)
     if (op === "driver") return this.driver(args as DriverCall, context)
+    if (TERMINAL_OPS.has(op)) return this.terminal(op, args, context)
     throw new Fail({ code: "unsupported", message: `${op} is not a call this machine makes` })
+  }
+
+  private async terminal(op: Op, args: unknown, context: Deadline): Promise<unknown> {
+    const policy = await this.host.policy()
+    if (!policy.shell)
+      throw new Fail({ code: "denied", message: "policy.json turns off shell commands and terminals on this machine" })
+    const terminals = this.host.terminal()
+    if (!terminals) throw new Fail({ code: "unsupported", message: "this machine cannot open terminal sessions" })
+    if (op === "terminal_open") return terminals.open(args as Args<"terminal_open">)
+    if (op === "terminal_send") return terminals.send(args as Args<"terminal_send">)
+    if (op === "terminal_read") return terminals.read(args as Args<"terminal_read">)
+    if (op === "terminal_wait") return terminals.wait(args as Args<"terminal_wait">, context.signal)
+    if (op === "terminal_resize") return terminals.resize(args as Args<"terminal_resize">)
+    if (op === "terminal_close") return terminals.close(args as Args<"terminal_close">)
+    return terminals.list()
   }
 
   private async driver(call: DriverCall, context: Deadline): Promise<unknown> {
@@ -401,14 +470,11 @@ class Link {
     }
   }
 
-  private release(reason: string, socket?: WebSocket): void {
+  private release(socket?: WebSocket): void {
     if (socket !== undefined && socket !== this.socket) return
     if (this.ping) clearInterval(this.ping)
     this.ping = null
     this.socket = null
-    for (const deadline of this.pending.values())
-      deadline.controller.abort(new Fail({ code: "failed", message: reason }))
-    this.pending.clear()
     this.host.onOffline?.()
   }
 }

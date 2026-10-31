@@ -7,7 +7,7 @@ import { unstable_startWorker } from "wrangler"
 
 type LocalWorker = AsyncDisposable & { readonly url: URL }
 
-async function startLocalWorker(): Promise<LocalWorker> {
+async function startLocalWorker(extra: Record<string, unknown> = {}): Promise<LocalWorker> {
   const dir = await mkdtemp(join(tmpdir(), "kiko-worker-"))
   const assets = join(dir, "assets")
   await mkdir(assets)
@@ -20,6 +20,7 @@ async function startLocalWorker(): Promise<LocalWorker> {
     bindings: {
       SESSION_SECRET: { type: "secret_text", value: randomBytes(32).toString("hex") },
       CREDENTIALS_KEK: { type: "secret_text", value: randomBytes(32).toString("base64") },
+      ...extra,
     },
     dev: {
       persist: join(dir, "state"),
@@ -53,3 +54,9 @@ export const localWorker = Effect.acquireRelease(
   Effect.promise(() => startLocalWorker()),
   (worker) => Effect.promise(() => worker[Symbol.asyncDispose]()),
 )
+
+export const localWorkerWith = (bindings: Record<string, unknown>) =>
+  Effect.acquireRelease(
+    Effect.promise(() => startLocalWorker(bindings)),
+    (worker) => Effect.promise(() => worker[Symbol.asyncDispose]()),
+  )

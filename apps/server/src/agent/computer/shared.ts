@@ -9,7 +9,7 @@ import type { ComputerCallOutcome, ComputerSummary } from "./types"
 
 export const CALL_DEADLINE_MS = 60_000
 const DRIVER_DEADLINE_MS = 30_000
-const MAX_OUTPUT_CHARS = 12_000
+export const MAX_OUTPUT_CHARS = 12_000
 export const MAX_STEPS = 10
 export const SCREEN_MAX_WIDTH = 1280
 

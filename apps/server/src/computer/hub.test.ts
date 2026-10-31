@@ -273,6 +273,114 @@ describe("daemon reconnect", () => {
   )
 })
 
+describe("resumable calls", () => {
+  const SHELL = { exitCode: 0, output: "survived", truncated: false, timedOut: false }
+
+  it.effect("keeps a running call pending through a reconnect and answers it once", () =>
+    Effect.promise(async () => {
+      const first = pcSocket("pc-1")
+      const pcs: WebSocket[] = [first.ws]
+      const computers = liveHub([], pcs, ["pc-1"])
+      await computers.message(first.ws, JSON.stringify(HELLO))
+      const outcome = computers.call("pc-1", "shell", { command: "build" })
+      const id = callIds(first)[0]!
+
+      await computers.close(first.ws)
+      const second = pcSocket("pc-1")
+      pcs.splice(0, pcs.length, second.ws)
+      await computers.message(second.ws, JSON.stringify({ ...HELLO, resume: { running: [id], recent: [] } }))
+
+      assert.deepStrictEqual(callIds(second), [])
+
+      await computers.message(second.ws, JSON.stringify({ t: "result", id, ok: true, value: SHELL }))
+
+      assert.deepStrictEqual(await outcome, { ok: true, value: SHELL })
+    }),
+  )
+
+  it.effect("asks again for a call that finished during the gap and answers it from the daemon's recent result", () =>
+    Effect.promise(async () => {
+      const first = pcSocket("pc-1")
+      const pcs: WebSocket[] = [first.ws]
+      const computers = liveHub([], pcs, ["pc-1"])
+      await computers.message(first.ws, JSON.stringify(HELLO))
+      const outcome = computers.call("pc-1", "shell", { command: "build" })
+      const id = callIds(first)[0]!
+
+      await computers.close(first.ws)
+      const second = pcSocket("pc-1")
+      pcs.splice(0, pcs.length, second.ws)
+      await computers.message(second.ws, JSON.stringify({ ...HELLO, resume: { running: [], recent: [id] } }))
+
+      assert.deepStrictEqual(callIds(second), [id])
+
+      await computers.message(second.ws, JSON.stringify({ t: "result", id, ok: true, value: SHELL }))
+
+      assert.deepStrictEqual(await outcome, { ok: true, value: SHELL })
+    }),
+  )
+
+  it.effect("sends a call the daemon never saw exactly once after the reconnect", () =>
+    Effect.promise(async () => {
+      const first = pcSocket("pc-1")
+      const pcs: WebSocket[] = [first.ws]
+      const computers = liveHub([], pcs, ["pc-1"])
+      await computers.message(first.ws, JSON.stringify(HELLO))
+      const outcome = computers.call("pc-1", "shell", { command: "build" })
+      const id = callIds(first)[0]!
+
+      await computers.close(first.ws)
+      const second = pcSocket("pc-1")
+      pcs.splice(0, pcs.length, second.ws)
+      await computers.message(second.ws, JSON.stringify({ ...HELLO, resume: { running: [], recent: [] } }))
+      await computers.message(second.ws, JSON.stringify({ t: "result", id, ok: true, value: SHELL }))
+
+      assert.deepStrictEqual(callIds(second), [id])
+      assert.deepStrictEqual(await outcome, { ok: true, value: SHELL })
+    }),
+  )
+
+  it.effect("cancels pending calls when a daemon without a resume report reconnects", () =>
+    Effect.promise(async () => {
+      const first = pcSocket("pc-1")
+      const pcs: WebSocket[] = [first.ws]
+      const computers = liveHub([], pcs, ["pc-1"])
+      await computers.message(first.ws, JSON.stringify(HELLO))
+      const outcome = computers.call("pc-1", "shell", { command: "build" })
+
+      await computers.close(first.ws)
+      const second = pcSocket("pc-1")
+      pcs.splice(0, pcs.length, second.ws)
+      await computers.message(second.ws, JSON.stringify(HELLO))
+
+      assert.deepStrictEqual(await outcome, { ok: false, code: "cancelled", message: "the computer reconnected" })
+      assert.deepStrictEqual(callIds(second), [])
+    }),
+  )
+
+  it.effect("sends a cancel for the call to the socket the computer reconnected with", () =>
+    Effect.promise(async () => {
+      const first = pcSocket("pc-1")
+      const pcs: WebSocket[] = [first.ws]
+      const computers = liveHub([], pcs, ["pc-1"])
+      await computers.message(first.ws, JSON.stringify(HELLO))
+      const abort = new AbortController()
+      const outcome = computers.call("pc-1", "shell", { command: "build" }, { signal: abort.signal })
+      const id = callIds(first)[0]!
+
+      await computers.close(first.ws)
+      const second = pcSocket("pc-1")
+      pcs.splice(0, pcs.length, second.ws)
+      await computers.message(second.ws, JSON.stringify({ ...HELLO, resume: { running: [id], recent: [] } }))
+      abort.abort()
+
+      const frames = second.sent as unknown as CallFrame[]
+      assert.isTrue(frames.some((frame) => frame.t === "cancel" && frame.id === id))
+      assert.deepStrictEqual(await outcome, { ok: false, code: "cancelled", message: "shell was cancelled" })
+    }),
+  )
+})
+
 describe("leaving the viewer", () => {
   it.effect("gives control back to the agent when the tab that held it goes away", () =>
     Effect.promise(async () => {

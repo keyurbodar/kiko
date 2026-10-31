@@ -4,6 +4,7 @@ import { declareEffect } from "@kiko/agent/effects"
 import type { DesktopTool } from "@kiko/computer/driver"
 import type { Value } from "@kiko/computer/wire"
 import { browserTools } from "./browser"
+import { terminalTools } from "./terminal"
 import {
   CALL_DEADLINE_MS,
   cut,
@@ -42,6 +43,7 @@ const COMPUTER_RULES = [
   "computers are the human's own machines; each one is macOS, Linux or Windows, and computer_shell says which shell it runs. pass pc by name or id; with one machine, leave it out.",
   "prefer the shell and the file tools: they are exact and instant. use the screen only for a desktop app or a window.",
   "the desktop_* tools come from the machine's desktop engine. work in the background so the owner can keep using their computer: list_windows and get_window_state read any window, even a covered or minimized one, and the action tools act on the window you name without bringing it forward or moving the owner's mouse. act by the element tokens the window state returns, not by pixels.",
+  "for an interactive program, a REPL, or a full-screen app, open a terminal with terminal_open: it stays alive between your turns. terminal_send types and presses keys, terminal_wait waits for output, terminal_read reads the screen or the tail. computer_shell is only for one command that finishes.",
   "for websites use the browser tools on the owner's own browser: browser_tabs lists every tab, browser_read reads any tab including ones in the background, browser_act clicks and types by ref, browser_open opens a new background tab. use the tab the owner already has open for that site instead of opening another.",
   "a desktop tool that brings a window to the front or moves the real pointer and keyboard interrupts the owner. use those only when the owner asked you to work on their screen, or after you asked and they agreed.",
   "check what the fresh window state or screenshot shows before you tell the owner what happened.",
@@ -233,6 +235,7 @@ export function computerExtension(deps: ComputerToolDeps): Extension {
       declareEffect("write", write),
       ...uniqueTools(deps.desktop).map((spec) => declareEffect("external", desktopTool(spec, deps))),
       ...browserTools(deps).map((tool) => declareEffect(tool.replay === "safe" ? "read" : "external", tool)),
+      ...terminalTools(deps).map((tool) => declareEffect(tool.replay === "safe" ? "read" : "external", tool)),
     ],
     sections: [section(COMPUTER_EXT, () => COMPUTER_RULES)],
   })

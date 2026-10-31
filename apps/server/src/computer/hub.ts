@@ -11,6 +11,7 @@ import {
   type Op,
   PROTOCOL,
   type RtcSignal,
+  TERMINAL_OPS,
   type ToDaemon,
 } from "@kiko/computer/wire"
 import { CONNECT_HEADERS, CONNECT_SKEW_MS, connectMessage, verify } from "@kiko/computer/sign"
@@ -75,6 +76,7 @@ type TabAttachment = { pcSession?: string; user?: { pcSession?: string } }
 
 type Pending = {
   pcId: string
+  frame: Extract<ToDaemon, { t: "call" }>
   resolve: (outcome: CallOutcome) => void
   timer: ReturnType<typeof setTimeout>
   detach: () => void
@@ -329,7 +331,6 @@ export class ComputerHub {
         older.close(CLOSE.replaced, "replaced")
       } catch {}
     }
-    this.dropCalls(id)
     this.relaying.delete(id)
     const pair = new WebSocketPair()
     const client = pair[0]
@@ -393,6 +394,20 @@ export class ComputerHub {
     this.syncRelay(saved.id)
     void this.iceServers().catch(() => {})
     this.push()
+    this.resume(saved.id, hello)
+  }
+
+  private resume(pcId: string, hello: Hello): void {
+    const waiting = [...this.pending].filter(([, call]) => call.pcId === pcId)
+    if (!waiting.length) return
+    if (!hello.resume) {
+      for (const [id] of waiting) this.settle(id, { ok: false, code: "cancelled", message: "the computer reconnected" })
+      return
+    }
+    const running = new Set(hello.resume.running)
+    const ws = this.socket(pcId)
+    if (!ws) return
+    for (const [id, call] of waiting) if (!running.has(id)) this.send(ws, call.frame)
   }
 
   private result(frame: Extract<FromDaemon, { t: "result" }>): void {
@@ -426,12 +441,22 @@ export class ComputerHub {
     const saved = attachmentOf(ws)
     const hello = saved?.hello
     if (!saved || !hello) return { ok: false, code: "unsupported", message: `${row.name} is not ready yet` }
-    const cap = op === "shell" ? "shell" : op === "read" || op === "write" ? "files" : "desktop"
+    const cap = TERMINAL_OPS.has(op)
+      ? "terminal"
+      : op === "shell"
+        ? "shell"
+        : op === "read" || op === "write"
+          ? "files"
+          : "desktop"
     if (op === "driver") {
       if (!hello.caps.background)
         return { ok: false, code: "unsupported", message: `${row.name} does not allow background work` }
     } else if (!hello.caps[cap]) {
-      return { ok: false, code: "unsupported", message: `${row.name} does not allow ${cap}` }
+      return {
+        ok: false,
+        code: "unsupported",
+        message: `${row.name} does not allow ${cap === "terminal" ? "terminal sessions" : cap}`,
+      }
     }
     if (op === "driver" && saved.holder === "human")
       return { ok: false, code: "busy", message: `the human has control of ${row.name} right now` }
@@ -452,6 +477,7 @@ export class ComputerHub {
         message: `${taken.name} is using the screen of ${row.name} for about ${Math.ceil((taken.until - Date.now()) / 1000)}s more. Shell and files still work; try the screen again after that.`,
       }
     const id = crypto.randomUUID()
+    const frame = { t: "call", id, op, args: parsed, deadlineMs } as const satisfies Extract<ToDaemon, { t: "call" }>
     const busy = BUSY_OPS.has(op)
     if (busy) this.track(pcId, true)
     const outcome = new Promise<CallOutcome>((resolve) => {
@@ -461,18 +487,24 @@ export class ComputerHub {
         resolve(out)
       }
       const timer = setTimeout(() => {
-        this.send(ws, { t: "cancel", id })
+        this.sendTo(pcId, { t: "cancel", id })
         this.settle(id, { ok: false, code: "timeout", message: `${op} timed out after ${deadlineMs}ms` })
       }, deadlineMs)
       const signal = options.signal
       const abort = () => {
-        this.send(ws, { t: "cancel", id })
+        this.sendTo(pcId, { t: "cancel", id })
         this.settle(id, { ok: false, code: "cancelled", message: `${op} was cancelled` })
       }
       signal?.addEventListener("abort", abort, { once: true })
-      this.pending.set(id, { pcId, resolve: done, timer, detach: () => signal?.removeEventListener("abort", abort) })
+      this.pending.set(id, {
+        pcId,
+        frame,
+        resolve: done,
+        timer,
+        detach: () => signal?.removeEventListener("abort", abort),
+      })
     })
-    this.send(ws, { t: "call", id, op, args: parsed, deadlineMs })
+    this.send(ws, frame)
     return outcome
   }
 
@@ -628,6 +660,11 @@ export class ComputerHub {
     } catch {}
   }
 
+  private sendTo(pcId: string, frame: ToDaemon): void {
+    const ws = this.socket(pcId)
+    if (ws) this.send(ws, frame)
+  }
+
   private claimDesk(
     pcId: string,
     user: { key: string; name: string },
@@ -712,9 +749,6 @@ export class ComputerHub {
     const replaced = this.sockets(saved.id).some((other) => other !== ws && other.readyState === WebSocket.OPEN)
     if (!replaced) {
       this.relaying.delete(saved.id)
-      for (const [callId, call] of this.pending)
-        if (call.pcId === saved.id)
-          this.settle(callId, { ok: false, code: "cancelled", message: "the computer disconnected" })
       this.memory.set(saved.id, { ...saved, hello: saved.hello ?? this.memory.get(saved.id)?.hello })
     }
     this.push()

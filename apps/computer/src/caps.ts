@@ -3,6 +3,7 @@ import type { DriverState } from "./driver"
 import type { Logger } from "./log"
 import type { LiveCaps } from "./live"
 import { findBinary } from "./live/binary"
+import { hasPty } from "./terminal/pty"
 
 export type Access = { screen: boolean; input: boolean }
 
@@ -41,7 +42,7 @@ function desktopReady(state: DriverState | null): boolean {
   return (state?.desktop?.tools.length ?? 0) > 0
 }
 
-function capsFor(state: DriverState | null, ffmpeg: boolean, live: LiveCaps): Caps {
+function capsFor(state: DriverState | null, ffmpeg: boolean, live: LiveCaps, terminal: boolean): Caps {
   const desktop = desktopReady(state)
   return {
     shell: true,
@@ -49,6 +50,7 @@ function capsFor(state: DriverState | null, ffmpeg: boolean, live: LiveCaps): Ca
     desktop,
     live: live.live && desktop && ffmpeg,
     input: live.input && desktop,
+    terminal,
   }
 }
 
@@ -68,7 +70,7 @@ export function detect(
   const reason = reasonFor(state, ffmpeg)
   if (reason && !state) log.warn(`${reason}; desktop tools are off`)
   return {
-    caps: capsFor(state, ffmpeg, live),
+    caps: capsFor(state, ffmpeg, live, hasPty()),
     displays: displaysOf(state),
     access: accessOf(state),
     reason,
@@ -77,7 +79,7 @@ export function detect(
 
 export function presence(): Detection {
   return {
-    caps: { shell: true, files: true, desktop: false, live: false, input: false },
+    caps: { shell: true, files: true, desktop: false, live: false, input: false, terminal: hasPty() },
     displays: [],
     access: null,
     reason: NO_DRIVER,

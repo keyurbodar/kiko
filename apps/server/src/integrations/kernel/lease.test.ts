@@ -136,6 +136,64 @@ describe("kernel lease", () => {
     expect(alarm.clear).toHaveBeenCalled()
   })
 
+  it("writes the row only when the tabs change, and lastUse once a minute", () => {
+    const mem = memoryStore(row({ lastUse: 0 }))
+    let now = 0
+    const lease = new KernelLease({
+      store: mem.store,
+      client: async () => client(),
+      profile: async () => "profile",
+      wake: wake(),
+      now: () => now,
+    })
+    const writes = () => mem.patches.length
+
+    lease.touch("agent", { t1: "https://one" })
+    expect(writes()).toBe(1)
+
+    now = 10_000
+    lease.touch("agent", { t1: "https://one" })
+    now = 30_000
+    lease.touch("agent", { t1: "https://one" })
+    expect(writes()).toBe(1)
+
+    now = 61_000
+    lease.touch("agent", { t1: "https://one" })
+    expect(writes()).toBe(2)
+
+    now = 62_000
+    lease.touch("agent", { t1: "https://two" })
+    expect(writes()).toBe(3)
+
+    now = 63_000
+    lease.touch("agent", {})
+    expect(writes()).toBe(4)
+    expect(mem.current()?.tabs).toEqual({})
+  })
+
+  it("does not write when there is no takeover to release", () => {
+    const mem = memoryStore(row({ takeover: false, watchUntil: 0 }))
+    const lease = new KernelLease({
+      store: mem.store,
+      client: async () => client(),
+      profile: async () => "profile",
+      wake: wake(),
+      now: () => 1_000,
+    })
+
+    lease.setTakeover(false)
+    expect(mem.patches).toHaveLength(0)
+
+    lease.setTakeover(true)
+    expect(mem.patches).toHaveLength(1)
+
+    lease.setTakeover(false)
+    expect(mem.patches).toHaveLength(2)
+
+    lease.setTakeover(false)
+    expect(mem.patches).toHaveLength(2)
+  })
+
   it("keeps the browser the lease references", async () => {
     const mem = memoryStore(row({ lastUse: 5 }))
     const deleted: string[] = []

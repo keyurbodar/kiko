@@ -1151,4 +1151,20 @@ export class Agent {
   async devWorkers(): Promise<Work[]> {
     return (await this.dev()).devWorkers(this.agentDevHost())
   }
+
+  async devBrowse(urls: string[]): Promise<number> {
+    const connection = this.browser()
+    return connection.use(async () => {
+      const [first, ...rest] = urls
+      const borrowed = rest.length ? await connection.borrow(rest) : null
+      try {
+        const tab = await connection.goto(first ?? "about:blank")
+        await tab.read()
+        for (const other of borrowed?.tabs ?? []) await other.read()
+        return 1 + (borrowed?.tabs.length ?? 0)
+      } finally {
+        await borrowed?.done()
+      }
+    })
+  }
 }
