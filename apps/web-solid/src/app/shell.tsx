@@ -71,7 +71,7 @@ const Desk = lazy(loadDesk)
 
 const KEY = "kiko:device:sidebar-collapsed"
 
-const DETAILS_GUTTER = 324
+const DETAILS_GUTTER = 288
 
 const DETAILS_MIN_COLUMN = 560
 

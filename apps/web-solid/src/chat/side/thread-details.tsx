@@ -88,16 +88,16 @@ function Section(props: {
           data-action={`fold-${props.id}`}
           onClick={() => setFolded(!folded())}
         >
-          <RemixIcon
-            icon={ChevronRightIcon}
-            size={14}
-            class="td-chevron td-heading-chevron size-3 shrink-0"
-            data-open={!folded() ? "" : undefined}
-          />
           <span id={`td-head-${props.id}`} class="min-w-0 truncate">
             {props.title}
           </span>
           <Show when={props.count}>{(count) => <Count value={count()} />}</Show>
+          <RemixIcon
+            icon={ChevronRightIcon}
+            size={12}
+            class="td-chevron td-heading-chevron shrink-0"
+            data-open={!folded() ? "" : undefined}
+          />
         </button>
       </div>
       <div class="td-fold" data-open={!folded() ? "" : undefined}>
@@ -302,6 +302,16 @@ function ProgressSection(props: { view: ProgressView; running: boolean; onGone: 
       count={`${props.view.completed} of ${props.view.total}`}
       class={leaving() ? "td-leaving" : undefined}
     >
+      <div
+        class="td-progress"
+        role="progressbar"
+        aria-label="Progress"
+        aria-valuemin={0}
+        aria-valuemax={props.view.total}
+        aria-valuenow={props.view.completed}
+      >
+        <span style={{ width: `${(props.view.completed / Math.max(1, props.view.total)) * 100}%` }} />
+      </div>
       <Show when={!props.view.allDone} fallback={<div class="td-row td-muted">{`All ${props.view.total} done`}</div>}>
         <For each={props.view.open}>
           {(task, index) => <TaskRow task={task} current={task.id === props.view.currentId} index={index()} />}
@@ -608,7 +618,7 @@ export default function ThreadDetails(props: { chatId: string }) {
   const present = () => THREAD_DETAILS_ITEMS.some((item) => shown(item.id))
   return (
     <div
-      class="flex min-h-0 flex-col"
+      class="flex min-h-0 flex-1 flex-col"
       data-component="thread-details-frame"
       onContextMenu={(event: MouseEvent) => {
         const target = event.target
@@ -623,15 +633,18 @@ export default function ThreadDetails(props: { chatId: string }) {
           <Show
             when={present()}
             fallback={
-              <div class="p-2">
+              <div class="td-empty">
+                <p class="type-base text-secondary">Nothing here yet</p>
+                <p class="type-sm text-tertiary">Tasks, helpers and files show up here as your team works.</p>
                 <button
                   type="button"
-                  class="td-row"
+                  class="td-button"
+                  data-tone="ghost"
                   data-action="customize-details-empty"
                   onClick={() => setMenuOpen(true)}
                 >
-                  <RemixIcon icon={SlidersIcon} size={14} class="td-icon shrink-0" />
-                  <span class="td-muted min-w-0 flex-1 truncate">Choose what to show</span>
+                  <RemixIcon icon={SlidersIcon} size={13} />
+                  Choose what to show
                 </button>
               </div>
             }
