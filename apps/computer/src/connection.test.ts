@@ -236,7 +236,7 @@ describe("terminal calls", () => {
 
       assert.isTrue(result.ok)
       assert.deepStrictEqual((result.value as { bytes: number }).bytes, 3)
-      assert.deepStrictEqual(writes, ["ls\r"])
+      assert.deepStrictEqual(writes, ["ls", "\r"])
     } finally {
       manager.closeAll()
       link.stop()
