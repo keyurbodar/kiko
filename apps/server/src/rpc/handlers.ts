@@ -11,7 +11,6 @@ export interface RpcHost {
   readonly streams: Streams
   user(): User
   room(roomId: RoomId): RoomCommands
-  streamEnded?(stream: string): void
 }
 
 export type Cx = {
@@ -103,12 +102,10 @@ export const HANDLERS: Handlers = {
   "pc.remove": ({ pcId }, { host }) => host.user().pc.remove(pcId),
   "pc.rename": ({ pcId, name }, { host }) => host.user().pc.rename(pcId, name),
   "pc.watch": ({ pcId, on, mode }, { host, socket }) => host.user().pc.watch(socket, pcId, on, mode),
-  "pc.frames": ({ pcId }, { host, ws, requestId }) => host.user().pc.frames(ws, requestId, pcId),
   "pc.take": ({ pcId }, { host, socket }) => host.user().pc.take(socket, pcId),
   "pc.release": ({ pcId }, { host }) => host.user().pc.release(pcId),
   "pc.rtc": ({ pcId, signal }, { host, socket }) => host.user().pc.rtc(socket, pcId, signal),
   "pc.input": ({ pcId, events }, { host }) => host.user().pc.input(pcId, events),
-  "pc.ack": ({ pcId, seq }, { host }) => host.user().pc.ack(pcId, seq),
 
   "recipes.list": (_, { host }) => host.user().recipesList(),
   "recipes.install": (input, { host }) => host.user().recipesInstall(input),

@@ -1,0 +1,45 @@
+name: takeover-live
+
+on:
+  push:
+    branches: ["t3/cu-*"]
+    paths:
+      - "apps/computer/src/live/**"
+      - "apps/computer/src/caps.ts"
+      - "apps/server/src/computer/**"
+      - "apps/server/scripts/measure-live.ts"
+      - "apps/server/integration/computer-live.integration.test.ts"
+      - "apps/web-solid/src/chat/computer/**"
+      - "core/computer/src/frame.ts"
+      - ".github/workflows/takeover-live.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: takeover-live-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  measure:
+    name: live view measurement
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - name: Install ffmpeg and Xvfb
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg xvfb
+      - name: Install Chromium
+        run: node apps/server/node_modules/playwright/cli.js install --with-deps chromium
+      - name: Measure
+        run: xvfb-run -a -s "-screen 0 1920x1080x24" bun apps/server/scripts/measure-live.ts --out live-measure.json --shots shots
+      - name: Upload
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: takeover-live
+          path: |
+            live-measure.json
+            shots/
+          if-no-files-found: warn

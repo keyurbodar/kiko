@@ -73,7 +73,6 @@ function daemon(policy: LivePolicy) {
     apply: (events) => {
       applied.push([...events])
     },
-    cursor: () => null,
     screen: () => null,
     release: () => {},
   }

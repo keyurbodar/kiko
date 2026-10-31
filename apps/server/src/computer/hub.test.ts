@@ -199,7 +199,7 @@ describe("pairing again", () => {
   )
 })
 
-type SentFrame = { t: string; holder?: string; on?: boolean }
+type SentFrame = { t: string; holder?: string; on?: boolean; seq?: number }
 
 function pcSocket(id: string, holder: "agent" | "human" = "agent") {
   const sent: SentFrame[] = []
@@ -221,6 +221,7 @@ function liveHub(
   pcs: readonly WebSocket[],
   ids: readonly string[] = [],
   sleep?: (ms: number) => Promise<void>,
+  lives: readonly WebSocket[] = [],
 ) {
   const store = {
     get: (id: string) => ({ id, name: "box" }),
@@ -229,7 +230,7 @@ function liveHub(
   }
   const deps = {
     ctx: {
-      getWebSockets: (tag: string) => (tag === "tab" ? [...tabs] : [...pcs]),
+      getWebSockets: (tag: string) => (tag === "tab" ? [...tabs] : tag.startsWith("live:") ? [...lives] : [...pcs]),
       getWebSocketAutoResponseTimestamp: () => null,
     },
     env: {},
@@ -302,15 +303,9 @@ describe("daemon reconnect", () => {
 
   it.effect("arms the relay again when a disconnected daemon comes back", () =>
     Effect.promise(async () => {
-      const watching = tab()
-      watching.ws.serializeAttachment({
-        user: { ready: true },
-        rooms: {},
-        rpc: [{ requestId: "9", stream: "pc:pc-1" }],
-      })
       const first = pcSocket("pc-1")
       const pcs: WebSocket[] = [first.ws]
-      const computers = liveHub([watching.ws], pcs)
+      const computers = liveHub([], pcs, ["pc-1"], undefined, [liveSocket("pc-1")])
 
       await computers.message(first.ws, JSON.stringify(HELLO))
       await computers.close(first.ws)
@@ -460,27 +455,54 @@ describe("leaving the viewer", () => {
   )
 })
 
+function liveSocket(pcId: string) {
+  const attachment = { kind: "live", pcId }
+  return {
+    send: () => {},
+    serializeAttachment: () => {},
+    deserializeAttachment: () => attachment,
+    readyState: WebSocket.OPEN,
+  } as unknown as WebSocket
+}
+
 describe("relay fallback", () => {
-  it.effect("tells the daemon to share again when a new frame subscription arrives", () =>
+  it.effect("shares while a live viewer is open and stops when the last one closes", () =>
     Effect.promise(async () => {
-      const viewing = tab()
-      viewing.ws.serializeAttachment({
-        user: { ready: true },
-        rooms: {},
-        rpc: [{ requestId: "9", stream: "pc:pc-1" }],
-      })
       const pc = pcSocket("pc-1")
-      const computers = liveHub([viewing.ws], [pc.ws], ["pc-1"])
+      const lives: WebSocket[] = []
+      const computers = liveHub([], [pc.ws], ["pc-1"], undefined, lives)
       await computers.message(pc.ws, JSON.stringify(HELLO))
 
-      computers.syncRelay("pc-1")
-      assert.strictEqual(pc.sent.filter((frame) => frame.t === "live").length, 1)
+      const viewer = liveSocket("pc-1")
+      lives.push(viewer)
+      assert.isTrue(computers.liveMessage(viewer, JSON.stringify({ t: "live", maxWidth: 2000 })))
 
-      computers.syncRelay("pc-1", true)
+      const first = pc.sent.filter((frame) => frame.t === "live")
+      assert.strictEqual(first.length, 1)
+      assert.strictEqual(first[0]?.on, true)
 
-      const live = pc.sent.filter((frame) => frame.t === "live")
-      assert.strictEqual(live.length, 2)
-      assert.strictEqual(live[1]?.on, true)
+      lives.length = 0
+      assert.isTrue(computers.liveClosed(viewer))
+
+      const all = pc.sent.filter((frame) => frame.t === "live")
+      assert.strictEqual(all.length, 2)
+      assert.strictEqual(all[1]?.on, false)
+    }),
+  )
+
+  it.effect("forwards an ack from the viewer to the daemon", () =>
+    Effect.promise(async () => {
+      const pc = pcSocket("pc-1")
+      const viewer = liveSocket("pc-1")
+      const computers = liveHub([], [pc.ws], ["pc-1"], undefined, [viewer])
+      await computers.message(pc.ws, JSON.stringify(HELLO))
+
+      assert.isTrue(computers.liveMessage(viewer, JSON.stringify({ t: "ack", seq: 7 })))
+
+      assert.deepStrictEqual(
+        pc.sent.filter((frame) => frame.t === "ack").map((frame) => frame.seq),
+        [7],
+      )
     }),
   )
 })

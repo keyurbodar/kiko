@@ -1,9 +1,12 @@
 import { Schema } from "effect"
 import { Hello, PROTOCOL } from "@kiko/computer/wire"
 import { CONNECT_HEADERS } from "@kiko/computer/sign"
+import { COMPUTER_LIVE_PATH } from "@kiko/protocol/rpc"
 import type { Env } from "../index"
-import { NameError, ownerStub } from "../lib/names"
+import { SOCKET_PROTOCOL, getSessionUser } from "../auth/auth"
+import { LIVE_PC_HEADER, NameError, ownerStub, USER_ID_HEADER } from "../lib/names"
 import { error } from "../lib/route"
+import { originAllowed } from "../router"
 import { readPairCode } from "./pairing"
 
 const PAIR_PATH = "/api/pc/pair"
@@ -89,9 +92,39 @@ function connect(request: Request, env: Env): Promise<Response> | Response {
   }
 }
 
+async function live(request: Request, env: Env, pcId: string): Promise<Response> {
+  if (request.method !== "GET") return error(405, "method not allowed")
+  const url = new URL(request.url)
+  if (!originAllowed(request, url, env)) return error(403, "forbidden origin")
+  if (request.headers.get("upgrade")?.toLowerCase() !== "websocket") return error(426, "expected a websocket upgrade")
+  const user = await getSessionUser(request, env)
+  if (!user) return error(401, "unauthorized")
+  const headers = new Headers(request.headers)
+  headers.set(USER_ID_HEADER, user.id)
+  headers.set(LIVE_PC_HEADER, pcId)
+  try {
+    const response = await ownerStub(env.OWNER, user.id).fetch(new Request(request, { headers }))
+    const offered = (request.headers.get("sec-websocket-protocol") ?? "").split(",").map((part) => part.trim())
+    if (!response.webSocket || !offered.includes(SOCKET_PROTOCOL)) return response
+    return new Response(null, {
+      status: 101,
+      webSocket: response.webSocket,
+      headers: { "sec-websocket-protocol": SOCKET_PROTOCOL },
+    })
+  } catch (e) {
+    if (e instanceof NameError) return error(401, "unauthorized")
+    throw e
+  }
+}
+
 export async function computerRoute(request: Request, env: Env): Promise<Response | null> {
   const { pathname } = new URL(request.url)
   if (pathname === PAIR_PATH) return pair(request, env)
   if (pathname === CONNECT_PATH) return connect(request, env)
+  if (pathname.startsWith(`${COMPUTER_LIVE_PATH}/`)) {
+    const pcId = decodeURIComponent(pathname.slice(COMPUTER_LIVE_PATH.length + 1))
+    if (!pcId || pcId.length > ID_MAX || pcId.includes("/")) return error(404, "not found")
+    return live(request, env, pcId)
+  }
   return null
 }

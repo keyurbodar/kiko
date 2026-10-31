@@ -1,3 +1,4 @@
+import { COMPUTER_LIVE_PATH } from "@kiko/protocol/rpc"
 import { RegistryContext } from "@effect/atom-solid"
 import { layerBrowser } from "@kiko/client-runtime/state"
 import {
@@ -128,6 +129,13 @@ export async function attempt<W, A, E>(
   if (result._tag === "Success") return result.value
   if (!Cause.hasInterruptsOnly(result.cause)) onFailure(failureMessage(result.cause, fallback))
   return undefined
+}
+
+export function liveSocket(pcId: string): { url: string; protocols: string[] } {
+  const base = attached?.url ?? location.origin
+  const url = new URL(`${COMPUTER_LIVE_PATH}/${encodeURIComponent(pcId)}`, base)
+  url.protocol = url.protocol === "https:" ? "wss:" : "ws:"
+  return { url: url.toString(), protocols: attached?.token ? ["kiko", attached.token] : ["kiko"] }
 }
 
 export function attachBackend(next: Attachment | null): void {

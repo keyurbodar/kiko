@@ -318,16 +318,6 @@ export const ComputerSummary = Schema.Struct({
 })
 export type ComputerSummary = typeof ComputerSummary.Type
 
-export const ComputerFrame = Schema.Struct({
-  seq: Count,
-  mime: Schema.Literals(["image/jpeg", "image/webp"]),
-  width: Count,
-  height: Count,
-  cursor: Schema.NullOr(Schema.Struct({ x: Unit, y: Unit })),
-  data: Schema.String,
-})
-export type ComputerFrame = typeof ComputerFrame.Type
-
 export const ReleaseVersion = Schema.String.check(Schema.isPattern(/^[A-Za-z0-9._-]{1,64}$/))
 
 export const ClientToUser = Schema.Union([
@@ -368,7 +358,6 @@ export const ClientToUser = Schema.Union([
   Schema.Struct({ t: Schema.Literal("pc.release"), pcId: ComputerId }),
   Schema.Struct({ t: Schema.Literal("pc.rtc"), pcId: ComputerId, signal: ComputerSignal }),
   Schema.Struct({ t: Schema.Literal("pc.input"), pcId: ComputerId, events: Schema.Array(ComputerInput) }),
-  Schema.Struct({ t: Schema.Literal("pc.ack"), pcId: ComputerId, seq: Count }),
   Schema.Struct({ t: Schema.Literal("login.start"), loginId: Id, provider: Id }),
   Schema.Struct({ t: Schema.Literal("login.answer"), loginId: Id, promptId: Id, value: Schema.String }),
   Schema.Struct({ t: Schema.Literal("login.cancel"), loginId: Id }),

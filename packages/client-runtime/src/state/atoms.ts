@@ -31,7 +31,6 @@ import type { SupervisorConnectionState } from "../connection/model"
 import { OwnerSupervisor } from "../connection/supervisor"
 import { SnapshotCache, type CachedSnapshot } from "../platform/cache"
 import { chatCommand, createChat, newCommandId, sendMessage, type SendMessageInput } from "./commands"
-import { createComputerAtoms } from "./computer"
 import { withPending, type PendingCommand } from "./overlay"
 import { PendingCommands, roomKey } from "./pending"
 import {
@@ -239,8 +238,6 @@ export function createOwnerAtoms<E>(runtime: Atom.AtomRuntime<OwnerRuntimeServic
 
   const { sessionAtom, query } = createQueryAtoms(runtime)
 
-  const { framesAtom } = createComputerAtoms(runtime)
-
   const rpc = <const Tag extends OwnerUnaryTag>(tag: Tag, concurrency?: AtomCommandConcurrency<RpcCommandInput<Tag>>) =>
     createRuntimeCommand(runtime, {
       label: tag,
@@ -442,7 +439,6 @@ export function createOwnerAtoms<E>(runtime: Atom.AtomRuntime<OwnerRuntimeServic
     pcRelease: rpc("pc.release"),
     pcRtc: rpc("pc.rtc"),
     pcInput: rpc("pc.input"),
-    pcAck: rpc("pc.ack"),
     recipesInstall: rpc("recipes.install"),
     recipesUninstall: rpc("recipes.uninstall"),
     recipesEdit: rpc("recipes.edit"),
@@ -472,7 +468,6 @@ export function createOwnerAtoms<E>(runtime: Atom.AtomRuntime<OwnerRuntimeServic
     createChatAtom,
     retryConnectionAtom,
     roomTypingAtom,
-    computerFramesAtom: framesAtom,
     cachedRoomAtom,
     seedNewRoom,
     sessionAtom,
