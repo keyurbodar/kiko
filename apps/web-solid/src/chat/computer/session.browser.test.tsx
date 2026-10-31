@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 import { startSession, type Display, type Mode } from "./session"
 
 const env = vi.hoisted(() => {
@@ -94,38 +94,40 @@ function harness() {
 const acks = () => env.sent.filter((message) => message.includes('"ack"')).map((message) => JSON.parse(message).seq)
 const hello = () => JSON.parse(env.sent[0] ?? "{}")
 
-describe("relay pump", () => {
-  beforeEach(() => {
-    env.sockets.length = 0
-    env.sent.length = 0
-    env.calls.length = 0
-    vi.stubGlobal("WebSocket", env.Socket)
-    vi.stubGlobal("createImageBitmap", async () => ({ close() {} }))
-    vi.stubGlobal(
-      "RTCPeerConnection",
-      class {
-        addTransceiver() {
-          return { receiver: {} }
-        }
-        createDataChannel() {
-          return { addEventListener: () => undefined, close: () => undefined }
-        }
-        addEventListener = () => undefined
-        createOffer() {
-          return Promise.resolve({ sdp: "" })
-        }
-        setLocalDescription() {
-          return Promise.resolve()
-        }
-        getStats() {
-          return Promise.resolve(new Map())
-        }
-        close = () => undefined
-      },
-    )
-  })
+function stubbed(): Disposable {
+  env.sockets.length = 0
+  env.sent.length = 0
+  env.calls.length = 0
+  vi.stubGlobal("WebSocket", env.Socket)
+  vi.stubGlobal("createImageBitmap", async () => ({ close() {} }))
+  vi.stubGlobal(
+    "RTCPeerConnection",
+    class {
+      addTransceiver() {
+        return { receiver: {} }
+      }
+      createDataChannel() {
+        return { addEventListener: () => undefined, close: () => undefined }
+      }
+      addEventListener = () => undefined
+      createOffer() {
+        return Promise.resolve({ sdp: "" })
+      }
+      setLocalDescription() {
+        return Promise.resolve()
+      }
+      getStats() {
+        return Promise.resolve(new Map())
+      }
+      close = () => undefined
+    },
+  )
+  return { [Symbol.dispose]: () => vi.unstubAllGlobals() }
+}
 
+describe("relay pump", () => {
   it("asks for the physical width as soon as the socket opens", () => {
+    using _stubs = stubbed()
     const { session } = harness()
     env.sockets[0]?.open()
     expect(hello()).toEqual({ t: "live", fps: 15, maxWidth: 2560, quality: 70 })
@@ -134,6 +136,7 @@ describe("relay pump", () => {
   })
 
   it("paints a frame and only then acks it", async () => {
+    using _stubs = stubbed()
     const { session, canvas, draws, modes, sizes } = harness()
     env.sockets[0]?.open()
     env.sockets[0]?.message(frame(1))
@@ -148,6 +151,7 @@ describe("relay pump", () => {
   })
 
   it("keeps only the newest frame while a paint is in flight", async () => {
+    using _stubs = stubbed()
     const waiting: (() => void)[] = []
     vi.stubGlobal("createImageBitmap", () => new Promise((resolve) => waiting.push(() => resolve({ close() {} }))))
     const { session, draws } = harness()
@@ -167,6 +171,7 @@ describe("relay pump", () => {
   })
 
   it("drops a frame older than the one already painted", async () => {
+    using _stubs = stubbed()
     const decode = vi.fn(async () => ({ close() {} }))
     vi.stubGlobal("createImageBitmap", decode)
     const { session } = harness()
