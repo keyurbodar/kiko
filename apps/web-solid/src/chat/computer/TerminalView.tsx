@@ -3,6 +3,8 @@ import "@xterm/xterm/css/xterm.css"
 import { setTerminalSize, terminalKey } from "@kiko/client-runtime/state"
 import { createEffect, createSignal, onCleanup, onMount, Show, type JSX } from "solid-js"
 import { cn } from "../../lib/cn"
+import { takePending } from "../computers"
+import { createInputGate } from "./control"
 import { startTerminal, type TerminalSession, type TerminalStatus } from "./terminalSession"
 
 const FONT_FAMILY = 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace'
@@ -43,6 +45,7 @@ export default function TerminalView(props: {
   let session: TerminalSession | undefined
   let resize: ResizeObserver | undefined
   const key = terminalKey(props.pcId, props.terminalId)
+  const gate = createInputGate<string>((chunks) => session?.input(chunks.join("")))
 
   const fit = () => {
     if (!term || !host) return
@@ -81,18 +84,28 @@ export default function TerminalView(props: {
     })
     session = current
     created.onData((data) => {
-      if (props.interactive) current.input(data)
+      if (props.interactive) gate.send([data])
     })
     created.onResize(({ cols, rows }) => current.resize(cols, rows))
     resize = new ResizeObserver(() => fit())
     resize.observe(host)
     onCleanup(() => {
       resize?.disconnect()
+      gate.discard()
       current.close()
       created.dispose()
       session = undefined
       term = undefined
     })
+  })
+
+  createEffect(() => {
+    if (!props.interactive) {
+      gate.discard()
+      return
+    }
+    if (takePending(props.pcId)) gate.hold()
+    else gate.release()
   })
 
   createEffect(() => {

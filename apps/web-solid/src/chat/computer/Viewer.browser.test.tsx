@@ -1,126 +1,63 @@
-import type { ComputerSummary, TerminalEvent, TerminalSummary } from "@kiko/protocol"
+import type { ComputerSummary } from "@kiko/protocol"
 import { describe, expect, it, vi } from "vitest"
 import { render } from "../../../test/render"
-import { openViewer, startComputers } from "../computers"
 import Viewer from "./Viewer"
 
-const backend = vi.hoisted(() => ({
-  calls: [] as string[],
-  terminals: [] as TerminalSummary[],
-  inputs: [] as string[],
+const fakes = vi.hoisted(() => ({ computer: undefined as ComputerSummary | undefined }))
+
+vi.mock("../computers", () => ({
+  computers: () => [fakes.computer],
+  computerById: () => fakes.computer,
+  viewerFor: () => fakes.computer?.id ?? null,
+  closeViewer: () => {},
+  openViewer: () => {},
+  release: () => Promise.resolve({ ok: true }),
+  takeOver: () => Promise.resolve({ ok: true }),
+  takePending: () => false,
 }))
 
-const signals = vi.hoisted(() => ({ handlers: {} as Record<string, (signal: unknown) => void> }))
+vi.mock("./LiveScreen", () => ({ default: () => null }))
 
-vi.mock("../../state/runtime", () => ({
-  run: async (command: string) => {
-    backend.calls.push(command)
-    return { _tag: "Success", value: command === "terminal.list" ? backend.terminals : undefined }
-  },
-  failureMessage: () => "",
-  owner: {
-    commands: {
-      pcList: "pc.list",
-      pcTake: "pc.take",
-      pcRelease: "pc.release",
-      pcRename: "pc.rename",
-      pcRemove: "pc.remove",
-      pcPairCode: "pc.pairCode",
-      terminalList: "terminal.list",
-      terminalOpen: "terminal.open",
-    },
-  },
-  observe: () => () => {},
-  valueOf: (value: unknown) => value,
+vi.mock("./TerminalView", () => ({ default: () => null }))
+
+vi.mock("./terminals", () => ({
+  listTerminals: () => Promise.resolve([]),
+  openTerminal: () => Promise.resolve(undefined),
 }))
 
-vi.mock("../../state/user", () => ({
-  user: { agents: () => [] },
-  onUserSignal: (tag: string, handler: (signal: unknown) => void) => {
-    signals.handlers[tag] = handler
-    return () => {}
-  },
-}))
+const mac = (extra: Partial<ComputerSummary> = {}): ComputerSummary =>
+  ({
+    id: "pc-1",
+    name: "Mac",
+    os: "macos",
+    online: true,
+    caps: { shell: true, files: true, desktop: true, live: true, input: true },
+    holder: "agent",
+    displays: [],
+    background: true,
+    browsers: [],
+    ...extra,
+  }) as ComputerSummary
 
-vi.mock("./terminalSession", () => ({
-  startTerminal: (
-    _pcId: string,
-    _terminalId: string,
-    hooks: { onEvent(event: TerminalEvent): void; onStatus(status: string, message?: string): void },
-  ) => {
-    queueMicrotask(() => {
-      hooks.onStatus("live")
-      hooks.onEvent({
-        type: "snapshot",
-        history: "\x1b[?2004h$ ",
-        cols: 80,
-        rows: 24,
-        status: "running",
-        exitCode: null,
-      })
-    })
-    return {
-      input: (data: string) => backend.inputs.push(data),
-      resize: () => {},
-      close: () => {},
-    }
-  },
-}))
-
-vi.mock("./LiveScreen", () => ({ default: () => <div data-part="fake-screen" /> }))
-
-const computer = (holder: "agent" | "human"): ComputerSummary => ({
-  id: "pc-1",
-  name: "Mac",
-  os: "macos",
-  online: true,
-  caps: { shell: true, files: true, desktop: true, live: true, input: true, terminal: true },
-  holder,
-  ...(holder === "human" ? { heldBy: "you" as const } : {}),
-  displays: [{ id: "primary", width: 1512, height: 982, scale: 1 }],
-  access: { screen: true, input: true },
-  background: false,
-  browsers: [],
-})
-
-const typeKey = (container: HTMLElement, key: string, code: string) => {
-  const textarea = container.querySelector(".xterm-helper-textarea") as HTMLTextAreaElement
-  const event = new KeyboardEvent("keydown", { key, code, bubbles: true, cancelable: true })
-  Object.defineProperty(event, "keyCode", { get: () => key.toUpperCase().charCodeAt(0) })
-  textarea.dispatchEvent(event)
-}
-
-describe("computer viewer", () => {
-  it("lists the agent's terminals and types into one after taking over", async () => {
-    backend.calls = []
-    backend.terminals = [
-      {
-        id: "t-1",
-        name: "zsh 1",
-        cwd: "/home/me",
-        shell: "/bin/zsh",
-        cols: 120,
-        rows: 30,
-        status: "running",
-        exitCode: null,
-      },
-    ]
-    startComputers()
-    signals.handlers.pcState?.({ t: "pcState", computers: [computer("agent")] })
-    openViewer("pc-1")
+describe("viewer control state", () => {
+  it("shows watching when the agent has the screen", async () => {
+    fakes.computer = mac()
     await using screen = await render(() => <Viewer />)
+    await expect.element(screen.getByText("Watching Mac")).toBeVisible()
+    expect(screen.container.querySelector("[data-state]")?.getAttribute("data-state")).toBe("watching")
+  })
 
-    await expect.element(screen.getByText("zsh 1")).toBeVisible()
-    await screen.getByText("zsh 1").click()
-    await expect.poll(() => screen.container.querySelector(".xterm-rows")?.textContent ?? "").toContain("$")
+  it("shows you have control and offers to hand it back", async () => {
+    fakes.computer = mac({ holder: "human", heldBy: "you" })
+    await using screen = await render(() => <Viewer />)
+    await expect.element(screen.getByText("You have control of Mac")).toBeVisible()
+    await expect.element(screen.getByText("I’m done, continue")).toBeVisible()
+  })
 
-    typeKey(screen.container, "l", "KeyL")
-    expect(backend.inputs).toEqual([])
-
-    await screen.getByText("Take over").click()
-
-    await expect.poll(() => backend.calls).toContain("pc.take")
-    typeKey(screen.container, "l", "KeyL")
-    await expect.poll(() => backend.inputs).toEqual(["l"])
+  it("shows another viewer has control and offers an explicit takeover", async () => {
+    fakes.computer = mac({ holder: "human", heldBy: "other" })
+    await using screen = await render(() => <Viewer />)
+    await expect.element(screen.getByText("Another viewer has control of Mac")).toBeVisible()
+    await expect.element(screen.getByText("Take over")).toBeVisible()
   })
 })

@@ -324,7 +324,7 @@ export const OwnerRpcs = RpcGroup.make(
     stream: true,
   }),
   Rpc.make("pc.take", { payload: { pcId: ComputerId }, error: Refusable }),
-  Rpc.make("pc.release", { payload: { pcId: ComputerId }, error: Lookup }),
+  Rpc.make("pc.release", { payload: { pcId: ComputerId }, error: Refusable }),
   Rpc.make("pc.rtc", { payload: { pcId: ComputerId, signal: ComputerSignal }, error: Lookup }),
   Rpc.make("pc.input", { payload: { pcId: ComputerId, events: Schema.Array(ComputerInput) }, error: Lookup }),
   Rpc.make("pc.ack", { payload: { pcId: ComputerId, seq: Count }, error: Lookup }),

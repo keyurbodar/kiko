@@ -5,6 +5,7 @@ import { CopyCheckIcon } from "@kiko/ui/v2/copy-check-icon"
 import { RemixIcon } from "@kiko/ui/remix-icon"
 import { createEffect, createSignal, For, on, onCleanup, Show, type JSX } from "solid-js"
 import { cn } from "../lib/cn"
+import { timeAgo } from "../lib/time-ago"
 import { accessHint, backgroundHint, browserHints } from "../chat/computer/access"
 import {
   computers,
@@ -37,18 +38,6 @@ function command(shell: Shell, url: string): string {
 function clock(ms: number): string {
   const seconds = Math.max(0, Math.ceil(ms / 1000))
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`
-}
-
-function timeAgo(ms: number): string {
-  const seconds = Math.max(0, Math.round(ms / 1000))
-  if (seconds < 2) return "just now"
-  if (seconds < 60) return `${seconds} seconds ago`
-  const minutes = Math.round(seconds / 60)
-  if (minutes < 60) return `${minutes} minute${minutes === 1 ? "" : "s"} ago`
-  const hours = Math.round(minutes / 60)
-  if (hours < 24) return `${hours} hour${hours === 1 ? "" : "s"} ago`
-  const days = Math.round(hours / 24)
-  return `${days} day${days === 1 ? "" : "s"} ago`
 }
 
 function meta(computer: ComputerSummary): string {

@@ -1,11 +1,13 @@
 import { assert, describe, it } from "@effect/vitest"
 import { PROTOCOL } from "@kiko/computer/wire"
+import type { AgentSlug, RoomId } from "@kiko/protocol"
 import * as Clock from "effect/Clock"
 import * as Effect from "effect/Effect"
 import * as TestClock from "effect/testing/TestClock"
 import { DatabaseSync, type SQLInputValue } from "node:sqlite"
 import { ComputerHub, type HubDeps } from "./hub"
 import { ComputerStore, type ComputerRow, type NewComputer } from "./store"
+import type { PcTaken } from "./types"
 
 const CAPS = { shell: true, files: true, desktop: false, live: false, input: false }
 
@@ -52,6 +54,7 @@ function hub(tabs: readonly WebSocket[]) {
     store,
     ownerId: "owner",
     released: () => {},
+    taken: () => {},
     wakeup: { set: () => Promise.resolve(), clear: () => Promise.resolve() },
   } as unknown as HubDeps
   return new ComputerHub(deps)
@@ -119,6 +122,7 @@ function realHub(tabs: readonly WebSocket[]) {
     store: new ComputerStore(db.sql),
     ownerId: "owner",
     released: () => {},
+    taken: () => {},
     wakeup: { set: () => Promise.resolve(), clear: () => Promise.resolve() },
   } as unknown as HubDeps
   return { hub: new ComputerHub(deps), written: db.written }
@@ -231,8 +235,8 @@ function liveHub(
   sleep?: (ms: number) => Promise<void>,
 ) {
   const store = {
-    get: (id: string) => ({ id, name: "box" }),
-    list: () => ids.map((id) => ({ id, name: "box" })),
+    get: (id: string) => ({ id, name: "box", os: "linux" }),
+    list: () => ids.map((id) => ({ id, name: "box", os: "linux" })),
     caps: () => CAPS,
   }
   const deps = {
@@ -244,6 +248,7 @@ function liveHub(
     store,
     ownerId: "owner",
     released: () => {},
+    taken: () => {},
     wakeup: { set: () => Promise.resolve(), clear: () => Promise.resolve() },
     ...(sleep ? { sleep } : {}),
   } as unknown as HubDeps
@@ -453,7 +458,9 @@ describe("leaving the viewer", () => {
       const computers = liveHub([viewing.ws], [pc.ws], ["pc-1"])
       const desktop = { ...HELLO, caps: { ...CAPS, desktop: true, background: true } }
       await computers.message(pc.ws, JSON.stringify(desktop))
-      assert.isTrue(computers.take("pc-1", viewing.ws))
+      const taking = computers.take("pc-1", viewing.ws)
+      await computers.message(pc.ws, JSON.stringify({ t: "held", holder: "human", epoch: 1 }))
+      assert.isTrue(await taking)
 
       const bad = { method: "desktop.call", params: { name: 5 } }
       const held = await computers.call("pc-1", "driver", bad)
@@ -464,6 +471,197 @@ describe("leaving the viewer", () => {
       assert.strictEqual(computers.holder("pc-1"), "agent")
       const after = await computers.call("pc-1", "driver", bad)
       assert.deepStrictEqual(after, { ok: false, code: "failed", message: "bad driver arguments" })
+    }),
+  )
+})
+
+const onClock =
+  (clock: Clock.Clock) =>
+  (ms: number): Promise<void> =>
+    Effect.runPromise(Effect.sleep(ms).pipe(Effect.provideService(Clock.Clock, clock)))
+
+describe("the owned hold", () => {
+  async function taken(computers: ReturnType<typeof liveHub>, ws: WebSocket, pc: ReturnType<typeof pcSocket>) {
+    const taking = computers.take("pc-1", ws)
+    await computers.message(pc.ws, JSON.stringify({ t: "held", holder: "human", epoch: 1 }))
+    assert.isTrue(await taking)
+  }
+
+  const input = (text: string) => [{ k: "text" as const, s: text }]
+
+  it.effect("waits for the daemon to acknowledge control before answering the take", () =>
+    Effect.promise(async () => {
+      const viewer = tab()
+      const pc = pcSocket("pc-1")
+      const computers = liveHub([viewer.ws], [pc.ws], ["pc-1"])
+      await computers.message(pc.ws, JSON.stringify(HELLO))
+      let done = false
+      const taking = computers.take("pc-1", viewer.ws).then((ok) => {
+        done = true
+        return ok
+      })
+
+      await Promise.resolve()
+      assert.isFalse(done)
+
+      await computers.message(pc.ws, JSON.stringify({ t: "held", holder: "human", epoch: 1 }))
+      assert.isTrue(await taking)
+    }),
+  )
+
+  it.effect("answers the take after the cap when the daemon never acknowledges", () =>
+    Effect.gen(function* () {
+      const clock = yield* Clock.Clock
+      const viewer = tab()
+      const pc = pcSocket("pc-1")
+      const computers = liveHub([viewer.ws], [pc.ws], ["pc-1"], onClock(clock))
+      yield* Effect.promise(() => computers.message(pc.ws, JSON.stringify(HELLO)))
+      let done = false
+      const taking = computers.take("pc-1", viewer.ws).then((ok) => {
+        done = true
+        return ok
+      })
+
+      yield* Effect.yieldNow
+      assert.isFalse(done)
+
+      yield* TestClock.adjust("1 second")
+      assert.isFalse(done)
+
+      yield* TestClock.adjust("1 second")
+      assert.isTrue(yield* Effect.promise(() => taking))
+      assert.isTrue(done)
+    }),
+  )
+
+  it.effect("takes input only from the tab that holds the screen", () =>
+    Effect.promise(async () => {
+      const first = tab()
+      const second = tab()
+      const pc = pcSocket("pc-1")
+      const computers = liveHub([first.ws, second.ws], [pc.ws], ["pc-1"])
+      await computers.message(pc.ws, JSON.stringify(HELLO))
+      await taken(computers, first.ws, pc)
+
+      assert.isTrue(computers.input("pc-1", computers.session(first.ws), input("mine")))
+      assert.isFalse(computers.input("pc-1", computers.session(second.ws), input("theirs")))
+
+      const frames = pc.sent.filter((frame) => frame.t === "input")
+      assert.strictEqual(frames.length, 1)
+    }),
+  )
+
+  it.effect("shows another tab as the other viewer and moves the hold when it takes over", () =>
+    Effect.promise(async () => {
+      const first = tab()
+      const second = tab()
+      const pc = pcSocket("pc-1")
+      const computers = liveHub([first.ws, second.ws], [pc.ws], ["pc-1"])
+      await computers.message(pc.ws, JSON.stringify(HELLO))
+      await taken(computers, first.ws, pc)
+
+      assert.strictEqual(computers.summaries(first.ws)[0]?.heldBy, "you")
+      assert.strictEqual(computers.summaries(second.ws)[0]?.heldBy, "other")
+
+      const taking = computers.take("pc-1", second.ws)
+      await computers.message(pc.ws, JSON.stringify({ t: "held", holder: "human", epoch: 2 }))
+      assert.isTrue(await taking)
+
+      assert.strictEqual(computers.summaries(first.ws)[0]?.heldBy, "other")
+      assert.isFalse(computers.input("pc-1", computers.session(first.ws), input("mine")))
+      assert.isTrue(computers.input("pc-1", computers.session(second.ws), input("theirs")))
+    }),
+  )
+
+  it.effect("refuses to release a hold another viewer owns", () =>
+    Effect.promise(async () => {
+      const first = tab()
+      const second = tab()
+      const pc = pcSocket("pc-1")
+      const computers = liveHub([first.ws, second.ws], [pc.ws], ["pc-1"])
+      await computers.message(pc.ws, JSON.stringify(HELLO))
+      await taken(computers, first.ws, pc)
+
+      assert.strictEqual(computers.releaseBy("pc-1", computers.session(second.ws)), "other")
+      assert.strictEqual(computers.holder("pc-1"), "human")
+
+      assert.strictEqual(computers.releaseBy("pc-1", computers.session(first.ws)), "ok")
+      assert.strictEqual(computers.holder("pc-1"), "agent")
+    }),
+  )
+
+  it.effect("wakes each linked agent once when the owner takes over", () =>
+    Effect.promise(async () => {
+      const first = tab()
+      const second = tab()
+      const pc = pcSocket("pc-1")
+      const woken: { pcId: string; name: string; waiters: { slug: string; roomId: string }[]; epoch: number }[] = []
+      const store = {
+        get: (id: string) => ({ id, name: "box", os: "linux" }),
+        list: () => [{ id: "pc-1", name: "box", os: "linux" }],
+        caps: () => CAPS,
+      }
+      const computers = new ComputerHub({
+        ctx: {
+          getWebSockets: (tag: string) => (tag === "tab" ? [first.ws, second.ws] : [pc.ws]),
+          getWebSocketAutoResponseTimestamp: () => null,
+        },
+        env: {},
+        store,
+        ownerId: "owner",
+        released: () => {},
+        taken: (out: PcTaken) => woken.push(out),
+        wakeup: { set: () => Promise.resolve(), clear: () => Promise.resolve() },
+      } as unknown as HubDeps)
+      await computers.message(pc.ws, JSON.stringify(HELLO))
+      computers.link("pc-1", { slug: "kiko" as AgentSlug, roomId: "01900000-0000-7000-8000-000000000001" as RoomId })
+      computers.link("pc-1", { slug: "muse" as AgentSlug, roomId: "01900000-0000-7000-8000-000000000001" as RoomId })
+
+      await taken(computers, first.ws, pc)
+      const taking = computers.take("pc-1", second.ws)
+      await computers.message(pc.ws, JSON.stringify({ t: "held", holder: "human", epoch: 2 }))
+      assert.isTrue(await taking)
+
+      assert.strictEqual(woken.length, 1)
+      assert.deepStrictEqual(
+        woken[0]?.waiters.map((waiter) => waiter.slug),
+        ["kiko", "muse"],
+      )
+      assert.strictEqual(woken[0]?.name, "box")
+    }),
+  )
+})
+
+describe("computer pushes", () => {
+  it.effect("retries a push the socket refused", () =>
+    Effect.sync(() => {
+      const sent: string[] = []
+      let refuse = true
+      let attachment: unknown = {
+        user: { ready: true },
+        rooms: {},
+        rpc: [{ requestId: "1", stream: "user", cursor: 0 }],
+      }
+      const ws = {
+        send: (text: string) => {
+          if (refuse) {
+            refuse = false
+            throw new Error("socket closed")
+          }
+          sent.push(text)
+        },
+        serializeAttachment: (value: unknown) => {
+          attachment = structuredClone(value)
+        },
+        deserializeAttachment: () => structuredClone(attachment),
+        readyState: WebSocket.OPEN,
+      } as unknown as WebSocket
+      const computers = liveHub([ws], [], ["pc-1"])
+
+      computers.push()
+      computers.push()
+
+      assert.strictEqual(sent.length, 1)
     }),
   )
 })
@@ -492,11 +690,6 @@ describe("relay fallback", () => {
     }),
   )
 })
-
-const onClock =
-  (clock: Clock.Clock) =>
-  (ms: number): Promise<void> =>
-    Effect.runPromise(Effect.sleep(ms).pipe(Effect.provideService(Clock.Clock, clock)))
 
 describe("computer calls", () => {
   it.effect("waits for a computer that comes back, then runs the call", () =>
@@ -610,6 +803,7 @@ describe("TURN credentials", () => {
         store: { get: () => null, list: () => [] },
         ownerId: "owner",
         released: () => {},
+        taken: () => {},
         wakeup: { set: () => Promise.resolve(), clear: () => Promise.resolve() },
         fetch: ((_url: string, init: RequestInit) => {
           calls += 1

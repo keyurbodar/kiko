@@ -16,6 +16,8 @@ const fakes = vi.hoisted(() => ({
   views: [] as FakeView[],
 }))
 
+vi.mock("../computers", () => ({ takePending: () => false }))
+
 vi.mock("./terminalSession", () => ({
   startTerminal: (
     _pcId: string,
