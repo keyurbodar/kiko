@@ -1,5 +1,5 @@
-import type { Machine } from "../../types"
-import { check, type Check } from "../helpers"
+import type { Check, Machine } from "../../types"
+import { check } from "../helpers"
 import { browserState } from "./support"
 
 export const BROWSER_OS = ["linux", "macos"] as const

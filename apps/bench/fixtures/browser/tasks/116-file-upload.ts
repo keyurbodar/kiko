@@ -2,7 +2,7 @@ import { html, json, type Handlers } from "../types"
 
 export const fileUpload: Handlers = {
   pages: {
-    "/upload": (ctx) =>
+    "/upload": () =>
       html(`
 <h1>Submit your receipt</h1>
 <p>Attach the receipt file from the working directory and describe it.</p>

@@ -2,7 +2,7 @@ import { escape, html, json, type Handlers } from "../types"
 
 export const oauthPopup: Handlers = {
   pages: {
-    "/login": (ctx) =>
+    "/login": () =>
       html(`
 <h1>Console</h1>
 <p>Sign in to the console with your Example account.</p>

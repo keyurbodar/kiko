@@ -1,5 +1,5 @@
 import type { Task } from "../../types"
-import { check, int, mulberry32, sample, verdict, writeJson } from "../helpers"
+import { check, mulberry32, sample, verdict, writeJson } from "../helpers"
 import { BROWSER_OS, LONG_LIMITS, sameJson, sorted } from "./browser-1xx-common"
 import { browserState, openPage, runBrowserOracle } from "./support"
 

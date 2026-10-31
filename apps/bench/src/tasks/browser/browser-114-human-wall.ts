@@ -27,7 +27,7 @@ export const humanWall: Task = {
     await openPage(m, "browser-114-human-wall", scenario(seed), "/signup")
   },
   oracle: (m) => runBrowserOracle(m, "browser-114-human-wall"),
-  check: async (m, seed) => {
+  check: async (m) => {
     const state = await browserState(m)
     const note = ((await readText(m, "blocked.txt")) ?? "").trim()
     return verdict([

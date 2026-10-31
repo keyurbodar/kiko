@@ -29,11 +29,11 @@ export const productCompare: Handlers = {
     "/p/0": (ctx) => productPage((ctx.data.products as Product[])[0]!, 0),
     "/p/1": (ctx) => productPage((ctx.data.products as Product[])[1]!, 1),
     "/p/2": (ctx) => productPage((ctx.data.products as Product[])[2]!, 2),
-    "/shipping": (ctx) =>
+    "/shipping": () =>
       html(`
 <h1>Shipping costs</h1>
 <p>Orders under $100 ship for $4.99. Orders from $100 up to $299.99 ship for $9.99. Orders of $300 or more ship free.</p>`),
-    "/warranty": (ctx) =>
+    "/warranty": () =>
       html(`
 <h1>Warranty terms</h1>
 <p>Every radio carries a 12 month warranty. Radios priced above $200 carry 24 months.</p>`),
