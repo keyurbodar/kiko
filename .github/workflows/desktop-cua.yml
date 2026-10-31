@@ -58,10 +58,15 @@ jobs:
         run: |
           cua="$(bash apps/desktop/scripts/fetch-cua-driver.sh linux-x64 "$RUNNER_TEMP/cua")"
           echo "CUA_BIN=$cua" >> "$GITHUB_ENV"
+      - name: Fetch the browser engine
+        run: |
+          browser="$(bash apps/desktop/scripts/fetch-agent-browser.sh linux-x64 "$RUNNER_TEMP/browser")"
+          echo "BROWSER_BIN=$browser" >> "$GITHUB_ENV"
       - name: Smoke
         env:
           KIKO_BIN: ${{ github.workspace }}/apps/desktop/target/release/kiko
           KIKO_CUA: ${{ env.CUA_BIN }}
+          KIKO_AGENT_BROWSER: ${{ env.BROWSER_BIN }}
         run: |
           set -euo pipefail
           Xvfb :99 -screen 0 1280x1024x24 -nolisten tcp >/dev/null 2>&1 &
@@ -76,7 +81,17 @@ jobs:
             gdbus call --session --dest org.a11y.Bus --object-path /org/a11y/bus \
               --method org.freedesktop.DBus.Properties.Set org.a11y.Status IsEnabled "<true>" >/dev/null 2>&1 || true
             bun apps/desktop/scripts/cua-smoke.ts | tee "$RUNNER_TEMP/cua-smoke.json"
+            bun apps/desktop/scripts/agent-browser-smoke.ts | tee "$RUNNER_TEMP/agent-browser-smoke.json"
           '
+      - name: Upload the smoke records
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cua-smoke-linux-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/cua-smoke.json
+            ${{ runner.temp }}/agent-browser-smoke.json
+          if-no-files-found: warn
 
   macos:
     name: cua smoke on macOS
@@ -105,6 +120,10 @@ jobs:
         run: |
           cua="$(bash apps/desktop/scripts/fetch-cua-driver.sh darwin-universal "$RUNNER_TEMP/cua")"
           echo "CUA_BIN=$cua" >> "$GITHUB_ENV"
+      - name: Fetch the browser engine
+        run: |
+          browser="$(bash apps/desktop/scripts/fetch-agent-browser.sh darwin-arm64 "$RUNNER_TEMP/browser")"
+          echo "BROWSER_BIN=$browser" >> "$GITHUB_ENV"
       - name: Import the signing identity
         env:
           CERT: ${{ secrets.KIKO_MACOS_CERT_P12 }}
@@ -127,6 +146,7 @@ jobs:
           KIKO_BIN: ${{ github.workspace }}/apps/desktop/target/aarch64-apple-darwin/release/kiko
           KIKO_CORE_BIN: ${{ github.workspace }}/apps/computer/dist/kiko-computer-darwin-arm64
           KIKO_CUA_BIN: ${{ env.CUA_BIN }}
+          KIKO_AGENT_BROWSER_BIN: ${{ env.BROWSER_BIN }}
         run: bash apps/desktop/scripts/bundle-macos.sh arm64 dist kiko
       - name: Grant Accessibility and Screen Recording to kiko
         env:
@@ -151,13 +171,17 @@ jobs:
         env:
           KIKO_BIN: ${{ github.workspace }}/dist/kiko.app/Contents/MacOS/kiko
           KIKO_CUA: ${{ github.workspace }}/dist/kiko.app/Contents/MacOS/cua-driver
+          KIKO_AGENT_BROWSER: ${{ github.workspace }}/dist/kiko.app/Contents/MacOS/agent-browser
         run: |
           set -o pipefail
           bun apps/desktop/scripts/cua-smoke.ts | tee "$RUNNER_TEMP/cua-smoke.json"
-      - name: Upload the smoke record
+          bun apps/desktop/scripts/agent-browser-smoke.ts | tee "$RUNNER_TEMP/agent-browser-smoke.json"
+      - name: Upload the smoke records
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: cua-smoke-macos-${{ github.run_id }}
-          path: ${{ runner.temp }}/cua-smoke.json
+          path: |
+            ${{ runner.temp }}/cua-smoke.json
+            ${{ runner.temp }}/agent-browser-smoke.json
           if-no-files-found: warn
