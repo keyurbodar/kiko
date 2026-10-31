@@ -17,7 +17,7 @@ const account = (seed: number) => {
 export const login: Task = {
   id: "browser-007-login",
   track: "browser",
-  os: ["linux", "macos", "windows"],
+  os: ["linux", "macos"],
   needs: ["chrome"],
   heldOut: false,
   kind: "real",

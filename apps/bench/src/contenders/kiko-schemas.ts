@@ -4,7 +4,7 @@ export const KIKO_TOOLS: readonly ToolSpec[] = [
   {
     name: "computer_shell",
     description:
-      "run one command line on the computer and return its exit code and the end of its output. the fastest way to look around, read logs, check a program, or run a tool. macOS and linux run /bin/sh -lc, windows runs powershell, so write the command for that system. cwd starts in the human's home folder. timeoutMs is how long to wait, default 60000.",
+      "run one command line on the computer and return its exit code and the end of its output. the fastest way to look around, read logs, check a program, or run a tool. macOS and linux run /bin/sh -lc, so write the command for that system. cwd starts in the human's home folder. timeoutMs is how long to wait, default 60000.",
     parameters: {
       type: "object",
       required: ["command"],
@@ -84,13 +84,14 @@ export const KIKO_TOOLS: readonly ToolSpec[] = [
   {
     name: "terminal_open",
     description:
-      "open a terminal on the computer: a real shell that stays alive between your turns, so you can start a long job, a REPL, or a full-screen app and come back to it. returns an id. cwd is where it starts, default the owner's home folder. cols and rows are the text size, default 120x30. shell is the program to run, default the owner's login shell on macOS and Linux and powershell.exe on Windows. open a second terminal for a second job. for one command that finishes, computer_shell is simpler.",
+      "open a terminal on the computer: a real shell that stays alive between your turns, so you can start a long job, a REPL, or a full-screen app and come back to it. returns an id. cwd is where it starts, default the owner's home folder. cols and rows are the text size, default 120x30. shell is the program to run, default the owner's login shell. open a second terminal for a second job. for one command that finishes, computer_shell is simpler.",
     parameters: {
       type: "object",
       properties: {
         pc: {
           type: "string",
-          description: "the computer's name or id. computer_list shows every computer, what it can do and whether it is online. leave it out when the owner has one computer",
+          description:
+            "the computer's name or id. computer_list shows every computer, what it can do and whether it is online. leave it out when the owner has one computer",
         },
         cwd: {
           type: "string",
@@ -98,7 +99,7 @@ export const KIKO_TOOLS: readonly ToolSpec[] = [
         },
         shell: {
           type: "string",
-          description: "the shell program, default the owner's login shell or powershell.exe",
+          description: "the shell program, default the owner's login shell",
         },
         cols: {
           type: "number",
@@ -118,14 +119,15 @@ export const KIKO_TOOLS: readonly ToolSpec[] = [
   {
     name: "terminal_send",
     description:
-      'type into a terminal from terminal_open. text is typed exactly as written and does not press enter. keys presses named keys in order, such as ["enter"], ["ctrl+c"], ["up"], ["tab"], ["esc"], ["ctrl+d"]; use ctrl on macOS, Linux and Windows. give both to type a command and run it in one call. add until to send and wait in one call: the reply comes back as soon as that output appears, with the output up to it, or says it timed out. until is text, or a regular expression with regex true; timeoutMs defaults 30000 and is at most 120000. without until it does not return the screen: call terminal_wait to wait, or terminal_read to look.',
+      'type into a terminal from terminal_open. text is typed exactly as written and does not press enter. keys presses named keys in order, such as ["enter"], ["ctrl+c"], ["up"], ["tab"], ["esc"], ["ctrl+d"]; use ctrl. give both to type a command and run it in one call. add until to send and wait in one call: the reply comes back as soon as that output appears, with the output up to it, or says it timed out. until is text, or a regular expression with regex true; timeoutMs defaults 30000 and is at most 120000. without until it does not return the screen: call terminal_wait to wait, or terminal_read to look.',
     parameters: {
       type: "object",
       required: ["id"],
       properties: {
         pc: {
           type: "string",
-          description: "the computer's name or id. computer_list shows every computer, what it can do and whether it is online. leave it out when the owner has one computer",
+          description:
+            "the computer's name or id. computer_list shows every computer, what it can do and whether it is online. leave it out when the owner has one computer",
         },
         id: {
           type: "string",
@@ -169,7 +171,8 @@ export const KIKO_TOOLS: readonly ToolSpec[] = [
       properties: {
         pc: {
           type: "string",
-          description: "the computer's name or id. computer_list shows every computer, what it can do and whether it is online. leave it out when the owner has one computer",
+          description:
+            "the computer's name or id. computer_list shows every computer, what it can do and whether it is online. leave it out when the owner has one computer",
         },
         id: {
           type: "string",
@@ -204,7 +207,8 @@ export const KIKO_TOOLS: readonly ToolSpec[] = [
       properties: {
         pc: {
           type: "string",
-          description: "the computer's name or id. computer_list shows every computer, what it can do and whether it is online. leave it out when the owner has one computer",
+          description:
+            "the computer's name or id. computer_list shows every computer, what it can do and whether it is online. leave it out when the owner has one computer",
         },
         id: {
           type: "string",
@@ -234,7 +238,8 @@ export const KIKO_TOOLS: readonly ToolSpec[] = [
       properties: {
         pc: {
           type: "string",
-          description: "the computer's name or id. computer_list shows every computer, what it can do and whether it is online. leave it out when the owner has one computer",
+          description:
+            "the computer's name or id. computer_list shows every computer, what it can do and whether it is online. leave it out when the owner has one computer",
         },
       },
     },
@@ -249,7 +254,8 @@ export const KIKO_TOOLS: readonly ToolSpec[] = [
       properties: {
         pc: {
           type: "string",
-          description: "the computer's name or id. computer_list shows every computer, what it can do and whether it is online. leave it out when the owner has one computer",
+          description:
+            "the computer's name or id. computer_list shows every computer, what it can do and whether it is online. leave it out when the owner has one computer",
         },
         id: {
           type: "string",

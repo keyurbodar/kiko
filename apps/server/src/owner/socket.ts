@@ -38,15 +38,6 @@ export function unsubscribe(ws: WebSocket, requestId: RequestId): Subscription |
   return sub
 }
 
-export function dropStreams(ws: WebSocket, prefix: string): readonly Subscription[] {
-  const saved = ownerAttachment(ws)
-  const dropped = saved.rpc.filter((s) => s.stream.startsWith(prefix))
-  if (!dropped.length) return dropped
-  saved.rpc = saved.rpc.filter((s) => !s.stream.startsWith(prefix))
-  ws.serializeAttachment(saved)
-  return dropped
-}
-
 function forward(target: WebSocket, stream: StreamKey, raw: string | ArrayBuffer | ArrayBufferView): boolean {
   if (typeof raw !== "string") {
     try {

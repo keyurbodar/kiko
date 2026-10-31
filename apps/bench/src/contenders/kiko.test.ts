@@ -113,7 +113,7 @@ describe("kiko tool schemas", () => {
     expect(id).not.toBe("")
     const sent = await contender.call("terminal_send", { id, text: "echo hi", keys: ["enter"] }, signal)
     expect(sent.isError).toBe(false)
-    expect(writes).toEqual(["echo hi", "\r"])
+    expect(writes).toEqual(["echo hi\r"])
     emit("hi\r\n")
     const read = await contender.call("terminal_read", { id, mode: "tail" }, signal)
     expect(read.isError).toBe(false)

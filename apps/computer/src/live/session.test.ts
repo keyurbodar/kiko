@@ -10,7 +10,6 @@ const EVENTS = {
   input: () => {},
   closed: () => {},
   watching: () => {},
-  needKeyframe: () => {},
 }
 
 type Seen = { config?: unknown; dataChannel?: (channel: FakeChannel) => void }

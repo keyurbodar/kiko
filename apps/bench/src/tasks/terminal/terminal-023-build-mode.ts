@@ -28,7 +28,7 @@ const buildScript = (seed: number): string => BUILD.replace("TOKEN", JSON.string
 export const buildMode: Task = {
   id: "terminal-023-build-mode",
   track: "terminal",
-  os: ["linux", "macos", "windows"],
+  os: ["linux", "macos"],
   needs: [],
   heldOut: false,
   kind: "real",

@@ -1,4 +1,4 @@
-export type Os = "macos" | "windows" | "linux"
+export type Os = "macos" | "linux"
 export type Track = "terminal" | "browser" | "desktop" | "mixed" | "cross"
 export type Kind = "real" | "long" | "edge"
 export type Condition = "foreground" | "background"

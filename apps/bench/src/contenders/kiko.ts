@@ -231,28 +231,27 @@ async function terminalSend(
   const typed = stringOf(args.text)
   const keys = Array.isArray(args.keys) ? args.keys.filter((key): key is string => typeof key === "string") : []
   if (typed === undefined && keys.length === 0) return text("terminal_send needs text or keys", true)
-  const value = terminals.send({
-    id,
-    ...(typed !== undefined ? { text: typed } : {}),
-    ...(keys.length ? { keys } : {}),
-  })
   const until = stringOf(args.until)?.trim()
-  if (until) {
-    const timeoutMs = whole(args.timeoutMs)
-    const waited = await terminals.wait(
-      { id, until, ...(args.regex === true ? { regex: true } : {}), ...(timeoutMs ? { timeoutMs } : {}) },
-      signal,
-    )
-    const head = waited.matched
-      ? `found ${JSON.stringify(until)} in ${id}.`
-      : waited.exited
-        ? `${id} exited while waiting for ${JSON.stringify(until)}.`
-        : `waited and did not see ${JSON.stringify(until)} in ${id}.`
-    return text(`${head}\n\n${bodyOf(waited.text, false)}`)
-  }
-  return text(
-    `sent ${value.bytes} bytes to ${id} on ${machine.id}. call terminal_wait to wait for the output, or terminal_read to see the screen.`,
+  const timeoutMs = whole(args.timeoutMs)
+  const value = await terminals.send(
+    {
+      id,
+      ...(typed !== undefined ? { text: typed } : {}),
+      ...(keys.length ? { keys } : {}),
+      ...(until ? { until } : {}),
+      ...(args.regex === true ? { regex: true } : {}),
+      ...(timeoutMs ? { timeoutMs } : {}),
+    },
+    signal,
   )
+  const sent = `sent ${value.bytes} bytes to ${id} on ${machine.id}`
+  if (!until) return text(`${sent}. call terminal_wait to wait for the output, or terminal_read to see the screen.`)
+  const head = value.matched
+    ? `${sent} and found ${JSON.stringify(until)}.`
+    : value.exited
+      ? `${sent}; it exited while waiting for ${JSON.stringify(until)}.`
+      : `${sent}; waited ${Math.round((timeoutMs ?? 30_000) / 1000)} s and did not see ${JSON.stringify(until)}.`
+  return text(`${head}\n\n${bodyOf(value.text ?? "", false)}`)
 }
 
 async function terminalRead(terminals: TerminalManager, args: Bag): Promise<ToolResult> {

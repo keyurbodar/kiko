@@ -73,7 +73,7 @@ jobs:
             jq -c --arg nixos "$nixos_id" --arg omarchy "$omarchy_id" ".$kind |= $label | .$kind" validate.json > "validate-$kind.json"
             echo "v$kind=$(cat "validate-$kind.json")" >> "$GITHUB_OUTPUT"
           done
-          cat plan.json
+          echo "::notice::planned $(jq length plan-host.json) host, $(jq length plan-container.json) container, $(jq length plan-vm.json) vm jobs"
 
   nixos-image:
     name: NixOS image
@@ -111,7 +111,7 @@ jobs:
   bench-host:
     name: ${{ matrix.track }} ${{ matrix.env }} ${{ matrix.contender }} ${{ matrix.model }} ${{ matrix.shard }}
     needs: plan
-    if: needs.plan.outputs.host != '[]'
+    if: needs.plan.result == 'success'
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 90
     strategy:
@@ -177,7 +177,7 @@ jobs:
   bench-container:
     name: ${{ matrix.track }} ${{ matrix.env }} ${{ matrix.contender }} ${{ matrix.model }} ${{ matrix.shard }}
     needs: plan
-    if: needs.plan.outputs.container != '[]'
+    if: needs.plan.result == 'success'
     runs-on: ${{ matrix.runner }}
     container: ${{ matrix.image }}
     timeout-minutes: 90
@@ -230,7 +230,7 @@ jobs:
   bench-vm:
     name: ${{ matrix.track }} ${{ matrix.env }} ${{ matrix.contender }} ${{ matrix.model }} ${{ matrix.shard }}
     needs: [plan, nixos-image, omarchy-image]
-    if: always() && needs.plan.result == 'success' && needs.plan.outputs.vm != '[]'
+    if: always() && needs.plan.result == 'success'
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 90
     strategy:
@@ -285,7 +285,7 @@ jobs:
   validate-host:
     name: Validate ${{ matrix.env }}
     needs: plan
-    if: needs.plan.outputs.vhost != '[]'
+    if: needs.plan.result == 'success'
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 90
     strategy:
@@ -324,7 +324,7 @@ jobs:
   validate-container:
     name: Validate ${{ matrix.env }}
     needs: plan
-    if: needs.plan.outputs.vcontainer != '[]'
+    if: needs.plan.result == 'success'
     runs-on: ${{ matrix.runner }}
     container: ${{ matrix.image }}
     timeout-minutes: 90
@@ -354,7 +354,7 @@ jobs:
   validate-vm:
     name: Validate ${{ matrix.env }}
     needs: [plan, nixos-image, omarchy-image]
-    if: always() && needs.plan.result == 'success' && needs.plan.outputs.vvm != '[]'
+    if: always() && needs.plan.result == 'success'
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 90
     strategy:

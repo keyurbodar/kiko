@@ -11,7 +11,7 @@ import type { Env } from "../index"
 import { BlobStore } from "../files/blob-store"
 import { fileStore, localBucket } from "../files/store"
 import { instrument } from "../lib/dev-guard"
-import { HANDLE_HEADER } from "../lib/names"
+import { HANDLE_HEADER, LIVE_PC_HEADER } from "../lib/names"
 import type { OwnerServices, ServiceOptions } from "./services"
 import { AgentKeyError, EgressError } from "./errors"
 import { serviceContext, metadata } from "./context"
@@ -347,6 +347,8 @@ export class OwnerDO extends DurableObject<Env> {
 
   async fetch(request: Request): Promise<Response> {
     if (request.headers.get(CONNECT_HEADERS.id) !== null) return this.computers.connect(request)
+    const liveId = request.headers.get(LIVE_PC_HEADER)
+    if (liveId !== null) return this.computers.live(liveId)
     if (request.headers.get("upgrade")?.toLowerCase() !== "websocket")
       return new Response("expected a websocket upgrade", { status: 426 })
     const pair = new WebSocketPair()
@@ -362,6 +364,7 @@ export class OwnerDO extends DurableObject<Env> {
   async webSocketMessage(ws: WebSocket, raw: string | ArrayBuffer): Promise<void> {
     if (raw === LEGACY_PING) return ws.send(LEGACY_PONG)
     if (pcSocketId(ws) !== null) return this.computers.message(ws, raw)
+    if (this.computers.liveMessage(ws, raw)) return
     if (typeof raw === "string" && raw.length > MAX_FRAME) return ws.close(1009, "rpc frame too large")
     await dispatch(HANDLERS, { host: this.rpcHost, ws, socket: socketView(ws) }, raw)
   }
@@ -372,6 +375,7 @@ export class OwnerDO extends DurableObject<Env> {
       await this.refreshClock()
       return
     }
+    if (this.computers.liveClosed(ws)) return
     await this.user().webSocketClose(socketView(ws), code)
     this.computers.leave(ws)
     await this.recoverDisconnected()
@@ -383,6 +387,7 @@ export class OwnerDO extends DurableObject<Env> {
       await this.refreshClock()
       return
     }
+    if (this.computers.liveClosed(ws)) return
     await this.user().webSocketError(socketView(ws))
     this.computers.leave(ws)
     await this.recoverDisconnected()

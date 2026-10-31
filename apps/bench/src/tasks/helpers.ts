@@ -36,7 +36,7 @@ export const bun = (m: Machine, code: string, opts: Parameters<Machine["exec"]>[
 export const git = (m: Machine, args: readonly string[], opts: Parameters<Machine["exec"]>[1] = {}): Promise<Exec> =>
   run(m, ["git", ...args], opts)
 
-export const python = (m: Machine): string => (m.os === "windows" ? "python" : "python3")
+export const python = (_m: Machine): string => "python3"
 
 export const fixture = (rel: string): string => fileURLToPath(new URL(`../../fixtures/${rel}`, import.meta.url))
 

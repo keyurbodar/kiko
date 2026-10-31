@@ -88,7 +88,7 @@ const plan = (seed: number): { csv: string; expected: string } => {
 export const csvDedupe: Task = {
   id: "terminal-019-csv-dedupe",
   track: "terminal",
-  os: ["linux", "macos", "windows"],
+  os: ["linux", "macos"],
   needs: [],
   heldOut: true,
   kind: "real",

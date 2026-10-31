@@ -1,28 +1,17 @@
 import { Show, type JSX } from "solid-js"
-import { cn } from "../../lib/cn"
 
-export function Cursor(props: {
-  tone: "you" | "agent"
-  label?: string | undefined
-  ref?: (el: HTMLDivElement) => void
-  style?: JSX.CSSProperties
-  class?: string
-}): JSX.Element {
+export function Cursor(props: { label?: string | undefined; style?: JSX.CSSProperties }): JSX.Element {
   return (
     <div
-      ref={props.ref}
-      class={cn("pointer-events-none absolute top-0 left-0 z-10 will-change-[left,top]", props.class)}
+      class="pointer-events-none absolute top-0 left-0 z-10 will-change-[left,top]"
       style={props.style}
       data-component="computer-cursor"
-      data-tone={props.tone}
+      data-tone="agent"
     >
       <svg
-        class={cn(
-          "size-5 -translate-x-[3px] -translate-y-[2px] drop-shadow-[0_1px_2px_rgb(0_0_0/0.5)]",
-          props.tone === "you" ? "text-white" : "text-[#f0b45a]",
-        )}
+        class="size-5 -translate-x-[3px] -translate-y-[2px] text-[#f0b45a] drop-shadow-[0_1px_2px_rgb(0_0_0/0.5)]"
         viewBox="0 0 24 24"
-        fill={props.tone === "you" ? "rgb(0 0 0 / 0.35)" : "currentColor"}
+        fill="currentColor"
         stroke="currentColor"
         stroke-width="1.6"
         stroke-linejoin="round"
@@ -32,12 +21,7 @@ export function Cursor(props: {
       </svg>
       <Show when={props.label}>
         {(label) => (
-          <span
-            class={cn(
-              "absolute top-4 left-4 rounded-full px-2 py-0.5 text-base leading-none font-medium whitespace-nowrap shadow-sm",
-              props.tone === "you" ? "bg-black/70 text-white" : "bg-[#f0b45a] text-black",
-            )}
-          >
+          <span class="absolute top-4 left-4 rounded-full bg-[#f0b45a] px-2 py-0.5 text-base leading-none font-medium whitespace-nowrap text-black shadow-sm">
             {label()}
           </span>
         )}
