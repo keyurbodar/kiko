@@ -115,8 +115,11 @@ class Sentinel:
             self.refresh()
 
     def refresh(self):
-        self.active = hyprctl_json("activewindow") or {}
-        self.clients = hyprctl_json("clients") or []
+        try:
+            self.active = hyprctl_json("activewindow") or {}
+            self.clients = hyprctl_json("clients") or []
+        except (RuntimeError, ValueError, OSError):
+            pass
 
     def own(self):
         for client in self.clients:
