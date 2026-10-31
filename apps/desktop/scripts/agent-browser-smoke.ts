@@ -179,13 +179,14 @@ async function startFixture(): Promise<Fixture> {
 }
 
 async function frontAwayFrom(fixture: Fixture): Promise<string> {
-  const deadline = Date.now() + 10_000
-  for (;;) {
+  const deadline = Date.now() + 15_000
+  let front = ""
+  do {
     await focusDecoy(fixture.decoy)
     await Bun.sleep(200)
-    const front = await frontmost()
-    if (!front.includes("kiko browser fixture") || Date.now() >= deadline) return front
-  }
+    front = await frontmost()
+  } while (!front.includes(fixture.decoy) && Date.now() < deadline)
+  return front
 }
 
 function startKiko(kiko: string, browser: string, app: string) {
