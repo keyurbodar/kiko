@@ -4,15 +4,7 @@ import { glyphNodes } from "./glyph-cache"
 
 export type { Glyph }
 
-export type IconSize = 12 | 16 | 18 | 20 | 24
-
-const STEP = {
-  12: "xs",
-  16: "sm",
-  18: "nav",
-  20: "md",
-  24: "lg",
-} as const satisfies Record<IconSize, string>
+export type IconSize = 12 | 13 | 14 | 16 | 18 | 20 | 24
 
 export type RemixIconProps = Omit<ComponentProps<"svg">, "children"> & {
   icon: Glyph
@@ -23,17 +15,15 @@ const server = typeof document === "undefined"
 
 export function RemixIcon(props: RemixIconProps) {
   const [own, rest] = splitProps(props, ["icon", "size"])
-  const box = () => (own.size === undefined ? undefined : `var(--size-icon-${STEP[own.size]}, ${own.size}px)`)
   if (server) {
     return (
       <svg
         data-component="remix-icon"
         aria-hidden="true"
-        viewBox="0 0 256 256"
+        viewBox="0 0 300 300"
         width={own.size ?? 16}
         height={own.size ?? 16}
-        style={box() === undefined ? undefined : { width: box(), height: box() }}
-        fill="currentColor"
+          fill="currentColor"
         {...rest}
         innerHTML={own.icon}
       />
@@ -46,10 +36,9 @@ export function RemixIcon(props: RemixIconProps) {
       ref={element}
       data-component="remix-icon"
       aria-hidden="true"
-      viewBox="0 0 256 256"
+      viewBox="0 0 300 300"
       width={own.size ?? 16}
       height={own.size ?? 16}
-      style={box() === undefined ? undefined : { width: box(), height: box() }}
       fill="currentColor"
       {...rest}
     />
