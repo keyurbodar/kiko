@@ -103,12 +103,10 @@ export const HANDLERS: Handlers = {
   "pc.remove": ({ pcId }, { host }) => host.user().pc.remove(pcId),
   "pc.rename": ({ pcId, name }, { host }) => host.user().pc.rename(pcId, name),
   "pc.watch": ({ pcId, on, mode }, { host, socket }) => host.user().pc.watch(socket, pcId, on, mode),
-  "pc.frames": ({ pcId }, { host, ws, requestId }) => host.user().pc.frames(ws, requestId, pcId),
   "pc.take": ({ pcId }, { host, socket }) => host.user().pc.take(socket, pcId),
   "pc.release": ({ pcId }, { host, socket }) => host.user().pc.release(socket, pcId),
   "pc.rtc": ({ pcId, signal }, { host, socket }) => host.user().pc.rtc(socket, pcId, signal),
   "pc.input": ({ pcId, events }, { host, socket }) => host.user().pc.input(socket, pcId, events),
-  "pc.ack": ({ pcId, seq }, { host }) => host.user().pc.ack(pcId, seq),
 
   "terminal.list": ({ pcId }, { host }) => host.user().pc.terminalList(pcId),
   "terminal.open": ({ pcId, cols, rows }, { host }) => host.user().pc.terminalOpen(pcId, cols, rows),

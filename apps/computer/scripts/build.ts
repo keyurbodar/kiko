@@ -12,7 +12,6 @@ const TARGETS: Target[] = [
   { name: "linux-arm64", bun: "bun-linux-arm64", addon: "linux-arm64-gnu" },
   { name: "darwin-x64", bun: "bun-darwin-x64", addon: "darwin-x64" },
   { name: "darwin-arm64", bun: "bun-darwin-arm64", addon: "darwin-arm64" },
-  { name: "windows-x64", bun: "bun-windows-x64", addon: "win32-x64-msvc" },
 ]
 
 const app = join(import.meta.dir, "..")
@@ -54,8 +53,7 @@ function embedAddon(file: string): Bun.BunPlugin {
 }
 
 async function compile(target: Target): Promise<string> {
-  const ext = target.name.startsWith("windows") ? ".exe" : ""
-  const outfile = join(outdir, `kiko-computer-${target.name}${ext}`)
+  const outfile = join(outdir, `kiko-computer-${target.name}`)
   const result = await Bun.build({
     entrypoints: [entry],
     compile: { target: target.bun, outfile },

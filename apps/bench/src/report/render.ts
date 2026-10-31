@@ -61,6 +61,107 @@ function median(values: readonly number[]): number {
   return ((sorted[middle - 1] ?? 0) + (sorted[middle] ?? 0)) / 2
 }
 
+function percentile(values: readonly number[], fraction: number): number {
+  if (values.length === 0) return 0
+  const sorted = [...values].sort((a, b) => a - b)
+  const index = Math.min(sorted.length - 1, Math.max(0, Math.ceil(fraction * sorted.length) - 1))
+  return sorted[index] ?? 0
+}
+
+function millis(values: readonly number[]): string {
+  if (values.length === 0) return "-"
+  const p50 = Math.round(percentile(values, 0.5))
+  const p95 = Math.round(percentile(values, 0.95))
+  return `${integer(p50)} / ${integer(p95)}<span class="muted"> n=${values.length}</span>`
+}
+
+function positive(rows: readonly Row[], column: keyof Row): number[] {
+  return rows.map((row) => amount(row, column)).filter((value) => value > 0)
+}
+
+interface ToolLatencyEntry {
+  readonly calls: number
+  readonly p50: number
+  readonly p95: number
+}
+
+function toolLatencies(row: Row): Readonly<Record<string, ToolLatencyEntry>> {
+  const raw = field(row, "tool_latency_by_name")
+  if (!raw) return {}
+  try {
+    const parsed = JSON.parse(raw) as Record<string, ToolLatencyEntry>
+    return typeof parsed === "object" && parsed !== null ? parsed : {}
+  } catch {
+    return {}
+  }
+}
+
+function toolLatencyRows(rows: readonly Row[]): string {
+  const byName = new Map<string, { calls: number; p50: number[]; p95: number[] }>()
+  for (const row of rows) {
+    for (const [name, entry] of Object.entries(toolLatencies(row))) {
+      const held = byName.get(name) ?? { calls: 0, p50: [], p95: [] }
+      held.calls += entry.calls
+      held.p50.push(entry.p50)
+      held.p95.push(entry.p95)
+      byName.set(name, held)
+    }
+  }
+  if (byName.size === 0) return `<p class="empty">No per-tool latency recorded.</p>`
+  const lines = [...byName.entries()]
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([name, held]) => {
+      const p50 = Math.round(median(held.p50))
+      const p95 = Math.round(median(held.p95))
+      return `<tr><th>${escapeHtml(name)}</th><td class="num">${held.calls}</td><td class="num">${integer(p50)}<span class="muted"> n=${held.p50.length}</span></td><td class="num">${integer(p95)}<span class="muted"> n=${held.p95.length}</span></td></tr>`
+    })
+    .join("")
+  const head = `<tr><th>Tool</th><th class="num">Calls</th><th class="num">p50 ms</th><th class="num">p95 ms</th></tr>`
+  return `<table><thead>${head}</thead><tbody>${lines}</tbody></table>`
+}
+
+function latencyTrack(track: string, trials: readonly Row[]): string {
+  if (trials.length === 0) return `<h3>${escapeHtml(track)}</h3><p class="empty">No scored trials.</p>`
+  const groups = [...groupRows(trials, ["contender", "model", "machine"]).values()].sort(compareGroups)
+  const body = groups
+    .map((group) => {
+      const images = group.rows.map((row) => amount(row, "images_bytes"))
+      const cells = [
+        `<td>${escapeHtml(group.labels[0] ?? "")}</td>`,
+        `<td>${escapeHtml(group.labels[1] ?? "")}</td>`,
+        `<td>${escapeHtml(group.labels[2] ?? "")}</td>`,
+        `<td class="num">${group.rows.length}</td>`,
+        `<td class="num">${millis(positive(group.rows, "ttft_ms"))}</td>`,
+        `<td class="num">${millis(positive(group.rows, "model_p50_ms"))}</td>`,
+        `<td class="num">${millis(positive(group.rows, "tool_p50_ms"))}</td>`,
+        `<td class="num">${millis(positive(group.rows, "tool_transport_ms"))}</td>`,
+        `<td class="num">${millis(positive(group.rows, "tool_op_ms"))}</td>`,
+        `<td class="num">${millis(positive(group.rows, "tool_queue_ms"))}</td>`,
+        `<td class="num">${escapeHtml(integer(median(images)))}<span class="muted"> n=${group.rows.length}</span></td>`,
+      ]
+      return `<tr>${cells.join("")}</tr>`
+    })
+    .join("")
+  const head = `<tr><th>Contender</th><th>Model</th><th>Machine</th><th class="num">Trials</th><th class="num">TTFT p50 / p95 ms</th><th class="num">Model p50 / p95 ms</th><th class="num">Tool p50 / p95 ms</th><th class="num">Transport p50 / p95 ms</th><th class="num">Op p50 / p95 ms</th><th class="num">Queue p50 / p95 ms</th><th class="num">Images bytes</th></tr>`
+  return `<h3>${escapeHtml(track)}</h3><table><thead>${head}</thead><tbody>${body}</tbody></table><h3>${escapeHtml(track)} by tool</h3>${toolLatencyRows(trials)}`
+}
+
+function latencySection(rows: readonly Row[]): string {
+  const trials = rows.filter((row) => scored(row))
+  if (trials.length === 0) return section("Latency", `<p class="empty">No scored trials.</p>`)
+  const tracks = uniqueSorted(trials, "track")
+  const blocks = tracks
+    .map((track) =>
+      latencyTrack(
+        track,
+        trials.filter((row) => field(row, "track") === track),
+      ),
+    )
+    .join("")
+  const caption = `n=${trials.length} scored trials; TTFT and model percentiles pool every trial's value, and each cell states its own n. Tool time is transport plus op; queue is the wait between the model's reply and the tool.`
+  return section("Latency", blocks, caption)
+}
+
 function wilson(successes: number, trials: number): readonly [number, number] {
   if (trials === 0) return [0, 0]
   const z = 1.959963984540054
@@ -645,6 +746,7 @@ export function renderReport(rows: readonly Row[], options: ReportOptions): stri
     accuracyCostSection(rows),
     modelGridSection(rows),
     timeSection(rows),
+    latencySection(rows),
     tokenSection(rows),
     backgroundSection(rows),
     trendSection(rows),

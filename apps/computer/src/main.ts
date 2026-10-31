@@ -4,6 +4,7 @@ import { presence } from "./caps"
 import { CliError } from "./errors"
 import { pair } from "./pairing"
 import { exitWhenParentDies, parentPipeAsked } from "./parent"
+import { unsupportedOs } from "./platform"
 import { diagnose, serve } from "./serve"
 
 const USAGE = `usage: kiko-core <command>
@@ -14,7 +15,12 @@ const USAGE = `usage: kiko-core <command>
 
 Options: --dir <path> overrides the config directory.`
 
-export async function main(argv: string[]): Promise<number> {
+export async function main(argv: string[], platform = process.platform): Promise<number> {
+  const unsupported = unsupportedOs(platform)
+  if (unsupported) {
+    console.error(`kiko-core: ${unsupported}`)
+    return 1
+  }
   const { values, positionals } = parseArgs({
     args: argv,
     allowPositionals: true,

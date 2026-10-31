@@ -45,7 +45,7 @@ const plan = (seed: number): { files: { path: string; size: number }[]; expected
 export const largestFiles: Task = {
   id: "terminal-015-largest-files",
   track: "terminal",
-  os: ["linux", "macos", "windows"],
+  os: ["linux", "macos"],
   needs: [],
   heldOut: false,
   kind: "real",

@@ -2,14 +2,13 @@ import { existsSync } from "node:fs"
 import { delimiter, join } from "node:path"
 
 export function findBinary(name: string, configDir?: string): string | null {
-  const exe = process.platform === "win32" && !name.endsWith(".exe") ? `${name}.exe` : name
   if (configDir) {
-    const local = join(configDir, exe)
+    const local = join(configDir, name)
     if (existsSync(local)) return local
   }
   for (const dir of (process.env.PATH ?? "").split(delimiter)) {
     if (!dir) continue
-    const candidate = join(dir, exe)
+    const candidate = join(dir, name)
     if (existsSync(candidate)) return candidate
   }
   return null

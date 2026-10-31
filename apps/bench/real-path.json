@@ -1,0 +1,10 @@
+{
+  "tracks": ["terminal", "environment"],
+  "contenders": ["kiko", "kiko-remote"],
+  "models": ["iceman-contributor-free"],
+  "reps": 2,
+  "conditions": ["foreground"],
+  "seed": 1,
+  "pattern": "*",
+  "validate": { "runs": 1 }
+}

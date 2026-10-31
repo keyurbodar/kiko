@@ -19,15 +19,13 @@ import {
 import { CONNECT_HEADERS, CONNECT_SKEW_MS, connectMessage, verify } from "@kiko/computer/sign"
 import type { DesktopInfo } from "@kiko/computer/driver"
 import { decodeBinary, decodeFrame } from "@kiko/computer/frame"
-import type { AgentSlug, ComputerFrame, ComputerSummary, RoomId, TerminalEvent } from "@kiko/protocol"
+import type { AgentSlug, ComputerSummary, RoomId, TerminalEvent } from "@kiko/protocol"
 import type { Env } from "../index"
 import { ago } from "../lib/ago"
-import { encodeBase64 } from "../lib/base64"
 import { BACKEND } from "../lib/version"
-import { dropStreams, socketView } from "../owner/socket"
+import { socketView } from "../owner/socket"
 import type { RequestId } from "../rpc/wire"
 import { joinImages } from "./binary"
-import { frameChunk, frameSubs, frameText } from "./frames"
 import type { ComputerRow, ComputerStore, NewComputer } from "./store"
 import { terminalStream, terminalText } from "./terminals"
 import type { PcTaken } from "./types"
@@ -48,7 +46,7 @@ const STUN: IceServer = { urls: "stun:stun.cloudflare.com:3478" }
 const TURN_TTL_S = 3600
 const TURN_CACHE_MS = 30 * 60_000
 const TURN_TIMEOUT_MS = 5_000
-const RELAY = { fps: 8, maxWidth: 1280, quality: 60 } as const
+const RELAY = { fps: 15, maxWidth: 1600, quality: 65 } as const
 const CLOSE = { replaced: 4000, notReady: 1008, protocol: 4001 } as const
 const OFFLINE_WAIT_MS = 5_000
 
@@ -104,7 +102,9 @@ export type PcAttachment = {
 
 type CallTarget = { ws: WebSocket; saved: PcAttachment; hello: Hello }
 
-export type CallOutcome = { ok: true; value: unknown } | { ok: false; code: FailCode; message: string }
+export type CallOutcome =
+  | { ok: true; value: unknown; opMs?: number }
+  | { ok: false; code: FailCode; message: string; opMs?: number }
 
 export type TerminalAttachOutcome =
   | { ok: true; value: `term:${string}` }
@@ -157,11 +157,33 @@ export function pcSocketId(ws: WebSocket): string | null {
   return attachmentOf(ws)?.id ?? null
 }
 
+type LiveAttachment = { kind: "live"; pcId: string }
+
+type LiveMessage = { t: "ack"; seq?: number } | { t: "live"; fps?: number; maxWidth?: number; quality?: number }
+
+function liveOf(ws: WebSocket): LiveAttachment | null {
+  const saved = ws.deserializeAttachment() as LiveAttachment | null
+  return saved?.kind === "live" && typeof saved.pcId === "string" ? saved : null
+}
+
+function profileOf(message: Extract<LiveMessage, { t: "live" }>): {
+  fps?: number
+  maxWidth?: number
+  quality?: number
+} {
+  return {
+    ...(typeof message.fps === "number" ? { fps: message.fps } : {}),
+    ...(typeof message.maxWidth === "number" ? { maxWidth: message.maxWidth } : {}),
+    ...(typeof message.quality === "number" ? { quality: message.quality } : {}),
+  }
+}
+
 export class ComputerHub {
   private readonly pending = new Map<string, Pending>()
   private readonly takes = new Map<string, { epoch: number; settle: (ok: boolean) => void }>()
   private readonly desk = new Map<string, { user: string; name: string; until: number }>()
   private readonly relaying = new Set<string>()
+  private readonly profiles = new Map<string, { fps: number; maxWidth: number; quality: number }>()
   private readonly attaches = new Map<string, TerminalAttach>()
   private readonly memory = new Map<string, PcHold>()
   private readonly desktop = new Map<string, DesktopInfo>()
@@ -534,9 +556,12 @@ export class ComputerHub {
   }
 
   private result(frame: Extract<FromDaemon, { t: "result" }>): void {
+    const opMs = frame.opMs
     this.settle(
       frame.id,
-      frame.ok ? { ok: true, value: frame.value } : { ok: false, code: frame.error.code, message: frame.error.message },
+      frame.ok
+        ? { ok: true, value: frame.value, ...(opMs !== undefined ? { opMs } : {}) }
+        : { ok: false, code: frame.error.code, message: frame.error.message, ...(opMs !== undefined ? { opMs } : {}) },
     )
   }
 
@@ -659,34 +684,55 @@ export class ComputerHub {
   }
 
   private relayFrame(pcId: string, bytes: Uint8Array): void {
-    const decoded = decodeFrame(bytes)
-    if (!decoded) return
-    const { header, image } = decoded
-    const frame: ComputerFrame = {
-      seq: header.seq,
-      mime: header.kind === "webp" ? "image/webp" : "image/jpeg",
-      width: header.width,
-      height: header.height,
-      cursor: header.cursor,
-      data: encodeBase64(image),
+    if (!decodeFrame(bytes)) return
+    for (const live of this.d.ctx.getWebSockets(`live:${pcId}`)) {
+      try {
+        live.send(bytes)
+      } catch {}
     }
-    const values = frameChunk(frame)
-    for (const tab of this.d.ctx.getWebSockets("tab"))
-      for (const sub of frameSubs(tab.deserializeAttachment(), pcId))
-        try {
-          tab.send(frameText(sub.requestId, values))
-        } catch {}
   }
 
   private relayWatchers(pcId: string): number {
-    let count = 0
-    for (const tab of this.d.ctx.getWebSockets("tab")) count += frameSubs(tab.deserializeAttachment(), pcId).length
-    return count
+    return this.d.ctx.getWebSockets(`live:${pcId}`).length
   }
 
-  private watchingTab(tab: WebSocket): readonly string[] {
-    const saved = tab.deserializeAttachment() as { rpc?: readonly { stream: string }[] } | null
-    return [...new Set((saved?.rpc ?? []).map((sub) => sub.stream).filter((stream) => stream.startsWith("pc:")))]
+  live(pcId: string): Response {
+    if (!this.row(pcId)) return new Response("there is no such computer", { status: 404 })
+    const pair = new WebSocketPair()
+    this.d.ctx.acceptWebSocket(pair[1], [`live:${pcId}`])
+    pair[1].serializeAttachment({ kind: "live", pcId } satisfies LiveAttachment)
+    return new Response(null, { status: 101, webSocket: pair[0] })
+  }
+
+  liveMessage(ws: WebSocket, raw: string | ArrayBuffer): boolean {
+    const live = liveOf(ws)
+    if (!live) return false
+    if (typeof raw !== "string") return true
+    let message: LiveMessage
+    try {
+      message = JSON.parse(raw) as LiveMessage
+    } catch {
+      return true
+    }
+    if (message.t === "ack" && typeof message.seq === "number") this.ack(live.pcId, message.seq)
+    else if (message.t === "live") {
+      const profile = profileOf(message)
+      this.profiles.set(live.pcId, { ...RELAY, ...profile })
+      if (!this.socket(live.pcId)) return true
+      this.relaying.add(live.pcId)
+      this.sendTo(live.pcId, { t: "live", on: true, ...profile })
+    }
+    return true
+  }
+
+  liveClosed(ws: WebSocket): boolean {
+    const live = liveOf(ws)
+    if (!live) return false
+    const others = this.d.ctx.getWebSockets(`live:${live.pcId}`).filter((socket) => socket !== ws)
+    if (others.length > 0) return true
+    this.relaying.delete(live.pcId)
+    this.sendTo(live.pcId, { t: "live", on: false })
+    return true
   }
 
   syncRelay(pcId: string, force = false): void {
@@ -696,7 +742,7 @@ export class ComputerHub {
     if (!force && on === this.relaying.has(pcId)) return
     if (on) this.relaying.add(pcId)
     else this.relaying.delete(pcId)
-    this.send(ws, on ? { t: "live", on: true, ...RELAY } : { t: "live", on: false })
+    this.send(ws, on ? { t: "live", on: true, ...RELAY, ...this.profiles.get(pcId) } : { t: "live", on: false })
   }
 
   async watchRtc(pcId: string, tab: WebSocket): Promise<void> {
@@ -709,15 +755,7 @@ export class ComputerHub {
     this.session(tab)
   }
 
-  unwatch(tab: WebSocket): void {
-    for (const pcId of this.watchingTab(tab)) this.syncRelay(pcId)
-  }
-
   leave(tab: WebSocket): void {
-    for (const pcId of this.watchingTab(tab)) {
-      dropStreams(tab, `pc:${pcId}`)
-      this.syncRelay(pcId)
-    }
     this.dropTabTerminals(tab)
     this.dropHuman(tab)
   }
@@ -1060,7 +1098,6 @@ export class ComputerHub {
 
   async close(ws: WebSocket, code?: number, reason?: string): Promise<void> {
     const saved = attachmentOf(ws)
-    this.unwatch(ws)
     if (!saved) return
     const replaced = this.sockets(saved.id).some((other) => other !== ws && other.readyState === WebSocket.OPEN)
     if (!replaced) {
@@ -1091,6 +1128,7 @@ export class ComputerHub {
     this.dropCalls(id)
     this.takes.get(id)?.settle(false)
     this.relaying.delete(id)
+    this.profiles.delete(id)
     this.dropTerminalsFor(id, "this computer was removed")
     this.desk.delete(id)
     this.memory.delete(id)

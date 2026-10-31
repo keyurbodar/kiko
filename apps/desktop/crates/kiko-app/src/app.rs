@@ -193,9 +193,6 @@ fn session() -> String {
     if cfg!(target_os = "macos") {
         return "aqua".into();
     }
-    if cfg!(windows) {
-        return "win32".into();
-    }
     std::env::var("XDG_SESSION_TYPE").unwrap_or_else(|_| "x11".into())
 }
 

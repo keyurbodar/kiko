@@ -3,12 +3,14 @@ import { version } from "../package.json"
 
 export const VERSION = process.env.KIKO_COMPUTER_VERSION ?? version
 
-export type OsName = "macos" | "linux" | "windows"
+export type OsName = "macos" | "linux"
 
 export function osName(platform = process.platform): OsName {
-  if (platform === "darwin") return "macos"
-  if (platform === "win32") return "windows"
-  return "linux"
+  return platform === "darwin" ? "macos" : "linux"
+}
+
+export function unsupportedOs(platform = process.platform): string | null {
+  return platform === "darwin" || platform === "linux" ? null : "kiko computer runs on macOS and Linux only"
 }
 
 export function hostName(): string {
@@ -16,10 +18,6 @@ export function hostName(): string {
   return name.length > 0 ? name : "unknown"
 }
 
-export function shellCommand(command: string): string[] {
-  return process.platform === "win32" ? ["powershell", "-NoProfile", "-Command", command] : ["/bin/sh", "-lc", command]
-}
-
 export function homeDir(): string {
-  return process.env.HOME ?? process.env.USERPROFILE ?? "."
+  return process.env.HOME ?? "."
 }

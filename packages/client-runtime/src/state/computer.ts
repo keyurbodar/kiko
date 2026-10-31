@@ -1,6 +1,5 @@
-import type { ComputerFrame, TerminalEvent } from "@kiko/protocol"
+import type { TerminalEvent } from "@kiko/protocol"
 import * as Effect from "effect/Effect"
-import * as Option from "effect/Option"
 import * as Stream from "effect/Stream"
 import * as Atom from "effect/reactivity/Atom"
 import { subscribe } from "../rpc/client"
@@ -48,18 +47,7 @@ function append(feed: TerminalFeed, event: TerminalEvent): TerminalFeed {
   return { seq, items: trim([...feed.items, { seq, event }]) }
 }
 
-export function createComputerAtoms<E>(runtime: Atom.AtomRuntime<OwnerRuntimeServices, E>) {
-  const framesAtom = Atom.family((pcId: string) =>
-    runtime
-      .atom(
-        subscribe("pc.frames", () => Effect.succeed({ pcId })).pipe(
-          Stream.map((frame) => Option.some<ComputerFrame>(frame)),
-        ),
-        { initialValue: Option.none<ComputerFrame>() },
-      )
-      .pipe(Atom.withLabel(`kiko-pc-frames:${pcId}`)),
-  )
-
+export function createTerminalAtoms<E>(runtime: Atom.AtomRuntime<OwnerRuntimeServices, E>) {
   const terminalAtom = Atom.family((key: string) => {
     const [pcId = "", terminalId = ""] = key.split("\u0000")
     const size = terminalSizes.get(key) ?? DEFAULT_SIZE
@@ -73,5 +61,5 @@ export function createComputerAtoms<E>(runtime: Atom.AtomRuntime<OwnerRuntimeSer
       .pipe(Atom.withLabel(`kiko-terminal:${key}`))
   })
 
-  return { framesAtom, terminalAtom }
+  return { terminalAtom }
 }
