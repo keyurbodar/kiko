@@ -32,6 +32,7 @@ export async function devAgentRoute(request: Request, env: Env): Promise<Respons
       "pass",
       "composio",
       "browser",
+      "browse",
     ].includes(action ?? "")
   )
     return null
@@ -101,10 +102,24 @@ async function devRoomAction(request: Request, env: Env, userId: string, action:
     slugs?: unknown
     slug?: unknown
     turns?: unknown
+    urls?: unknown
   } | null
   if (typeof body?.roomId !== "string" || !isRoomId(body.roomId))
     return Response.json({ error: "bad room id" }, { status: 400 })
   const roomId = body.roomId
+  if (action === "browse") {
+    const urls = Array.isArray(body.urls)
+      ? body.urls.filter((url): url is string => typeof url === "string").slice(0, 4)
+      : []
+    if (!urls.length) return Response.json({ error: "bad urls" }, { status: 400 })
+    try {
+      return Response.json({
+        tabs: await ownerStub(env.OWNER, userId).agentCall(roomId, slugOf(body), "devBrowse", [urls]),
+      })
+    } catch (e) {
+      return Response.json({ error: e instanceof Error ? e.message : String(e) }, { status: 409 })
+    }
+  }
   if (action === "seed") {
     const turns = Array.isArray(body.turns) ? (body.turns as { from?: unknown; text?: unknown }[]) : []
     if (

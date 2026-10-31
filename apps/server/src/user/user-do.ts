@@ -55,7 +55,7 @@ import {
   type UserSettingsPatch,
 } from "@kiko/protocol"
 import type { OwnerServices, ServiceOptions } from "../owner/services"
-import { loadUserDev } from "../lib/dev-guard"
+import { devOverride, loadUserDev } from "../lib/dev-guard"
 import { signToken } from "../auth/auth"
 import { BACKEND } from "../lib/version"
 import * as Effect from "effect/Effect"
@@ -1274,6 +1274,7 @@ export class User {
       env: this.env,
       alarms: this.alarms,
       userId: () => this.ownerId,
+      cdpUrl: devOverride(() => this.env.KERNEL_CDP ?? null) ?? undefined,
       notify: (error) => this.broadcast({ t: "error", error }),
     })
     return this.#kernelWiring

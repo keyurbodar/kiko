@@ -89,7 +89,7 @@ Static gates are cheap enough to run on every push. Behavior is proven by Vitest
 | Bundles | `vite build`, `wrangler deploy --dry-run` | Imports that resolve in types but not in the bundle |
 | Unit tests | Vitest, `*.test.ts` beside the source | One root `vitest.config.ts`, `retry: 0`, `.only` fails in CI |
 | Browser tests | Vitest browser mode in headless Chromium, `*.browser.test.tsx` | Solid components run through the app's own Vite plugins |
-| Write budget | `apps/server/integration/journal-overhead.integration.test.ts` | Starts the real Worker with `unstable_startWorker` on a fresh persist dir and fails when a warm prompt writes more than 7 billable rows, a quiet minute writes anything, objects call each other, or a failing prompt shows or persists anything but one error row |
+| Write budget | `apps/server/integration/journal-overhead.integration.test.ts` | Starts the real Worker with `unstable_startWorker` on a fresh persist dir and fails when a warm prompt writes more than 7 billable rows, a quiet minute writes anything, objects call each other, a round of cloud browser reads writes a lease row, or a failing prompt shows or persists anything but one error row |
 
 `scripts/ci-changes.ts` maps changed files to workspace packages and their dependents. CI uses it to skip jobs a change cannot affect, and `scripts/check-changed.ts` uses the same mapping locally. `bun run check:changed` is the pre-push hook: it formats-checks and lints the changed files, runs knip, layering and generated checks, typechecks the affected packages, and runs the tests beside the changed files, all in parallel, and remembers a passing run until an input changes. The pre-commit hook only formats staged files.
 
