@@ -132,7 +132,7 @@ export function SettingsDialog(props: ParentProps) {
       data-section={s.id}
       onClick={() => void navigate({ to: s.to })}
     >
-      <span class="settings-nav-icon">
+      <span class="settings-nav-icon row-icon">
         <RemixIcon icon={s.icon} size={14} />
       </span>
       <span class="settings-nav-label">{s.label}</span>

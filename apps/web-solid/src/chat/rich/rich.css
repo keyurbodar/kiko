@@ -221,7 +221,6 @@
   --fade: 1.5rem;
   max-width: 100%;
   overflow-x: auto;
-  scrollbar-width: thin;
   mask-image: linear-gradient(
     to right,
     transparent 0,

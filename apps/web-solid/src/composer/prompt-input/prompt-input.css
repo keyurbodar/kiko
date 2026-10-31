@@ -1,11 +1,14 @@
+@import "../composer-tokens.css";
+
 .composer-dock .composer-rich {
   overflow: clip;
   overflow-clip-margin: 4px;
-  transition: height var(--duration-fast) var(--ease-sharp);
+  transition: height 120ms var(--composer-ease);
 }
 
 .composer-dock .composer-input {
   flex: none;
+  max-height: min(184px, calc(var(--composer-viewport-height, 100dvh) * 0.45));
   tab-size: 2;
 }
 
@@ -19,30 +22,30 @@
 }
 
 .token-chip {
+  --chip-fill: color-mix(in oklab, var(--text-primary) 9%, transparent);
   position: relative;
   display: inline-flex;
   box-sizing: border-box;
   max-width: 100%;
-  height: 20px;
+  height: 22px;
   align-items: center;
-  gap: 4px;
-  padding: 0 6px 0 4px;
+  gap: 5px;
+  padding: 0 8px 0 4px;
   color: var(--text-primary);
-  background: var(--bg-tertiary);
+  background: var(--chip-fill);
   border: 0;
-  border-radius: var(--radius-base);
+  border-radius: 6px;
   font: inherit;
-  font-size: var(--font-size-sm);
+  font-size: 13.5px;
   font-weight: 400;
-  line-height: var(--line-height-sm);
-  letter-spacing: var(--letter-spacing-sm);
+  line-height: 20px;
   vertical-align: middle;
   white-space: nowrap;
   cursor: default;
   transition:
-    box-shadow var(--duration-fast) ease,
-    background-color var(--duration-fast) ease,
-    transform var(--duration-instant) var(--ease-sharp);
+    box-shadow 120ms var(--composer-ease),
+    background 120ms,
+    transform 120ms var(--composer-ease);
 }
 
 .token-chip-fill {
@@ -50,7 +53,7 @@
   inset: auto 4px 0;
   height: 2px;
   overflow: hidden;
-  background: var(--bg-tertiary);
+  background: color-mix(in oklab, var(--text-primary) 12%, transparent);
   border-radius: var(--radius-full);
 }
 
@@ -69,11 +72,11 @@
 
 .token-chip[data-kind="skill"],
 .token-chip[data-kind="recipe"] {
-  padding-left: 5px;
+  padding-left: 6px;
 }
 
 .token-chip[data-kind="unknown"] {
-  padding: 0 6px;
+  padding: 0 8px;
   color: var(--text-secondary);
 }
 
@@ -85,6 +88,7 @@
 
 .token-chip-meta {
   color: var(--text-tertiary);
+  font-size: 12.5px;
 }
 
 .token-chip[data-state="failed"] {
@@ -96,9 +100,9 @@
 }
 
 .token-chip-thumb {
-  width: 14px;
-  height: 14px;
-  border-radius: var(--radius-xs);
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
   object-fit: cover;
 }
 
@@ -108,16 +112,16 @@ button.token-chip {
 
 @media (hover: hover) and (pointer: fine) {
   button.token-chip:hover {
-    background: var(--bg-secondary);
+    background: color-mix(in oklab, var(--text-primary) 14%, transparent);
   }
 }
 
 button.token-chip:active {
-  transform: scale(var(--press-scale));
+  transform: scale(0.97);
 }
 
 .composer-dock .ProseMirror-selectednode > .token-chip {
-  background: var(--bg-active);
+  box-shadow: inset 0 0 0 1.5px var(--text-primary);
 }
 
 .token-leaf {
@@ -126,16 +130,19 @@ button.token-chip:active {
   height: 11px;
   flex-shrink: 0;
   background: var(--text-green);
-  border-radius: var(--radius-base) var(--radius-sm);
+  border-radius: 8px 4px;
 }
 
-:is(.composer-popover, .composer-plus-glyph) .token-leaf {
-  margin: 0 3px;
+.composer-popover .token-leaf {
+  width: 9px;
+  height: 12px;
+  margin: 0 4px;
+  border-radius: 8px 4px;
 }
 
 .token-bolt {
   flex-shrink: 0;
-  color: var(--icon-secondary);
+  color: var(--text-secondary);
 }
 
 .token-app-tile {
@@ -146,7 +153,7 @@ button.token-chip:active {
 
 .token-app-tile .recipe-logo {
   background: #f4f3f1;
-  border-radius: var(--radius-sm);
+  border-radius: 4px;
   box-shadow: 0 0 0 1.5px color-mix(in oklab, var(--bg-chrome) 90%, transparent);
 }
 
@@ -159,14 +166,13 @@ button.token-chip:active {
   position: fixed;
   z-index: 90;
   width: 260px;
-  padding: 10px;
+  padding: 12px;
   color: var(--text-primary);
-  background: var(--bg-elevated);
-  border-radius: var(--radius-xl);
-  box-shadow: var(--popup-shadow);
-  font-size: var(--font-size-base);
-  line-height: var(--line-height-base);
-  letter-spacing: var(--letter-spacing-base);
+  background: var(--composer-raise);
+  border-radius: 12px;
+  box-shadow:
+    inset 0 0 0 1px var(--composer-line-strong),
+    var(--composer-float-shadow);
   pointer-events: none;
 }
 
@@ -180,6 +186,7 @@ button.token-chip:active {
 .token-preview-name {
   min-width: 0;
   overflow: hidden;
+  font-size: 12.5px;
   font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -189,19 +196,17 @@ button.token-chip:active {
   flex-shrink: 0;
   margin-left: auto;
   color: var(--text-tertiary);
-  font-size: var(--font-size-sm);
-  line-height: var(--line-height-sm);
+  font-size: 11.5px;
 }
 
 .token-preview-lines {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  margin-top: 8px;
+  gap: 4px;
+  margin-top: 10px;
   color: var(--text-secondary);
-  font-family: var(--font-family-mono);
-  font-size: var(--font-size-xs);
-  line-height: var(--line-height-xs);
+  font-size: 11.5px;
+  line-height: 16px;
 }
 
 .token-preview-lines span {
@@ -211,10 +216,41 @@ button.token-chip:active {
 }
 
 .token-preview-foot {
-  margin-top: 8px;
+  margin-top: 10px;
   color: var(--text-tertiary);
-  font-size: var(--font-size-sm);
-  line-height: var(--line-height-sm);
+  font-size: 11.5px;
+}
+
+.composer-dock .composer-input a {
+  padding: 1px 8px 1px 6px;
+  color: var(--text-primary);
+  background: var(--composer-active);
+  border-radius: 6px;
+  font-size: 13.5px;
+  white-space: nowrap;
+  box-decoration-break: clone;
+}
+
+.composer-dock .composer-input a::before {
+  display: inline-block;
+  width: 13px;
+  height: 13px;
+  margin-right: 5px;
+  vertical-align: -2px;
+  background: var(--text-tertiary);
+  content: "";
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7'/%3E%3Cpath d='M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+}
+
+.composer-dock .composer-input a:focus-visible {
+  background-image: none;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .composer-dock .composer-input a:hover {
+    background-image: none;
+  }
 }
 
 .composer-dock .composer-popover {
@@ -226,15 +262,12 @@ button.token-chip:active {
   max-width: 100%;
   max-height: 360px;
   overflow: auto;
-  padding: 6px 0;
-  color: var(--text-primary);
-  background: var(--bg-elevated);
-  border-radius: var(--radius-2xl);
-  box-shadow: var(--popup-shadow);
-  font-size: var(--font-size-base);
-  line-height: var(--line-height-base);
-  letter-spacing: var(--letter-spacing-base);
-  scroll-padding-block: 6px;
+  padding: 6px;
+  background: var(--composer-raise);
+  border-radius: 12px;
+  box-shadow:
+    inset 0 0 0 1px var(--composer-line-strong),
+    var(--composer-float-shadow);
 }
 
 @media (max-width: 480px) {
@@ -246,55 +279,39 @@ button.token-chip:active {
 }
 
 .composer-popover-group {
-  padding: 6px 14px 2px;
+  padding: 8px 10px 4px;
   color: var(--text-tertiary);
-  font-size: var(--font-size-sm);
-  line-height: var(--line-height-sm);
-  letter-spacing: var(--letter-spacing-sm);
+  font-size: 11.5px;
+  line-height: 16px;
 }
 
 .composer-popover-rule {
   height: 1px;
-  margin: 4px 14px;
-  background: var(--stroke-tertiary);
+  margin: 4px 10px;
+  background: var(--composer-line);
 }
 
 .composer-popover-row {
-  position: relative;
   display: flex;
-  min-height: 30px;
+  height: 38px;
   min-width: 0;
   align-items: center;
   gap: 10px;
-  padding: 0 14px;
+  padding: 0 10px;
+  border-radius: 8px;
+  font-size: 12.5px;
   cursor: pointer;
 }
 
-.composer-popover-row::before {
-  position: absolute;
-  inset: 0 6px;
-  z-index: 0;
-  border-radius: var(--radius-lg);
-  content: "";
-  pointer-events: none;
-}
-
-.composer-popover-row[data-active]::before {
-  background: var(--bg-quaternary);
-}
-
-.composer-popover-row > * {
-  position: relative;
-  z-index: 1;
+.composer-popover-row[data-active] {
+  background: var(--composer-active);
 }
 
 .composer-popover-icon {
   display: inline-grid;
-  width: 14px;
-  height: 14px;
+  width: 18px;
   flex-shrink: 0;
   place-items: center;
-  color: var(--icon-secondary);
 }
 
 .composer-popover-label {
@@ -310,34 +327,37 @@ button.token-chip:active {
   min-width: 0;
   margin-left: auto;
   overflow: hidden;
-  color: var(--text-tertiary);
-  font-size: var(--font-size-sm);
-  line-height: var(--line-height-sm);
-  letter-spacing: var(--letter-spacing-sm);
+  color: var(--text-quaternary);
+  font-size: 11.5px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
+.composer-dock .composer-send {
+  position: relative;
+  overflow: visible;
+}
+
 .composer-send-arrow {
   transition:
-    transform var(--duration-normal) var(--ease-sharp),
-    opacity var(--duration-normal) var(--ease-sharp);
+    transform var(--dur-pop, 200ms) var(--composer-ease),
+    opacity var(--dur-pop, 200ms) var(--composer-ease);
 }
 
 .composer-send-square {
   position: absolute;
   top: 50%;
   left: 50%;
-  width: 8px;
-  height: 8px;
-  margin: -4px 0 0 -4px;
+  width: 10px;
+  height: 10px;
+  margin: -5px 0 0 -5px;
   background: currentColor;
-  border-radius: var(--radius-xs);
+  border-radius: 4px;
   opacity: 0;
   transform: scale(0);
   transition:
-    transform var(--duration-normal) var(--ease-sharp),
-    opacity var(--duration-fast) var(--ease-sharp);
+    transform var(--dur-pop, 200ms) var(--composer-ease),
+    opacity 120ms var(--composer-ease);
 }
 
 .composer-send[data-mode="stop"] .composer-send-arrow {
@@ -353,28 +373,95 @@ button.token-chip:active {
 .composer-dock .composer-agent-face {
   position: relative;
   display: inline-grid;
-  width: 14px;
-  height: 14px;
+  width: 20px;
+  height: 20px;
   flex-shrink: 0;
   overflow: hidden;
+}
+
+.composer-dock .composer-box > .composer-working {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+  order: -2;
+  padding: 10px 10px 0 18px;
+  color: var(--text-tertiary);
+  font-size: 12.5px;
+  line-height: 18px;
 }
 
 .composer-working-dot {
   width: 6px;
   height: 6px;
-  background: currentColor;
+  flex-shrink: 0;
+  background: var(--text-tertiary);
   border-radius: var(--radius-full);
 }
 
+.composer-working-text {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.composer-working button,
+.composer-note button {
+  flex-shrink: 0;
+  height: 24px;
+  padding: 0 8px;
+  color: var(--text-primary);
+  background: none;
+  border: 0;
+  border-radius: 8px;
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 120ms;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .composer-working button:hover,
+  .composer-note button:hover {
+    background: var(--composer-active);
+  }
+}
+
+.composer-note {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 6px;
+  padding: 8px 6px 0 14px;
+  color: var(--text-tertiary);
+  font-size: 12.5px;
+  line-height: 18px;
+}
+
+.composer-note[data-tone="bad"] > span:not(.composer-note-dot) {
+  color: var(--text-secondary);
+}
+
+.composer-note-dot {
+  width: 12px;
+  height: 12px;
+  flex-shrink: 0;
+  border-radius: 6px;
+  box-shadow: inset 0 0 0 1.5px var(--text-danger);
+}
+
 .composer-shelf {
-  --tile: 96px;
-  --tile-gap: 8px;
+  --tile: 120px;
+  --tile-gap: 10px;
   display: flex;
   gap: var(--tile-gap);
-  padding: 8px 8px 0 4px;
+  padding: 14px 14px 4px 12px;
   overflow-x: auto;
   overscroll-behavior-x: contain;
-  scroll-padding-inline: 4px;
+  scroll-padding-inline: 12px;
   scroll-snap-type: x proximity;
   scrollbar-width: none;
 }
@@ -389,8 +476,8 @@ button.token-chip:active {
   height: var(--tile);
   flex: none;
   color: var(--text-primary);
-  background: var(--bg-tertiary);
-  border-radius: var(--radius-lg);
+  background: color-mix(in oklab, var(--text-primary) 4%, var(--bg-chrome));
+  border-radius: 12px;
   scroll-snap-align: start;
 }
 
@@ -399,15 +486,15 @@ button.token-chip:active {
   inset: 0;
   z-index: 1;
   border-radius: inherit;
-  box-shadow: inset 0 0 0 1px var(--stroke-tertiary);
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--text-primary) 8%, transparent);
   content: "";
   pointer-events: none;
-  transition: box-shadow var(--duration-fast) ease;
+  transition: box-shadow 120ms var(--composer-ease);
 }
 
 .tray-tile[data-state="failed"]::after,
 .tray-tile[data-state="rejected"]::after {
-  box-shadow: inset 0 0 0 1px var(--stroke-danger);
+  box-shadow: inset 0 0 0 1.5px color-mix(in oklab, var(--text-danger) 80%, transparent);
 }
 
 .composer-shelf::after {
@@ -445,14 +532,14 @@ button.token-chip:active {
   inset: 0;
   display: block;
   overflow: hidden;
-  padding: 8px 8px 30px;
-  transition: opacity var(--duration-normal) var(--ease-sharp);
+  padding: 11px 11px 34px;
+  transition: opacity var(--dur-pop, 200ms) var(--composer-ease);
 }
 
 .tray-tile[data-look="lines"] .tray-body,
 .tray-tile[data-look="code"] .tray-body,
 .tray-tile[data-look="table"] .tray-body {
-  mask-image: linear-gradient(to bottom, #000 calc(100% - 40px), transparent calc(100% - 28px));
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 44px), transparent calc(100% - 30px));
 }
 
 .tray-tile[data-look="image"] .tray-body,
@@ -477,9 +564,8 @@ button.token-chip:active {
   flex-direction: column;
   gap: 1px;
   color: var(--text-tertiary);
-  font-size: var(--font-size-xs);
-  line-height: var(--line-height-xs);
-  letter-spacing: var(--letter-spacing-xs);
+  font-size: 13px;
+  line-height: 14px;
 }
 
 .tray-lines > span {
@@ -491,8 +577,9 @@ button.token-chip:active {
 .tray-lines > span:first-child,
 .tray-lines > span[data-head] {
   color: var(--text-primary);
+  font-size: 11.5px;
   font-weight: 600;
-  line-height: var(--line-height-sm);
+  line-height: 16px;
 }
 
 .tray-lines > span[data-head]:not(:first-child) {
@@ -503,8 +590,8 @@ button.token-chip:active {
   display: block;
   overflow: hidden;
   color: var(--text-secondary);
-  font-family: var(--font-family-mono);
-  font-size: var(--font-size-xs);
+  font-family: var(--font-mono);
+  font-size: 11px;
   line-height: 13px;
   white-space: pre;
 }
@@ -513,7 +600,7 @@ button.token-chip:active {
   display: grid;
   margin: -2px -2px 0;
   color: var(--text-secondary);
-  font-size: var(--font-size-xs);
+  font-size: 11px;
   line-height: 15px;
 }
 
@@ -531,7 +618,7 @@ button.token-chip:active {
   max-width: 52px;
   overflow: hidden;
   padding: 0 2px;
-  box-shadow: inset 0 -1px 0 var(--stroke-tertiary);
+  box-shadow: inset 0 -1px 0 color-mix(in oklab, var(--text-primary) 7%, transparent);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -558,8 +645,9 @@ button.token-chip:active {
 .tray-face-name {
   display: -webkit-box;
   overflow: hidden;
-  font-size: var(--font-size-sm);
-  line-height: var(--line-height-sm);
+  font-size: 12.5px;
+  font-weight: 500;
+  line-height: 16px;
   overflow-wrap: anywhere;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 3;
@@ -571,9 +659,9 @@ button.token-chip:active {
   bottom: 8px;
   left: 8px;
   display: flex;
-  height: 16px;
+  height: 18px;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
 }
 
 .tray-tile[data-look="image"] .tray-tile-open::before,
@@ -585,7 +673,7 @@ button.token-chip:active {
   content: "";
   opacity: 0;
   pointer-events: none;
-  transition: opacity var(--duration-fast) var(--ease-sharp);
+  transition: opacity 120ms var(--composer-ease);
 }
 
 .tray-tile[data-look="video"] .tray-tile-open::before,
@@ -596,14 +684,14 @@ button.token-chip:active {
 
 .tray-badge {
   display: inline-flex;
-  height: 16px;
+  height: 18px;
   flex: none;
   align-items: center;
-  padding: 0 4px;
+  padding: 0 6px;
   color: var(--text-secondary);
-  border-radius: var(--radius-sm);
-  box-shadow: inset 0 0 0 1px var(--stroke-secondary);
-  font-size: var(--font-size-xs);
+  border-radius: 6px;
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--text-primary) 16%, transparent);
+  font-size: 13px;
   font-weight: 600;
   letter-spacing: 0.03em;
   line-height: 1;
@@ -644,7 +732,7 @@ button.token-chip:active {
   min-width: 0;
   flex: 1;
   color: var(--text-tertiary);
-  font-size: var(--font-size-xs);
+  font-size: 13px;
   line-height: 16px;
 }
 
@@ -655,8 +743,8 @@ button.token-chip:active {
   text-overflow: ellipsis;
   white-space: nowrap;
   transition:
-    opacity 80ms var(--ease-sharp),
-    transform 80ms var(--ease-sharp);
+    opacity 80ms var(--composer-ease),
+    transform 80ms var(--composer-ease);
 }
 
 .tray-aside > .tray-aside-size,
@@ -676,7 +764,8 @@ button.token-chip:active {
 .tray-bytes {
   overflow: hidden;
   color: var(--text-secondary);
-  font-size: var(--font-size-xs);
+  font-size: 13px;
+  font-weight: 500;
   white-space: nowrap;
 }
 
@@ -684,19 +773,20 @@ button.token-chip:active {
   display: -webkit-box;
   overflow: hidden;
   color: var(--text-danger);
-  font-size: var(--font-size-xs);
-  line-height: var(--line-height-xs);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 14px;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
 }
 
 .tray-tile[data-state="rejected"] .tray-foot {
   height: auto;
-  min-height: 16px;
+  min-height: 18px;
 }
 
 .tray-tile[data-state="rejected"] .tray-body {
-  padding-bottom: 36px;
+  padding-bottom: 40px;
 }
 
 .tray-tile[data-state="rejected"] .tray-face-name {
@@ -726,7 +816,7 @@ button.token-chip:active {
   content: "";
   transform: scaleX(var(--upload-share, 0));
   transform-origin: left;
-  transition: transform var(--duration-normal) var(--ease-sharp);
+  transition: transform var(--dur-pop, 200ms) var(--composer-ease);
 }
 
 .tray-done {
@@ -764,22 +854,24 @@ button.token-chip:active {
   height: 20px;
   place-items: center;
   padding: 0;
-  color: var(--icon-secondary);
-  background: var(--bg-elevated);
+  color: var(--text-primary);
+  background: color-mix(in oklab, var(--text-primary) 12%, var(--composer-raise));
   border: 0;
-  border-radius: var(--radius-full);
-  box-shadow: var(--popup-shadow);
+  border-radius: 8px;
+  box-shadow: 0 0 0 2px var(--composer-raise);
   opacity: 0;
   cursor: pointer;
-  transform: scale(0.98);
+  transform: scale(0.8);
   transition:
-    opacity var(--duration-fast) var(--ease-sharp),
-    transform var(--duration-fast) var(--ease-sharp),
-    color var(--duration-fast) ease;
+    opacity 120ms var(--composer-ease),
+    transform 120ms var(--composer-ease),
+    background 120ms;
 }
 
 .tray-remove:focus-visible {
   opacity: 1;
+  outline: none;
+  box-shadow: 0 0 0 2px var(--composer-raise);
   transform: none;
 }
 
@@ -790,18 +882,18 @@ button.token-chip:active {
 
 @media (hover: hover) and (pointer: fine) {
   .tray-tile:hover::after {
-    box-shadow: inset 0 0 0 1px var(--stroke-secondary);
+    box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--text-primary) 18%, transparent);
   }
   .tray-tile[data-state="failed"]:hover::after,
   .tray-tile[data-state="rejected"]:hover::after {
-    box-shadow: inset 0 0 0 1px var(--text-danger);
+    box-shadow: inset 0 0 0 1.5px var(--text-danger);
   }
   .tray-tile:hover .tray-remove {
     opacity: 1;
     transform: none;
   }
   .tray-remove:hover {
-    color: var(--icon-primary);
+    background: color-mix(in oklab, var(--text-primary) 22%, var(--composer-raise));
   }
   .tray-tile:hover .tray-aside-name {
     opacity: 1;
@@ -830,8 +922,16 @@ button.token-chip:active {
     right: -6px;
     width: 22px;
     height: 22px;
+    border-radius: var(--radius-full);
     opacity: 1;
     transform: none;
+  }
+}
+
+@media (max-width: 480px) {
+  .composer-shelf {
+    --tile: 104px;
+    --tile-gap: 8px;
   }
 }
 
@@ -841,31 +941,35 @@ button.token-chip:active {
 
 @media (prefers-reduced-motion: no-preference) {
   .composer-dock .composer-popover {
-    animation: composer-popover-in var(--duration-fast) var(--ease-sharp) both;
+    animation: composer-popover-in var(--dur-pop, 200ms) var(--composer-ease) both;
   }
   .composer-dock .composer-chip-node[data-fresh] > .token-chip {
-    animation: token-pop 240ms var(--ease-sharp) both;
+    animation: token-pop 240ms var(--composer-ease) both;
   }
   .token-preview {
-    animation: composer-popover-in var(--duration-fast) var(--ease-sharp) both;
+    animation: composer-popover-in var(--dur-pop, 200ms) var(--composer-ease) both;
   }
   .composer-dock .composer-placeholder[data-enter] {
-    animation: composer-hint-in 160ms var(--ease-sharp) both;
+    animation: composer-hint-in 160ms var(--composer-ease) both;
   }
   .composer-agent-avatar {
-    animation: composer-face-in var(--duration-normal) var(--ease-sharp) both;
+    animation: composer-face-in var(--dur-pop, 200ms) var(--composer-ease) both;
+  }
+  .composer-dock .composer-box > .composer-working,
+  .composer-note {
+    animation: composer-row-in var(--dur-pop, 200ms) var(--composer-ease) both;
   }
   .composer-working-dot {
     animation: composer-breathe 1.4s ease-in-out infinite;
   }
   .composer-note[data-nudged] {
-    animation: composer-shake 260ms var(--ease-sharp);
+    animation: composer-shake 260ms var(--composer-ease);
   }
   .tray-tile {
-    animation: tray-tile-in var(--dur-shift) var(--ease-sharp) both;
+    animation: tray-tile-in var(--dur-shift) var(--composer-ease) both;
   }
   .tray-done {
-    animation: tray-done 460ms var(--ease-sharp) both;
+    animation: tray-done 460ms var(--composer-ease) both;
   }
   .tray-tile[data-state="uploading"] .tray-tile-open::after {
     position: absolute;
@@ -878,17 +982,17 @@ button.token-chip:active {
     );
     background-size: 250% 100%;
     content: "";
-    animation: tray-sweep var(--duration-2s) linear infinite;
+    animation: tray-sweep var(--shimmer-duration) linear infinite;
     pointer-events: none;
   }
   .token-chip[data-state="uploading"] .token-chip-fill::after {
-    transition: transform var(--duration-normal) var(--ease-sharp);
+    transition: transform var(--dur-pop, 200ms) var(--composer-ease);
   }
   .tray-tile[data-state="failed"] {
-    animation: tray-shake 260ms var(--ease-sharp);
+    animation: tray-shake 260ms var(--composer-ease);
   }
   .tray-tile[data-leaving] {
-    animation: tray-tile-out 240ms var(--ease-sharp) forwards;
+    animation: tray-tile-out 240ms var(--composer-ease) forwards;
     pointer-events: none;
   }
   .tray-tile[data-dragging] {
@@ -899,7 +1003,7 @@ button.token-chip:active {
 @keyframes composer-popover-in {
   from {
     opacity: 0;
-    transform: translateY(2px) scale(0.98);
+    transform: translateY(6px);
   }
 }
 

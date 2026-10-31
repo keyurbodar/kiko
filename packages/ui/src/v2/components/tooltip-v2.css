@@ -10,27 +10,31 @@
   --popup-nudge-y: 2px;
   position: relative;
   z-index: var(--layer-tooltip, 100000);
-  max-width: min(300px, var(--kb-popper-content-available-width));
+  max-width: min(320px, var(--kb-popper-content-available-width));
   box-sizing: border-box;
   display: inline-flex;
   flex-direction: row;
   align-items: center;
-  padding: 6px 10px;
+  padding: 4px 8px;
   gap: 6px;
 
   background: var(--bg-elevated);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--box-shadow-popup);
+  border-radius: var(--radius-base);
+  box-shadow:
+    inset 0 0 0 1px var(--stroke-tertiary),
+    0 4px 6px -1px var(--shadow-tertiary),
+    0 2px 4px -2px var(--shadow-tertiary);
 
   font-family: var(--font-family-sans);
   font-style: normal;
   font-weight: 400;
-  font-size: var(--font-size-base);
-  line-height: var(--line-height-base);
-  letter-spacing: var(--letter-spacing-base);
+  font-size: var(--font-size-sm);
+  line-height: 1.375;
+  letter-spacing: var(--letter-spacing-sm);
   color: var(--text-primary);
   -webkit-font-smoothing: var(--font-smoothing, antialiased);
   overflow-wrap: anywhere;
+  text-wrap: balance;
 
   transform-origin: var(--kb-tooltip-content-transform-origin);
 
@@ -38,14 +42,20 @@
   pointer-events: none;
 }
 
-[data-component="tooltip-v2"]::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-  border-radius: inherit;
-  box-shadow: inset 0 0 0 1px var(--stroke-secondary);
-  pointer-events: none;
+[data-component="tooltip-v2"] kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 16px;
+  min-width: 16px;
+  padding: 0 4px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-quaternary);
+  color: var(--text-tertiary);
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-xs);
+  font-weight: 500;
+  line-height: 1;
 }
 
 [data-component="tooltip-v2"][data-placement^="bottom"] {

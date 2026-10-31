@@ -1,17 +1,16 @@
 import { RemixIcon } from "@kiko/ui/remix-icon"
-import { FolderIcon, MonitorIcon, SearchIcon, SidebarRightIcon } from "@kiko/ui/icons"
+import { FolderIcon, InfoIcon, MonitorIcon } from "@kiko/ui/icons"
 import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
 import { createEffect, createSignal, onCleanup, onMount, Show } from "solid-js"
 import { computers, openViewer, startComputers, watchTarget } from "../chat/computers"
 import { closeDesk, deskShown, deskView, fixedSurface, loadDesk, openSurface } from "../chat/side/surfaces"
 import { threadDetailsOpenFor, toggleThreadDetails } from "../chat/side/thread-details-layer"
-import { runCommand } from "../commands/registry"
-import { ChatAvatar } from "../lib/IdentityAvatar"
+import { FaceRow } from "../lib/IdentityAvatar"
+import { chatSlugs } from "../lib/identity"
 import { connection, createDelayedStatus, type ConnectionView } from "../state/connection"
 import { room } from "../state/room"
 import { presenceWords } from "../state/live-status"
 import { user } from "../state/user"
-import { preloadSearch } from "../search/state"
 import { SidebarToggle } from "../sidebar"
 
 const CONNECTION_LABEL: Partial<Record<ConnectionView, string>> = {
@@ -20,6 +19,21 @@ const CONNECTION_LABEL: Partial<Record<ConnectionView, string>> = {
 }
 
 const LONG_OFFLINE_MS = 10_000
+
+const TITLE_FACES = 3
+
+const TITLE_FACE_PX = 22
+
+function TitleFaces(props: { chatId: string }) {
+  const slugs = () => chatSlugs(user.chat(props.chatId) ?? { roomId: props.chatId }, user.agents())
+  return (
+    <FaceRow
+      faces={slugs().slice(0, TITLE_FACES)}
+      size={TITLE_FACE_PX}
+      extra={Math.max(0, slugs().length - TITLE_FACES)}
+    />
+  )
+}
 
 export function TopBar(props: { chatId: string | null; sidebarOpen: boolean; onToggleSidebar: () => void }) {
   const chatId = () => props.chatId
@@ -61,7 +75,7 @@ export function TopBar(props: { chatId: string | null; sidebarOpen: boolean; onT
       </Show>
       <div class="flex min-w-0 flex-1 items-center gap-2">
         <Show when={chatId()} keyed>
-          {(id) => <ChatAvatar faces={room.chatFaces(id)} size={18} />}
+          {(id) => <TitleFaces chatId={id} />}
         </Show>
         <h1 class="min-w-0 shrink truncate type-base font-semibold text-primary" data-component="top-bar-title">
           {title()}
@@ -100,24 +114,10 @@ export function TopBar(props: { chatId: string | null; sidebarOpen: boolean; onT
               if (id) toggleThreadDetails(id)
             }}
           >
-            <RemixIcon icon={SidebarRightIcon} size={13} />
+            <RemixIcon icon={InfoIcon} size={13} />
           </button>
         </TooltipV2>
       </Show>
-      <TooltipV2 placement="bottom" openDelay={500} value="Search messages">
-        <button
-          type="button"
-          class="top-bar-button"
-          aria-label="Search messages"
-          data-action="search-messages"
-          data-hint="chats.search-current"
-          data-hint-label="Search"
-          onPointerEnter={preloadSearch}
-          onClick={() => runCommand(chatId() ? "chats.search-current" : "chats.search-all")}
-        >
-          <RemixIcon icon={SearchIcon} size={13} />
-        </button>
-      </TooltipV2>
       <Show when={computers().length > 0}>
         <TooltipV2 placement="bottom" openDelay={500} value="Watch your computer">
           <button
@@ -127,7 +127,7 @@ export function TopBar(props: { chatId: string | null; sidebarOpen: boolean; onT
             data-action="computer-watch"
             onClick={() => openViewer(watchTarget(chatId()))}
           >
-            <RemixIcon icon={MonitorIcon} size={13} />
+            <RemixIcon icon={MonitorIcon} size={14} />
           </button>
         </TooltipV2>
       </Show>
@@ -149,7 +149,7 @@ export function TopBar(props: { chatId: string | null; sidebarOpen: boolean; onT
               else openSurface(id, fixedSurface("files"))
             }}
           >
-            <RemixIcon icon={FolderIcon} size={13} />
+            <RemixIcon icon={FolderIcon} size={16} />
           </button>
         </TooltipV2>
       </Show>

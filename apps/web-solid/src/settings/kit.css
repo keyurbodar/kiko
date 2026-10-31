@@ -587,9 +587,8 @@
 
 .kit-card {
   overflow: hidden;
-  background: var(--bg-editor);
+  background: var(--bg-quinary);
   border-radius: var(--radius-lg);
-  box-shadow: var(--hairline-strong);
 }
 
 .kit-empty {
@@ -610,7 +609,6 @@
   color: var(--text-primary);
   background: var(--bg-quaternary);
   border-radius: var(--radius-3xl);
-  box-shadow: var(--hairline);
 }
 
 .kit-empty-title {

@@ -51,8 +51,7 @@
   flex-direction: column;
   overflow: hidden;
   border-radius: var(--radius-lg);
-  background: var(--bg-editor);
-  box-shadow: var(--hairline);
+  background: var(--bg-quaternary-opaque);
 }
 
 .att-file {

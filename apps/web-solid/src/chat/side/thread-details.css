@@ -225,7 +225,6 @@
   padding: 8px 8px 8px 10px;
   border-radius: var(--radius-base);
   background: var(--bg-quinary);
-  box-shadow: inset 0 0 0 1px var(--stroke-tertiary);
 }
 
 .td-ask + .td-ask {

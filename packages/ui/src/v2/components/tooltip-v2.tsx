@@ -147,8 +147,8 @@ export function TooltipV2(props: TooltipV2Props) {
       <Match when={local.inactive}>{local.children}</Match>
       <Match when={true}>
         <KobalteTooltip
-          gutter={8}
-          overflowPadding={8}
+          gutter={4}
+          overflowPadding={5}
           skipDelayDuration={HANDOFF_MS}
           {...others}
           openDelay={warm() ? 0 : (others.openDelay ?? OPEN_DELAY_MS)}

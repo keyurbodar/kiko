@@ -1,9 +1,11 @@
+@import "../composer-tokens.css";
+
 .composer-cards,
 .composer-card-choices {
   --card-active: var(--text-primary);
   --card-complete: var(--text-success);
-  --card-outline: var(--stroke-tertiary);
-  --card-surface: var(--bg-input);
+  --card-outline: var(--composer-line-strong);
+  --card-surface: var(--composer-raise);
 }
 .composer-cards {
   position: relative;
@@ -25,9 +27,9 @@
 .composer-card-surface {
   container-type: inline-size;
   background: var(--card-surface);
-  border: 1px solid var(--card-outline);
-  border-radius: var(--radius-xl);
-  padding: 6px;
+  border-radius: 16px;
+  box-shadow: var(--composer-float-shadow);
+  padding: 10px;
   min-width: 0;
 }
 .composer-card-row {
@@ -38,23 +40,23 @@
   min-height: var(--composer-banner-icon-column, 24px);
   width: 100%;
   text-align: start;
-  font-size: var(--font-size-sm);
+  font-size: 12.5px;
   line-height: 18px;
 }
 button.composer-card-row {
   cursor: pointer;
-  border-radius: var(--radius-base);
+  border-radius: 6px;
 }
 .composer-card-icon {
   display: flex;
   justify-content: center;
   align-items: center;
   width: var(--composer-banner-icon-column, 24px);
-  color: var(--icon-secondary);
+  color: var(--text-tertiary);
 }
 .composer-card-icon svg {
-  width: 14px;
-  height: 14px;
+  width: 12px;
+  height: 12px;
 }
 .composer-card-title {
   display: flex;
@@ -66,7 +68,7 @@ button.composer-card-row {
   min-width: 0;
   flex: 1;
   font-weight: 500;
-  color: var(--text-primary);
+  color: color-mix(in srgb, var(--text-primary) 80%, transparent);
 }
 .composer-card-kind {
   color: var(--text-tertiary);
@@ -78,7 +80,7 @@ button.composer-card-row {
   justify-content: end;
   gap: 4px;
   color: var(--text-tertiary);
-  font-size: var(--font-size-base);
+  font-size: 13px;
 }
 .composer-card-toggle {
   width: 14px;
@@ -96,9 +98,9 @@ button.composer-card-row {
   overscroll-behavior: contain;
 }
 .composer-card-body p {
-  font-size: var(--font-size-base);
+  font-size: 14px;
   line-height: 20px;
-  color: var(--text-secondary);
+  color: color-mix(in srgb, var(--text-primary) 85%, transparent);
   margin: 0 0 8px;
   overflow-wrap: anywhere;
 }
@@ -109,7 +111,7 @@ button.composer-card-row {
   width: 96%;
   margin: 0 auto 4px;
   border: 1px solid var(--card-outline);
-  border-radius: var(--radius-lg);
+  border-radius: 12px;
   background: var(--card-surface);
   cursor: pointer;
 }
@@ -122,7 +124,7 @@ button.composer-card-row {
   height: 4px;
   border: 1px solid var(--card-outline);
   border-bottom: 0;
-  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  border-radius: 12px 12px 0 0;
   background: var(--card-surface);
 }
 .composer-card-peek > span {
@@ -130,27 +132,27 @@ button.composer-card-row {
   right: 8px;
   bottom: 100%;
   padding-bottom: 5px;
-  font-size: var(--font-size-base);
+  font-size: 13px;
   color: var(--text-tertiary);
   white-space: nowrap;
 }
 .composer-card-choices {
   width: var(--kb-popper-anchor-width);
   max-width: calc(100vw - 32px);
-  padding: 6px;
-  background: var(--bg-elevated);
-  border-radius: var(--radius-2xl);
-  box-shadow: var(--popup-shadow);
+  padding: 4px;
+  background: var(--composer-raise);
+  border-radius: 12px;
+  box-shadow: var(--composer-float-shadow);
   z-index: 50;
 }
 .composer-card-choice {
   container-type: inline-size;
-  padding: 3px 0;
-  border-radius: var(--radius-lg);
+  padding: 7px 4px;
+  border-radius: 8px;
 }
 @media (hover: hover) and (pointer: fine) {
   .composer-card-choice > .composer-card-row:hover {
-    background: var(--bg-quaternary);
+    background: var(--composer-active);
   }
 }
 .task-segments {
@@ -177,7 +179,7 @@ button.composer-card-row {
   display: inline-flex;
   min-width: var(--composer-banner-icon-column, 24px);
   justify-content: center;
-  font-size: var(--font-size-xs);
+  font-size: 11.5px;
   font-weight: 500;
 }
 @media (max-width: 560px) {
@@ -215,7 +217,7 @@ button.composer-card-row {
 
 @media (prefers-reduced-motion: no-preference) {
   .composer-card-surface {
-    animation: composer-row-in var(--duration-normal, 200ms) var(--ease-sharp, ease) both;
+    animation: composer-row-in var(--dur-pop, 200ms) var(--composer-ease) both;
   }
 }
 
@@ -235,14 +237,14 @@ button.composer-card-row {
   min-width: 0;
   min-height: 32px;
   padding: 6px 8px;
-  border-radius: var(--radius-base);
-  font-size: var(--font-size-base);
+  border-radius: 8px;
+  font-size: 14px;
   line-height: 20px;
-  transition: background var(--duration-fast) var(--ease-sharp);
+  transition: background 120ms var(--composer-ease);
 }
 @media (hover: hover) and (pointer: fine) {
   .task-step:hover {
-    background: var(--bg-quaternary);
+    background: var(--composer-hover);
   }
 }
 .task-glyph {
@@ -273,7 +275,7 @@ button.composer-card-row {
 }
 .task-glyph[data-status="done"] .task-glyph-mark {
   stroke-dasharray: 12;
-  animation: task-draw var(--duration-normal) var(--ease-sharp) both;
+  animation: task-draw var(--dur-pop, 200ms) var(--composer-ease) both;
 }
 .task-glyph[data-status="cancelled"] {
   color: var(--text-danger);
@@ -292,7 +294,7 @@ button.composer-card-row {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  transition: color var(--duration-normal) var(--ease-sharp);
+  transition: color var(--dur-pop, 200ms) var(--composer-ease);
 }
 .task-steps[data-details] .task-step-title {
   white-space: normal;
@@ -313,14 +315,14 @@ button.composer-card-row {
   overflow: hidden;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
-  font-size: var(--font-size-sm);
+  font-size: 12.5px;
   line-height: 18px;
   color: var(--text-tertiary);
   overflow-wrap: anywhere;
 }
 .task-step-state {
   margin-top: 2px;
-  font-size: var(--font-size-xs);
+  font-size: 11.5px;
   line-height: 16px;
   color: var(--text-quaternary);
 }
@@ -375,7 +377,7 @@ button.composer-card-row {
   display: flex;
   flex-direction: column;
   transform: translateY(calc(var(--odometer-n) * -1lh));
-  transition: transform var(--duration-slower) var(--ease-sharp);
+  transition: transform var(--dur-step, 400ms) var(--composer-ease);
 }
 @media (prefers-reduced-motion: reduce) {
   .odometer-reel {
@@ -387,39 +389,38 @@ button.composer-card-row {
   display: flex;
   align-items: center;
   gap: 10px;
-  min-height: 36px;
+  min-height: 40px;
   margin: 0 0 8px;
-  padding: 0 12px;
+  padding: 0 14px;
   overflow: hidden;
-  border: 1px solid var(--stroke-tertiary);
-  border-radius: var(--radius-xl);
-  background: var(--bg-input);
+  border-radius: 12px;
+  background: var(--composer-raise);
   color: var(--text-primary);
-  font-size: var(--font-size-base);
+  font-size: 14px;
   line-height: 20px;
-  animation: composer-settled-in var(--duration-normal) var(--ease-sharp) both;
+  animation: composer-settled-in var(--dur-pop, 200ms) var(--composer-ease) both;
 }
 .composer-card-settled[data-state="skipped"] {
   color: var(--text-tertiary);
   animation:
-    composer-settled-in var(--duration-normal) var(--ease-sharp) both,
-    composer-settled-out var(--duration-slower) var(--ease-sharp) 1200ms forwards;
+    composer-settled-in var(--dur-pop, 200ms) var(--composer-ease) both,
+    composer-settled-out var(--dur-step, 400ms) var(--composer-ease) 1200ms forwards;
 }
 .composer-card-settled[data-state="answered"] {
   animation:
-    composer-settled-in var(--duration-normal) var(--ease-sharp) both,
-    composer-settled-out var(--duration-slower) var(--ease-sharp) 1600ms forwards;
+    composer-settled-in var(--dur-pop, 200ms) var(--composer-ease) both,
+    composer-settled-out var(--dur-step, 400ms) var(--composer-ease) 1600ms forwards;
 }
 .composer-card-stamp {
   display: inline-flex;
-  width: 14px;
-  height: 14px;
-  color: var(--icon-success);
-  animation: task-tick var(--duration-normal) var(--ease-sharp) 100ms both;
+  width: 18px;
+  height: 18px;
+  color: var(--text-success);
+  animation: task-tick var(--dur-pop, 200ms) var(--composer-ease) 100ms both;
 }
 .composer-card-stamp svg {
-  width: 14px;
-  height: 14px;
+  width: 18px;
+  height: 18px;
 }
 @keyframes composer-settled-in {
   from {

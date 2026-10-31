@@ -62,7 +62,7 @@ function HeaderSearch() {
         aria-label="Search"
         onClick={() => runCommand("palette.open")}
       >
-        <RemixIcon icon={SearchIcon} size={13} />
+        <RemixIcon icon={SearchIcon} size={14} />
       </button>
     </TooltipV2>
   )
@@ -81,7 +81,7 @@ export function SidebarToggle(props: { open: boolean; onToggle: () => void; clas
         data-hint="view.toggle-sidebar"
         onClick={() => props.onToggle()}
       >
-        {props.children ?? <RemixIcon icon={SidebarLeftIcon} size={13} />}
+        {props.children ?? <RemixIcon icon={SidebarLeftIcon} size={16} />}
       </button>
     </TooltipV2>
   )

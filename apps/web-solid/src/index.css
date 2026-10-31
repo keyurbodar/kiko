@@ -36,7 +36,7 @@
   --opacity-disabled: 0.5;
   --hairline: inset 0 0 0 1px var(--stroke-tertiary);
   --hairline-strong: inset 0 0 0 1px var(--stroke-secondary);
-  --popup-shadow: 0 0 0 1px var(--stroke-secondary), var(--box-shadow-popup);
+  --popup-shadow: 0 0 0 1px var(--stroke-tertiary), var(--box-shadow-popup);
   --scrim-blur: none;
   --surface-blur: none;
 }
@@ -1230,7 +1230,7 @@ html[data-input="pointer"] :focus-visible {
 
 * {
   scrollbar-width: thin;
-  scrollbar-color: var(--stroke-tertiary) transparent;
+  scrollbar-color: var(--scrollbar-thumb) transparent;
 }
 
 @supports selector(::-webkit-scrollbar) {
@@ -1240,8 +1240,8 @@ html[data-input="pointer"] :focus-visible {
   }
 
   ::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
+    width: 6px;
+    height: 6px;
   }
 
   ::-webkit-scrollbar-track,
@@ -1249,19 +1249,52 @@ html[data-input="pointer"] :focus-visible {
     background: transparent;
   }
 
-  ::-webkit-scrollbar-thumb {
-    min-height: 20px;
-    border: 2px solid transparent;
-    border-radius: var(--radius-full);
-    background: var(--stroke-tertiary);
-    background-clip: content-box;
+  ::-webkit-scrollbar-track {
+    margin: 4px;
   }
 
-  ::-webkit-scrollbar-thumb:hover,
-  ::-webkit-scrollbar-thumb:active {
-    background: var(--stroke-secondary);
-    background-clip: content-box;
+  ::-webkit-scrollbar-thumb {
+    min-height: 24px;
+    border-radius: var(--radius-full);
+    background: transparent;
+    transition: background-color var(--duration-fast) var(--ease-sharp);
   }
+
+  :hover::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-thumb);
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--scrollbar-thumb-hover);
+  }
+
+  ::-webkit-scrollbar-thumb:active {
+    background: var(--scrollbar-thumb-active);
+  }
+}
+
+.row-icon {
+  color: var(--icon-secondary);
+  transition: color var(--duration-fast) var(--ease-sharp);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  :is(a, button, [role^="menuitem"], [role="option"], [role="treeitem"], [role="tab"]):hover .row-icon {
+    color: inherit;
+  }
+}
+
+:is(a, button, [role^="menuitem"], [role="option"], [role="treeitem"], [role="tab"]):is(
+    :focus-visible,
+    [data-highlighted],
+    [data-selected="true"],
+    [aria-selected="true"],
+    [aria-current="page"],
+    [data-active],
+    [data-expanded]
+  )
+  .row-icon {
+  color: inherit;
 }
 
 .cl-rootBox :focus-visible {

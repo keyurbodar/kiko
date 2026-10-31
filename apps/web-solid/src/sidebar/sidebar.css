@@ -170,7 +170,6 @@
 
 .sidebar-shell .nav-icon {
   display: flex;
-  color: var(--icon-secondary);
 }
 
 .sidebar-shell .nav-label {
@@ -206,10 +205,6 @@
 .sidebar-shell .nav-row[data-active] {
   color: var(--text-primary);
   background: var(--bg-quaternary);
-}
-
-.sidebar-shell .nav-row[data-active] .nav-icon {
-  color: var(--icon-primary);
 }
 
 @media (hover: hover) and (pointer: fine) {

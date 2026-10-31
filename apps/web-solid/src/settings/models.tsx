@@ -210,7 +210,7 @@ function PopularProviders(props: {
             {({ provider, note }) => (
               <button
                 type="button"
-                class="group flex cursor-pointer items-center gap-3 rounded-xl border border-tertiary bg-editor p-3 text-left transition-[background-color,transform] duration-(--duration-fast) ease-sharp hover:bg-quaternary active:scale-(--press-scale)"
+                class="group flex cursor-pointer items-center gap-3 rounded-xl bg-quinary p-3 text-left transition-[background-color,transform] duration-(--duration-fast) ease-sharp hover:bg-quaternary active:scale-(--press-scale)"
                 data-provider={provider.id}
                 data-action="connect"
                 onClick={() => props.onPick(provider)}

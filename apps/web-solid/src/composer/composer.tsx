@@ -15,8 +15,6 @@ import {
 } from "solid-js"
 import { createStore } from "solid-js/store"
 import { showToastV2 } from "@kiko/ui/v2/toast-v2"
-import { RemixIcon } from "@kiko/ui/remix-icon"
-import { AlertCircleIcon, KeyIcon } from "@kiko/ui/icons"
 import { MAX_MESSAGE_TEXT, humanAnswerText, sendFits, linkAttachments } from "@kiko/protocol"
 import type { ComposerProps, MessageFile } from "../lib/types"
 import { isImage, isVideo, sendRefusal } from "../lib/attachments"
@@ -521,38 +519,32 @@ export function Composer(props: ComposerProps) {
     <>
       <Show when={failed().length > 0}>
         <div
-          class="composer-banner composer-note"
-          data-tone="danger"
+          class="composer-note"
+          data-tone="bad"
           data-nudged={nudged() ? "" : undefined}
           data-component="composer-upload-failed"
           role="status"
           onAnimationEnd={() => setNudged(false)}
         >
-          <span class="composer-banner-rail" aria-hidden="true">
-            <RemixIcon icon={AlertCircleIcon} size={14} />
-          </span>
-          <span class="composer-banner-text">
-            {plural(failed().length, "file didn't upload.", "files didn't upload.")}
-          </span>
-          <span class="composer-banner-actions">
-            <button
-              type="button"
-              data-action="retry-all"
-              onClick={() => failed().forEach((part) => retryUpload(part.id))}
-            >
-              Retry all
-            </button>
-            <button
-              type="button"
-              data-action="send-without"
-              onClick={() => {
-                for (const part of failed()) controller.removeAttachment(part.id)
-                controller.submit()
-              }}
-            >
-              Send without them
-            </button>
-          </span>
+          <span class="composer-note-dot" aria-hidden="true" />
+          <span>{plural(failed().length, "file didn't upload.", "files didn't upload.")}</span>
+          <button
+            type="button"
+            data-action="retry-all"
+            onClick={() => failed().forEach((part) => retryUpload(part.id))}
+          >
+            Retry all
+          </button>
+          <button
+            type="button"
+            data-action="send-without"
+            onClick={() => {
+              for (const part of failed()) controller.removeAttachment(part.id)
+              controller.submit()
+            }}
+          >
+            Send without them
+          </button>
         </div>
       </Show>
     </>
@@ -561,16 +553,12 @@ export function Composer(props: ComposerProps) {
   const above = (
     <>
       <Show when={working() && !props.editing && draftText().trim() !== ""}>
-        <div class="composer-banner composer-working" data-component="composer-working" role="status">
-          <span class="composer-banner-rail" aria-hidden="true">
-            <span class="composer-working-dot" />
-          </span>
-          <span class="composer-banner-text">{working()} is working. It reads this as soon as you send.</span>
-          <span class="composer-banner-actions">
-            <button type="button" data-action="stop-run" onClick={stop}>
-              Stop
-            </button>
-          </span>
+        <div class="composer-working" data-component="composer-working" role="status">
+          <span class="composer-working-dot" aria-hidden="true" />
+          <span class="composer-working-text">{working()} is working. It reads this as soon as you send.</span>
+          <button type="button" data-action="stop-run" onClick={stop}>
+            Stop
+          </button>
         </div>
       </Show>
       <Show when={props.editing}>
@@ -599,17 +587,9 @@ export function Composer(props: ComposerProps) {
       </Show>
       <Show when={modelBlock()}>
         {(block) => (
-          <div
-            class="composer-banner no-key-hint"
-            data-tone="accent"
-            data-component="composer-send-block"
-            role="status"
-          >
-            <span class="composer-banner-rail" aria-hidden="true">
-              <RemixIcon icon={KeyIcon} size={14} />
-            </span>
-            <span class="composer-banner-text">{block().reason}</span>
-            <span class="composer-banner-actions">
+          <div class="no-key-hint" data-component="composer-send-block" role="status">
+            <span>{block().reason}</span>
+            <span class="no-key-actions">
               <For each={block().actions}>
                 {(action) => (
                   <button

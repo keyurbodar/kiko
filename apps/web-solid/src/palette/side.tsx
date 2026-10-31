@@ -30,7 +30,7 @@ export function Actions(props: {
             onPointerMove={() => props.onAt(i())}
             onClick={() => props.onRun(action)}
           >
-            <RemixIcon icon={iconFor(action.icon)} size={14} />
+            <RemixIcon icon={iconFor(action.icon)} size={14} class="row-icon" />
             {action.title}
           </button>
         )}

@@ -60,15 +60,14 @@
   isolation: isolate;
   overflow: hidden;
   border-radius: var(--radius-xl);
-  background: var(--bg-editor);
-  box-shadow: inset 0 0 0 1px var(--stroke-tertiary);
+  background: var(--bg-quaternary-opaque);
   transition: background-color var(--duration-fast) var(--ease-sharp);
 }
 
 @media (hover: hover) and (pointer: fine) {
   .tpl:hover,
   .tpl:focus-within {
-    background: var(--bg-quaternary-opaque-elevated);
+    background: var(--bg-tertiary-opaque);
   }
 }
 
