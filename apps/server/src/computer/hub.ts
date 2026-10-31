@@ -25,8 +25,10 @@ import { BACKEND } from "../lib/version"
 import { dropStreams, socketView } from "../owner/socket"
 import { frameChunk, frameSubs, frameText } from "./frames"
 import type { ComputerRow, ComputerStore, NewComputer } from "./store"
+import type { PcTaken } from "./types"
 
 const HOLD_MS = 30 * 60_000
+const HOLD_ACK_MS = 1_500
 const PRESENCE_MS = 45_000
 const DEFAULT_DEADLINE_MS = 60_000
 const BUSY_PUSH_MS = 500
@@ -69,6 +71,7 @@ export type PcAgent = { slug: AgentSlug; roomId: RoomId; reason?: string }
 type PcHold = {
   holder: Holder
   heldBy?: string
+  heldEpoch?: number
   heldSince?: number
   agent?: PcAgent
   waiters?: PcAgent[]
@@ -87,6 +90,7 @@ export type PcAttachment = {
   hello: Hello | null
   holder: Holder
   heldBy?: string
+  heldEpoch?: number
   heldSince?: number
   agent?: PcAgent
   waiters?: PcAgent[]
@@ -115,6 +119,7 @@ export type HubDeps = {
   store: ComputerStore
   ownerId: string
   released: (out: PcReleased) => void
+  taken: (out: PcTaken) => void
   wakeup: { set(at: number): Promise<void>; clear(): Promise<void> }
   fetch?: typeof fetch
   sleep?: (ms: number) => Promise<void>
@@ -137,6 +142,10 @@ export function pcSocketId(ws: WebSocket): string | null {
 
 export class ComputerHub {
   private readonly pending = new Map<string, Pending>()
+  private readonly takes = new Map<
+    string,
+    { epoch: number; settle: (ok: boolean) => void; timer: ReturnType<typeof setTimeout> }
+  >()
   private readonly desk = new Map<string, { user: string; name: string; until: number }>()
   private readonly relaying = new Set<string>()
   private readonly memory = new Map<string, PcHold>()
@@ -194,6 +203,7 @@ export class ComputerHub {
     return {
       holder: saved.holder,
       ...(saved.heldBy ? { heldBy: saved.heldBy } : {}),
+      ...(saved.heldEpoch === undefined ? {} : { heldEpoch: saved.heldEpoch }),
       ...(saved.heldSince ? { heldSince: saved.heldSince } : {}),
       ...(saved.agent ? { agent: saved.agent } : {}),
       ...(saved.waiters?.length ? { waiters: saved.waiters } : {}),
@@ -327,9 +337,9 @@ export class ComputerHub {
   sendState(tab: WebSocket): void {
     const text = JSON.stringify({ t: "pcState", computers: this.summaries(tab) })
     if (this.sentTo.get(tab) === text) return
-    this.sentTo.set(tab, text)
     try {
-      tab.send(text)
+      if ((tab.send(text) as unknown as boolean | undefined) === false) return
+      this.sentTo.set(tab, text)
     } catch {}
   }
 
@@ -460,6 +470,7 @@ export class ComputerHub {
       return
     }
     if (frame.t === "result") return this.result(frame)
+    if (frame.t === "held") return this.held(saved.id, frame)
     if (frame.t === "rtc") return this.daemonRtc(saved.id, frame.session, frame.signal)
     if (frame.t === "humanInput") {
       this.enterHuman(saved.id)
@@ -751,9 +762,13 @@ export class ComputerHub {
     }
   }
 
-  input(pcId: string, events: readonly InputEvent[]): void {
+  input(pcId: string, session: string, events: readonly InputEvent[]): boolean {
+    const hold = this.hold(pcId)
+    if (hold.holder !== "human" || hold.heldBy !== session) return false
     const ws = this.socket(pcId)
-    if (ws) this.send(ws, { t: "input", events })
+    if (!ws) return false
+    this.send(ws, { t: "input", events })
+    return true
   }
 
   ack(pcId: string, seq: number): void {
@@ -786,7 +801,37 @@ export class ComputerHub {
 
   private tellHolder(pcId: string, holder: Holder): void {
     const ws = this.socket(pcId)
-    if (ws) this.send(ws, { t: "control", holder })
+    if (!ws) return
+    const hold = this.hold(pcId)
+    this.send(ws, {
+      t: "control",
+      holder,
+      ...(hold.heldEpoch === undefined ? {} : { epoch: hold.heldEpoch }),
+      ...(holder === "human" && hold.heldBy ? { session: hold.heldBy } : {}),
+    })
+  }
+
+  private held(pcId: string, frame: Extract<FromDaemon, { t: "held" }>): void {
+    const waiting = this.takes.get(pcId)
+    if (!waiting) return
+    if (frame.epoch !== undefined && frame.epoch !== waiting.epoch) return
+    waiting.settle(frame.holder === "human")
+  }
+
+  private awaitHeld(pcId: string, epoch: number): Promise<boolean> {
+    const previous = this.takes.get(pcId)
+    if (previous) previous.settle(true)
+    return new Promise((resolve) => {
+      const settle = (ok: boolean) => {
+        const current = this.takes.get(pcId)
+        if (current?.epoch !== epoch) return
+        clearTimeout(current.timer)
+        this.takes.delete(pcId)
+        resolve(ok)
+      }
+      const timer = setTimeout(() => settle(true), HOLD_ACK_MS)
+      this.takes.set(pcId, { epoch, settle, timer })
+    })
   }
 
   private enterHuman(pcId: string): void {
@@ -797,13 +842,23 @@ export class ComputerHub {
     this.arm()
   }
 
-  take(pcId: string, tab: WebSocket): boolean {
+  async take(pcId: string, tab: WebSocket): Promise<boolean> {
     if (!this.socket(pcId)) return false
-    this.save(pcId, { ...this.hold(pcId), holder: "human", heldBy: this.session(tab), heldSince: Date.now() })
+    const before = this.hold(pcId)
+    const epoch = (before.heldEpoch ?? 0) + 1
+    this.save(pcId, {
+      ...before,
+      holder: "human",
+      heldBy: this.session(tab),
+      heldEpoch: epoch,
+      heldSince: Date.now(),
+    })
     this.tellHolder(pcId, "human")
     this.push()
     this.arm()
-    return true
+    if (before.holder !== "human" && before.waiters?.length)
+      this.d.taken({ pcId, name: this.name(pcId), waiters: before.waiters, epoch })
+    return this.awaitHeld(pcId, epoch)
   }
 
   link(pcId: string, agent: PcAgent): "human" | "agent" | "missing" {
@@ -815,8 +870,16 @@ export class ComputerHub {
     return hold.holder
   }
 
+  releaseBy(pcId: string, session: string): "ok" | "other" {
+    const hold = this.hold(pcId)
+    if (hold.holder === "human" && hold.heldBy !== undefined && hold.heldBy !== session) return "other"
+    this.d.released(this.release(pcId))
+    return "ok"
+  }
+
   release(pcId: string, except?: string): PcReleased {
     const waiters = (this.hold(pcId).waiters ?? []).filter((w) => w.slug !== except)
+    this.takes.get(pcId)?.settle(true)
     this.desk.delete(pcId)
     this.save(pcId, { holder: "agent" })
     this.tellHolder(pcId, "agent")
@@ -879,6 +942,7 @@ export class ComputerHub {
         ws.close(CLOSE.replaced, "removed")
       } catch {}
     this.dropCalls(id)
+    this.takes.get(id)?.settle(false)
     this.relaying.delete(id)
     this.desk.delete(id)
     this.memory.delete(id)
