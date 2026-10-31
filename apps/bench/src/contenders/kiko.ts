@@ -87,13 +87,13 @@ async function shellCall(machine: Machine, args: Bag, signal: AbortSignal): Prom
   }
 }
 
-async function readCall(machine: Machine, args: Bag): Promise<ToolResult> {
+async function readCall(machine: Machine, args: Bag, signal: AbortSignal): Promise<ToolResult> {
   const raw = stringOf(args.path)
   if (!raw) return text("computer_read needs a path", true)
   const path = pathIn(machine, raw)
   const maxBytes = Math.min(Math.max(typeof args.maxBytes === "number" ? args.maxBytes : MAX_READ_BYTES, 1), 1_000_000)
   try {
-    const value = await read({ path, maxBytes }, policyFor(machine))
+    const value = await read({ path, maxBytes }, policyFor(machine), deadlineFor(CALL_TIMEOUT_MS, signal))
     if (value.base64 !== undefined)
       return text(
         `${path} on ${machine.id} is binary, ${value.size} bytes. use computer_shell for it, such as \`file\` or \`head -c 200\`.`,
@@ -106,7 +106,7 @@ async function readCall(machine: Machine, args: Bag): Promise<ToolResult> {
   }
 }
 
-async function writeCall(machine: Machine, args: Bag): Promise<ToolResult> {
+async function writeCall(machine: Machine, args: Bag, signal: AbortSignal): Promise<ToolResult> {
   const raw = stringOf(args.path)
   const body = stringOf(args.text)
   if (!raw) return text("computer_write needs a path", true)
@@ -116,6 +116,7 @@ async function writeCall(machine: Machine, args: Bag): Promise<ToolResult> {
     const value = await write(
       { path, text: body, ...(args.append === true ? { append: true } : {}) },
       policyFor(machine),
+      deadlineFor(CALL_TIMEOUT_MS, signal),
     )
     return text(`wrote ${value.size} bytes to ${path} on ${machine.id}`)
   } catch (error) {
@@ -267,8 +268,8 @@ export function kikoContender(options: KikoOptions = {}): Contender {
       const m = need()
       const bag = bagOf(args)
       if (name === "computer_shell") return shellCall(m, bag, signal)
-      if (name === "computer_read") return readCall(m, bag)
-      if (name === "computer_write") return writeCall(m, bag)
+      if (name === "computer_read") return readCall(m, bag, signal)
+      if (name === "computer_write") return writeCall(m, bag, signal)
       if (name === "computer_windows") return withDriver((d) => windowsCall(d, deadlineFor(CALL_TIMEOUT_MS, signal)))
       if (name === "computer_see") return withDriver((d) => seeCall(d, bag, deadlineFor(CALL_TIMEOUT_MS, signal)))
       if (name === "computer_use") return withDriver((d) => useCall(d, bag, deadlineFor(CALL_TIMEOUT_MS, signal)))
