@@ -467,6 +467,11 @@ describe("leaving the viewer", () => {
   )
 })
 
+const onClock =
+  (clock: Clock.Clock) =>
+  (ms: number): Promise<void> =>
+    Effect.runPromise(Effect.sleep(ms).pipe(Effect.provideService(Clock.Clock, clock)))
+
 describe("the owned hold", () => {
   async function taken(computers: ReturnType<typeof liveHub>, ws: WebSocket, pc: ReturnType<typeof pcSocket>) {
     const taking = computers.take("pc-1", ws)
@@ -677,11 +682,6 @@ describe("relay fallback", () => {
     }),
   )
 })
-
-const onClock =
-  (clock: Clock.Clock) =>
-  (ms: number): Promise<void> =>
-    Effect.runPromise(Effect.sleep(ms).pipe(Effect.provideService(Clock.Clock, clock)))
 
 describe("computer calls", () => {
   it.effect("waits for a computer that comes back, then runs the call", () =>
