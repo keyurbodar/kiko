@@ -9,8 +9,7 @@ interface ContenderConfig {
 interface TrackConfig {
   readonly track: Track
   readonly os: readonly Os[]
-  readonly runner?: string
-  readonly machine?: string
+  readonly envs?: readonly string[]
   readonly maxTrialsPerJob?: number
   readonly contenders: readonly ContenderConfig[]
 }
@@ -20,6 +19,20 @@ export interface RunnerSpec {
   readonly machine: string
 }
 
+export type EnvKind = "host" | "container" | "vm"
+export type DisplayStack = "x11" | "wayland" | "aqua"
+
+export interface EnvSpec {
+  readonly id: string
+  readonly os: Os
+  readonly runner: string
+  readonly machine: string
+  readonly kind: EnvKind
+  readonly display: DisplayStack
+  readonly image?: string
+  readonly maxTrialsPerJob?: number
+}
+
 export interface BenchConfig {
   readonly reps: number
   readonly seed: number
@@ -27,13 +40,18 @@ export interface BenchConfig {
   readonly pattern: string
   readonly maxTrialsPerJob: number
   readonly validateRuns: number
-  readonly runners: Readonly<Record<Os, RunnerSpec>>
+  readonly runners: Readonly<Partial<Record<Os, RunnerSpec>>>
+  readonly envs: readonly EnvSpec[]
   readonly tracks: readonly TrackConfig[]
 }
 
 export interface Job {
   readonly track: Track
   readonly os: Os
+  readonly env: string
+  readonly kind: EnvKind
+  readonly display: DisplayStack
+  readonly image?: string
   readonly contender: string
   readonly model: string
   readonly shard: string
@@ -44,14 +62,27 @@ export interface Job {
 }
 
 const TRACKS: readonly Track[] = ["terminal", "browser", "desktop", "mixed"]
-const OSES: readonly Os[] = ["linux", "macos", "windows"]
+const OSES: readonly Os[] = ["linux", "macos"]
 const CONDITIONS: readonly Condition[] = ["foreground", "background"]
+const ENV_KINDS: readonly EnvKind[] = ["host", "container", "vm"]
+const DISPLAYS: readonly DisplayStack[] = ["x11", "wayland", "aqua"]
 
-const DEFAULT_RUNNERS: Readonly<Record<Os, RunnerSpec>> = {
+const DEFAULT_RUNNERS: Readonly<Partial<Record<Os, RunnerSpec>>> = {
   linux: { runner: "ubuntu-24.04", machine: "gha-ubuntu-24.04-x11" },
   macos: { runner: "macos-15", machine: "gha-macos-15" },
-  windows: { runner: "windows-2025", machine: "gha-windows-2025" },
 }
+
+const DEFAULT_ENVS: readonly EnvSpec[] = [
+  {
+    id: "ubuntu-24.04",
+    os: "linux",
+    runner: "ubuntu-24.04",
+    machine: "gha-ubuntu-24.04-x11",
+    kind: "host",
+    display: "x11",
+  },
+  { id: "macos-15", os: "macos", runner: "macos-15", machine: "gha-macos-15", kind: "host", display: "aqua" },
+]
 
 type Bag = Record<string, unknown>
 
@@ -101,8 +132,9 @@ function trackOf(value: unknown, flat: { contenders: readonly string[]; models: 
   return {
     track,
     os: oneOf(value.os === undefined ? [...OSES] : strings(value.os, `the machines of ${track}`), OSES, "a machine"),
-    ...(typeof value.runner === "string" ? { runner: value.runner } : {}),
-    ...(typeof value.machine === "string" ? { machine: value.machine } : {}),
+    ...(Array.isArray(value.envs) && value.envs.length > 0
+      ? { envs: strings(value.envs, `the environments of ${track}`) }
+      : {}),
     ...(value.maxTrialsPerJob === undefined
       ? {}
       : { maxTrialsPerJob: number(value.maxTrialsPerJob, `maxTrialsPerJob of ${track}`, 1) }),
@@ -110,7 +142,7 @@ function trackOf(value: unknown, flat: { contenders: readonly string[]; models: 
   }
 }
 
-function runnersOf(value: unknown): Readonly<Record<Os, RunnerSpec>> {
+function runnersOf(value: unknown): Readonly<Partial<Record<Os, RunnerSpec>>> {
   if (!isBag(value)) return DEFAULT_RUNNERS
   const runners: Record<string, RunnerSpec> = { ...DEFAULT_RUNNERS }
   for (const os of OSES) {
@@ -118,7 +150,43 @@ function runnersOf(value: unknown): Readonly<Record<Os, RunnerSpec>> {
     if (!isBag(entry) || typeof entry.runner !== "string" || typeof entry.machine !== "string") continue
     runners[os] = { runner: entry.runner, machine: entry.machine }
   }
-  return runners as Record<Os, RunnerSpec>
+  return runners
+}
+
+function envOf(value: unknown): EnvSpec {
+  if (!isBag(value) || typeof value.id !== "string") return fail("each environment to be an object with an id")
+  const os = oneOf([typeof value.os === "string" ? value.os : ""], OSES, `the os of ${value.id}`)[0] ?? fail("an os")
+  if (typeof value.runner !== "string") return fail(`the runner of ${value.id}`)
+  if (typeof value.machine !== "string") return fail(`the machine of ${value.id}`)
+  const kind =
+    oneOf([typeof value.kind === "string" ? value.kind : "host"], ENV_KINDS, `the kind of ${value.id}`)[0] ?? "host"
+  const display =
+    oneOf(
+      [typeof value.display === "string" ? value.display : os === "macos" ? "aqua" : "x11"],
+      DISPLAYS,
+      `the display of ${value.id}`,
+    )[0] ?? "x11"
+  if (kind === "container" && typeof value.image !== "string") return fail(`the image of ${value.id}`)
+  return {
+    id: value.id,
+    os,
+    runner: value.runner,
+    machine: value.machine,
+    kind,
+    display,
+    ...(typeof value.image === "string" ? { image: value.image } : {}),
+    ...(value.maxTrialsPerJob === undefined
+      ? {}
+      : { maxTrialsPerJob: number(value.maxTrialsPerJob, `maxTrialsPerJob of ${value.id}`, 1) }),
+  }
+}
+
+function envsOf(value: unknown): readonly EnvSpec[] {
+  if (!Array.isArray(value) || value.length === 0) return DEFAULT_ENVS
+  const envs = value.map(envOf)
+  const ids = new Set(envs.map((env) => env.id))
+  if (ids.size !== envs.length) return fail("every environment to have a different id")
+  return envs
 }
 
 export function readConfig(path: string): BenchConfig {
@@ -142,6 +210,7 @@ export function readConfig(path: string): BenchConfig {
     maxTrialsPerJob: number(raw.maxTrialsPerJob, "maxTrialsPerJob", 200),
     validateRuns: number(validate.runs, "validate.runs", 1),
     runners: runnersOf(raw.runners),
+    envs: envsOf(raw.envs),
     tracks: tracks.map((entry) => trackOf(entry, flat)),
   }
 }
@@ -168,25 +237,29 @@ export function inShard(index: number, shard: string): boolean {
 export function planJobs(config: BenchConfig, tasks: readonly Task[]): Job[] {
   const jobs: Job[] = []
   for (const track of config.tracks) {
-    for (const os of track.os) {
-      const runner = track.runner ?? config.runners[os].runner
-      const machine = track.machine ?? config.runners[os].machine
-      const count = tasksFor(tasks, track.track, os).length * config.reps
-      const perJob = track.maxTrialsPerJob ?? config.maxTrialsPerJob
+    for (const env of config.envs) {
+      if (!track.os.includes(env.os)) continue
+      if (track.envs && !track.envs.includes(env.id)) continue
+      const count = tasksFor(tasks, track.track, env.os).length * config.reps
+      const perJob = track.maxTrialsPerJob ?? env.maxTrialsPerJob ?? config.maxTrialsPerJob
       const shards = Math.max(1, Math.ceil(count / perJob))
       for (const contender of track.contenders) {
         for (const model of contender.models) {
           for (let shard = 1; shard <= shards; shard += 1)
             jobs.push({
               track: track.track,
-              os,
+              os: env.os,
+              env: env.id,
+              kind: env.kind,
+              display: env.display,
+              ...(env.image ? { image: env.image } : {}),
               contender: contender.name,
               model,
               shard: `${shard}/${shards}`,
               label: `${shard}of${shards}`,
               trials: Math.ceil(count / shards),
-              runner,
-              machine,
+              runner: env.runner,
+              machine: env.machine,
             })
         }
       }

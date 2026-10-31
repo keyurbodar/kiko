@@ -33,6 +33,7 @@ const VALUE_FLAGS = new Set([
   "condition",
   "seed",
   "machine",
+  "env",
   "task",
   "runs",
   "out",
@@ -638,13 +639,37 @@ async function pull(runId: string): Promise<void> {
   }
 }
 
+function groupByKind<T extends { kind: string }>(items: readonly T[]): Record<string, T[]> {
+  return {
+    host: items.filter((item) => item.kind === "host"),
+    container: items.filter((item) => item.kind === "container"),
+    vm: items.filter((item) => item.kind === "vm"),
+  }
+}
+
 function plan(flags: Parsed["flags"]): void {
   const config = readConfig(configPath(flags))
+  if (flags.validate) {
+    const envs = config.envs.map((env) => ({
+      env: env.id,
+      os: env.os,
+      machine: env.machine,
+      runner: env.runner,
+      kind: env.kind,
+      display: env.display,
+      ...(env.image ? { image: env.image } : {}),
+    }))
+    console.log(JSON.stringify(groupByKind(envs)))
+    return
+  }
   const wanted = splitFlag(flags, "track", "")
   const models = splitFlag(flags, "model", "")
+  const envs = splitFlag(flags, "env", "")
   const tracks = wanted.length > 0 ? config.tracks.filter((track) => wanted.includes(track.track)) : config.tracks
-  const jobs = planJobs({ ...config, tracks }, TASKS).filter((job) => models.length === 0 || models.includes(job.model))
-  console.log(JSON.stringify({ include: jobs }))
+  const jobs = planJobs({ ...config, tracks }, TASKS).filter(
+    (job) => (models.length === 0 || models.includes(job.model)) && (envs.length === 0 || envs.includes(job.env)),
+  )
+  console.log(JSON.stringify(groupByKind(jobs)))
 }
 
 async function main(): Promise<void> {
