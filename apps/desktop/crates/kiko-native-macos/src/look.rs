@@ -12,6 +12,8 @@ pub const MAX_DEPTH: usize = 40;
 pub const DEADLINE_MS: u64 = 2_000;
 pub const DEADLINE: Duration = Duration::from_millis(DEADLINE_MS);
 pub const PAGE_HIDDEN: &str = "the page content is not exposed to macOS accessibility: use browser_tabs, browser_read or browser_act for it, and if they say the browser needs consent, ask the owner to allow remote debugging\n";
+pub const PAGE_UNREAD: &str =
+    "the page content has not appeared to macOS accessibility yet; look again before using it\n";
 const VALUE_LIMIT: usize = 500;
 const WEB_PROBE_DEPTH: usize = 10;
 const WEB_PROBE_NODES: usize = 400;
@@ -313,6 +315,7 @@ fn push(actions: &mut Vec<Action>, action: Action) {
 pub enum WebPage {
     Exposed,
     Hidden,
+    Pending,
 }
 
 #[derive(Default)]
@@ -354,7 +357,7 @@ fn probe(application: &AXUIElement, bundle: Option<&str>, app: &str) -> (WebPage
     let deadline = Instant::now() + WEB_WAIT;
     let opt = opt_in(application, bundle, app);
     if !opt.active && !opt.refused {
-        return (WebPage::Hidden, false);
+        return (WebPage::Pending, false);
     }
     let present = web_content_present(application, deadline);
     let appeared = !present && wait_for_web_area(application, bundle, app, deadline);
@@ -365,7 +368,10 @@ fn decide(opt: &OptIn, exposed: bool) -> (WebPage, bool) {
     if exposed {
         return (WebPage::Exposed, true);
     }
-    (WebPage::Hidden, opt.refused)
+    if opt.refused {
+        return (WebPage::Hidden, true);
+    }
+    (WebPage::Pending, false)
 }
 
 fn launch(pid: i32) -> Option<u64> {
@@ -547,10 +553,14 @@ mod tests {
     }
 
     #[test]
-    fn an_accepted_opt_in_that_was_only_slow_is_asked_again() {
+    fn an_accepted_opt_in_that_was_only_slow_is_reported_as_pending() {
         assert_eq!(
             decide(&opt_in(true, false), false),
-            (WebPage::Hidden, false)
+            (WebPage::Pending, false)
+        );
+        assert_eq!(
+            decide(&opt_in(false, false), false),
+            (WebPage::Pending, false)
         );
     }
 
