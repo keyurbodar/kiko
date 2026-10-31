@@ -102,7 +102,9 @@ export type PcAttachment = {
 
 type CallTarget = { ws: WebSocket; saved: PcAttachment; hello: Hello }
 
-export type CallOutcome = { ok: true; value: unknown } | { ok: false; code: FailCode; message: string }
+export type CallOutcome =
+  | { ok: true; value: unknown; opMs?: number }
+  | { ok: false; code: FailCode; message: string; opMs?: number }
 
 export type TerminalAttachOutcome =
   | { ok: true; value: `term:${string}` }
@@ -554,9 +556,12 @@ export class ComputerHub {
   }
 
   private result(frame: Extract<FromDaemon, { t: "result" }>): void {
+    const opMs = frame.opMs
     this.settle(
       frame.id,
-      frame.ok ? { ok: true, value: frame.value } : { ok: false, code: frame.error.code, message: frame.error.message },
+      frame.ok
+        ? { ok: true, value: frame.value, ...(opMs !== undefined ? { opMs } : {}) }
+        : { ok: false, code: frame.error.code, message: frame.error.message, ...(opMs !== undefined ? { opMs } : {}) },
     )
   }
 

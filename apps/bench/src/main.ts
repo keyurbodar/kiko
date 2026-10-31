@@ -213,9 +213,18 @@ const zeroResult = (trajectory: Trajectory): LoopResult => ({
   toolMs: 0,
   toolP50Ms: 0,
   toolP95Ms: 0,
+  ttftMs: 0,
+  modelP50Ms: 0,
+  modelP95Ms: 0,
+  toolTransportMs: 0,
+  toolOpMs: 0,
+  toolQueueMs: 0,
+  toolLatencyByName: {},
   bytesToModel: 0,
+  bytesFromTool: 0,
   imagesSent: 0,
   imagesDropped: 0,
+  imagesBytes: 0,
   trajectory,
 })
 
@@ -353,6 +362,15 @@ function rowFor(
     windows_raised: background.windowsRaised,
     system_prompt_sha: SYSTEM_PROMPT_SHA,
     trajectory: `${input.runId}/${input.trialId}.json`,
+    ttft_ms: result.ttftMs,
+    model_p50_ms: result.modelP50Ms,
+    model_p95_ms: result.modelP95Ms,
+    tool_transport_ms: result.toolTransportMs,
+    tool_op_ms: result.toolOpMs,
+    tool_queue_ms: result.toolQueueMs,
+    tool_latency_by_name: JSON.stringify(result.toolLatencyByName),
+    images_bytes: result.imagesBytes,
+    bytes_from_tool: result.bytesFromTool,
   }
 }
 
@@ -444,6 +462,7 @@ async function runGroup(input: GroupInput): Promise<{ total: number; passed: num
   let passed = 0
   for (const task of input.tasks) {
     for (const { contender, model } of input.track.pairs) {
+      if (task.contenders && !task.contenders.includes(contender.name)) continue
       for (let rep = 1; rep <= input.plan.reps; rep++) {
         const trialId = `${task.id}__${contender.name}__${model.id}__${input.condition}__r${rep}`
         const output = await runTrial({

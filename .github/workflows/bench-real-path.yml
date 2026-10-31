@@ -1,0 +1,54 @@
+name: bench real path
+
+on:
+  push:
+    branches:
+      - "t3/cu-bench-env"
+    paths:
+      - "apps/bench/**"
+      - "apps/computer/**"
+      - "apps/server/src/computer/**"
+      - "apps/server/src/agent/computer/**"
+      - "core/computer/src/**"
+      - ".github/workflows/bench-real-path.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bench-real-path-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  real-path:
+    name: Real path (${{ matrix.machine }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            machine: gha-ubuntu-24.04-x11
+          - runner: macos-15
+            machine: gha-macos-15
+    env:
+      OPENCODE_GO_KEY: ${{ secrets.OPENCODE_GO_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - name: Terminal track, kiko against kiko-remote
+        run: bun run bench run --ci --config apps/bench/real-path.json --track terminal --task 'terminal-00[1-4]-*' --machine ${{ matrix.machine }} --results results
+      - name: Environment tasks
+        run: bun run bench run --ci --config apps/bench/real-path.json --track environment --task 'env-*' --machine ${{ matrix.machine }} --results results
+      - name: Report
+        run: bun run bench report 'results/*.tsv' --out reports/real-path-${{ matrix.machine }}.html
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bench-real-path-${{ matrix.machine }}
+          path: |
+            results/
+            reports/
+          if-no-files-found: warn
