@@ -218,6 +218,8 @@ async function main(): Promise<void> {
           String(SERVER_PORT),
           "--ip",
           "127.0.0.1",
+          "--persist-to",
+          join(dir, "wrangler"),
           "--var",
           `CREDENTIALS_KEK:${kek}`,
           "--var",
