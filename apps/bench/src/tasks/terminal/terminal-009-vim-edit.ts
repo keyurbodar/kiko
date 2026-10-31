@@ -28,6 +28,7 @@ export const vimEdit: Task = {
   os: ["linux", "macos"],
   needs: [],
   heldOut: true,
+  kind: "real",
   prompt:
     "Open notes.txt in the terminal editor, change the value on the STATUS line to the one in request.json, and save the file. Leave everything else untouched.",
   limits: LIMITS,

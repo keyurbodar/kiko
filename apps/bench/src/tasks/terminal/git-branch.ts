@@ -50,6 +50,7 @@ export const gitBranch: Task = {
   os: ["macos", "windows", "linux"],
   needs: [],
   heldOut: false,
+  kind: "real",
   prompt:
     "create a git branch called feature with exactly one commit that adds a file notes.txt containing the line hello",
   limits: { turns: 12, seconds: 180 },

@@ -17,6 +17,7 @@ export const download: Task = {
   os: ["linux", "macos", "windows"],
   needs: ["chrome"],
   heldOut: false,
+  kind: "real",
   prompt:
     "Download the sales report linked from the page in url.txt and submit the total of the amount column in the answer form.",
   limits: LIMITS,

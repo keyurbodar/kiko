@@ -37,6 +37,7 @@ export const countMatches: Task = {
   os: ["macos", "windows", "linux"],
   needs: [],
   heldOut: false,
+  kind: "real",
   prompt: "count the lines in input.log that contain the word ERROR and write just the number to count.txt",
   limits: { turns: 12, seconds: 180 },
   setup: setupCount,

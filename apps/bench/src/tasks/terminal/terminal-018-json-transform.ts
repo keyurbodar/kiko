@@ -70,6 +70,7 @@ export const jsonTransform: Task = {
   os: ["linux", "macos", "windows"],
   needs: [],
   heldOut: false,
+  kind: "real",
   prompt:
     "Build summary.json from orders.json: `{orders:[{id, totalCents, itemCount}]}` sorted by id, plus `grandTotalCents`. Only include orders whose status is paid.",
   limits: LIMITS,

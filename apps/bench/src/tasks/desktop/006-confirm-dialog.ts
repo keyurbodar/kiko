@@ -12,6 +12,7 @@ export const desktopDialog: Task = {
   os: ["linux"],
   needs: ["display"],
   heldOut: false,
+  kind: "edge",
   prompt: "In the open window, discard the unsaved draft and close the window.",
   limits: LIMITS,
   setup: async (m, seed) => {

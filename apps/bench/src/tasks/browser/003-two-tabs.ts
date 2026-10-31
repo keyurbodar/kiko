@@ -23,6 +23,7 @@ export const twoTabs: Task = {
   os: ["linux", "macos", "windows"],
   needs: ["chrome"],
   heldOut: false,
+  kind: "real",
   prompt:
     "A customer wants to claim an order. Find their order number on the orders page linked from url.txt, then submit a claim for it on the claims page with the reason in request.json.",
   limits: LIMITS,

@@ -43,6 +43,7 @@ export const fixScript: Task = {
   os: ["macos", "windows", "linux"],
   needs: [],
   heldOut: false,
+  kind: "real",
   prompt:
     "the script in this folder should print double the number you pass it, but it prints the wrong answer. fix it so that running it with 5 prints 10",
   limits: { turns: 12, seconds: 180 },
