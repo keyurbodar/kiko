@@ -22,8 +22,8 @@ describe("policy cache", () => {
     await writeFile(join(dir, "policy.json"), JSON.stringify({ shell: true, desktop: true }))
     const policy = policyCache(dir)
 
-    const first = await policy()
-    const second = await policy()
+    const first = await policy.get()
+    const second = await policy.get()
 
     expect(first.shell).toBe(true)
     expect(second).toBe(first)
@@ -34,13 +34,28 @@ describe("policy cache", () => {
     const file = join(dir, "policy.json")
     await writeFile(file, JSON.stringify({ shell: true, desktop: true }))
     const policy = policyCache(dir)
-    const first = await policy()
+    const first = await policy.get()
 
     await writeFile(file, JSON.stringify({ shell: false }))
 
-    const next = await policy()
+    const next = await policy.get()
     expect(next).not.toBe(first)
     expect(next.shell).toBe(false)
     expect(next.desktop).toBe(true)
+  })
+
+  it("hands the live path a new policy once its window passes", async () => {
+    const dir = await tempDir()
+    const file = join(dir, "policy.json")
+    await writeFile(file, JSON.stringify({ live: true, input: true }))
+    let clock = 0
+    const policy = policyCache(dir, () => clock)
+    expect(policy.current().live).toBe(true)
+
+    await writeFile(file, JSON.stringify({ live: false, input: false }))
+    expect(policy.current().live).toBe(true)
+
+    clock = 1_000
+    expect(policy.current().live).toBe(false)
   })
 })

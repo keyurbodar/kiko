@@ -1,6 +1,6 @@
-import { existsSync, watch, type FSWatcher } from "node:fs"
-import { chmod, mkdir, readFile, stat, writeFile } from "node:fs/promises"
-import { dirname, join } from "node:path"
+import { existsSync, readFileSync, statSync } from "node:fs"
+import { chmod, mkdir, readFile, writeFile } from "node:fs/promises"
+import { join } from "node:path"
 import { homeDir } from "./platform"
 
 export type Config = { url: string; userId: string; pcId: string; name: string }
@@ -58,10 +58,6 @@ function appDir(): string {
   if (process.platform === "darwin") return join(homeDir(), "Library", "Application Support", "kiko")
   if (process.platform === "win32") return join(process.env.APPDATA ?? join(homeDir(), "AppData", "Roaming"), "kiko")
   return join(process.env.XDG_CONFIG_HOME ?? join(homeDir(), ".config"), "kiko")
-}
-
-export function paused(dir = configDir()): boolean {
-  return existsSync(join(dir, "paused")) || existsSync(join(appDir(), "paused"))
 }
 
 async function readJson(file: string): Promise<unknown> {
@@ -130,14 +126,14 @@ function mergePolicy(raw: unknown): Policy {
 }
 
 export async function loadPolicy(dir = configDir()): Promise<Policy> {
-  return mergePolicy(await readJson(paths(dir).policy))
+  return readPolicy(paths(dir).policy)
 }
 
 type Stamp = { ino: number; mtimeMs: number; size: number }
 
-async function stampOf(file: string): Promise<Stamp | null> {
+function stampOf(file: string): Stamp | null {
   try {
-    const info = await stat(file)
+    const info = statSync(file)
     return { ino: info.ino, mtimeMs: info.mtimeMs, size: info.size }
   } catch {
     return null
@@ -147,60 +143,54 @@ async function stampOf(file: string): Promise<Stamp | null> {
 const sameStamp = (a: Stamp | null, b: Stamp | null): boolean =>
   a === b || (a !== null && b !== null && a.ino === b.ino && a.mtimeMs === b.mtimeMs && a.size === b.size)
 
-export function policyCache(dir = configDir()): () => Promise<Policy> {
-  let stamp: Stamp | null = null
-  let policy = DEFAULT_POLICY
-  let loaded = false
-  let pending: Promise<Policy> | null = null
-  const read = async (): Promise<Policy> => {
-    const next = await stampOf(paths(dir).policy)
-    if (loaded && sameStamp(next, stamp)) return policy
-    policy = await loadPolicy(dir)
-    stamp = next
-    loaded = true
-    return policy
-  }
-  return () => {
-    pending ??= read().finally(() => {
-      pending = null
-    })
-    return pending
+function readPolicy(file: string): Policy {
+  try {
+    return mergePolicy(JSON.parse(readFileSync(file, "utf8")))
+  } catch {
+    return DEFAULT_POLICY
   }
 }
 
-type PauseWatch = { get(): boolean; close(): void }
+const POLICY_RELOAD_MS = 1_000
+const PAUSE_RELOAD_MS = 250
 
-export function watchPaused(dir = configDir()): PauseWatch {
-  const markers = [join(dir, "paused"), join(appDir(), "paused")]
-  const folders = new Map<string, boolean>()
-  const watchers: FSWatcher[] = []
-  let value = markers.some((marker) => existsSync(marker))
-  const refresh = () => {
-    value = markers.some((marker) => existsSync(marker))
+export function policyCache(
+  dir = configDir(),
+  now: () => number = Date.now,
+): { get(): Promise<Policy>; current(): Policy } {
+  let stamp: Stamp | null = null
+  let policy = DEFAULT_POLICY
+  let loaded = false
+  let readAt = 0
+  const refresh = (): Policy => {
+    const next = stampOf(paths(dir).policy)
+    if (loaded && sameStamp(next, stamp)) return policy
+    stamp = next
+    policy = readPolicy(paths(dir).policy)
+    loaded = true
+    return policy
   }
-  for (const marker of markers) {
-    const folder = dirname(marker)
-    if (folders.has(folder)) continue
-    try {
-      const watcher = watch(folder, { persistent: false }, refresh)
-      watcher.on("error", () => {})
-      watchers.push(watcher)
-      folders.set(folder, true)
-    } catch {
-      folders.set(folder, false)
-    }
-  }
-  const live = markers.every((marker) => folders.get(dirname(marker)) === true)
   return {
-    get: live
-      ? () => value
-      : () => {
-          refresh()
-          return value
-        },
-    close: () => {
-      for (const watcher of watchers) watcher.close()
+    get: () => Promise.resolve(refresh()),
+    current: () => {
+      const at = now()
+      if (loaded && at - readAt < POLICY_RELOAD_MS) return policy
+      readAt = at
+      return refresh()
     },
+  }
+}
+
+export function pausedCache(dir = configDir()): () => boolean {
+  const markers = [join(dir, "paused"), join(appDir(), "paused")]
+  let value = markers.some((marker) => existsSync(marker))
+  let readAt = Date.now()
+  return () => {
+    const now = Date.now()
+    if (now - readAt < PAUSE_RELOAD_MS) return value
+    readAt = now
+    value = markers.some((marker) => existsSync(marker))
+    return value
   }
 }
 

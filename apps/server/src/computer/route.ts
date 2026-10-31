@@ -1,5 +1,5 @@
 import { Schema } from "effect"
-import { Hello, PROTOCOL } from "@kiko/computer/wire"
+import { Hello, OLDEST_PROTOCOL, PROTOCOL } from "@kiko/computer/wire"
 import { CONNECT_HEADERS } from "@kiko/computer/sign"
 import type { Env } from "../index"
 import { NameError, ownerStub } from "../lib/names"
@@ -75,7 +75,7 @@ function connect(request: Request, env: Env): Promise<Response> | Response {
   const ts = request.headers.get(CONNECT_HEADERS.ts)
   const sig = request.headers.get(CONNECT_HEADERS.sig)
   const protocol = Number(request.headers.get(CONNECT_HEADERS.protocol) ?? "")
-  if (protocol !== PROTOCOL)
+  if (protocol < OLDEST_PROTOCOL || protocol > PROTOCOL)
     return new Response("protocol mismatch", {
       status: 426,
       headers: { [CONNECT_HEADERS.protocol]: String(PROTOCOL) },

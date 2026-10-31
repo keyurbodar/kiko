@@ -55,6 +55,36 @@ function bodyOf(value: string, truncated: boolean): string {
   return notes.length > 0 ? `${notes.join("; ")}\n\n${body}` : body
 }
 
+type SendArgs = { id: string; text?: string; keys?: readonly string[]; until?: string; regex?: boolean }
+
+function sendBody(args: SendArgs, until: string | undefined, timeoutMs: number) {
+  return {
+    id: args.id,
+    ...(args.text !== undefined ? { text: args.text } : {}),
+    ...(args.keys ? { keys: args.keys } : {}),
+    ...(until !== undefined ? { until, timeoutMs } : {}),
+    ...(args.regex ? { regex: true } : {}),
+  }
+}
+
+function sendText(
+  args: SendArgs,
+  pc: ComputerSummary,
+  value: Value<"terminal_send">,
+  until: string | undefined,
+  timeoutMs: number,
+): string {
+  const sent = `sent ${value.bytes} bytes to ${args.id} on ${pc.name}`
+  if (until === undefined)
+    return `${sent}. call terminal_wait to wait for the output, or terminal_read to see the screen.`
+  const head = value.matched
+    ? `${sent} and found ${JSON.stringify(until)}.`
+    : value.exited
+      ? `${sent}; it exited while waiting for ${JSON.stringify(until)}.`
+      : `${sent}; waited ${Math.round(timeoutMs / 1000)} s and did not see ${JSON.stringify(until)}.`
+  return `${head}\n\n${bodyOf(value.text ?? "", false)}`
+}
+
 export function terminalTools(deps: ComputerToolDeps): ToolRegistration[] {
   const ready = baseReady(deps)
 
@@ -142,27 +172,10 @@ export function terminalTools(deps: ComputerToolDeps): ToolRegistration[] {
         const until = args.until?.trim()
         if (args.until !== undefined && !until) return text("until needs some text to look for.", true)
         const timeoutMs = Math.min(Math.max(Math.round(args.timeoutMs ?? WAIT_DEFAULT_MS), 1_000), WAIT_MAX_MS)
-        const body = {
-          id: args.id,
-          ...(args.text !== undefined ? { text: args.text } : {}),
-          ...(args.keys ? { keys: args.keys } : {}),
-          ...(until !== undefined ? { until } : {}),
-          ...(args.regex ? { regex: true } : {}),
-          ...(until !== undefined ? { timeoutMs } : {}),
-        }
         const deadlineMs = until === undefined ? CALL_DEADLINE_MS : Math.min(timeoutMs + WAIT_SLACK_MS, MAX_DEADLINE_MS)
-        const out = await deps.port().call(pc.id, "terminal_send", body, deadlineMs)
+        const out = await deps.port().call(pc.id, "terminal_send", sendBody(args, until, timeoutMs), deadlineMs)
         if (!out.ok) return text(failText(out.code, out.message, pc), true)
-        const value = out.value as Value<"terminal_send">
-        const sent = `sent ${value.bytes} bytes to ${args.id} on ${pc.name}`
-        if (until === undefined)
-          return text(`${sent}. call terminal_wait to wait for the output, or terminal_read to see the screen.`)
-        const head = value.matched
-          ? `${sent} and found ${JSON.stringify(until)}.`
-          : value.exited
-            ? `${sent}; it exited while waiting for ${JSON.stringify(until)}.`
-            : `${sent}; waited ${Math.round(timeoutMs / 1000)} s and did not see ${JSON.stringify(until)}.`
-        return text(`${head}\n\n${bodyOf(value.text ?? "", false)}`)
+        return text(sendText(args, pc, out.value as Value<"terminal_send">, until, timeoutMs))
       }),
   })
 

@@ -1,6 +1,6 @@
 import { assert, describe, it } from "@effect/vitest"
 import { encodeBinary, IMAGE_REF } from "@kiko/computer/frame"
-import { PROTOCOL } from "@kiko/computer/wire"
+import { OLDEST_PROTOCOL, PROTOCOL } from "@kiko/computer/wire"
 import type { AgentSlug, RoomId } from "@kiko/protocol"
 import * as Clock from "effect/Clock"
 import * as Effect from "effect/Effect"
@@ -291,6 +291,20 @@ describe("unique names", () => {
 })
 
 describe("daemon reconnect", () => {
+  it.effect("welcomes a daemon that has not updated past the oldest protocol", () =>
+    Effect.promise(async () => {
+      const pc = pcSocket("pc-1")
+      const computers = liveHub([], [pc.ws])
+
+      await computers.message(pc.ws, JSON.stringify({ ...HELLO, protocol: OLDEST_PROTOCOL }))
+
+      assert.deepStrictEqual(
+        pc.sent.map((frame) => frame.t),
+        ["welcome", "control"],
+      )
+    }),
+  )
+
   it.effect("tells a reconnecting daemon who holds the screen", () =>
     Effect.promise(async () => {
       const pc = pcSocket("pc-1", "human")

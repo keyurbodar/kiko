@@ -10,6 +10,7 @@ import {
   type IceServer,
   type InputEvent,
   type Op,
+  OLDEST_PROTOCOL,
   PROTOCOL,
   type RtcSignal,
   TERMINAL_OPS,
@@ -408,7 +409,7 @@ export class ComputerHub {
     const sig = request.headers.get(CONNECT_HEADERS.sig) ?? ""
     const protocol = Number(request.headers.get(CONNECT_HEADERS.protocol) ?? "")
     if (!id || user !== this.d.ownerId || !sig) return new Response("bad connect", { status: 401 })
-    if (protocol !== PROTOCOL)
+    if (protocol < OLDEST_PROTOCOL || protocol > PROTOCOL)
       return new Response("protocol mismatch", {
         status: 426,
         headers: { [CONNECT_HEADERS.protocol]: String(PROTOCOL) },
@@ -485,7 +486,7 @@ export class ComputerHub {
       ws.close(CLOSE.notReady, "duplicate hello")
       return
     }
-    if (hello.protocol !== PROTOCOL) {
+    if (hello.protocol < OLDEST_PROTOCOL || hello.protocol > PROTOCOL) {
       ws.close(CLOSE.protocol, "protocol mismatch")
       return
     }

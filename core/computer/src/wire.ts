@@ -4,6 +4,7 @@ import { BrowserStatus, DesktopInfo, Display, DriverCall, Permissions } from "./
 export { Display }
 
 export const PROTOCOL = 2
+export const OLDEST_PROTOCOL = 1
 
 const Text = Schema.String
 const Id = Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(64))

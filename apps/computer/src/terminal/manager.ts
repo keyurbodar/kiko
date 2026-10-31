@@ -125,7 +125,7 @@ export class TerminalManager {
     return this.info(created)
   }
 
-  send(args: Args<"terminal_send">, signal?: AbortSignal): Value<"terminal_send"> | Promise<Value<"terminal_send">> {
+  send(args: Args<"terminal_send">, signal?: AbortSignal): Promise<Value<"terminal_send">> {
     const session = this.get(args.id)
     const text = args.text ?? ""
     const keys = args.keys ?? []
@@ -146,7 +146,7 @@ export class TerminalManager {
     if (pressed) session.pty.write(pressed)
     this.scheduleIdle(session)
     const bytes = Buffer.byteLength(text + pressed)
-    if (!matcher) return { id: session.id, bytes }
+    if (!matcher) return Promise.resolve({ id: session.id, bytes })
     return this.settleOn(session, matcher, args.timeoutMs, signal).then((waited) => ({
       id: session.id,
       bytes,
