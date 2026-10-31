@@ -111,8 +111,9 @@ describe("computer_list", () => {
       call: async () => ({ ok: true, value: undefined }),
       link: async () => ({ ok: true }),
       holder: async () => "agent",
+      desktopTools: async () => [],
     }
-    const tools = computerInfoExtension({ port: () => port, acceptsImages: () => false }).tools ?? []
+    const tools = computerInfoExtension({ port: () => port, acceptsImages: () => false, desktop: [] }).tools ?? []
     const list = tools.find((entry) => entry.name === "computer_list")
     if (!list) throw new Error("no computer_list tool")
 
