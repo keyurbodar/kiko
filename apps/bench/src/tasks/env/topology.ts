@@ -1,5 +1,5 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises"
-import { dirname, join } from "node:path"
+import { join } from "node:path"
 import type { Machine } from "../../types"
 
 export interface EnvComputer {
@@ -32,6 +32,6 @@ export async function readTopology(m: Machine): Promise<EnvTopology | null> {
 
 export async function computerDir(parent: string, name: string): Promise<string> {
   const dir = join(parent, `pc-${name}`)
-  await mkdir(dirname(dir), { recursive: true })
+  await mkdir(dir, { recursive: true })
   return dir
 }
