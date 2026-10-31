@@ -108,7 +108,7 @@ export function InstallCard(props: { install: RecipeInstall; card: RecipeCard })
   const sinceFresh = freshElapsed(props.install.slug)
   const note = () => {
     const s = status()
-    return s.kind === "next" ? nextRunLabel(s.at, Date.now()) : s.kind === "paused" ? "Paused" : s.label
+    return s.kind === "next" ? nextRunLabel(s.at, Date.now()) : s.kind === "paused" ? "Paused" : undefined
   }
   return (
     <article
@@ -144,9 +144,13 @@ export function InstallCard(props: { install: RecipeInstall; card: RecipeCard })
         </span>
       </button>
       <span class="relative z-[1] flex shrink-0 items-center gap-3">
-        <span class="type-label hidden text-fg3 @min-[560px]/page:block" data-component="recipe-status">
-          {note()}
-        </span>
+        <Show when={note()}>
+          {(text) => (
+            <span class="type-label hidden text-fg3 @min-[560px]/page:block" data-component="recipe-status">
+              {text()}
+            </span>
+          )}
+        </Show>
         <Show when={status().kind !== "ask"}>
           <button
             type="button"

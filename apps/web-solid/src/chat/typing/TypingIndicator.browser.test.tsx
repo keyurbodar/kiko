@@ -118,7 +118,7 @@ function Thread(props: { group?: boolean; finished?: ChatMessage; foldedRun?: Ch
       />
       <Show when={fake.live}>
         <div
-          class="mx-auto flex w-full max-w-(--chat-content-max-width) px-4 pb-(--row-gap) pt-(--run-gap)"
+          class="mx-auto flex w-full max-w-(--chat-content-max-width) px-4 pb-(--row-gap) pt-(--row-gap)"
           data-component="chat-typing-row"
         >
           <TypingIndicator typists={["kiko"]} seeds={["kiko"]} group={props.group} />

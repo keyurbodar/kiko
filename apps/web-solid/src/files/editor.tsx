@@ -70,6 +70,7 @@ export function TextEditor(props: {
       setTheirs(null)
       setState("clean")
       if (props.reveal) cm.revealLine(props.reveal.line)
+      if (props.file && !known.has(props.file.id)) void load(props.file)
     } catch (e) {
       setMessage(e instanceof Error ? e.message : "Could not load the file")
       setState("error")

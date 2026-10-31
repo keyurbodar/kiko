@@ -122,7 +122,22 @@ function authored(selector: string, property: string): string {
 }
 
 describe("RunTree", () => {
-  it("shows a live run's rows in order under a tally of its steps, with the running step marked", async () => {
+  it("collapses and reopens a live run from its head", async () => {
+    fake.steps = [step("ls", { startedAt: START, status: "running", endedAt: undefined })]
+    fake.live = true
+    await using screen = await render(() => <RunTree windowKey="kiko#0" />)
+
+    await vi.waitFor(() => expect(rows(screen.container)).toHaveLength(1))
+    const toggle = head(screen.container) as HTMLButtonElement
+    expect(toggle.getAttribute("aria-expanded")).toBe("true")
+    toggle.click()
+    await vi.waitFor(() => expect(rows(screen.container)).toHaveLength(0))
+    expect(toggle.getAttribute("aria-expanded")).toBe("false")
+    toggle.click()
+    await vi.waitFor(() => expect(rows(screen.container)).toHaveLength(1))
+  })
+
+  it("shows a live run's rows in order under a working head, with the running step marked", async () => {
     fake.steps = [
       step("ls", { startedAt: START }),
       step("cat", { startedAt: START + 4_000 }),
@@ -133,7 +148,7 @@ describe("RunTree", () => {
 
     await vi.waitFor(() => expect(rows(screen.container)).toHaveLength(3))
     expect(labels(screen.container)).toEqual(["Ran ls", "Ran cat", "Running split.py"])
-    expect(head(screen.container).querySelector(".run-tree-summary")?.textContent).toBe("Ran 3 commands")
+    expect(head(screen.container).querySelector(".run-tree-summary")?.textContent).toBe("Working")
     const running = rows(screen.container)[2]!
     expect(running.querySelector('[data-component="mochi"]')).not.toBeNull()
     expect(running.hasAttribute("data-running")).toBe(true)

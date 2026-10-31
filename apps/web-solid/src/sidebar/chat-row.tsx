@@ -324,10 +324,7 @@ export function ChatRow(props: {
   const [previewOpen, setPreviewOpen, previewDelay] = previewState(props.bot.id)
   const [hovered, setHovered] = createSignal(false)
   const tail = cachedTail(() => props.bot.id, hovered)
-  const recent = createMemo(() => {
-    const live = room.activeId() === props.bot.id ? room.messages() : tail()
-    return live.filter(isListed).slice(-3)
-  })
+  const recent = createMemo(() => tail().filter(isListed).slice(-3))
   const unread = () => props.bot.unread > 0 || markedUnread(props.bot.id) || props.need !== undefined
   const draft = () => {
     const book = draftBook()
@@ -336,6 +333,7 @@ export function ChatRow(props: {
   const onClick = (event: MouseEvent) => {
     if (!plainClick(event)) return
     event.preventDefault()
+    setPreviewOpen(false)
     clearUnreadMark(props.bot.id)
     openChat(props.bot.id)
   }
@@ -367,7 +365,14 @@ export function ChatRow(props: {
         onPointerEnter={(event: PointerEvent) => event.pointerType === "mouse" && setHovered(true)}
       >
         <HoverCardV2
-          open={fine() && previewOpen() && recent().length > 0 && !menuOpen() && renamingId() !== props.bot.id}
+          open={
+            fine() &&
+            !props.active &&
+            previewOpen() &&
+            recent().length > 0 &&
+            !menuOpen() &&
+            renamingId() !== props.bot.id
+          }
           onOpenChange={setPreviewOpen}
           openDelay={previewDelay()}
           closeDelay={120}

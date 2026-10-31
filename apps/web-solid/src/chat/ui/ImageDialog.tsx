@@ -86,7 +86,7 @@ function Toolbar(props: { image: DialogImage | undefined; failed: boolean; onClo
   return (
     <div
       data-component="image-dialog-toolbar"
-      class="absolute top-0 right-0 z-30 flex items-center gap-0.5 rounded-pop bg-raise/80 p-1 shadow-[var(--float-shadow)] backdrop-blur-md"
+      class="absolute top-0 right-0 z-30 flex items-center gap-0.5 rounded-pop bg-raise p-1 shadow-[var(--float-shadow)]"
     >
       <Show when={room.activeId() && props.image?.path} keyed>
         {(path) => <OpenInFiles path={path} onClose={props.onClose} />}

@@ -36,8 +36,6 @@ import { arriveLine, hideLine, NO_LINE, openLine, sendLine, showLine, type Unrea
 import { inWindow, newestAfter, parseWindow, settledSteps, upsertStep, windowKey } from "../chat/run/run-log"
 import { helperLanes, nestedLanes } from "../chat/helpers/helper-model"
 import { unfoldedRuns } from "../chat/lib/grouping"
-import { liveLabel } from "../chat/run/run-log"
-import { summaryOf } from "../chat/run/run-tree-rows"
 import { fillComposer } from "../composer/fill"
 import { releaseUpload, uploadedFile } from "../composer/uploads"
 import { distinctTitles, resumeChat, rosterChats } from "../lib/chats"
@@ -50,7 +48,8 @@ import { describeLast } from "../sidebar/activity"
 import { clearUnreadMark } from "../sidebar/unread-mark"
 import { connection } from "./connection"
 import { liveLine, liveStatusOf, thinkingLine, type LiveStatus } from "./live-status"
-import { createThoughts, restoredThought, type ThinkingSignal, type Thought } from "./thoughts"
+import { createThoughts, finishedThoughts, restoredThought, type ThinkingSignal, type Thought } from "./thoughts"
+import { readThoughts, writeThoughts } from "./thought-cache"
 import { attempt, observe, owner, registry, valueOf, watch } from "./runtime"
 import { onUserSignal, user } from "./user"
 import { withSentFiles } from "./sent-files"
@@ -196,6 +195,16 @@ function sameMap<K, V>(a: ReadonlyMap<K, V>, b: ReadonlyMap<K, V>): boolean {
   for (const [key, value] of a) if (b.get(key) !== value) return false
   return true
 }
+
+const finishedRuns = (all: Readonly<Record<string, readonly Thought[]>>) =>
+  Object.values(all)
+    .flatMap((list) => list.map((thought) => thought.runId))
+    .join(" ")
+
+const sameFinished = (
+  a: Readonly<Record<string, readonly Thought[]>>,
+  b: Readonly<Record<string, readonly Thought[]>>,
+) => finishedRuns(a) === finishedRuns(b)
 
 function createLedger(source: () => readonly Message[]) {
   const ledger = new MessageLedger()
@@ -511,7 +520,23 @@ function createRoom() {
   const [marks, setMarks] = createSignal<Readonly<Record<string, number>>>({})
   createComputed(on(activeId, () => setMarks({})))
   const thoughts = createThoughts()
-  createComputed(on(activeId, thoughts.clear))
+  createComputed(
+    on(activeId, (id) => {
+      thoughts.clear()
+      if (id) void readThoughts(id).then((saved) => id === untrack(activeId) && thoughts.restore(saved))
+    }),
+  )
+  const finished = createMemo(() => finishedThoughts(thoughts.all()), {}, { equals: sameFinished })
+  createComputed(
+    on(
+      finished,
+      (all) => {
+        const id = untrack(activeId)
+        if (id && Object.keys(all).length > 0) void writeThoughts(id, all)
+      },
+      { defer: true },
+    ),
+  )
   const runs = createRuns(
     activeId,
     warm,
@@ -738,15 +763,7 @@ function createRoom() {
     const after = newestAfter(runs.current().steps[slug] ?? [])
     return after >= 0 && !windows().has(windowKey(slug, after)) ? windowKey(slug, after) : undefined
   }
-  const endLabel = (key: string): string => {
-    const steps = stepsOf(key)
-    const found = summaryOf(steps, undefined)?.label
-    if (found) return found
-    const last = steps.findLast((step) => !step.worker) ?? steps.at(-1)
-    return last ? liveLabel(last) : "Working"
-  }
-
-  const [runEnds, setRunEnds] = createSignal<Readonly<Record<string, { at: number; label: string }>>>({})
+  const [runEnds, setRunEnds] = createSignal<Readonly<Record<string, { at: number }>>>({})
   const liveWindowOf = createMemo(() => {
     const out: Record<string, string> = {}
     for (const slug of typingSlugs()) {
@@ -760,10 +777,10 @@ function createRoom() {
       liveWindowOf,
       (now, previous) => {
         if (!previous) return
-        const ended: Record<string, { at: number; label: string }> = {}
+        const ended: Record<string, { at: number }> = {}
         for (const [slug, key] of Object.entries(previous)) {
           if (now[slug] === key) continue
-          ended[key] = { at: Date.now(), label: endLabel(key) }
+          ended[key] = { at: Date.now() }
         }
         if (Object.keys(ended).length)
           setRunEnds((all) => {

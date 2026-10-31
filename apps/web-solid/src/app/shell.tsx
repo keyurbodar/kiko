@@ -127,19 +127,6 @@ export function Shell(props: ParentProps) {
   const inlineSide = () => (compact() || !sideOpen() ? null : sideChat())
   const sheetSide = () => (compact() && sideOpen() ? sideChat() : null)
   onMount(() => {
-    const root = document.documentElement
-    const keys = (e: KeyboardEvent) => {
-      if (e.key === "Tab") root.dataset.input = "keys"
-    }
-    const pointer = () => delete root.dataset.input
-    window.addEventListener("keydown", keys, true)
-    window.addEventListener("pointerdown", pointer, true)
-    onCleanup(() => {
-      window.removeEventListener("keydown", keys, true)
-      window.removeEventListener("pointerdown", pointer, true)
-    })
-  })
-  onMount(() => {
     const on = () => {
       setNarrow(narrowQuery!.matches)
       setDrawer(false)
@@ -436,14 +423,14 @@ export function Shell(props: ParentProps) {
                         </Show>
                       </div>
                     </main>
-                    <Show when={inlineSide()} keyed>
-                      {(chatId) => (
-                        <RightPanelHost maximized={maximized()}>
-                          <Suspense>
-                            <Desk chatId={chatId} onClose={closeSide} />
-                          </Suspense>
-                        </RightPanelHost>
-                      )}
+                    <Show when={inlineSide()}>
+                      <RightPanelHost maximized={maximized()}>
+                        <Suspense>
+                          <Show when={inlineSide()} keyed>
+                            {(chatId) => <Desk chatId={chatId} onClose={closeSide} />}
+                          </Show>
+                        </Suspense>
+                      </RightPanelHost>
                     </Show>
                   </div>
                 </Resizable.Panel>
@@ -451,22 +438,20 @@ export function Shell(props: ParentProps) {
             )
           }}
         </Show>
-        <Show when={sheetSide()} keyed>
-          {(chatId) => (
-            <>
-              <div
-                class="drawer-scrim sidecar-scrim"
-                data-component="sidecar-scrim"
-                aria-hidden="true"
-                onPointerDown={closeSide}
-              />
-              <div class="sidecar-overlay" data-component="sidecar-overlay" data-mode="sheet">
-                <Suspense>
-                  <Desk chatId={chatId} onClose={closeSide} sheet />
-                </Suspense>
-              </div>
-            </>
-          )}
+        <Show when={sheetSide()}>
+          <div
+            class="drawer-scrim sidecar-scrim"
+            data-component="sidecar-scrim"
+            aria-hidden="true"
+            onPointerDown={closeSide}
+          />
+          <div class="sidecar-overlay" data-component="sidecar-overlay" data-mode="sheet">
+            <Suspense>
+              <Show when={sheetSide()} keyed>
+                {(chatId) => <Desk chatId={chatId} onClose={closeSide} sheet />}
+              </Show>
+            </Suspense>
+          </div>
         </Show>
         <Suspense>
           <Palette />

@@ -25,7 +25,7 @@
 }
 @media (hover: hover) and (pointer: fine) {
   .scroll-faces-down:hover {
-    background: var(--hover);
+    background: color-mix(in oklab, var(--fg) 6%, var(--raise));
     transform: translateY(-1px);
   }
 }
