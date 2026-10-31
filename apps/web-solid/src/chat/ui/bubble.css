@@ -1,8 +1,6 @@
 [data-slot="bubble"] {
-  --bubble-r: 18px;
-  --bubble-joint: 6px;
-  --bubble-pad-x: 16px;
-  --bubble-pad-y: 12px;
+  --bubble-r: var(--radius-xl);
+  --bubble-joint: 4px;
   --bubble-me: color-mix(in oklab, var(--text-primary) 11.8%, var(--bg-chrome));
   --bubble-agent: color-mix(in oklab, var(--text-primary) 5.8%, var(--bg-chrome));
   --bubble-panel: color-mix(in oklab, var(--text-primary) 2.9%, var(--bg-chrome));
@@ -18,10 +16,6 @@
   --bubble-tint: color-mix(in oklab, var(--text-primary) 6.5%, transparent);
   --bubble-line: color-mix(in oklab, var(--text-primary) 12%, var(--bg-chrome));
   --bubble-hover: color-mix(in oklab, var(--text-primary) 4%, transparent);
-}
-
-[data-slot="bubble"][data-align="end"] {
-  --bubble-pad-y: 10px;
 }
 
 [data-slot="bubble"][data-align="start"]:not([data-variant="ghost"]) > [data-slot="bubble-content"] {
@@ -45,15 +39,10 @@
 }
 
 [data-slot="bubble-content"] {
-  font-size: 15px;
-  line-height: 24px;
+  font-size: var(--font-size-lg);
+  line-height: var(--line-height-lg);
+  letter-spacing: var(--letter-spacing-lg);
   transition: border-radius 260ms cubic-bezier(0.2, 0.8, 0.2, 1);
-}
-
-[data-slot="bubble"] > [data-slot="bubble-content"] .rich {
-  font-size: 15px;
-  line-height: 24px;
-  letter-spacing: normal;
 }
 
 [data-slot="bubble"]:has([data-component="chat-attachments"]):not(

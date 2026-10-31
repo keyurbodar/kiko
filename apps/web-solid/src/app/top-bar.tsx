@@ -22,7 +22,7 @@ const LONG_OFFLINE_MS = 10_000
 
 const TITLE_FACES = 3
 
-const TITLE_FACE_PX = 22
+const TITLE_FACE_PX = 28
 
 function TitleFaces(props: { chatId: string }) {
   const slugs = () => chatSlugs(user.chat(props.chatId) ?? { roomId: props.chatId }, user.agents())
@@ -73,11 +73,14 @@ export function TopBar(props: { chatId: string | null; sidebarOpen: boolean; onT
       <Show when={!props.sidebarOpen}>
         <SidebarToggle open={false} onToggle={props.onToggleSidebar} class="top-bar-button" />
       </Show>
-      <div class="flex min-w-0 flex-1 items-center gap-2">
+      <div class="flex min-w-0 flex-1 items-center gap-2.5">
         <Show when={chatId()} keyed>
           {(id) => <TitleFaces chatId={id} />}
         </Show>
-        <h1 class="min-w-0 shrink truncate type-base font-semibold text-primary" data-component="top-bar-title">
+        <h1
+          class="min-w-0 shrink truncate text-[15px] leading-5 font-semibold tracking-[-0.15px] text-primary"
+          data-component="top-bar-title"
+        >
           {title()}
         </h1>
         <Show when={chatId()}>
@@ -114,7 +117,7 @@ export function TopBar(props: { chatId: string | null; sidebarOpen: boolean; onT
               if (id) toggleThreadDetails(id)
             }}
           >
-            <RemixIcon icon={InfoIcon} size={13} />
+            <RemixIcon icon={InfoIcon} size={14} />
           </button>
         </TooltipV2>
       </Show>
@@ -127,7 +130,7 @@ export function TopBar(props: { chatId: string | null; sidebarOpen: boolean; onT
             data-action="computer-watch"
             onClick={() => openViewer(watchTarget(chatId()))}
           >
-            <RemixIcon icon={MonitorIcon} size={14} />
+            <RemixIcon icon={MonitorIcon} size={16} />
           </button>
         </TooltipV2>
       </Show>
