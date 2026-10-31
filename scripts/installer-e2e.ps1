@@ -107,14 +107,10 @@ try {
   (Get-Item $versionFile).IsReadOnly = $true
   $broken = $next + '-broken'
   bun "$root\scripts\installer-e2e.ts" write $Assets $site $Port $broken
-  $outFile = Join-Path $env:RUNNER_TEMP 'kiko-broken-update.out'
-  $errorFile = Join-Path $env:RUNNER_TEMP 'kiko-broken-update.err'
-  $brokenRun = Start-Process -FilePath 'powershell' -PassThru -Wait -WindowStyle Hidden `
-    -ArgumentList @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', ('"' + (Join-Path $site 'install.ps1') + '"')) `
-    -RedirectStandardOutput $outFile -RedirectStandardError $errorFile
-  if ($brokenRun.ExitCode -eq 0) { Fail 'a broken update exited zero' }
-  $errorText = (Get-Content $errorFile -Raw -ErrorAction SilentlyContinue) + (Get-Content $outFile -Raw -ErrorAction SilentlyContinue)
-  if ($errorText -notmatch 'the update failed') { Fail "a broken update did not report the failure: $errorText" }
+  $brokenText = (& powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $site 'install.ps1') 2>&1 | Out-String)
+  $brokenCode = $LASTEXITCODE
+  if ($brokenCode -eq 0) { Fail 'a broken update exited zero' }
+  if ($brokenText -notmatch 'the update failed') { Fail "a broken update did not report the failure: $brokenText" }
   WaitFor { $null -ne (Get-Process -Name 'kiko' -ErrorAction SilentlyContinue) } 'kiko to run after a failed update'
   if ((Get-Content $versionFile -Raw).Trim() -ne $next) { Fail 'a broken update changed the installed version' }
   (Get-Item $versionFile).IsReadOnly = $false
