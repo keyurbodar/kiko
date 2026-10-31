@@ -77,15 +77,17 @@ try {
   bun "$root\scripts\installer-e2e.ts" write $Assets $site $Port $next
   & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $site 'install.ps1')
   if ($LASTEXITCODE -ne 0) { Fail "the update installer exited with $LASTEXITCODE" }
-  $old = $proc.Id
+  $oldApp = $proc.Id
   $oldCore = $core.ProcessId
-  WaitFor { $null -eq (Get-Process -Id $old -ErrorAction SilentlyContinue) } 'the old kiko to quit'
+  WaitFor { $null -eq (Get-Process -Id $oldApp -ErrorAction SilentlyContinue) } 'the old kiko to quit'
   WaitFor { $null -eq (Get-Process -Id $oldCore -ErrorAction SilentlyContinue) } 'the old kiko-core to quit'
-  WaitFor { @(Get-Process -Name 'kiko' -ErrorAction SilentlyContinue | Where-Object { $_.Id -ne $old }).Count -gt 0 } 'the updated kiko to start'
-  $proc = Get-Process -Name 'kiko' | Where-Object { $_.Id -ne $old } | Select-Object -First 1
   WaitFor {
-    $null -ne (Get-CimInstance Win32_Process -Filter "Name='kiko-core.exe'" | Where-Object { $_.ParentProcessId -eq $proc.Id })
-  } 'the updated kiko-core to run'
+    $script:core = Get-CimInstance Win32_Process -Filter "Name='kiko-core.exe'" |
+      Where-Object { $_.ParentProcessId -ne $oldApp -and (Get-Process -Id $_.ParentProcessId -ErrorAction SilentlyContinue).ProcessName -eq 'kiko' } |
+      Select-Object -First 1
+    $null -ne $script:core
+  } 'the updated kiko to run kiko-core'
+  $proc = Get-Process -Id $core.ParentProcessId
   bun "$root\scripts\installer-e2e.ts" status '\\.\pipe\kiko-driver'
   if ($LASTEXITCODE -ne 0) { Fail 'the driver pipe did not answer status after the update' }
   if ((Get-Content (Join-Path $app 'VERSION') -Raw).Trim() -ne $next) { Fail 'the update did not write the new version' }
