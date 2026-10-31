@@ -23,7 +23,7 @@ export function RemixIcon(props: RemixIconProps) {
         viewBox="0 0 300 300"
         width={own.size ?? 16}
         height={own.size ?? 16}
-          fill="currentColor"
+        fill="currentColor"
         {...rest}
         innerHTML={own.icon}
       />

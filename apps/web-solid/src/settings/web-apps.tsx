@@ -51,8 +51,8 @@ function Account(props: { state: Ready; busy: boolean; onConnect: () => void; on
             id="lakebed-account"
             description={
               <>
-                Approve code <span class="font-mono text-primary">{account().code}</span> on Lakebed. This page updates when
-                you do.
+                Approve code <span class="font-mono text-primary">{account().code}</span> on Lakebed. This page updates
+                when you do.
               </>
             }
           >
