@@ -35,6 +35,20 @@ describe("hello", () => {
     expect(hello.caps.background).toBe(true)
     expect(hello.driver?.browsers).toEqual([{ name: "chrome", state: "connected" }])
   })
+
+  it("decodes the desktop tool list a daemon reports", () => {
+    const hello = Schema.decodeUnknownSync(Hello)({
+      ...OLD,
+      desktop: {
+        version: "0.38.0",
+        tools: [{ name: "list_windows", description: "List windows", inputSchema: { type: "object" } }],
+      },
+    })
+
+    expect(hello.desktop?.version).toBe("0.38.0")
+    expect(hello.desktop?.tools[0]?.name).toBe("list_windows")
+    expect(hello.desktop?.tools[0]?.inputSchema).toEqual({ type: "object" })
+  })
 })
 
 describe("driver calls", () => {
@@ -43,7 +57,7 @@ describe("driver calls", () => {
       t: "call",
       id: "c1",
       op: "driver",
-      args: { method: "act", params: { window: "w-1", action: "press", ref: 4, mode: "background" } },
+      args: { method: "desktop.call", params: { name: "click", args: { x: 4, y: 8 } } },
       deadlineMs: 30_000,
     })
 

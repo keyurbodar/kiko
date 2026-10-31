@@ -1,6 +1,8 @@
 import * as Schema from "effect/Schema"
 import { BrowserStatus, DesktopInfo, Display, DriverCall, Permissions } from "./driver"
 
+export { Display }
+
 export const PROTOCOL = 1
 
 const Text = Schema.String
