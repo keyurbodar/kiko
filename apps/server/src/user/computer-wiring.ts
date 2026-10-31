@@ -14,10 +14,9 @@ import { MAX_DEADLINE_MS, type ComputerHub } from "../computer/hub"
 import { mintPairCode } from "../computer/pairing"
 import type { ComputerLinkResult, PcCallOutcome, PcReleased, PcTaken } from "../computer/types"
 import type { Env } from "../index"
-import type { Attachment } from "./socket-frames"
 import { subscribe } from "../owner/socket"
-import { frameStream } from "../computer/frames"
 import type { RequestId } from "../rpc/wire"
+import type { Attachment } from "./socket-frames"
 
 const missing = () => new NotFoundError({ resource: "computer", message: "there is no such computer" })
 
@@ -168,18 +167,8 @@ export class ComputerWiring {
     },
   )
 
-  readonly frames = Effect.fn("Computers.frames")(
-    { self: this },
-    function* (socket: WebSocket, requestId: RequestId, pcId: string) {
-      const row = yield* this.row(pcId)
-      subscribe(socket, { requestId, stream: frameStream(row.id), cursor: 0 })
-      this.hub.syncRelay(row.id, true)
-    },
-  )
-
   ended(stream: string): void {
-    if (stream.startsWith("pc:")) this.hub.syncRelay(stream.slice("pc:".length))
-    else if (stream.startsWith("term:")) this.hub.endTerminal(stream)
+    if (stream.startsWith("term:")) this.hub.endTerminal(stream)
   }
 
   readonly take = Effect.fn("Computers.take")({ self: this }, function* (socket: WebSocket, pcId: string) {
@@ -212,11 +201,6 @@ export class ComputerWiring {
       this.hub.input(row.id, this.hub.session(socket), events)
     },
   )
-
-  readonly ack = Effect.fn("Computers.ack")({ self: this }, function* (pcId: string, seq: number) {
-    const row = yield* this.row(pcId)
-    this.hub.ack(row.id, seq)
-  })
 
   readonly terminalList = Effect.fn("Terminals.list")({ self: this }, function* (pcId: string) {
     const row = yield* this.row(pcId)

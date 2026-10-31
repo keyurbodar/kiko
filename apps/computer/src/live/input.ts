@@ -12,7 +12,6 @@ const BUTTONS = new Map<number, number>([
 
 export type Injected = {
   apply(events: readonly InputEvent[]): void
-  cursor(): { x: number; y: number } | null
   screen(): Screen | null
   release(): void
 }
@@ -49,16 +48,6 @@ export function createInput(screen: Screen | null, gate: Gate): Injected | null 
           native.wheel(Math.round(event.dy), false)
           if (event.dx) native.wheel(Math.round(event.dx), true)
         }
-      }
-    },
-    cursor() {
-      const at = native.cursor()
-      if (!at) return null
-      const width = area?.width ?? 1
-      const height = area?.height ?? 1
-      return {
-        x: Math.min(1, Math.max(0, (at.x - (screen?.originX ?? 0)) / width)),
-        y: Math.min(1, Math.max(0, (at.y - (screen?.originY ?? 0)) / height)),
       }
     },
     screen() {
