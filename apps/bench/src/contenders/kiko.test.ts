@@ -2,6 +2,8 @@ import { execFileSync } from "node:child_process"
 import { join } from "node:path"
 import type { DriverCall } from "@kiko/computer/driver"
 import type { Driver } from "@kiko/computer-daemon/src/driver.ts"
+import { TerminalManager } from "@kiko/computer-daemon/src/terminal/manager.ts"
+import type { PtyInput } from "@kiko/computer-daemon/src/terminal/pty.ts"
 import { afterEach, describe, expect, it } from "vitest"
 import { createMachine, removeMachine } from "../machine"
 import type { Machine, ToolSpec } from "../types"
@@ -16,6 +18,17 @@ afterEach(async () => {
 
 const serverToolsPath = join(import.meta.dirname, "../../../server/src/agent/computer/tools.ts")
 
+const COMPUTER_NAMES = ["computer_shell", "computer_read", "computer_write"]
+
+const TERMINAL_NAMES = [
+  "terminal_open",
+  "terminal_send",
+  "terminal_read",
+  "terminal_wait",
+  "terminal_list",
+  "terminal_close",
+]
+
 function serverTools(): ToolSpec[] {
   const script = [
     `const { computerExtension } = await import(${JSON.stringify(serverToolsPath)})`,
@@ -25,6 +38,40 @@ function serverTools(): ToolSpec[] {
   return JSON.parse(execFileSync("bun", ["-e", script], { encoding: "utf8" })) as ToolSpec[]
 }
 
+const byName = (tools: readonly ToolSpec[], names: readonly string[]): ToolSpec[] =>
+  tools.filter((tool) => names.includes(tool.name))
+
+function harness(): { manager: TerminalManager; writes: string[]; emit(text: string): void } {
+  const writes: string[] = []
+  let input: PtyInput | undefined
+  const manager = new TerminalManager({
+    spawn: (created) => {
+      input = created
+      return {
+        pid: 4242,
+        write: (data) => writes.push(data),
+        resize: () => undefined,
+        kill: () => undefined,
+        close: () => undefined,
+        exited: new Promise<number | null>(() => undefined),
+      }
+    },
+    screen: () => {
+      let value = ""
+      return {
+        write: (text, done) => {
+          value += text
+          done?.()
+        },
+        text: () => value,
+        resize: () => undefined,
+        dispose: () => undefined,
+      }
+    },
+  })
+  return { manager, writes, emit: (text) => input?.onData(new TextEncoder().encode(text)) }
+}
+
 describe("kiko tool schemas", () => {
   it("matches the server's name, description and parameters", () => {
     const wanted = new Set(KIKO_TOOLS.map((tool) => tool.name))
@@ -32,12 +79,52 @@ describe("kiko tool schemas", () => {
     expect(fromServer).toEqual([...KIKO_TOOLS])
   })
 
-  it("offers the shell and file tools without a driver", async () => {
+  it("carries every computer and terminal tool the server offers", () => {
+    expect(byName(serverTools(), COMPUTER_NAMES).map((tool) => tool.name)).toEqual(COMPUTER_NAMES)
+    expect(byName(serverTools(), TERMINAL_NAMES).map((tool) => tool.name)).toEqual(TERMINAL_NAMES)
+    expect(byName(KIKO_TOOLS, COMPUTER_NAMES).map((tool) => tool.name)).toEqual(COMPUTER_NAMES)
+    expect(byName(KIKO_TOOLS, TERMINAL_NAMES).map((tool) => tool.name)).toEqual(TERMINAL_NAMES)
+  })
+
+  it("offers the shell, file and terminal tools without a driver", async () => {
     const machine = await createMachine("test-kiko")
     machines.push(machine)
     const contender = kikoContender()
     await contender.start(machine, "foreground")
-    expect(contender.tools().map((tool) => tool.name)).toEqual(["computer_shell", "computer_read", "computer_write"])
+    expect(contender.tools().map((tool) => tool.name)).toEqual([
+      "computer_shell",
+      "computer_read",
+      "computer_write",
+      ...TERMINAL_NAMES,
+    ])
+    await contender.stop()
+  })
+
+  it("runs terminal sessions through the real terminal manager", async () => {
+    const machine = await createMachine("test-kiko")
+    machines.push(machine)
+    const { manager, writes, emit } = harness()
+    const contender = kikoContender({ terminals: manager })
+    await contender.start(machine, "foreground")
+    const signal = new AbortController().signal
+    const opened = await contender.call("terminal_open", { name: "repl" }, signal)
+    expect(opened.isError).toBe(false)
+    const id = /opened repl \((.+)\) running/.exec(opened.text)?.[1] ?? ""
+    expect(id).not.toBe("")
+    const sent = await contender.call("terminal_send", { id, text: "echo hi", keys: ["enter"] }, signal)
+    expect(sent.isError).toBe(false)
+    expect(writes).toEqual(["echo hi\r"])
+    emit("hi\r\n")
+    const read = await contender.call("terminal_read", { id, mode: "tail" }, signal)
+    expect(read.isError).toBe(false)
+    expect(read.text).toContain("hi")
+    const waited = await contender.call("terminal_wait", { id, until: "hi" }, signal)
+    expect(waited.text).toContain("found")
+    const listed = await contender.call("terminal_list", {}, signal)
+    expect(listed.text).toContain("repl")
+    expect(listed.text).toContain(id)
+    const closed = await contender.call("terminal_close", { id }, signal)
+    expect(closed.text).toContain("closed")
     await contender.stop()
   })
 
@@ -103,6 +190,7 @@ describe("kiko tool schemas", () => {
       "computer_shell",
       "computer_read",
       "computer_write",
+      ...TERMINAL_NAMES,
       "desktop_list_windows",
       "desktop_get_window_state",
     ])

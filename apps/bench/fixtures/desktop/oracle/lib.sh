@@ -13,6 +13,10 @@ window_named() {
   return 1
 }
 
+window_origin() {
+  eval "$(xdotool getwindowgeometry --shell "$1")"
+}
+
 wait_state() {
   local file=$1 filter=$2 tries=0
   while [ "$tries" -lt 200 ]; do

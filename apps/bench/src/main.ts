@@ -4,6 +4,7 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises"
 import { homedir, tmpdir } from "node:os"
 import { basename, dirname, join, resolve } from "node:path"
 import { CONTENDERS } from "./contenders"
+import { inShard, planJobs, readConfig, type BenchConfig } from "./config"
 import { appendRow, escape, readRows, writeRows, type Row } from "./ledger"
 import { classifyFailure, runLoop, SYSTEM_PROMPT_SHA, type LoopResult, type Outcome, type Trajectory } from "./loop"
 import { clearGitHookEnv, createMachine, localOs, removeMachine } from "./machine"
@@ -11,7 +12,7 @@ import { ModelClient } from "./model"
 import { appendIndex, harvestArtifacts } from "./pull"
 import { renderReport } from "./report/render"
 import { TASKS } from "./tasks"
-import type { Background, Condition, Contender, Machine, ModelSpec, Os, Task, Verdict } from "./types"
+import type { Background, Condition, Contender, Machine, ModelSpec, Os, Task, Track, Verdict } from "./types"
 
 const ZERO_BACKGROUND: Background = { focusSteals: 0, pointerMoves: 0, keysSwallowed: 0, windowsRaised: 0 }
 const PLANS = join(homedir(), "kiko-plans", "computer-use-2026-10-31", "results")
@@ -32,12 +33,14 @@ const VALUE_FLAGS = new Set([
   "condition",
   "seed",
   "machine",
+  "env",
   "task",
   "runs",
   "out",
   "results",
   "effort",
   "config",
+  "shard",
 ])
 
 interface Parsed {
@@ -128,7 +131,11 @@ function selectTasks(pattern: string, track: string | undefined, os: Os): Task[]
   return TASKS.filter((task) => matches(task, pattern) && task.os.includes(os) && (!track || task.track === track))
 }
 
-const runnable = (task: Task): boolean => task.needs.every((need) => need === "network")
+function needDisplay(tasks: readonly Task[]): void {
+  if (process.platform !== "linux") return
+  if (!tasks.some((task) => task.needs.includes("display"))) return
+  if (!process.env.DISPLAY) throw new Error("these tasks need a display: run them under xvfb-run with DISPLAY set")
+}
 
 const modelSpec = (id: string): ModelSpec => MODELS[id] ?? { id, vision: false }
 
@@ -367,75 +374,76 @@ function rowFor(
   }
 }
 
-interface CiConfig {
-  readonly tracks?: readonly string[]
-  readonly contenders?: readonly string[]
-  readonly models?: readonly string[]
-  readonly reps?: number
-  readonly conditions?: readonly Condition[]
-  readonly seed?: number
-  readonly pattern?: string
-  readonly validateRuns?: number
+const configPath = (flags: Parsed["flags"]): string =>
+  resolve(flagString(flags, "config") ?? join(import.meta.dirname, "..", "ci.json"))
+
+interface Pair {
+  readonly contender: Contender
+  readonly model: ModelSpec
 }
 
-const stringList = (value: unknown): string[] | undefined =>
-  Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : undefined
-
-function readCi(flags: Parsed["flags"]): CiConfig {
-  const path = resolve(flagString(flags, "config") ?? join(import.meta.dirname, "..", "ci.json"))
-  if (!existsSync(path)) throw new Error(`no CI config at ${path}`)
-  const raw = JSON.parse(readFileSync(path, "utf8")) as Record<string, unknown>
-  const conditions = stringList(raw.conditions)?.filter(
-    (value): value is Condition => value === "foreground" || value === "background",
-  )
-  const validate =
-    typeof raw.validate === "object" && raw.validate !== null ? (raw.validate as Record<string, unknown>) : {}
-  return {
-    ...(stringList(raw.tracks) ? { tracks: stringList(raw.tracks) } : {}),
-    ...(stringList(raw.contenders) ? { contenders: stringList(raw.contenders) } : {}),
-    ...(stringList(raw.models) ? { models: stringList(raw.models) } : {}),
-    ...(conditions ? { conditions } : {}),
-    ...(typeof raw.reps === "number" ? { reps: raw.reps } : {}),
-    ...(typeof raw.seed === "number" ? { seed: raw.seed } : {}),
-    ...(typeof raw.pattern === "string" ? { pattern: raw.pattern } : {}),
-    ...(typeof validate.runs === "number" ? { validateRuns: validate.runs } : {}),
-  }
+interface TrackRun {
+  readonly track: Track
+  readonly pairs: readonly Pair[]
 }
 
 interface RunPlan {
-  readonly tracks: readonly (string | undefined)[]
+  readonly tracks: readonly TrackRun[]
   readonly conditions: readonly Condition[]
-  readonly contenders: readonly Contender[]
-  readonly models: readonly ModelSpec[]
   readonly reps: number
   readonly seed: number
   readonly pattern: string
+  readonly shard: string
 }
 
-function buildPlan(flags: Parsed["flags"], ci: CiConfig | undefined): RunPlan {
-  const track = flagString(flags, "track")
-  const condition = flagString(flags, "condition") as Condition | undefined
-  const contenderNames = splitFlag(flags, "contender", "kiko")
-  const names = ci?.contenders && !flags.contender ? [...ci.contenders] : contenderNames
-  const contenders = names.map((name) => {
-    const make = CONTENDERS[name]
-    if (!make) throw new Error(`there is no contender called ${name}; known: ${Object.keys(CONTENDERS).join(", ")}`)
-    return make()
+function contenderFor(name: string): Contender {
+  const make = CONTENDERS[name]
+  if (!make) throw new Error(`there is no contender called ${name}; known: ${Object.keys(CONTENDERS).join(", ")}`)
+  return make()
+}
+
+function pairsFor(flags: Parsed["flags"], config: BenchConfig | undefined, track: Track): Pair[] {
+  const names = flagString(flags, "contender") ? splitFlag(flags, "contender", "") : []
+  const models = flagString(flags, "model") ? splitFlag(flags, "model", "") : []
+  const configured = config?.tracks.find((entry) => entry.track === track)
+  if (!configured) {
+    const picked = names.length > 0 ? names : ["kiko"]
+    const used = models.length > 0 ? models : ["beam-free"]
+    return picked.flatMap((name) => used.map((model) => ({ contender: contenderFor(name), model: modelSpec(model) })))
+  }
+  const picked = names.length > 0 ? names : configured.contenders.map((entry) => entry.name)
+  return picked.flatMap((name) => {
+    const entry = configured.contenders.find((candidate) => candidate.name === name)
+    const used = models.length > 0 ? models : entry?.models
+    if (!used || used.length === 0) throw new Error(`no models are configured for ${name} on the ${track} track`)
+    return used.map((model) => ({ contender: contenderFor(name), model: modelSpec(model) }))
   })
-  const models = (ci?.models && !flags.model ? ci.models : splitFlag(flags, "model", "beam-free")).map(modelSpec)
+}
+
+function buildPlan(flags: Parsed["flags"], config: BenchConfig | undefined, os: Os): RunPlan {
+  const wanted = flagString(flags, "track") as Track | undefined
+  const fromConfig = config?.tracks.map((entry) => entry.track) ?? []
+  const candidates: Track[] = wanted ? [wanted] : fromConfig.length > 0 ? fromConfig : ["terminal"]
+  const runsHere = (track: Track): boolean => {
+    if (!config) return true
+    return config.tracks.find((entry) => entry.track === track)?.os.includes(os) ?? false
+  }
+  const tracks = candidates.filter(runsHere)
+  if (wanted && tracks.length === 0) throw new Error(`the ${wanted} track does not run on ${os}`)
+  const condition = flagString(flags, "condition") as Condition | undefined
   return {
-    tracks: ci?.tracks && !track ? ci.tracks : [track],
-    conditions: ci?.conditions && !condition ? ci.conditions : [condition ?? "foreground"],
-    contenders,
-    models,
-    reps: Number(flagString(flags, "reps") ?? ci?.reps ?? 1),
-    seed: Number(flagString(flags, "seed") ?? ci?.seed ?? 1),
-    pattern: flagString(flags, "task") ?? ci?.pattern ?? "*",
+    tracks: tracks.map((track) => ({ track, pairs: pairsFor(flags, config, track) })),
+    conditions: config && !condition ? config.conditions : [condition ?? "foreground"],
+    reps: Number(flagString(flags, "reps") ?? config?.reps ?? 1),
+    seed: Number(flagString(flags, "seed") ?? config?.seed ?? 1),
+    pattern: flagString(flags, "task") ?? config?.pattern ?? "*",
+    shard: flagString(flags, "shard") ?? "1/1",
   }
 }
 
 interface GroupInput {
   readonly tasks: readonly Task[]
+  readonly track: TrackRun
   readonly plan: RunPlan
   readonly condition: Condition
   readonly dir: string
@@ -453,35 +461,33 @@ async function runGroup(input: GroupInput): Promise<{ total: number; passed: num
   let total = 0
   let passed = 0
   for (const task of input.tasks) {
-    for (const contender of input.plan.contenders) {
+    for (const { contender, model } of input.track.pairs) {
       if (task.contenders && !task.contenders.includes(contender.name)) continue
-      for (const model of input.plan.models) {
-        for (let rep = 1; rep <= input.plan.reps; rep++) {
-          const trialId = `${task.id}__${contender.name}__${model.id}__${input.condition}__r${rep}`
-          const output = await runTrial({
-            task,
-            contender,
-            model,
-            client: input.client,
-            condition: input.condition,
-            seed: input.plan.seed,
-            rep,
-            runId: input.runId,
-            trialId,
-            resultsDir: input.dir,
-            machineId: input.machineId,
-            os: input.os,
-            commit: input.commit,
-            benchVersion: input.version,
-            ...(input.effort ? { effort: input.effort } : {}),
-          })
-          await appendRow(input.path, output.row)
-          total++
-          if (output.row.pass === 1) passed++
-          const checks = `${output.row.checks_passed}/${output.row.checks_total}`
-          const label = output.row.pass === 1 ? "PASS" : "FAIL"
-          console.log(`${label} ${trialId} ${output.row.outcome} ${checks} ${output.row.fail_class}`.trim())
-        }
+      for (let rep = 1; rep <= input.plan.reps; rep++) {
+        const trialId = `${task.id}__${contender.name}__${model.id}__${input.condition}__r${rep}`
+        const output = await runTrial({
+          task,
+          contender,
+          model,
+          client: input.client,
+          condition: input.condition,
+          seed: input.plan.seed,
+          rep,
+          runId: input.runId,
+          trialId,
+          resultsDir: input.dir,
+          machineId: input.machineId,
+          os: input.os,
+          commit: input.commit,
+          benchVersion: input.version,
+          ...(input.effort ? { effort: input.effort } : {}),
+        })
+        await appendRow(input.path, output.row)
+        total++
+        if (output.row.pass === 1) passed++
+        const checks = `${output.row.checks_passed}/${output.row.checks_total}`
+        const label = output.row.pass === 1 ? "PASS" : "FAIL"
+        console.log(`${label} ${trialId} ${output.row.outcome} ${checks} ${output.row.fail_class}`.trim())
       }
     }
   }
@@ -489,9 +495,9 @@ async function runGroup(input: GroupInput): Promise<{ total: number; passed: num
 }
 
 async function run(flags: Parsed["flags"]): Promise<void> {
-  const plan = buildPlan(flags, flags.ci ? readCi(flags) : undefined)
-  const dir = resultsDir(flags)
   const os = localOs()
+  const plan = buildPlan(flags, flags.ci ? readConfig(configPath(flags)) : undefined, os)
+  const dir = resultsDir(flags)
   const machineId = flagString(flags, "machine") ?? `local-${os}`
   const sentinel = existsSync(join(import.meta.dirname, "sentinel", "index.ts"))
   if (plan.conditions.includes("background") && !sentinel)
@@ -506,10 +512,13 @@ async function run(flags: Parsed["flags"]): Promise<void> {
   let total = 0
   let passed = 0
   for (const track of plan.tracks) {
-    const tasks = selectTasks(plan.pattern, track, os).filter(runnable)
+    const tasks = selectTasks(plan.pattern, track.track, os).filter((_, index) => inShard(index, plan.shard))
+    if (tasks.length === 0) continue
+    needDisplay(tasks)
     for (const condition of plan.conditions) {
       const group = await runGroup({
         tasks,
+        track,
         plan,
         condition,
         dir,
@@ -564,7 +573,7 @@ const validateRow = (task: Task, os: Os, machineId: string, kind: string, pass: 
 
 const runCount = (flags: Parsed["flags"]): number => {
   const fromFlag = flagString(flags, "runs")
-  return fromFlag === undefined ? (readCi(flags).validateRuns ?? 1) : Number(fromFlag)
+  return fromFlag === undefined ? readConfig(configPath(flags)).validateRuns : Number(fromFlag)
 }
 
 async function validate(flags: Parsed["flags"]): Promise<void> {
@@ -649,12 +658,47 @@ async function pull(runId: string): Promise<void> {
   }
 }
 
+function groupByKind<T extends { kind: string }>(items: readonly T[]): Record<string, T[]> {
+  return {
+    host: items.filter((item) => item.kind === "host"),
+    container: items.filter((item) => item.kind === "container"),
+    vm: items.filter((item) => item.kind === "vm"),
+  }
+}
+
+function plan(flags: Parsed["flags"]): void {
+  const config = readConfig(configPath(flags))
+  if (flags.validate) {
+    const envs = config.envs.map((env) => ({
+      env: env.id,
+      os: env.os,
+      machine: env.machine,
+      runner: env.runner,
+      kind: env.kind,
+      display: env.display,
+      ...(env.image ? { image: env.image } : {}),
+    }))
+    console.log(JSON.stringify(groupByKind(envs)))
+    return
+  }
+  const wanted = splitFlag(flags, "track", "")
+  const models = splitFlag(flags, "model", "")
+  const envs = splitFlag(flags, "env", "")
+  const tracks = wanted.length > 0 ? config.tracks.filter((track) => wanted.includes(track.track)) : config.tracks
+  const jobs = planJobs({ ...config, tracks }, TASKS).filter(
+    (job) => (models.length === 0 || models.includes(job.model)) && (envs.length === 0 || envs.includes(job.env)),
+  )
+  console.log(JSON.stringify(groupByKind(jobs)))
+}
+
 async function main(): Promise<void> {
   clearGitHookEnv()
   const parsed = parseArgs(process.argv.slice(2))
   switch (parsed.command) {
     case "list":
       return list(parsed.flags)
+    case "plan":
+      return plan(parsed.flags)
     case "validate":
       return validate(parsed.flags)
     case "run":
@@ -670,6 +714,7 @@ async function main(): Promise<void> {
       console.log(
         [
           "bun bench list [--track t] [--os o]",
+          "bun bench plan [--config apps/bench/baseline.json]",
           "bun bench validate --task <glob> [--runs 10]",
           "bun bench run --contender kiko --model beam-free --track terminal --reps 5 --condition foreground --seed 1 --machine <id>",
           "bun bench report results/*.tsv --out reports/<name>.html",
