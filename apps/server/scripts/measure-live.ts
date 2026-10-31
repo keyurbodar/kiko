@@ -297,6 +297,26 @@ async function main(): Promise<void> {
     if (shots) await mkdir(shots, { recursive: true })
     const noRtc = process.argv.includes("--no-rtc")
 
+    const walkFirstRun = async (page: Page) => {
+      for (let round = 0; round < 3; round++) {
+        const frame = page.locator('[data-component="first-run"]')
+        await frame.waitFor({ state: "visible", timeout: 6_000 }).catch(() => {})
+        if ((await frame.count()) === 0) return
+        const skip = page.locator('[data-action="skip-first-run"]')
+        if ((await skip.count()) > 0) await skip.click()
+        await page
+          .waitForSelector('[data-action="open-kiko"], [data-action="computer-watch"]', {
+            state: "visible",
+            timeout: 30_000,
+          })
+          .catch(() => {})
+        const done = page.locator('[data-action="open-kiko"]')
+        if ((await done.count()) > 0) await done.click()
+        await frame.waitFor({ state: "detached", timeout: 15_000 }).catch(() => {})
+        if ((await frame.count()) === 0) return
+      }
+    }
+
     const newViewer = async () => {
       const context = await viewer.newContext()
       if (noRtc)
@@ -316,20 +336,9 @@ async function main(): Promise<void> {
         await page.waitForSelector('[data-action="computer-watch"], [data-action="skip-first-run"]', {
           timeout: 60_000,
         })
-        const skip = page.locator('[data-action="skip-first-run"]')
-        if ((await skip.count()) > 0) await skip.click()
-        await page
-          .waitForSelector('[data-action="open-kiko"], [data-action="computer-watch"]', {
-            state: "visible",
-            timeout: 30_000,
-          })
-          .catch(() => {})
-        const done = page.locator('[data-action="open-kiko"]')
-        if ((await done.count()) > 0) await done.click()
-        await page.waitForSelector('[data-action="computer-watch"]', { timeout: 60_000 })
-        await page
-          .waitForSelector('[data-component="first-run"]', { state: "detached", timeout: 30_000 })
-          .catch(() => {})
+        await wait(1_500)
+        await walkFirstRun(page)
+        await page.click('[data-action="computer-watch"]', { trial: true })
       } catch (error) {
         if (shots) {
           await page.screenshot({ path: join(shots, "failure.png") }).catch(() => {})
