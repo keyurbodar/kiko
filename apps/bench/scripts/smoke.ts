@@ -23,6 +23,7 @@ interface Outcome {
 interface ConditionResult {
   readonly version: string
   readonly tools: number
+  readonly toolNames: readonly string[]
   readonly outcome: Outcome
   readonly focusBefore: string
   readonly focusAfter: string
@@ -40,6 +41,7 @@ interface Row {
   readonly focusBefore: string
   readonly focusAfter: string
   readonly tools: number
+  readonly toolNames: string
   readonly detail: string
 }
 
@@ -232,7 +234,9 @@ async function runCondition(
   const contender = createContender(name)
   await contender.start(m, condition)
   try {
-    const tools = contender.tools().length
+    const specs = contender.tools()
+    const tools = specs.length
+    const toolNames = specs.map((tool) => tool.name)
     const version = contender.version
     if (name === "agent-browser") {
       if (condition === "background") await focusFor(m, f, condition)
@@ -240,6 +244,7 @@ async function runCondition(
       return {
         version,
         tools,
+        toolNames,
         outcome,
         focusBefore: outcome.focusBefore ?? "",
         focusAfter: outcome.focusAfter ?? "",
@@ -251,7 +256,7 @@ async function runCondition(
     const outcome =
       name === "cua-driver" ? await cuaAction(contender, f, typed) : await desktopAction(contender, f, typed)
     const after = await frontmost(m)
-    return { version, tools, outcome, focusBefore: before, focusAfter: after }
+    return { version, tools, toolNames, outcome, focusBefore: before, focusAfter: after }
   } finally {
     await contender.stop()
   }
@@ -277,6 +282,7 @@ function buildRow(m: Machine, name: string, f: Fixture, foreground: ConditionRes
     focusBefore: background.focusBefore,
     focusAfter: background.focusAfter,
     tools: foreground.tools,
+    toolNames: foreground.toolNames.join(","),
     detail: `foreground: ${foreground.outcome.detail}; background: ${background.outcome.detail}`,
   }
 }
@@ -310,6 +316,7 @@ async function main(): Promise<void> {
       focusBefore: "",
       focusAfter: "",
       tools: 0,
+      toolNames: "",
       detail: error instanceof Error ? error.message : String(error),
     }
     await writeRow(options.out, row)
