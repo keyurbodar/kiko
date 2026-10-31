@@ -716,15 +716,19 @@ fn focus_text_area(driver: &mut MacDriver, window: &Window) {
 fn make_key(window: &Window) -> bool {
     let id = window.id.parse().expect("a numeric window id");
     let pid = window.pid as i32;
-    let application = ax::application(pid);
-    let Some(element) = window::ax_element_for(id, pid) else {
-        return false;
-    };
-    ax::set(&application, ax::FOCUSED_WINDOW, &element);
-    wait_for(SETTLE, || {
-        window::focused_window_id(pid).filter(|focused| *focused == id)
-    })
-    .is_some()
+    let before = window::focused_window_id(pid);
+    let made = crate::worker::make_key_window(pid, id).is_ok();
+    let after = window::focused_window_id(pid);
+    if !made || after != Some(id) {
+        let focused = window::ax_element_for(id, pid)
+            .map(|element| ax::flag(&ax::attribute(&element, ax::FOCUSED)));
+        let main = window::ax_element_for(id, pid)
+            .map(|element| ax::flag(&ax::attribute(&element, ax::MAIN)));
+        println!(
+            "make_key {id}: before={before:?} after={after:?} ok={made} focused={focused:?} main={main:?}"
+        );
+    }
+    made
 }
 
 fn document_text(driver: &mut MacDriver, window: &Window) -> Option<String> {

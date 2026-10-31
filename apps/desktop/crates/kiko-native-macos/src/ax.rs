@@ -25,6 +25,7 @@ pub const CHILDREN: &str = "AXChildren";
 pub const WINDOWS: &str = "AXWindows";
 pub const MINIMIZED: &str = "AXMinimized";
 pub const FOCUSED_WINDOW: &str = "AXFocusedWindow";
+pub const MAIN: &str = "AXMain";
 pub const SELECTED_TEXT: &str = "AXSelectedText";
 pub const PARENT: &str = "AXParent";
 pub const VISIBLE_CHARACTER_RANGE: &str = "AXVisibleCharacterRange";

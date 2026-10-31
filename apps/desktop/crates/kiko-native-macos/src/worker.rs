@@ -18,7 +18,8 @@ const ORDER_SETTLE: Duration = Duration::from_millis(400);
 const ORDER_POLL: Duration = Duration::from_millis(40);
 const ACTIVATE_WAIT: Duration = Duration::from_millis(1_500);
 const ACTIVATE_POLL: Duration = Duration::from_millis(50);
-const FOCUS_WAIT: Duration = Duration::from_millis(500);
+const FOCUS_SETTLE: Duration = Duration::from_millis(250);
+const FOCUS_WAIT: Duration = Duration::from_millis(1_500);
 const MAX_REF_WINDOWS: usize = 16;
 const MAX_REF_ELEMENTS: usize = MAX_REF_WINDOWS * kiko_driver::MAX_NODES;
 
@@ -274,7 +275,7 @@ fn bring_forward(pid: i32, id: u32) -> kiko_driver::Result<()> {
     Ok(())
 }
 
-fn make_key_window(pid: i32, id: u32) -> kiko_driver::Result<()> {
+pub(crate) fn make_key_window(pid: i32, id: u32) -> kiko_driver::Result<()> {
     let element = window::ax_element_for(id, pid).ok_or_else(|| {
         DriverError::new(
             ErrorCode::NotFound,
@@ -282,12 +283,20 @@ fn make_key_window(pid: i32, id: u32) -> kiko_driver::Result<()> {
         )
     })?;
     let application = ax::application(pid);
-    let error = ax::set(&application, ax::FOCUSED_WINDOW, &element);
-    if error == AXError::Success
-        && wait_until(FOCUS_WAIT, || {
-            is_focused_window(&application, &element).then_some(())
-        })
-        .is_some()
+    ax::set(&application, ax::FOCUSED_WINDOW, &element);
+    if wait_until(FOCUS_SETTLE, || {
+        is_focused_window(&application, &element).then_some(())
+    })
+    .is_none()
+    {
+        ax::perform(&element, "AXRaise");
+        ax::set_flag(&element, ax::MAIN, true);
+        ax::set_flag(&element, ax::FOCUSED, true);
+    }
+    if wait_until(FOCUS_WAIT, || {
+        is_focused_window(&application, &element).then_some(())
+    })
+    .is_some()
     {
         return Ok(());
     }
