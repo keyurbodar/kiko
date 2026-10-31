@@ -1,0 +1,8 @@
+{
+  "tracks": ["terminal"],
+  "contenders": ["kiko", "baseline-shell"],
+  "models": ["beam-free"],
+  "reps": 2,
+  "conditions": ["foreground"],
+  "seed": 1
+}
