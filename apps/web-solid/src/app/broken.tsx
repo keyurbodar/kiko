@@ -28,23 +28,23 @@ export function Broken(props: { error: unknown; reset: () => void }) {
   })
   return (
     <div class="grid min-h-dvh place-items-center bg-chrome p-6" role="alert" data-component="crash">
-      <div class="flex w-full min-w-0 max-w-[480px] flex-col items-center gap-5 rounded-3xl bg-elevated px-6 pt-8 pb-6 text-center shadow-[var(--popup-shadow)] sm:px-8">
+      <div class="flex w-full min-w-0 max-w-[28rem] flex-col items-center gap-4 rounded-xl bg-elevated px-6 pt-8 pb-6 text-center shadow-[0_0_0_1px_var(--stroke-secondary),var(--box-shadow-dialog)]">
         <img
           src={cachedUri(KIKO, { flavour: "fubuki", mood: "dizzy" })}
           alt=""
-          width={48}
-          height={48}
+          width={40}
+          height={40}
           draggable={false}
         />
-        <div class="flex flex-col gap-2">
-          <h1 class="type-3xl text-primary">Something broke in this view</h1>
+        <div class="flex flex-col gap-1.5">
+          <h1 class="type-2xl font-semibold text-primary">Something broke in this view</h1>
           <p class="type-base text-secondary">Your chats are safe. Try again, or reload Kiko.</p>
         </div>
         <div class="flex w-full flex-col gap-2 sm:w-auto sm:flex-row-reverse sm:justify-center">
-          <Button variant="primary" size="xl" data-action="crash-retry" onClick={props.reset}>
+          <Button variant="primary" size="lg" data-action="crash-retry" onClick={props.reset}>
             Try again
           </Button>
-          <Button variant="ghost" size="xl" data-action="crash-reload" onClick={() => location.reload()}>
+          <Button variant="ghost" size="lg" data-action="crash-reload" onClick={() => location.reload()}>
             Reload
           </Button>
         </div>
@@ -55,7 +55,7 @@ export function Broken(props: { error: unknown; reset: () => void }) {
           </summary>
           <div class="mt-2 flex flex-col gap-2">
             <pre
-              class="max-h-48 overflow-auto rounded-xl bg-editor p-3 type-code text-xs leading-[18px] [overflow-wrap:anywhere] whitespace-pre-wrap text-secondary"
+              class="max-h-48 overflow-auto rounded-lg bg-editor p-3 shadow-[inset_0_0_0_1px_var(--stroke-tertiary)] type-code text-xs leading-[18px] [overflow-wrap:anywhere] whitespace-pre-wrap text-secondary"
               data-component="crash-stack"
             >
               {details()}
