@@ -341,6 +341,19 @@ async function typeInto(driver: Driver, window: CuaWindow, typed: string): Promi
     throw new Error(`the window does not show ${typed}: ${textOf(after).slice(0, 400)}`)
 }
 
+async function waitForTools(driver: Driver): Promise<{ record: Record<string, unknown>; names: string[] }> {
+  const deadline = Date.now() + START_TIMEOUT_MS
+  for (;;) {
+    const info = await driver.call("desktop.tools")
+    const record = isRecord(info) ? info : {}
+    const tools = Array.isArray(record.tools) ? record.tools.filter(isRecord) : []
+    const names = tools.flatMap((tool) => (typeof tool.name === "string" ? [tool.name] : []))
+    if (names.length > 0) return { record, names }
+    if (Date.now() >= deadline) throw new Error(`the desktop engine listed no tools: ${JSON.stringify(record)}`)
+    await Bun.sleep(POLL_MS)
+  }
+}
+
 async function main(): Promise<void> {
   const kiko = required("KIKO_BIN")
   const cua = required("KIKO_CUA")
@@ -363,11 +376,7 @@ async function main(): Promise<void> {
   let fixture: Fixture | null = null
   try {
     driver = await connectDriver(socketPath(app))
-    const info = await driver.call("desktop.tools")
-    const record = isRecord(info) ? info : {}
-    const tools = Array.isArray(record.tools) ? record.tools.filter(isRecord) : []
-    const names = tools.flatMap((tool) => (typeof tool.name === "string" ? [tool.name] : []))
-    if (names.length === 0) throw new Error("the desktop engine listed no tools")
+    const { record, names } = await waitForTools(driver)
 
     fixture = await startFixture(dir)
     const window = await locateWindow(driver, fixture.title)

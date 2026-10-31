@@ -25,7 +25,18 @@ const DENIED = {
   permissions: { ...STATUS.permissions, accessibility: "denied" },
 } as const
 
+const TOOLS = {
+  version: "0.38.0",
+  tools: [{ name: "list_windows", description: "List the windows", inputSchema: { type: "object" } }],
+} as const
+
 const quiet = () => ({ info() {}, warn() {}, error() {} })
+
+function reply(request: Request, status: unknown): Reply {
+  if (request.method === "status") return { ok: true, value: status }
+  if (request.method === "desktop.tools") return { ok: true, value: TOOLS }
+  return { ok: true, value: [] }
+}
 
 const deadline = () => new Deadline(5_000)
 
@@ -153,9 +164,9 @@ describe("driver client", () => {
 
   it("maps a background_unavailable error to unsupported with the prefix", async () => {
     const fake = await fakeDriver((request) =>
-      request.method === "status"
-        ? { ok: true, value: STATUS }
-        : { ok: false, error: { code: "background_unavailable", message: "the window is covered" } },
+      request.method === "desktop.call"
+        ? { ok: false, error: { code: "background_unavailable", message: "the window is covered" } }
+        : reply(request, STATUS),
     )
     const changes = watcher()
     let driver: Driver | null = null
@@ -177,10 +188,7 @@ describe("driver client", () => {
   })
 
   it("reports background work only when accessibility is granted", async () => {
-    const fake = await fakeDriver((request) => ({
-      ok: true,
-      value: request.method === "status" ? DENIED : [],
-    }))
+    const fake = await fakeDriver((request) => reply(request, DENIED))
     const changes = watcher()
     let driver: Driver | null = null
     try {
@@ -197,10 +205,7 @@ describe("driver client", () => {
 
   it("reconnects after the driver socket drops", async () => {
     const timers = manual()
-    const fake = await fakeDriver((request) => ({
-      ok: true,
-      value: request.method === "status" ? STATUS : [],
-    }))
+    const fake = await fakeDriver((request) => reply(request, STATUS))
     const changes = watcher()
     let driver: Driver | null = null
     try {
@@ -214,7 +219,9 @@ describe("driver client", () => {
       await again
       await changes.until(() => driver?.state() !== null)
 
-      expect(await driver.call({ method: "windows" }, deadline())).toEqual([])
+      expect(
+        await driver.call({ method: "desktop.call", params: { name: "list_windows", args: {} } }, deadline()),
+      ).toEqual([])
     } finally {
       driver?.close()
       await fake.close()
@@ -223,15 +230,12 @@ describe("driver client", () => {
 
   it("stops asking for status once every permission is granted", async () => {
     const timers = manual()
-    const fake = await fakeDriver((request) => ({
-      ok: true,
-      value: request.method === "status" ? STATUS : [],
-    }))
+    const fake = await fakeDriver((request) => reply(request, STATUS))
     const changes = watcher()
     let driver: Driver | null = null
     try {
       driver = startDriver({ path: fake.path, log: quiet(), scheduler: timers.scheduler, onChange: changes.notify })
-      await changes.until(() => driver?.state() !== null)
+      await changes.until(() => driver?.state()?.desktop !== undefined)
 
       expect(timers.repeating()).toBe(0)
     } finally {
@@ -243,10 +247,7 @@ describe("driver client", () => {
   it("keeps asking for status while a permission is missing, then stops", async () => {
     const timers = manual()
     let granted = false
-    const fake = await fakeDriver((request) => ({
-      ok: true,
-      value: request.method === "status" ? (granted ? STATUS : DENIED) : [],
-    }))
+    const fake = await fakeDriver((request) => reply(request, granted ? STATUS : DENIED))
     const changes = watcher()
     let driver: Driver | null = null
     try {

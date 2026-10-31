@@ -208,7 +208,7 @@ class Client implements Driver {
   }
 
   private changed(): void {
-    const snapshot = JSON.stringify({ connected: this.connected, status: this.status })
+    const snapshot = JSON.stringify({ connected: this.connected, status: this.status, desktop: this.desktop })
     if (snapshot === this.snapshot) return
     this.snapshot = snapshot
     this.options.onChange?.()
@@ -236,7 +236,8 @@ class Client implements Driver {
   }
 
   private syncPoll(): void {
-    const wanted = this.connected && !allGranted(this.status)
+    const ready = (this.desktop?.tools.length ?? 0) > 0
+    const wanted = this.connected && (!allGranted(this.status) || !ready)
     if (wanted && !this.poll) this.poll = this.scheduler.repeat(STATUS_POLL_MS, () => void this.refresh())
     else if (!wanted) this.stopPoll()
   }

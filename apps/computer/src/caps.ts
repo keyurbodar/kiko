@@ -37,8 +37,12 @@ function displaysOf(state: DriverState | null): Display[] {
   return [...(state?.displays ?? [])]
 }
 
+function desktopReady(state: DriverState | null): boolean {
+  return (state?.desktop?.tools.length ?? 0) > 0
+}
+
 function capsFor(state: DriverState | null, ffmpeg: boolean, live: LiveCaps): Caps {
-  const desktop = state?.desktop !== undefined
+  const desktop = desktopReady(state)
   return {
     shell: true,
     files: true,
@@ -50,7 +54,7 @@ function capsFor(state: DriverState | null, ffmpeg: boolean, live: LiveCaps): Ca
 
 function reasonFor(state: DriverState | null, ffmpeg: boolean): string | null {
   if (!state) return NO_DRIVER
-  if (!state.desktop) return STARTING
+  if (!desktopReady(state)) return STARTING
   return ffmpeg ? null : FFMPEG_NOTE
 }
 
