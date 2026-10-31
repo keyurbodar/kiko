@@ -67,11 +67,11 @@ jobs:
           bun run bench "${args[@]}" --validate > validate.json
           for kind in host container vm; do
             jq -c --arg nixos "$nixos_id" --arg omarchy "$omarchy_id" ".$kind |= $label | .$kind" plan.json > "plan-$kind.json"
-            echo "$kind=$(cat "plan-$kind.json")" >> "$GITHUB_OUTPUT"
+            printf '%s={"include":%s}\n' "$kind" "$(cat "plan-$kind.json")" >> "$GITHUB_OUTPUT"
           done
           for kind in host container vm; do
             jq -c --arg nixos "$nixos_id" --arg omarchy "$omarchy_id" ".$kind |= $label | .$kind" validate.json > "validate-$kind.json"
-            echo "v$kind=$(cat "validate-$kind.json")" >> "$GITHUB_OUTPUT"
+            printf 'v%s={"include":%s}\n' "$kind" "$(cat "validate-$kind.json")" >> "$GITHUB_OUTPUT"
           done
           echo "::notice::planned $(jq length plan-host.json) host, $(jq length plan-container.json) container, $(jq length plan-vm.json) vm jobs"
 
