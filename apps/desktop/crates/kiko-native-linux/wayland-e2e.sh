@@ -61,7 +61,7 @@ dbus-run-session -- bash -euo pipefail -c '
     sleep 0.1
   done
   if ! xdpyinfo >/dev/null 2>&1; then
-    echo "the headless compositor's Xwayland did not accept clients" >&2
+    echo "the headless compositor did not accept X clients" >&2
     ls -1 "$XDG_RUNTIME_DIR" >&2 || true
     tail -20 /tmp/kiko-wayland-shell.log >&2 || true
     exit 1
