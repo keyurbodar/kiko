@@ -26,7 +26,7 @@ await writeFile("build/finished.txt", ${JSON.stringify(`${token}\n`)})
 export const waitForJob: Task = {
   id: "terminal-006-wait-for-job",
   track: "terminal",
-  os: ["linux", "macos", "windows"],
+  os: ["linux", "macos"],
   needs: [],
   heldOut: false,
   prompt:

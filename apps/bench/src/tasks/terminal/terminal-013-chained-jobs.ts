@@ -45,7 +45,7 @@ const runStep = async (m: Machine, file: string): Promise<void> => {
 export const chainedJobs: Task = {
   id: "terminal-013-chained-jobs",
   track: "terminal",
-  os: ["linux", "macos", "windows"],
+  os: ["linux", "macos"],
   needs: [],
   heldOut: true,
   prompt: "The three steps in jobs/ are not wired up. Run them in the right order so report.txt is produced.",

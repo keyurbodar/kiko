@@ -19,7 +19,7 @@ const directory = (seed: number) => {
 export const tableExtract: Task = {
   id: "browser-006-table-extract",
   track: "browser",
-  os: ["linux", "macos", "windows"],
+  os: ["linux", "macos"],
   needs: ["chrome"],
   heldOut: false,
   prompt:

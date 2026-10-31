@@ -23,7 +23,7 @@ const commit = (m: Machine, message: string, second: number) =>
 export const gitRebaseConflict: Task = {
   id: "terminal-003-git-rebase-conflict",
   track: "terminal",
-  os: ["linux", "macos", "windows"],
+  os: ["linux", "macos"],
   needs: [],
   heldOut: false,
   prompt:

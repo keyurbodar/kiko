@@ -34,7 +34,7 @@ async function checkCount(m: Machine): Promise<Verdict> {
 export const countMatches: Task = {
   id: "terminal-025-count-matches",
   track: "terminal",
-  os: ["macos", "windows", "linux"],
+  os: ["macos", "linux"],
   needs: [],
   heldOut: false,
   prompt: "count the lines in input.log that contain the word ERROR and write just the number to count.txt",

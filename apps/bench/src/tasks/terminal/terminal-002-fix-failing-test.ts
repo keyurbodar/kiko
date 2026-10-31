@@ -24,7 +24,7 @@ test("adds zero", () => {
 export const fixFailingTest: Task = {
   id: "terminal-002-fix-failing-test",
   track: "terminal",
-  os: ["linux", "macos", "windows"],
+  os: ["linux", "macos"],
   needs: [],
   heldOut: false,
   prompt: "The tests in calc/ fail. Fix the bug in the code so `bun test calc` passes. Do not change the tests.",

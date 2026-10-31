@@ -67,7 +67,7 @@ const plan = (seed: number): { orders: Order[]; expected: Summary } => {
 export const jsonTransform: Task = {
   id: "terminal-018-json-transform",
   track: "terminal",
-  os: ["linux", "macos", "windows"],
+  os: ["linux", "macos"],
   needs: [],
   heldOut: false,
   prompt:

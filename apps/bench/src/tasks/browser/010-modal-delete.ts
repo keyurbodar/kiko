@@ -25,7 +25,7 @@ const inbox = (seed: number) => {
 export const modalDelete: Task = {
   id: "browser-010-modal-delete",
   track: "browser",
-  os: ["linux", "macos", "windows"],
+  os: ["linux", "macos"],
   needs: ["chrome"],
   heldOut: false,
   prompt: "Delete the draft titled in request.json from the drafts page in url.txt. Leave the other drafts alone.",

@@ -14,7 +14,7 @@ const report = (seed: number) => {
 export const download: Task = {
   id: "browser-005-download",
   track: "browser",
-  os: ["linux", "macos", "windows"],
+  os: ["linux", "macos"],
   needs: ["chrome"],
   heldOut: false,
   prompt:

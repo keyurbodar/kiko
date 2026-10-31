@@ -31,7 +31,7 @@ const ledger = (seed: number) => {
 export const searchFilter: Task = {
   id: "browser-008-search-filter",
   track: "browser",
-  os: ["linux", "macos", "windows"],
+  os: ["linux", "macos"],
   needs: ["chrome"],
   heldOut: false,
   prompt:
