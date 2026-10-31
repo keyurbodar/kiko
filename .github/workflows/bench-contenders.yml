@@ -27,7 +27,7 @@ jobs:
       - id: plan
         run: |
           set -euo pipefail
-          matrix="$(jq -c '{include: [.contenders[] as $c | .runners[] as $r | {contender: $c, runner: $r}]}' apps/bench/ci.json)"
+          matrix="$(jq -c '{include: [(.versions | keys)[] as $c | .runners[] as $r | {contender: $c, runner: $r}]}' apps/bench/ci.json)"
           echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
           echo "$matrix"
 
@@ -69,8 +69,7 @@ jobs:
             echo "cua_driver_mode=embedded: CUA_DRIVER_EMBEDDED=1 cua-driver serve --embedded --socket, then cua-driver mcp --embedded --socket"
           } | tee "$RUNNER_TEMP/macos-tcc.txt"
 
-      - name: Install the contender (unix)
-        if: runner.os != 'Windows'
+      - name: Install the contender
         continue-on-error: true
         shell: bash
         run: |
@@ -84,21 +83,6 @@ jobs:
           bin="$(bash "apps/bench/scripts/$script" | tail -n 1)"
           test -x "$bin"
           echo "$variable=$bin" >> "$GITHUB_ENV"
-
-      - name: Install the contender (windows)
-        if: runner.os == 'Windows'
-        continue-on-error: true
-        shell: pwsh
-        run: |
-          $map = @{
-            "cua-driver" = @("install-cua-driver.ps1", "KIKO_BENCH_CUA_DRIVER")
-            "agent-desktop" = @("install-agent-desktop.ps1", "KIKO_BENCH_AGENT_DESKTOP")
-            "agent-browser" = @("install-agent-browser.ps1", "KIKO_BENCH_AGENT_BROWSER")
-          }
-          $script, $variable = $map["${{ matrix.contender }}"]
-          $bin = & "apps/bench/scripts/$script"
-          if (-not $?) { exit 1 }
-          "$variable=$bin" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
       - name: Smoke on Linux
         if: runner.os == 'Linux'
@@ -132,13 +116,6 @@ jobs:
             --contender "${{ matrix.contender }}" \
             --typed "$(jq -r .smoke.typed apps/bench/ci.json)" \
             --out "$RUNNER_TEMP/bench.json"
-
-      - name: Smoke on Windows
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          $typed = (Get-Content apps/bench/ci.json | ConvertFrom-Json).smoke.typed
-          bun apps/bench/scripts/smoke.ts --contender "${{ matrix.contender }}" --typed "$typed" --out "$env:RUNNER_TEMP\bench.json"
 
       - name: Upload the result
         if: always()

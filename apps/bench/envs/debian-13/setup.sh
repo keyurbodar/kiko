@@ -5,6 +5,7 @@ export DEBIAN_FRONTEND=noninteractive
 
 apt-get update
 apt-get install -y --no-install-recommends \
+  at-spi2-core \
   ca-certificates \
   curl \
   dbus-x11 \
@@ -18,6 +19,7 @@ apt-get install -y --no-install-recommends \
   libreoffice-writer \
   make \
   mousepad \
+  nodejs \
   openssh-server \
   python3 \
   python3-gi \
