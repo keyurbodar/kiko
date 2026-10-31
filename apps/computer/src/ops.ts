@@ -42,6 +42,7 @@ class Ring {
 
 export async function shell(args: Args<"shell">, policy: Policy, deadline: Deadline): Promise<Value<"shell">> {
   if (!policy.shell) throw new Fail({ code: "denied", message: "policy.json turns off shell commands on this machine" })
+  throwIfCancelled(deadline)
   const budget = Math.max(1_000, Math.min(args.timeoutMs ?? 60_000, MAX_TIMEOUT_MS, deadline.remaining()))
   const proc = Bun.spawn(shellCommand(args.command), {
     cwd: args.cwd,
@@ -104,13 +105,15 @@ function killTree(pid: number | undefined): void {
   }
 }
 
-export async function read(args: Args<"read">, policy: Policy): Promise<Value<"read">> {
+export async function read(args: Args<"read">, policy: Policy, deadline: Deadline): Promise<Value<"read">> {
+  throwIfCancelled(deadline)
   const path = allowedPath(policy, args.path)
   if (!path) throw new Fail({ code: "denied", message: `${args.path} is outside the paths policy.json allows` })
   const info = await stat(path).catch(() => null)
   if (!info?.isFile()) throw new Fail({ code: "failed", message: `${args.path} is not a file this machine can read` })
   const cap = Math.max(1, Math.min(args.maxBytes ?? READ_CAP, READ_CAP))
   const size = Math.min(info.size, cap)
+  throwIfCancelled(deadline)
   const handle = await open(path, "r")
   const buffer = Buffer.alloc(size)
   try {
@@ -118,6 +121,7 @@ export async function read(args: Args<"read">, policy: Policy): Promise<Value<"r
   } finally {
     await handle.close()
   }
+  throwIfCancelled(deadline)
   const truncated = info.size > size
   return isBinary(buffer)
     ? { size: info.size, truncated, base64: buffer.toString("base64") }
@@ -128,13 +132,15 @@ function isBinary(buffer: Buffer): boolean {
   return buffer.subarray(0, 8192).includes(0)
 }
 
-export async function write(args: Args<"write">, policy: Policy): Promise<Value<"write">> {
+export async function write(args: Args<"write">, policy: Policy, deadline: Deadline): Promise<Value<"write">> {
+  throwIfCancelled(deadline)
   const path = allowedPath(policy, args.path)
   if (!path) throw new Fail({ code: "denied", message: `${args.path} is outside the paths policy.json allows` })
   if (args.text === undefined && args.base64 === undefined)
     throw new Fail({ code: "failed", message: "write needs text or base64" })
   const bytes = args.base64 === undefined ? Buffer.from(args.text ?? "", "utf8") : Buffer.from(args.base64, "base64")
   await mkdir(dirname(path), { recursive: true })
+  throwIfCancelled(deadline)
   await writeFile(path, bytes, args.append ? { flag: "a" } : {})
   return { size: bytes.byteLength }
 }

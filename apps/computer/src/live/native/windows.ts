@@ -1,6 +1,6 @@
 import { dlopen, FFIType } from "bun:ffi"
 import type { Native } from "./contract"
-import { SCAN, windowsVirtualKey } from "../keymap"
+import { EXTENDED, SCAN, windowsVirtualKey } from "../keymap"
 
 const INPUT_MOUSE = 0
 const INPUT_KEYBOARD = 1
@@ -29,27 +29,6 @@ const SM_CYVIRTUALSCREEN = 79
 const INPUT_SIZE = 40
 const UNION = 8
 const PER_MONITOR_AWARE_V2 = -4
-const EXTENDED = new Set([
-  "ArrowLeft",
-  "ArrowRight",
-  "ArrowUp",
-  "ArrowDown",
-  "Home",
-  "End",
-  "PageUp",
-  "PageDown",
-  "Insert",
-  "Delete",
-  "NumpadDivide",
-  "NumpadEnter",
-  "NumLock",
-  "PrintScreen",
-  "ControlRight",
-  "AltRight",
-  "MetaLeft",
-  "MetaRight",
-  "ContextMenu",
-])
 
 type User32 = {
   GetSystemMetrics: (index: number) => number

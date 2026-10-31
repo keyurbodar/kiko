@@ -283,4 +283,113 @@ describe("driver calls", () => {
       reset()
     }
   })
+
+  it("answers cancelled when the worker cancels a call the app settled anyway", async () => {
+    const driver: Driver = {
+      call: (_call, deadline) =>
+        new Promise((resolve) => {
+          const settle = () => resolve({ windows: [] })
+          if (deadline.signal.aborted) settle()
+          else deadline.signal.addEventListener("abort", settle, { once: true })
+        }),
+      state: () => null,
+      background: () => false,
+      browser: () => false,
+      close: () => {},
+    }
+    const { link, socket } = await openLink({ ...(await host()), driver: () => driver, policy: desktopOn })
+    try {
+      sendDriver(socket, "c1", { method: "windows" })
+      socket.emit("message", { data: JSON.stringify({ t: "cancel", id: "c1" }) })
+
+      const result = await resultOf(socket, "c1")
+
+      assert.isFalse(result.ok)
+      assert.strictEqual(result.error?.code, "cancelled")
+    } finally {
+      link.stop()
+      reset()
+    }
+  })
+
+  it("keeps the link when a live frame throws", async () => {
+    const { driver } = fakeDriver()
+    const { link, socket } = await openLink({
+      ...(await host()),
+      driver: () => driver,
+      policy: desktopOn,
+      live: {
+        rtc() {
+          throw new Error("a bad sdp")
+        },
+        live() {},
+        input() {},
+        control() {},
+        ack() {},
+      },
+    })
+    try {
+      socket.emit("message", {
+        data: JSON.stringify({ t: "rtc", session: "s", signal: { type: "offer", sdp: "not an sdp" } }),
+      })
+      sendDriver(socket, "c1", { method: "windows" })
+
+      const result = await resultOf(socket, "c1")
+
+      assert.isTrue(result.ok)
+    } finally {
+      link.stop()
+      reset()
+    }
+  })
+})
+
+describe("driver input policy", () => {
+  const inputOff = async () => ({ ...(await desktopOn()), input: false })
+
+  const typing = [
+    { method: "act", params: { window: "w", action: "press", ref: 1 } },
+    { method: "open", params: { kind: "app", target: "Notes" } },
+    { method: "browser.act", params: { tab: "t", ref: 1, action: "click" } },
+    { method: "browser.open", params: { url: "https://example.com" } },
+  ]
+
+  it("refuses every call that would type or click", async () => {
+    for (const call of typing) {
+      const { driver, calls } = fakeDriver()
+      const { link, socket } = await openLink({
+        ...(await host()),
+        driver: () => driver,
+        policy: inputOff,
+      })
+      try {
+        sendDriver(socket, "c1", call)
+
+        const result = await resultOf(socket, "c1")
+
+        assert.isFalse(result.ok, call.method)
+        assert.strictEqual(result.error?.code, "denied", call.method)
+        assert.strictEqual(calls.length, 0, call.method)
+      } finally {
+        link.stop()
+        reset()
+      }
+    }
+  })
+
+  it("still shows the windows and looks around", async () => {
+    const { driver, calls } = fakeDriver()
+    const { link, socket } = await openLink({ ...(await host()), driver: () => driver, policy: inputOff })
+    try {
+      sendDriver(socket, "c1", { method: "windows" })
+      sendDriver(socket, "c2", { method: "look", params: { window: "w" } })
+
+      assert.isTrue((await resultOf(socket, "c1")).ok)
+      assert.isTrue((await resultOf(socket, "c2")).ok)
+      assert.strictEqual(calls.length, 2)
+    } finally {
+      link.stop()
+      reset()
+    }
+  })
 })

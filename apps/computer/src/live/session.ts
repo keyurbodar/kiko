@@ -1,4 +1,6 @@
-import type { IceServer, InputEvent, RtcSignal } from "@kiko/computer/wire"
+import * as Option from "effect/Option"
+import * as Schema from "effect/Schema"
+import { InputEvent, type IceServer, type RtcSignal } from "@kiko/computer/wire"
 import type { AccessUnit } from "./annexb"
 import { rtcConfig, videoMid, videoPayloadType, type PeerModule } from "./rtc-link"
 
@@ -152,12 +154,13 @@ export function createSession(id: string, rtc: PeerModule, events: SessionEvents
   }
 }
 
+const decodeEvents = Schema.decodeUnknownOption(Schema.Array(InputEvent))
+
 function parseEvents(message: string | Buffer | ArrayBuffer): readonly InputEvent[] | null {
   try {
     const text = typeof message === "string" ? message : Buffer.from(message as ArrayBuffer).toString("utf8")
-    const value: unknown = JSON.parse(text)
-    if (!Array.isArray(value)) return null
-    return value as readonly InputEvent[]
+    const decoded = decodeEvents(JSON.parse(text))
+    return Option.isSome(decoded) ? decoded.value : null
   } catch {
     return null
   }

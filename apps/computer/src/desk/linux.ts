@@ -1,4 +1,4 @@
-import { dlopen, FFIType, toArrayBuffer, type Pointer } from "bun:ffi"
+import { dlopen, FFIType, JSCallback, toArrayBuffer, type Pointer } from "bun:ffi"
 import { abortReason } from "../deadline"
 import { linuxNative } from "../live/native/linux"
 import { Fail } from "../log"
@@ -12,6 +12,8 @@ const SCHEME = /^[a-z][a-z0-9+.-]*:/i
 
 type Command = { code: number; stderr: string }
 
+let xErrorHandler: JSCallback | null = null
+
 function openLibrary() {
   try {
     return dlopen("libX11.so.6", {
@@ -21,6 +23,7 @@ function openLibrary() {
       XDisplayWidth: { args: [FFIType.ptr, FFIType.i32], returns: "i32" },
       XDisplayHeight: { args: [FFIType.ptr, FFIType.i32], returns: "i32" },
       XDefaultRootWindow: { args: [FFIType.ptr], returns: "u64" },
+      XSetErrorHandler: { args: [FFIType.ptr], returns: "ptr" },
       XGetImage: {
         args: [FFIType.ptr, FFIType.u64, FFIType.i32, FFIType.i32, FFIType.u32, FFIType.u32, FFIType.u64, FFIType.i32],
         returns: "ptr",
@@ -30,6 +33,20 @@ function openLibrary() {
   } catch {
     return null
   }
+}
+
+function keepXErrors(): JSCallback {
+  xErrorHandler ??= new JSCallback(() => 0, { args: [FFIType.ptr, FFIType.ptr], returns: FFIType.i32 })
+  return xErrorHandler
+}
+
+export function clampArea(area: Area, width: number, height: number): Area | null {
+  const left = Math.max(0, Math.floor(area.originX))
+  const top = Math.max(0, Math.floor(area.originY))
+  const right = Math.min(width, Math.floor(area.originX + area.width))
+  const bottom = Math.min(height, Math.floor(area.originY + area.height))
+  if (right <= left || bottom <= top) return null
+  return { originX: left, originY: top, width: right - left, height: bottom - top }
 }
 
 function reason(error: unknown): string {
@@ -89,21 +106,34 @@ export function linuxDesk(): Backend | null {
   if (!native) return null
   const x11 = openLibrary()
   if (!x11) return null
+  x11.symbols.XSetErrorHandler(keepXErrors().ptr)
   const display = x11.symbols.XOpenDisplay(null)
   if (!display) return null
   const screen = x11.symbols.XDefaultScreen(display)
   const root = x11.symbols.XDefaultRootWindow(display)
   let open = true
 
+  const displaySize = (): { width: number; height: number } => ({
+    width: x11.symbols.XDisplayWidth(display, screen),
+    height: x11.symbols.XDisplayHeight(display, screen),
+  })
+
   const shoot = async (area: Area, signal: AbortSignal): Promise<Shot> => {
     if (signal.aborted) throw abortReason(signal)
+    const size = displaySize()
+    const rect = clampArea(area, size.width, size.height)
+    if (!rect)
+      throw new Fail({
+        code: "failed",
+        message: `${area.width}x${area.height} at ${area.originX},${area.originY} is outside the ${size.width}x${size.height} screen`,
+      })
     const image = x11.symbols.XGetImage(
       display,
       root,
-      area.originX,
-      area.originY,
-      area.width,
-      area.height,
+      rect.originX,
+      rect.originY,
+      rect.width,
+      rect.height,
       BigInt(ALL_PLANES),
       ZPIXMAP,
     )
@@ -127,12 +157,7 @@ export function linuxDesk(): Backend | null {
   return {
     native,
     area() {
-      return {
-        originX: 0,
-        originY: 0,
-        width: x11.symbols.XDisplayWidth(display, screen),
-        height: x11.symbols.XDisplayHeight(display, screen),
-      }
+      return { originX: 0, originY: 0, ...displaySize() }
     },
     shoot,
     access(): Access {

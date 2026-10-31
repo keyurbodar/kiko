@@ -16,7 +16,7 @@ import type { Policy } from "./config"
 import type { Desktop } from "./desktop"
 import type { Driver } from "./driver"
 import type { LiveFrames } from "./live"
-import { Deadline } from "./deadline"
+import { abortReason, Deadline } from "./deadline"
 import { Fail, failureCode, failureMessage, type Logger } from "./log"
 import { read, shell, write } from "./ops"
 
@@ -31,6 +31,7 @@ const MAX_DEADLINE_MS = 600_000
 const SILENT_MS = 2.5 * PING_MS
 const CLOCK_SKEW_S = 60
 const PAUSED = "the owner paused the agent from the kiko menu"
+const INPUT_METHODS = new Set<DriverCall["method"]>(["act", "open", "browser.act", "browser.open"])
 
 export type Endpoint = { url: string; userId: string; pcId: string; protocol: number }
 
@@ -326,18 +327,26 @@ class Link {
         this.cancel(frame.id)
         return
       case "control":
-        return this.host.live.control(frame)
+        return this.liveFrame(() => this.host.live.control(frame))
       case "live":
-        return this.host.live.live(frame)
+        return this.liveFrame(() => this.host.live.live(frame))
       case "input":
-        return this.host.live.input(frame)
+        return this.liveFrame(() => this.host.live.input(frame))
       case "rtc":
-        return this.host.live.rtc(frame)
+        return this.liveFrame(() => this.host.live.rtc(frame))
       case "ack":
-        return this.host.live.ack(frame)
+        return this.liveFrame(() => this.host.live.ack(frame))
       case "welcome":
         this.welcomed = true
         this.host.onWelcome?.(frame.name, frame.version)
+    }
+  }
+
+  private liveFrame(run: () => void): void {
+    try {
+      run()
+    } catch (error) {
+      this.host.log.warn(`the live view could not handle a frame: ${failureMessage(error)}`)
     }
   }
 
@@ -351,6 +360,7 @@ class Link {
     try {
       const args = decodeArgs(frame.op, frame.args)
       const value = await this.execute(frame.op, args, context)
+      if (context.aborted) throw abortReason(context.signal)
       this.working(frame.op, args, value)
       this.answer({ t: "result", id: frame.id, ok: true, value: encodeValue(frame.op, value) })
     } catch (error) {
@@ -382,8 +392,8 @@ class Link {
 
   private async execute(op: Op, args: unknown, context: Deadline) {
     if (op === "shell") return shell(args as Parameters<typeof shell>[0], await this.host.policy(), context)
-    if (op === "read") return read(args as Parameters<typeof read>[0], await this.host.policy())
-    if (op === "write") return write(args as Parameters<typeof write>[0], await this.host.policy())
+    if (op === "read") return read(args as Parameters<typeof read>[0], await this.host.policy(), context)
+    if (op === "write") return write(args as Parameters<typeof write>[0], await this.host.policy(), context)
     if (op === "driver") return this.driver(args as DriverCall, context)
     const desktop = await this.desktop(op)
     if (op === "look") return desktop.look(args as Parameters<Desktop["look"]>[0], context)
@@ -394,6 +404,8 @@ class Link {
     const policy = await this.host.policy()
     if (!policy.desktop)
       throw new Fail({ code: "denied", message: "policy.json turns desktop control off on this machine" })
+    if (!policy.input && INPUT_METHODS.has(call.method))
+      throw new Fail({ code: "denied", message: "policy.json turns input off on this machine" })
     if (this.host.paused()) throw new Fail({ code: "busy", message: PAUSED })
     if (this.host.holder() === "human")
       throw new Fail({ code: "busy", message: "the owner has control of this screen right now" })
