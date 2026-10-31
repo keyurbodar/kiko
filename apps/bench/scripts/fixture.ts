@@ -40,12 +40,10 @@ async function windowsFixture(
   m: Machine,
 ): Promise<{ app: string; title: string; decoyTitle: string; processes: Process[] }> {
   const path = join(m.workdir, "fixture.txt")
-  const decoyPath = join(m.workdir, "decoy.txt")
   await m.writeText(path, "seed")
-  await m.writeText(decoyPath, "seed")
   const fixture = await m.spawn(["notepad.exe", path])
-  const decoy = await m.spawn(["notepad.exe", decoyPath])
-  return { app: "Notepad", title: "fixture.txt", decoyTitle: "decoy.txt", processes: [fixture, decoy] }
+  await m.spawn(["explorer.exe", m.workdir])
+  return { app: "Notepad", title: "fixture.txt", decoyTitle: basename(m.workdir), processes: [fixture] }
 }
 
 export async function prepareFixture(m: Machine): Promise<Fixture> {
