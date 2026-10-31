@@ -8,6 +8,7 @@ import { formLogin } from "./tasks/007-login"
 import { formSearch } from "./tasks/008-search-filter"
 import { formPagination } from "./tasks/009-pagination"
 import { formModal } from "./tasks/010-modal-delete"
+import { hardBrowserTasks } from "./tasks/1xx-index"
 import type { Handlers } from "./types"
 
 export const registry: Record<string, Handlers> = {
@@ -21,4 +22,5 @@ export const registry: Record<string, Handlers> = {
   "browser-008-search-filter": formSearch,
   "browser-009-pagination": formPagination,
   "browser-010-modal-delete": formModal,
+  ...hardBrowserTasks,
 }

@@ -228,7 +228,12 @@ export const ToDaemon = Schema.Union([
     maxWidth: Schema.optionalKey(Count),
     quality: Schema.optionalKey(Count),
   }),
-  Schema.Struct({ t: Schema.Literal("control"), holder: Holder }),
+  Schema.Struct({
+    t: Schema.Literal("control"),
+    holder: Holder,
+    epoch: Schema.optionalKey(Count),
+    session: Schema.optionalKey(Id),
+  }),
   Schema.Struct({ t: Schema.Literal("input"), events: Schema.Array(InputEvent) }),
   Schema.Struct({ t: Schema.Literal("ack"), seq: Count }),
   Schema.Struct({
@@ -251,6 +256,7 @@ export const FromDaemon = Schema.Union([
   }),
   Schema.Struct({ t: Schema.Literal("chunk"), id: Id, data: Text }),
   Schema.Struct({ t: Schema.Literal("humanInput") }),
+  Schema.Struct({ t: Schema.Literal("held"), holder: Holder, epoch: Schema.optionalKey(Count) }),
   Schema.Struct({ t: Schema.Literal("rtc"), session: Id, signal: RtcSignal }),
 ])
 export type FromDaemon = typeof FromDaemon.Type
