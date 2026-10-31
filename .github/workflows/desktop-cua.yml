@@ -191,3 +191,12 @@ jobs:
         run: |
           bun apps/desktop/scripts/cua-smoke.ts
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Notepad background typing
+        continue-on-error: true
+        shell: pwsh
+        env:
+          KIKO_BIN: ${{ github.workspace }}\apps\desktop\target\release\kiko.exe
+          KIKO_CUA: ${{ env.CUA_BIN }}
+        run: |
+          bun apps/desktop/scripts/cua-smoke.ts notepad
+          exit 0

@@ -303,18 +303,30 @@ async function macFixture(dir: string): Promise<Fixture> {
   return { title: basename(file), decoy: "Finder", stop: async () => {} }
 }
 
-async function windowsFixture(dir: string): Promise<Fixture> {
-  const file = join(dir, "fixture.txt")
-  await Bun.write(file, "seed")
-  Bun.spawn(["notepad.exe", file], { stdout: "ignore", stderr: "ignore" })
+function windowsFixture(dir: string): Fixture {
+  const script = join(import.meta.dir, "fixtures", "winforms.ps1")
+  const fixture = Bun.spawn(["powershell.exe", "-NoProfile", "-STA", "-ExecutionPolicy", "Bypass", "-File", script], {
+    stdout: "ignore",
+    stderr: "inherit",
+    windowsHide: true,
+  })
   Bun.spawn(["explorer.exe", dir], { stdout: "ignore", stderr: "ignore" })
-  return {
-    title: basename(file),
-    decoy: basename(dir),
-    stop: async () => {
-      await command(["taskkill", "/IM", "notepad.exe", "/F"]).catch(() => "")
+  return { title: "kiko-cua-fixture", decoy: basename(dir), stop: async () => fixture.kill() }
+}
+
+function startKiko(kiko: string, cua: string, app: string) {
+  return Bun.spawn([kiko], {
+    env: {
+      ...process.env,
+      KIKO_APP_DIR: app,
+      KIKO_COMPUTER_DIR: join(app, "computer"),
+      KIKO_CORE: kiko,
+      KIKO_CORE_STUB_LOG: join(app, "starts.log"),
+      KIKO_CUA: cua,
     },
-  }
+    stdout: "ignore",
+    stderr: "inherit",
+  })
 }
 
 function startFixture(dir: string): Promise<Fixture> {
@@ -392,18 +404,7 @@ async function main(): Promise<void> {
   const typed = process.env.KIKO_SMOKE_TYPED ?? "kiko cua typed this"
   const dir = await mkdtemp(join(tmpdir(), "kiko-cua-smoke-"))
   const app = join(dir, "app")
-  const child = Bun.spawn([kiko], {
-    env: {
-      ...process.env,
-      KIKO_APP_DIR: app,
-      KIKO_COMPUTER_DIR: join(app, "computer"),
-      KIKO_CORE: kiko,
-      KIKO_CORE_STUB_LOG: join(app, "starts.log"),
-      KIKO_CUA: cua,
-    },
-    stdout: "ignore",
-    stderr: "inherit",
-  })
+  const child = startKiko(kiko, cua, app)
   let driver: Driver | null = null
   let fixture: Fixture | null = null
   try {
@@ -439,4 +440,64 @@ async function main(): Promise<void> {
   }
 }
 
-await main()
+async function notepadProbe(): Promise<void> {
+  const kiko = required("KIKO_BIN")
+  const cua = required("KIKO_CUA")
+  const typed = process.env.KIKO_SMOKE_TYPED ?? "kiko cua typed this"
+  const dir = await mkdtemp(join(tmpdir(), "kiko-cua-notepad-"))
+  const app = join(dir, "app")
+  const child = startKiko(kiko, cua, app)
+  let driver: Driver | null = null
+  let notepad: ReturnType<typeof Bun.spawn> | null = null
+  let explorer: ReturnType<typeof Bun.spawn> | null = null
+  try {
+    driver = await connectDriver(socketPath(app))
+    await waitForTools(driver)
+    const file = join(dir, "fixture.txt")
+    const title = basename(file)
+    await Bun.write(file, "seed")
+    notepad = Bun.spawn(["notepad.exe", file], { stdout: "ignore", stderr: "ignore" })
+    explorer = Bun.spawn(["explorer.exe", dir], { stdout: "ignore", stderr: "ignore" })
+    const window = await locateWindow(driver, title)
+    await frontAwayFrom({ title, decoy: basename(dir), stop: async () => {} })
+    const state = await readWindow(driver, window)
+    const tree = treeOf(state)
+    const snapshot = snapshotOf(state, tree)
+    const row = rowOf(tree)
+    if (snapshot === undefined || row === undefined) throw new Error(`no text field: ${tree.slice(0, 400)}`)
+    const token = `${snapshot}:${row}`
+    const inserted = await driver.call("desktop.call", {
+      name: "type_text",
+      args: { target: { kind: "window", pid: window.pid, window_id: window.id }, element_token: token, text: typed },
+    })
+    const after = treeOf(await readWindow(driver, window))
+    const value = after.match(/value="([^"]*)"/)?.[1]
+    console.log(
+      JSON.stringify({
+        check: "background type_text into Notepad",
+        result: value?.includes(typed) === true ? "PASS" : "FAIL",
+        token,
+        typed,
+        value: value ?? null,
+        replied: textOf(inserted).slice(0, 300),
+      }),
+    )
+  } catch (error) {
+    console.log(
+      JSON.stringify({
+        check: "background type_text into Notepad",
+        result: "FAIL",
+        error: error instanceof Error ? error.message : String(error),
+      }),
+    )
+  } finally {
+    driver?.close()
+    notepad?.kill()
+    explorer?.kill()
+    child.kill()
+    await child.exited
+  }
+}
+
+if (process.argv[2] === "notepad") await notepadProbe()
+else await main()
