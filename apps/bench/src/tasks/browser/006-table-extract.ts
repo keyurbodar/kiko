@@ -22,6 +22,7 @@ export const tableExtract: Task = {
   os: ["linux", "macos", "windows"],
   needs: ["chrome"],
   heldOut: false,
+  kind: "real",
   prompt:
     "On the team page in url.txt, find the highest paid person and submit their email address in the answer form.",
   limits: LIMITS,

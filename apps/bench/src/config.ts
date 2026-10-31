@@ -61,7 +61,7 @@ export interface Job {
   readonly machine: string
 }
 
-const TRACKS: readonly Track[] = ["terminal", "browser", "desktop", "mixed"]
+const TRACKS: readonly Track[] = ["terminal", "browser", "desktop", "mixed", "cross"]
 const OSES: readonly Os[] = ["linux", "macos"]
 const CONDITIONS: readonly Condition[] = ["foreground", "background"]
 const ENV_KINDS: readonly EnvKind[] = ["host", "container", "vm"]

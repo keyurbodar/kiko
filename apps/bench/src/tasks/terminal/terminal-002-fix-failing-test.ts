@@ -27,6 +27,7 @@ export const fixFailingTest: Task = {
   os: ["linux", "macos", "windows"],
   needs: [],
   heldOut: false,
+  kind: "real",
   prompt: "The tests in calc/ fail. Fix the bug in the code so `bun test calc` passes. Do not change the tests.",
   limits: LIMITS,
   setup: async (m) => {

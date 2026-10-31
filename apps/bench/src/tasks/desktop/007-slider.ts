@@ -10,6 +10,7 @@ export const desktopSlider: Task = {
   os: ["linux"],
   needs: ["display"],
   heldOut: false,
+  kind: "real",
   prompt: "In the open window, set the refresh interval to the number of seconds in request.json and save.",
   limits: LIMITS,
   setup: async (m, seed) => {

@@ -220,7 +220,12 @@ function terminalOpen(terminals: TerminalManager, machine: Machine, args: Bag): 
   )
 }
 
-function terminalSend(terminals: TerminalManager, machine: Machine, args: Bag): ToolResult {
+async function terminalSend(
+  terminals: TerminalManager,
+  machine: Machine,
+  args: Bag,
+  signal: AbortSignal,
+): Promise<ToolResult> {
   const id = stringOf(args.id)
   if (!id) return text("terminal_send needs an id from terminal_open or terminal_list", true)
   const typed = stringOf(args.text)
@@ -231,6 +236,20 @@ function terminalSend(terminals: TerminalManager, machine: Machine, args: Bag): 
     ...(typed !== undefined ? { text: typed } : {}),
     ...(keys.length ? { keys } : {}),
   })
+  const until = stringOf(args.until)?.trim()
+  if (until) {
+    const timeoutMs = whole(args.timeoutMs)
+    const waited = await terminals.wait(
+      { id, until, ...(args.regex === true ? { regex: true } : {}), ...(timeoutMs ? { timeoutMs } : {}) },
+      signal,
+    )
+    const head = waited.matched
+      ? `found ${JSON.stringify(until)} in ${id}.`
+      : waited.exited
+        ? `${id} exited while waiting for ${JSON.stringify(until)}.`
+        : `waited and did not see ${JSON.stringify(until)} in ${id}.`
+    return text(`${head}\n\n${bodyOf(waited.text, false)}`)
+  }
   return text(
     `sent ${value.bytes} bytes to ${id} on ${machine.id}. call terminal_wait to wait for the output, or terminal_read to see the screen.`,
   )
@@ -345,7 +364,7 @@ export function kikoContender(options: KikoOptions = {}): Contender {
       if (TERMINAL_TOOLS.has(name))
         return withTerminals((manager) => {
           if (name === "terminal_open") return terminalOpen(manager, m, bag)
-          if (name === "terminal_send") return terminalSend(manager, m, bag)
+          if (name === "terminal_send") return terminalSend(manager, m, bag, signal)
           if (name === "terminal_read") return terminalRead(manager, bag)
           if (name === "terminal_wait") return terminalWait(manager, bag, signal)
           if (name === "terminal_list") return terminalList(manager, m)

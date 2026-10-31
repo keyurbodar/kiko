@@ -26,6 +26,7 @@ export const gitRebaseConflict: Task = {
   os: ["linux", "macos", "windows"],
   needs: [],
   heldOut: false,
+  kind: "real",
   prompt:
     "Rebase feature onto main and resolve the conflict in config.txt by keeping version 2 from main and mode=fast from the feature. Leave feature checked out with a clean working tree.",
   limits: LIMITS,

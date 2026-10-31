@@ -1,22 +1,20 @@
-import type { ComputerInput } from "@kiko/protocol"
-
-type InputGate = {
-  send(events: readonly ComputerInput[]): void
+type InputGate<T> = {
+  send(items: readonly T[]): void
   hold(): void
   release(): void
   discard(): void
 }
 
-export function createInputGate(deliver: (events: readonly ComputerInput[]) => void): InputGate {
+export function createInputGate<T>(deliver: (items: readonly T[]) => void): InputGate<T> {
   let held = false
-  let pending: ComputerInput[] = []
+  let pending: T[] = []
   return {
-    send(events) {
+    send(items) {
       if (held) {
-        pending.push(...events)
+        pending.push(...items)
         return
       }
-      deliver(events)
+      deliver(items)
     },
     hold() {
       held = true

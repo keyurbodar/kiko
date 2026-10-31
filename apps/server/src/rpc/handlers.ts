@@ -110,6 +110,17 @@ export const HANDLERS: Handlers = {
   "pc.input": ({ pcId, events }, { host, socket }) => host.user().pc.input(socket, pcId, events),
   "pc.ack": ({ pcId, seq }, { host }) => host.user().pc.ack(pcId, seq),
 
+  "terminal.list": ({ pcId }, { host }) => host.user().pc.terminalList(pcId),
+  "terminal.open": ({ pcId, cols, rows }, { host }) => host.user().pc.terminalOpen(pcId, cols, rows),
+  "terminal.attach": ({ pcId, terminalId, cols, rows }, { host, ws, requestId }) =>
+    host.user().pc.terminalAttach(ws, requestId, pcId, terminalId, cols, rows),
+  "terminal.input": ({ pcId, terminalId, data }, { host, ws }) =>
+    host.user().pc.terminalInput(ws, pcId, terminalId, data),
+  "terminal.resize": ({ pcId, terminalId, cols, rows }, { host, ws }) =>
+    host.user().pc.terminalResize(ws, pcId, terminalId, cols, rows),
+  "terminal.ack": ({ pcId, terminalId, bytes }, { host, ws }) =>
+    host.user().pc.terminalAck(ws, pcId, terminalId, bytes),
+
   "recipes.list": (_, { host }) => host.user().recipesList(),
   "recipes.install": (input, { host }) => host.user().recipesInstall(input),
   "recipes.uninstall": ({ installId }, { host }) => host.user().recipesUninstall(installId),

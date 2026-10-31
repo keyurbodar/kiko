@@ -3,6 +3,7 @@ import type { ModelRef, ToolExecutionApi } from "@earendil-works/pi-durable"
 import type { DesktopTool, DriverCall } from "@kiko/computer/driver"
 import type { FailCode } from "@kiko/computer/wire"
 import { filesOf } from "../../files/room-fs"
+import { encodeBase64 } from "../../lib/base64"
 import { count } from "../../lib/dev-guard"
 import type { ComputerPort } from "./port"
 import type { ComputerCallOutcome, ComputerSummary } from "./types"
@@ -11,7 +12,7 @@ export const CALL_DEADLINE_MS = 60_000
 const DRIVER_DEADLINE_MS = 30_000
 export const MAX_OUTPUT_CHARS = 12_000
 export const MAX_STEPS = 10
-export const SCREEN_MAX_WIDTH = 1280
+export const SCREEN_MAX_WIDTH = 960
 
 export type ComputerToolDeps = {
   port: () => ComputerPort
@@ -110,7 +111,7 @@ export function baseReady(deps: ComputerToolDeps) {
   return async (which?: string): Promise<Ready> => {
     const pc = await deps.port().resolve(which)
     if (!pc.online) return { ok: true, pc }
-    if ((await deps.port().holder(pc.id)) === "human") return { ok: false, result: text(paused(pc)) }
+    if (pc.holder === "human") return { ok: false, result: text(paused(pc)) }
     return { ok: true, pc }
   }
 }
@@ -124,22 +125,25 @@ export async function driverCall(
   return deps.port().call(pc.id, "driver", call, deadlineMs)
 }
 
+export type ImageData = { mime: string; data: string | Uint8Array }
+
 const decodeBase64 = (data: string): Uint8Array => Uint8Array.from(atob(data), (c) => c.charCodeAt(0))
+
+const asBase64 = (data: string | Uint8Array): string => (typeof data === "string" ? data : encodeBase64(data))
+
+const asBytes = (data: string | Uint8Array): Uint8Array => (typeof data === "string" ? decodeBase64(data) : data)
 
 const extensionOf = (mime: string) => (mime === "image/png" ? "png" : "jpg")
 
-async function saveScreenshot(
-  api: Pick<ToolExecutionApi, "env">,
-  image: { mime: string; data: string },
-): Promise<string | null> {
+async function saveScreenshot(api: Pick<ToolExecutionApi, "env">, image: ImageData): Promise<string | null> {
   const saved = `/computer-${Date.now().toString(36)}-${crypto.randomUUID().slice(0, 6)}.${extensionOf(image.mime)}`
-  const out = await filesOf(api).write(saved, decodeBase64(image.data), image.mime)
+  const out = await filesOf(api).write(saved, asBytes(image.data), image.mime)
   return out.ok ? saved : null
 }
 
 export function imagesResult(
   api: Pick<ToolExecutionApi, "env">,
-  images: readonly { mime: string; data: string }[],
+  images: readonly ImageData[],
   sees: boolean,
   body: string,
   isError = false,
@@ -149,7 +153,7 @@ export function imagesResult(
     return Promise.resolve({
       output: [
         { type: "text", text: body },
-        ...images.map((image) => ({ type: "image" as const, data: image.data, mimeType: image.mime })),
+        ...images.map((image) => ({ type: "image" as const, data: asBase64(image.data), mimeType: image.mime })),
       ],
       isError,
     })
@@ -164,9 +168,18 @@ export function imagesResult(
 
 export function imageResult(
   api: Pick<ToolExecutionApi, "env">,
-  image: { mime: string; data: string } | undefined,
+  image: ImageData | undefined,
   sees: boolean,
   body: string,
 ): Promise<ComputerResult> {
   return imagesResult(api, image ? [image] : [], sees, body)
+}
+
+export function imageOf(value: unknown): ImageData | undefined {
+  if (typeof value !== "object" || value === null) return undefined
+  const record = value as Record<string, unknown>
+  const mime = typeof record.mime === "string" ? record.mime : record.mimeType
+  if (typeof mime !== "string") return undefined
+  if (typeof record.data === "string" || record.data instanceof Uint8Array) return { mime, data: record.data }
+  return undefined
 }

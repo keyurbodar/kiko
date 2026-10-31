@@ -8,7 +8,7 @@ const key = (code: string, down: boolean): ComputerInput => ({ k: "key", code, k
 describe("input gate", () => {
   it("holds every event typed before the daemon acks control, then sends them in order", () => {
     const sent: ComputerInput[] = []
-    const gate = createInputGate((events) => sent.push(...events))
+    const gate = createInputGate<ComputerInput>((events) => sent.push(...events))
 
     gate.hold()
     gate.send([key("KeyA", true)])
@@ -22,7 +22,7 @@ describe("input gate", () => {
 
   it("sends straight through once control is held", () => {
     const sent: ComputerInput[] = []
-    const gate = createInputGate((events) => sent.push(...events))
+    const gate = createInputGate<ComputerInput>((events) => sent.push(...events))
 
     gate.send([text("a")])
 
@@ -31,7 +31,7 @@ describe("input gate", () => {
 
   it("drops what was typed in a gap that never became control", () => {
     const sent: ComputerInput[] = []
-    const gate = createInputGate((events) => sent.push(...events))
+    const gate = createInputGate<ComputerInput>((events) => sent.push(...events))
 
     gate.hold()
     gate.send([text("lost")])

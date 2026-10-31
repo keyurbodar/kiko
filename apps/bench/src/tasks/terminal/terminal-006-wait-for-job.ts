@@ -29,6 +29,7 @@ export const waitForJob: Task = {
   os: ["linux", "macos", "windows"],
   needs: [],
   heldOut: false,
+  kind: "real",
   prompt:
     "A build is running in the background. Wait for it to finish, then copy the token from build/finished.txt into result.txt.",
   limits: LIMITS,

@@ -53,9 +53,10 @@ function tarball(): Uint8Array {
   writeFileSync(join(src, "kiko"), FAKE_APP)
   writeFileSync(join(src, "kiko-core"), FAKE_CORE)
   writeFileSync(join(src, "cua-driver"), FAKE_CORE)
+  writeFileSync(join(src, "agent-browser"), FAKE_CORE)
   writeFileSync(join(src, "kiko.desktop"), "[Desktop Entry]\nType=Application\nExec=kiko\nIcon=kiko\n")
   writeFileSync(join(src, "kiko.png"), "png")
-  for (const name of ["kiko", "kiko-core", "cua-driver"]) chmodSync(join(src, name), 0o755)
+  for (const name of ["kiko", "kiko-core", "cua-driver", "agent-browser"]) chmodSync(join(src, name), 0o755)
   const out = join(mkdtempSync(join(tmpdir(), "kiko-app-")), APP)
   const packed = spawnSync("tar", [
     "-czf",
@@ -65,6 +66,7 @@ function tarball(): Uint8Array {
     "kiko",
     "kiko-core",
     "cua-driver",
+    "agent-browser",
     "kiko.desktop",
     "kiko.png",
   ])
@@ -131,6 +133,7 @@ describe.skipIf(process.platform !== "linux")("install.sh", () => {
     expect(run.file(".local/share/kiko/kiko")).toBe(FAKE_APP)
     expect(run.file(".local/share/kiko/kiko-core")).toBe(FAKE_CORE)
     expect(run.file(".local/share/kiko/cua-driver")).toBe(FAKE_CORE)
+    expect(run.file(".local/share/kiko/agent-browser")).toBe(FAKE_CORE)
     expect(run.file(".local/share/kiko/VERSION")).toBe(`${VERSION}\n`)
     expect(run.file(".local/share/applications/kiko.desktop")).toContain(`Exec="${run.home}/.local/share/kiko/kiko"`)
     expect(run.calls()).toContain(`core pair ${PAIR}`)

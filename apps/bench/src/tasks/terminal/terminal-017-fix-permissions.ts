@@ -14,6 +14,7 @@ export const fixPermissions: Task = {
   os: ["linux", "macos"],
   needs: [],
   heldOut: false,
+  kind: "real",
   prompt: "./run.sh fails with permission denied. Make it executable and run it.",
   limits: LIMITS,
   setup: async (m, seed) => {

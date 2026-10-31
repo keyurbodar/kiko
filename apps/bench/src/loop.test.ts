@@ -79,6 +79,7 @@ const task = (limits = { turns: 5, seconds: 60 }): Task => ({
   os: ["linux"],
   needs: [],
   heldOut: false,
+  kind: "real",
   prompt: "do the thing",
   limits,
   async setup() {},

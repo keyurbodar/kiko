@@ -161,6 +161,33 @@ pub fn cua_socket() -> PathBuf {
     app_dir().join("cua-driver.sock")
 }
 
+pub fn agent_browser_path() -> PathBuf {
+    if let Some(path) = env::var_os("KIKO_AGENT_BROWSER") {
+        return PathBuf::from(path);
+    }
+    sibling("agent-browser")
+}
+
+pub fn browser_dir() -> PathBuf {
+    app_dir().join("browser")
+}
+
+pub fn browser_shot() -> PathBuf {
+    browser_dir().join("shot.jpg")
+}
+
+pub fn browser_env() -> Vec<(String, String)> {
+    vec![
+        ("AGENT_BROWSER_SESSION".into(), "kiko".into()),
+        ("AGENT_BROWSER_NAMESPACE".into(), "kiko".into()),
+        (
+            "AGENT_BROWSER_PROFILE".into(),
+            browser_dir().join("profile").to_string_lossy().into_owned(),
+        ),
+        ("AGENT_BROWSER_HEADED".into(), "false".into()),
+    ]
+}
+
 pub fn sibling(name: &str) -> PathBuf {
     env::current_exe()
         .ok()
@@ -171,6 +198,7 @@ pub fn sibling(name: &str) -> PathBuf {
 pub fn ensure_dir() -> std::io::Result<()> {
     let dir = app_dir();
     std::fs::create_dir_all(&dir)?;
+    std::fs::create_dir_all(browser_dir())?;
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;

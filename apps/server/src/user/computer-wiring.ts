@@ -8,7 +8,7 @@ import {
 } from "@kiko/protocol"
 import * as Effect from "effect/Effect"
 import type { DesktopInfo } from "@kiko/computer/driver"
-import type { Op } from "@kiko/computer/wire"
+import type { Op, Value } from "@kiko/computer/wire"
 import type { OwnerServices } from "../owner/services"
 import { MAX_DEADLINE_MS, type ComputerHub } from "../computer/hub"
 import { mintPairCode } from "../computer/pairing"
@@ -105,9 +105,7 @@ export class ComputerWiring {
     const slug = slugOf(agentId)
     if (!isAgentSlug(slug) || !isRoomId(roomId))
       return Promise.resolve({ ok: false, code: "failed", message: "Unknown room or agent" })
-    const row = this.find(pcId)
-    if (!row) return Promise.resolve({ ok: false, code: "unsupported", message: "there is no such computer" })
-    return this.hub.call(row.id, op, args, {
+    return this.hub.call(pcId, op, args, {
       deadlineMs: Math.min(Number(deadlineMs ?? MAX_DEADLINE_MS), MAX_DEADLINE_MS),
       user: { key: `${roomId}:${agentId}`, name: slug },
     })
@@ -135,11 +133,6 @@ export class ComputerWiring {
   desktop(pcId?: string): DesktopInfo | null {
     const row = pcId ? this.find(pcId) : (this.hub.rows()[0] ?? null)
     return row ? this.hub.desktopInfo(row.id) : null
-  }
-
-  holder(pcId: string): "agent" | "human" {
-    const row = this.find(pcId)
-    return row ? this.hub.holder(row.id) : "agent"
   }
 
   onTabHello(ws: WebSocket): void {
@@ -186,6 +179,7 @@ export class ComputerWiring {
 
   ended(stream: string): void {
     if (stream.startsWith("pc:")) this.hub.syncRelay(stream.slice("pc:".length))
+    else if (stream.startsWith("term:")) this.hub.endTerminal(stream)
   }
 
   readonly take = Effect.fn("Computers.take")({ self: this }, function* (socket: WebSocket, pcId: string) {
@@ -223,6 +217,59 @@ export class ComputerWiring {
     const row = yield* this.row(pcId)
     this.hub.ack(row.id, seq)
   })
+
+  readonly terminalList = Effect.fn("Terminals.list")({ self: this }, function* (pcId: string) {
+    const row = yield* this.row(pcId)
+    const out = yield* Effect.promise(() => this.hub.call(row.id, "terminal_list", {}))
+    if (!out.ok) return yield* new RefusedError({ reason: out.code, message: out.message })
+    return (out.value as Value<"terminal_list">).terminals
+  })
+
+  readonly terminalOpen = Effect.fn("Terminals.open")(
+    { self: this },
+    function* (pcId: string, cols: number, rows: number) {
+      const row = yield* this.row(pcId)
+      const out = yield* Effect.promise(() => this.hub.call(row.id, "terminal_open", { cols, rows }))
+      if (!out.ok) return yield* new RefusedError({ reason: out.code, message: out.message })
+      return out.value as Value<"terminal_open">
+    },
+  )
+
+  readonly terminalAttach = Effect.fn("Terminals.attach")(
+    { self: this },
+    function* (socket: WebSocket, requestId: RequestId, pcId: string, terminalId: string, cols: number, rows: number) {
+      const row = yield* this.row(pcId)
+      const out = this.hub.attachTerminal(socket, requestId, row.id, terminalId, cols, rows)
+      if (!out.ok) return yield* new RefusedError({ reason: out.code, message: out.message })
+      subscribe(socket, { requestId, stream: out.value, cursor: 0 })
+    },
+  )
+
+  readonly terminalInput = Effect.fn("Terminals.input")(
+    { self: this },
+    function* (socket: WebSocket, pcId: string, terminalId: string, data: string) {
+      const row = yield* this.row(pcId)
+      const out = this.hub.terminalInput(socket, row.id, terminalId, data)
+      if (!out.ok) return yield* new RefusedError({ reason: out.code, message: out.message })
+    },
+  )
+
+  readonly terminalResize = Effect.fn("Terminals.resize")(
+    { self: this },
+    function* (socket: WebSocket, pcId: string, terminalId: string, cols: number, rows: number) {
+      const row = yield* this.row(pcId)
+      const out = this.hub.terminalResize(socket, row.id, terminalId, cols, rows)
+      if (!out.ok) return yield* new RefusedError({ reason: out.code, message: out.message })
+    },
+  )
+
+  readonly terminalAck = Effect.fn("Terminals.ack")(
+    { self: this },
+    function* (socket: WebSocket, pcId: string, terminalId: string, bytes: number) {
+      const row = yield* this.row(pcId)
+      this.hub.terminalAck(socket, row.id, terminalId, bytes)
+    },
+  )
 
   readonly listForTab = Effect.fn("Computers.list")({ self: this }, function (socket: WebSocket) {
     return Effect.sync(() => this.hub.summaries(socket))

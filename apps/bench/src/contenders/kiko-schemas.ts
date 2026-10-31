@@ -11,7 +11,8 @@ export const KIKO_TOOLS: readonly ToolSpec[] = [
       properties: {
         pc: {
           type: "string",
-          description: "the computer's name or id. computer_list shows every computer, what it can do and whether it is online. leave it out when the owner has one computer",
+          description:
+            "the computer's name or id. computer_list shows every computer, what it can do and whether it is online. leave it out when the owner has one computer",
         },
         command: {
           type: "string",
@@ -38,7 +39,8 @@ export const KIKO_TOOLS: readonly ToolSpec[] = [
       properties: {
         pc: {
           type: "string",
-          description: "the computer's name or id. computer_list shows every computer, what it can do and whether it is online. leave it out when the owner has one computer",
+          description:
+            "the computer's name or id. computer_list shows every computer, what it can do and whether it is online. leave it out when the owner has one computer",
         },
         path: {
           type: "string",
@@ -61,7 +63,8 @@ export const KIKO_TOOLS: readonly ToolSpec[] = [
       properties: {
         pc: {
           type: "string",
-          description: "the computer's name or id. computer_list shows every computer, what it can do and whether it is online. leave it out when the owner has one computer",
+          description:
+            "the computer's name or id. computer_list shows every computer, what it can do and whether it is online. leave it out when the owner has one computer",
         },
         path: {
           type: "string",
@@ -115,7 +118,7 @@ export const KIKO_TOOLS: readonly ToolSpec[] = [
   {
     name: "terminal_send",
     description:
-      'type into a terminal from terminal_open. text is typed exactly as written and does not press enter. keys presses named keys in order, such as ["enter"], ["ctrl+c"], ["up"], ["tab"], ["esc"], ["ctrl+d"]; use ctrl on macOS, Linux and Windows. give both to type a command and run it in one call. it does not return the screen: call terminal_wait to wait for the result, or terminal_read to look.',
+      'type into a terminal from terminal_open. text is typed exactly as written and does not press enter. keys presses named keys in order, such as ["enter"], ["ctrl+c"], ["up"], ["tab"], ["esc"], ["ctrl+d"]; use ctrl on macOS, Linux and Windows. give both to type a command and run it in one call. add until to send and wait in one call: the reply comes back as soon as that output appears, with the output up to it, or says it timed out. until is text, or a regular expression with regex true; timeoutMs defaults 30000 and is at most 120000. without until it does not return the screen: call terminal_wait to wait, or terminal_read to look.',
     parameters: {
       type: "object",
       required: ["id"],
@@ -140,6 +143,18 @@ export const KIKO_TOOLS: readonly ToolSpec[] = [
           minItems: 1,
           maxItems: 20,
           description: 'named keys to press in order, such as ["enter"], ["ctrl+c"], ["up"]',
+        },
+        until: {
+          type: "string",
+          description: "wait in the same call until this output appears, then return it",
+        },
+        regex: {
+          type: "boolean",
+          description: "treat until as a regular expression, default false",
+        },
+        timeoutMs: {
+          type: "number",
+          description: "how long to wait for until, default 30000, at most 120000",
         },
       },
     },

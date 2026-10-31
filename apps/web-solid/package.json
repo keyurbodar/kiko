@@ -47,6 +47,7 @@
     "@tiptap/extension-text": "3.31.3",
     "@tiptap/extensions": "3.31.3",
     "@tiptap/pm": "3.31.3",
+    "@xterm/xterm": "6.0.0",
     "clsx": "^2.1.1",
     "cmdk-solid": "^1.2.0",
     "effect": "4.0.6",

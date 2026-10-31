@@ -9,6 +9,7 @@ import { login } from "./browser/007-login"
 import { searchFilter } from "./browser/008-search-filter"
 import { pagination } from "./browser/009-pagination"
 import { modalDelete } from "./browser/010-modal-delete"
+import { crossTasks } from "./cross/registry"
 import { checkoutTask } from "./browser/browser-101-checkout"
 import { reauthSettings } from "./browser/browser-102-reauth-settings"
 import { productCompare } from "./browser/browser-103-product-compare"
@@ -41,6 +42,20 @@ import { fixScript } from "./terminal/fix-script"
 import { gitBranch } from "./terminal/git-branch"
 import { terminalTasksA } from "./terminal/registry-a"
 import { terminalTasksB } from "./terminal/registry-b"
+import { terminalTasksC } from "./terminal/registry-c"
+import { desktopCalcColumn } from "./desktop/desktop-101-calc-column"
+import { desktopSaveAs } from "./desktop/desktop-102-save-as-folder"
+import { desktopBatchRename } from "./desktop/desktop-103-batch-rename"
+import { desktopPreference } from "./desktop/desktop-104-app-preference"
+import { desktopReport } from "./desktop/desktop-105-report-chart"
+import { desktopBigForm } from "./desktop/desktop-106-big-form"
+import { desktopModal } from "./desktop/desktop-107-modal-midtask"
+import { desktopMinimized } from "./desktop/desktop-108-minimized-window"
+import { desktopSameTitle } from "./desktop/desktop-109-same-title"
+import { desktopHidpi } from "./desktop/desktop-110-hidpi"
+import { desktopGermanKeyboard } from "./desktop/desktop-111-german-keyboard"
+import { desktopNotification } from "./desktop/desktop-112-notification"
+import { desktopOwnerTyping } from "./desktop/desktop-113-owner-typing"
 
 export const TASKS: readonly Task[] = [
   ...terminalTasksA,
@@ -68,6 +83,21 @@ export const TASKS: readonly Task[] = [
   desktopRadio,
   desktopTree,
   desktopWindows,
+  ...terminalTasksC,
+  ...crossTasks,
+  desktopCalcColumn,
+  desktopSaveAs,
+  desktopBatchRename,
+  desktopPreference,
+  desktopReport,
+  desktopBigForm,
+  desktopModal,
+  desktopMinimized,
+  desktopSameTitle,
+  desktopHidpi,
+  desktopGermanKeyboard,
+  desktopNotification,
+  desktopOwnerTyping,
   checkoutTask,
   reauthSettings,
   productCompare,

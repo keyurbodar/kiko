@@ -1,0 +1,19 @@
+[package]
+name = "kiko-agent-browser"
+description = "Runs the pinned agent-browser as kiko's browser engine and speaks its MCP tools"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+base64.workspace = true
+kiko-driver.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[[bin]]
+name = "fake-agent-browser"
+path = "src/bin/fake_mcp.rs"

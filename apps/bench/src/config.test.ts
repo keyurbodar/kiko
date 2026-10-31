@@ -8,6 +8,7 @@ import type { Os, Task } from "./types"
 const task = (id: string, track: Task["track"], os: readonly Os[]): Task => ({
   id,
   track,
+  kind: "real",
   os,
   needs: [],
   heldOut: false,

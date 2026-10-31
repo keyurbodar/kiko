@@ -15,6 +15,7 @@ export const cookieBanner: Task = {
   os: ["linux", "macos", "windows"],
   needs: ["chrome"],
   heldOut: false,
+  kind: "real",
   prompt:
     "Subscribe to product updates on the page whose address is in url.txt. Use the email address in request.json.",
   limits: LIMITS,
