@@ -131,7 +131,7 @@ jobs:
 
   validate:
     name: Validate (${{ matrix.machine }})
-    if: github.event.inputs.tracks == '' && github.event.inputs.models == ''
+    if: github.event.inputs.tracks == ''
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 60
     strategy:
