@@ -10,7 +10,6 @@ const CACHE = "public, max-age=300"
 const UNAVAILABLE = "this worker has no signed kiko release to install right now; try again later"
 
 const shQuote = (value: string): string => value.replace(/'/g, `'\\''`)
-const psQuote = (value: string): string => value.replace(/'/g, "''")
 
 async function computerRelease(env: Env): Promise<ComputerRelease | null> {
   const config = updateConfig(env, null)
@@ -337,7 +336,7 @@ ${SH_LINUX}
 case "$(uname -s)" in
   Darwin) os=macos ;;
   Linux) os=linux ;;
-  *) die "this script installs on macOS and Linux. On Windows use the install.ps1 one-liner from $origin" ;;
+  *) die "kiko installs on macOS and Linux only" ;;
 esac
 case "$(uname -m)" in
   x86_64|amd64) arch=x64 ;;
@@ -437,143 +436,6 @@ say "kiko: done."
 `
 }
 
-export function installPs1(origin: string, release: ComputerRelease): string {
-  return `param(
-  [Parameter(Position = 0)][string]$PairUrl = $env:KIKO_PAIR_URL,
-  [string]$Name = '',
-  [switch]$WithFfmpeg
-)
-
-$ErrorActionPreference = 'Stop'
-$ProgressPreference = 'SilentlyContinue'
-[Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
-$origin = '${psQuote(origin)}'
-$version = '${release.version}'
-$base = '${release.base}'
-$sums = @'
-${release.sums}'@
-
-function Say([string]$Text) { Write-Host "kiko: $Text" }
-
-if ($env:KIKO_PC_BASE) { $base = $env:KIKO_PC_BASE }
-if ($env:PROCESSOR_ARCHITECTURE -eq 'ARM64') { Say 'Windows on ARM runs the x64 build under emulation' }
-
-$asset = 'kiko-windows-x64.zip'
-$local = $env:LOCALAPPDATA
-if (-not $local) { $local = Join-Path $env:USERPROFILE 'AppData\\Local' }
-$root = Join-Path $local 'kiko'
-$exe = Join-Path $root 'kiko.exe'
-$core = Join-Path $root 'kiko-core.exe'
-$staging = Join-Path $root '.update'
-$run = 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Run'
-$migrate = @'
-Remove-ItemProperty -Path '__RUN__' -Name 'kiko-computer' -ErrorAction SilentlyContinue
-$old = Get-Process -Name 'kiko-computer' -ErrorAction SilentlyContinue
-if ($old) { $old | Stop-Process -Force }
-$oldDir = Join-Path '__LOCAL__' 'kiko-computer'
-if (Test-Path (Join-Path $oldDir 'bin\\kiko-computer.exe')) { Remove-Item -Recurse -Force $oldDir }
-'@
-$migrate = $migrate.Replace('__RUN__', $run).Replace('__LOCAL__', $local)
-
-$want = ''
-foreach ($line in ($sums -split '\\r?\\n')) {
-  $parts = $line.Trim() -split '\\s+'
-  if ($parts.Length -ge 2) {
-    $candidate = $parts[1] -replace '^\\*', ''
-    if ($candidate -eq $asset) { $want = $parts[0].ToLower(); break }
-  }
-}
-if (-not $want) { throw "kiko: the release has no checksum for $asset" }
-
-$same = ''
-if (Test-Path (Join-Path $root 'VERSION')) { $same = (Get-Content (Join-Path $root 'VERSION') -Raw).Trim() }
-New-Item -ItemType Directory -Force -Path $root | Out-Null
-
-if ($same -eq $version) {
-  Say "kiko $version is already installed"
-} else {
-  New-Item -ItemType Directory -Force -Path $staging | Out-Null
-  $zip = Join-Path $staging 'kiko.zip'
-  Say "downloading $asset $version"
-  Invoke-WebRequest -UseBasicParsing -Uri "$base/$asset" -OutFile $zip
-  $got = (Get-FileHash -Algorithm SHA256 -Path $zip).Hash.ToLower()
-  if ($got -ne $want) {
-    Remove-Item -Force $zip
-    throw "kiko: checksum mismatch for $asset. Nothing was installed"
-  }
-  if (Get-Process -Name 'kiko' -ErrorAction SilentlyContinue) {
-    Say 'kiko is running, so it quits, replaces itself and starts again'
-    $swap = @'
-$ErrorActionPreference = 'Stop'
-& '__EXE__' --quit
-for ($i = 0; $i -lt 60; $i++) {
-  if (-not (Get-Process -Name 'kiko', 'kiko-core' -ErrorAction SilentlyContinue)) { break }
-  Start-Sleep -Milliseconds 500
-}
-if (Get-Process -Name 'kiko', 'kiko-core' -ErrorAction SilentlyContinue) {
-  Start-Process -FilePath '__EXE__'
-  exit 1
-}
-Expand-Archive -Path '__ZIP__' -DestinationPath '__ROOT__' -Force
-Set-Content -Path (Join-Path '__ROOT__' 'VERSION') -Value '__VERSION__' -NoNewline
-Remove-Item -Force '__ZIP__'
-Remove-Item -Recurse -Force '__STAGING__'
-Start-Process -FilePath '__EXE__'
-__MIGRATE__
-'@
-$swap = $swap.Replace('__EXE__', $exe).Replace('__ZIP__', $zip).Replace('__ROOT__', $root).Replace('__VERSION__', $version).Replace('__STAGING__', $staging).Replace('__MIGRATE__', $migrate)
-    $helper = Join-Path $staging 'swap.ps1'
-    Set-Content -Path $helper -Value $swap -Encoding UTF8
-    Set-ItemProperty -Path $run -Name 'kiko' -Value ('"' + $exe + '"')
-    Start-Process -FilePath 'powershell' -WindowStyle Hidden -ArgumentList @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $helper)
-    Say 'kiko starts at logon'
-    Say 'done.'
-    exit 0
-  }
-  Say "installing kiko $version"
-  Expand-Archive -Path $zip -DestinationPath $root -Force
-  Set-Content -Path (Join-Path $root 'VERSION') -Value $version -NoNewline
-  Remove-Item -Force $zip
-  Remove-Item -Recurse -Force $staging -ErrorAction SilentlyContinue
-}
-
-Set-ItemProperty -Path $run -Name 'kiko' -Value ('"' + $exe + '"')
-Say 'kiko starts at logon'
-
-if ($PairUrl) {
-  if ($Name) {
-    & $core pair $PairUrl --name $Name
-  } else {
-    & $core pair $PairUrl
-  }
-  if ($LASTEXITCODE -ne 0) { throw 'kiko: pairing failed' }
-} elseif (-not $same) {
-  Say "no pair link yet. Open $origin in a browser, add this computer, then run:"
-  Write-Host ('  "' + $core + '" pair "<pair-url>"')
-}
-
-if (-not (Get-Process -Name 'kiko' -ErrorAction SilentlyContinue)) {
-  Start-Process -FilePath $exe
-  Say 'kiko is running now'
-}
-
-& ([scriptblock]::Create($migrate))
-
-if (Get-Command ffmpeg -ErrorAction SilentlyContinue) {
-  Say 'ffmpeg found'
-} elseif ($WithFfmpeg -and (Get-Command winget -ErrorAction SilentlyContinue)) {
-  winget install --id Gyan.FFmpeg -e --accept-source-agreements --accept-package-agreements
-} else {
-  Say 'ffmpeg is missing. Live view needs it. Install it with:'
-  Write-Host '  winget install --id Gyan.FFmpeg -e'
-  Write-Host '  or download it from https://ffmpeg.org/download.html'
-  Write-Host '  or run this script again with -WithFfmpeg'
-}
-
-Say 'done.'
-`
-}
-
 function unavailableSh(): string {
   return `#!/bin/sh
 printf '%s\n' 'kiko: ${UNAVAILABLE}' >&2
@@ -581,23 +443,17 @@ exit 1
 `
 }
 
-function unavailablePs1(): string {
-  return `throw 'kiko: ${UNAVAILABLE}'
-`
-}
-
-function installScript(shell: boolean, origin: string, release: ComputerRelease | null): string {
-  if (!release) return shell ? unavailableSh() : unavailablePs1()
-  return shell ? installSh(origin, release) : installPs1(origin, release)
+function installScript(origin: string, release: ComputerRelease | null): string {
+  if (!release) return unavailableSh()
+  return installSh(origin, release)
 }
 
 export async function installRoute(request: Request, env: Env): Promise<Response | null> {
   const url = new URL(request.url)
-  const shell = url.pathname === "/pc/install.sh"
-  if (!shell && url.pathname !== "/pc/install.ps1") return null
+  if (url.pathname !== "/pc/install.sh") return null
   if (request.method !== "GET" && request.method !== "HEAD") return new Response("method not allowed", { status: 405 })
   const release = await computerRelease(env)
-  const body = installScript(shell, url.origin, release)
+  const body = installScript(url.origin, release)
   return new Response(request.method === "HEAD" ? null : body, {
     headers: { "content-type": "text/plain; charset=utf-8", "cache-control": CACHE },
   })

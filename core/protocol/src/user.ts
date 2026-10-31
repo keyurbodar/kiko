@@ -300,7 +300,7 @@ export type ComputerAgent = typeof ComputerAgent.Type
 export const ComputerSummary = Schema.Struct({
   id: ComputerId,
   name: Schema.String,
-  os: Schema.Literals(["macos", "linux", "windows"]),
+  os: Schema.Literals(["macos", "linux"]),
   online: Schema.Boolean,
   caps: ComputerCaps,
   holder: Schema.Literals(["agent", "human"]),
