@@ -14,11 +14,13 @@ triple="$([ "$arch" = "arm64" ] && echo aarch64-apple-darwin || echo x86_64-appl
 binary="${KIKO_BIN:-$target/$triple/release/kiko}"
 core="${KIKO_CORE_BIN:-$root/apps/computer/dist/kiko-computer-darwin-$arch}"
 cua="${KIKO_CUA_BIN:-}"
+browser="${KIKO_AGENT_BROWSER_BIN:-}"
 version="${KIKO_VERSION:-$(grep -m1 '"version"' "$root/package.json" | sed -E 's/.*"version": *"([^"]+)".*/\1/')}"
 
 [ -f "$binary" ] || { echo "missing $binary"; exit 1; }
 [ -f "$core" ] || { echo "missing $core"; exit 1; }
 [ -f "$cua" ] || { echo "missing the cua-driver binary: set KIKO_CUA_BIN"; exit 1; }
+[ -f "$browser" ] || { echo "missing the agent-browser binary: set KIKO_AGENT_BROWSER_BIN"; exit 1; }
 
 app="$out/kiko.app"
 work="$(mktemp -d)"
@@ -55,6 +57,7 @@ PLIST
 install -m 755 "$binary" "$app/Contents/MacOS/kiko"
 install -m 755 "$core" "$app/Contents/MacOS/kiko-core"
 install -m 755 "$cua" "$app/Contents/MacOS/cua-driver"
+install -m 755 "$browser" "$app/Contents/MacOS/agent-browser"
 
 iconset="$work/icon.iconset"
 mkdir -p "$iconset"
@@ -68,6 +71,7 @@ iconutil -c icns "$iconset" -o "$app/Contents/Resources/icon.icns"
 entitlements="$crate/resources/kiko.entitlements"
 codesign --force --options runtime --timestamp=none --entitlements "$entitlements" --sign "$identity" "$app/Contents/MacOS/kiko-core"
 codesign --force --options runtime --timestamp=none --entitlements "$entitlements" --sign "$identity" "$app/Contents/MacOS/cua-driver"
+codesign --force --options runtime --timestamp=none --entitlements "$entitlements" --sign "$identity" "$app/Contents/MacOS/agent-browser"
 codesign --force --options runtime --timestamp=none --entitlements "$entitlements" --sign "$identity" "$app/Contents/MacOS/kiko"
 codesign --force --options runtime --timestamp=none --entitlements "$entitlements" --identifier com.kiko.computer --sign "$identity" "$app"
 

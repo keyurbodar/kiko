@@ -21,6 +21,7 @@ export const desktopTree: Task = {
   os: ["linux"],
   needs: ["display"],
   heldOut: true,
+  kind: "real",
   prompt: "In the open window, expand the group named in request.json, select the item named there, and choose it.",
   limits: LIMITS,
   setup: async (m, seed) => {

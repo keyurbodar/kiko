@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use kiko_agent_browser::Engine;
 use kiko_cua::Cua;
 use kiko_driver::{Browser, Desktop};
 
@@ -14,15 +15,16 @@ pub struct Driver {
 
 impl Driver {
     pub fn build() -> Self {
+        let log: Arc<dyn Fn(String) + Send + Sync> =
+            Arc::new(|line: String| crate::log::line(line));
         Self {
-            desktop: desktop(),
-            browser: browser(),
+            desktop: desktop(Arc::clone(&log)),
+            browser: browser(log),
         }
     }
 }
 
-fn desktop() -> Box<dyn Desktop> {
-    let log = Arc::new(|line: String| crate::log::line(line));
+fn desktop(log: Arc<dyn Fn(String) + Send + Sync>) -> Box<dyn Desktop> {
     Box::new(Cua::start(
         config::cua_path(),
         config::cua_socket(),
@@ -31,6 +33,11 @@ fn desktop() -> Box<dyn Desktop> {
     ))
 }
 
-fn browser() -> Box<dyn Browser> {
-    kiko_browser::browser()
+fn browser(log: Arc<dyn Fn(String) + Send + Sync>) -> Box<dyn Browser> {
+    Box::new(Engine::start(
+        config::agent_browser_path(),
+        config::browser_env(),
+        config::browser_shot(),
+        log,
+    ))
 }

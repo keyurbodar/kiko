@@ -16,6 +16,7 @@ export const desktopRadio: Task = {
   os: ["linux"],
   needs: ["display"],
   heldOut: false,
+  kind: "real",
   prompt: "In the open window, choose the plan named in request.json and apply it.",
   limits: LIMITS,
   setup: async (m, seed) => {

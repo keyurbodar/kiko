@@ -48,6 +48,7 @@ export const chainedJobs: Task = {
   os: ["linux", "macos", "windows"],
   needs: [],
   heldOut: true,
+  kind: "real",
   prompt: "The three steps in jobs/ are not wired up. Run them in the right order so report.txt is produced.",
   limits: LIMITS,
   setup: async (m, seed) => {

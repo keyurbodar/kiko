@@ -20,6 +20,7 @@ export const login: Task = {
   os: ["linux", "macos", "windows"],
   needs: ["chrome"],
   heldOut: false,
+  kind: "real",
   prompt:
     "Sign in on the page in url.txt with the username and password in request.json, then submit the access token shown on the account page in the answer form.",
   limits: LIMITS,

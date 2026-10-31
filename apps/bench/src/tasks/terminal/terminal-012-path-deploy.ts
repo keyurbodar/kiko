@@ -16,6 +16,7 @@ export const pathDeploy: Task = {
   os: ["linux", "macos"],
   needs: [],
   heldOut: false,
+  kind: "real",
   prompt:
     "The deploy command is installed in bin/ but is not on your PATH. Make `deploy` run and let it write deployed.txt.",
   limits: LIMITS,

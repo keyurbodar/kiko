@@ -51,6 +51,7 @@ export const freeBusyPort: Task = {
   os: ["linux", "macos"],
   needs: [],
   heldOut: false,
+  kind: "real",
   prompt:
     "Something is already listening on the port in port.txt. Stop it, then start ./server.ts so it serves the token.",
   limits: LIMITS,

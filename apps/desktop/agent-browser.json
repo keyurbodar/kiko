@@ -1,0 +1,21 @@
+{
+  "version": "0.41.0",
+  "assets": {
+    "linux-x64": {
+      "asset": "agent-browser-linux-x64",
+      "sha256": "399c7e9f06bd29aa933fdf25c0bd958eea06927fc0ce6f536ba6347aabd64628"
+    },
+    "linux-arm64": {
+      "asset": "agent-browser-linux-arm64",
+      "sha256": "e196e9cabe6cb1b01bd5912973628361b9f40a332683a12426abad007f0d3589"
+    },
+    "darwin-arm64": {
+      "asset": "agent-browser-darwin-arm64",
+      "sha256": "a402fef2489c221b17522aa21f103ca5dc47f00ff5879d4a72c39881544730ab"
+    },
+    "darwin-x64": {
+      "asset": "agent-browser-darwin-x64",
+      "sha256": "f108d4aa02f41eee05d6b1b05817475fd5d576d802826783ef80800da16f33e2"
+    }
+  }
+}
