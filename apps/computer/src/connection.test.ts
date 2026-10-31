@@ -57,6 +57,7 @@ async function host(): Promise<Host> {
     policy: async () => ({ shell: true, files: { allow: ["~"] }, desktop: false, live: false, input: false }),
     driver: () => null,
     terminal: () => null,
+    terminals: { open() {}, input() {}, resize() {}, ack() {}, close() {} },
     paused: () => false,
     live: { rtc() {}, live() {}, input() {}, control() {}, ack() {} },
     holder: () => "agent",

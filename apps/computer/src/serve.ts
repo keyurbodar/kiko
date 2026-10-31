@@ -11,6 +11,7 @@ import { createLogger, type Logger } from "./log"
 import { VERSION } from "./platform"
 import { hasPty } from "./terminal/pty"
 import { TerminalManager } from "./terminal/manager"
+import { createTerminalLink } from "./terminal/link"
 import { createUpdater, updateTarget, type Updater } from "./update"
 
 const REPAIR_POLL_MS = 30_000
@@ -48,6 +49,11 @@ export async function serve(dir = configDir()): Promise<number> {
   let liveStarting = false
   let update: Updater | null = null
   const terminals = new TerminalManager()
+  const terminalLink = createTerminalLink({
+    manager: () => (hasPty() ? terminals : null),
+    holder: () => holder,
+    send: (frame) => link?.frame(frame),
+  })
   const refresh = () => {
     detection = detect(log, liveCaps, driver?.state() ?? null, dir)
     link?.reconnect()
@@ -80,6 +86,7 @@ export async function serve(dir = configDir()): Promise<number> {
     policy: policies.get,
     driver: () => driver,
     terminal: () => (hasPty() ? terminals : null),
+    terminals: terminalLink,
     paused,
     live: {
       rtc: (frame) => live.frames.rtc(frame),
@@ -109,6 +116,7 @@ export async function serve(dir = configDir()): Promise<number> {
     log.info("stopping")
     link?.stop()
     driver?.close()
+    terminalLink.close()
     terminals.closeAll()
     void live.close()
     process.exit(0)

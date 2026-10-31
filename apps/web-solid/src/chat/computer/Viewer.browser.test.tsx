@@ -13,9 +13,17 @@ vi.mock("../computers", () => ({
   openViewer: () => {},
   release: () => Promise.resolve({ ok: true }),
   takeOver: () => Promise.resolve({ ok: true }),
+  takePending: () => false,
 }))
 
 vi.mock("./LiveScreen", () => ({ default: () => null }))
+
+vi.mock("./TerminalView", () => ({ default: () => null }))
+
+vi.mock("./terminals", () => ({
+  listTerminals: () => Promise.resolve([]),
+  openTerminal: () => Promise.resolve(undefined),
+}))
 
 const mac = (extra: Partial<ComputerSummary> = {}): ComputerSummary =>
   ({

@@ -1,3 +1,4 @@
+import type { ComputerInput } from "@kiko/protocol"
 import { createEffect, createMemo, createSignal, on, onCleanup, Show, type JSX } from "solid-js"
 import { cn } from "../../lib/cn"
 import { connection } from "../../state/connection"
@@ -39,7 +40,7 @@ export default function LiveScreen(props: {
   let sink!: HTMLTextAreaElement
   let you: HTMLDivElement | undefined
   let session: Session | undefined
-  const gate = createInputGate((events) => session?.send(events))
+  const gate = createInputGate<ComputerInput>((events) => session?.send(events))
 
   createEffect(
     on(

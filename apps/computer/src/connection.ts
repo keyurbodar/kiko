@@ -23,6 +23,7 @@ import { splitImages } from "./images"
 import { Fail, failureCode, failureMessage, type Logger } from "./log"
 import { read, shell, write } from "./ops"
 import type { TerminalManager } from "./terminal/manager"
+import type { TerminalLink } from "./terminal/link"
 
 const PING_MS = 20_000
 const PING = JSON.stringify({ _tag: "Ping" })
@@ -49,6 +50,7 @@ export type Host = {
   policy(): Promise<Policy>
   driver(): Driver | null
   terminal(): TerminalManager | null
+  terminals: TerminalLink
   paused(): boolean
   live: LiveFrames
   holder(): Holder
@@ -339,6 +341,14 @@ class Link {
         return this.liveFrame(() => this.host.live.rtc(frame))
       case "ack":
         return this.liveFrame(() => this.host.live.ack(frame))
+      case "terminal":
+        return this.terminalFrame(() => this.host.terminals.open(frame))
+      case "terminalInput":
+        return this.terminalFrame(() => this.host.terminals.input(frame))
+      case "terminalResize":
+        return this.terminalFrame(() => this.host.terminals.resize(frame))
+      case "terminalAck":
+        return this.terminalFrame(() => this.host.terminals.ack(frame))
       case "welcome":
         this.welcomed = true
         this.host.onWelcome?.(frame.name, frame.version)
@@ -350,6 +360,14 @@ class Link {
       run()
     } catch (error) {
       this.host.log.warn(`the live view could not handle a frame: ${failureMessage(error)}`)
+    }
+  }
+
+  private terminalFrame(run: () => void): void {
+    try {
+      run()
+    } catch (error) {
+      this.host.log.warn(`the terminal view could not handle a frame: ${failureMessage(error)}`)
     }
   }
 
@@ -416,6 +434,8 @@ class Link {
       throw new Fail({ code: "denied", message: "policy.json turns off shell commands and terminals on this machine" })
     const terminals = this.host.terminal()
     if (!terminals) throw new Fail({ code: "unsupported", message: "this machine cannot open terminal sessions" })
+    if (op === "terminal_send" && this.host.holder() === "human")
+      throw new Fail({ code: "busy", message: "the owner has control of this terminal" })
     if (op === "terminal_open") return terminals.open(args as Args<"terminal_open">)
     if (op === "terminal_send") return terminals.send(args as Args<"terminal_send">, context.signal)
     if (op === "terminal_read") return terminals.read(args as Args<"terminal_read">)

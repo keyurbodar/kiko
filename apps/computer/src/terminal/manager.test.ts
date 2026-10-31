@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "@effect/vitest"
+import type { TerminalStream } from "@kiko/computer/wire"
 import { TerminalManager } from "./manager"
 import type { Pty, PtyInput } from "./pty"
 import type { Screen } from "./screen"
@@ -379,6 +380,85 @@ describe("terminal_resize", () => {
     expect(resized).toEqual({ id: opened.id, cols: 100, rows: 40 })
     expect(fake.resizes).toEqual([[100, 40]])
     expect(await manager.read({ id: opened.id, mode: "screen" })).toMatchObject({ cols: 100, rows: 40 })
+  })
+})
+
+describe("terminal attach", () => {
+  it("sends the history first and then the live output", () => {
+    const { fake, manager } = harness()
+    const opened = manager.open({})
+    fake.emit("ready\r\n")
+    const events: TerminalStream[] = []
+
+    manager.attach({ id: opened.id }, (event) => events.push(event))
+    fake.emit("$ ls\r\n")
+
+    expect(events[0]).toMatchObject({ type: "snapshot", history: "ready\r\n", status: "running" })
+    expect(events[1]).toEqual({ type: "output", data: "$ ls\r\n" })
+  })
+
+  it("drops queries from the history so a replay does not answer them", () => {
+    const { fake, manager } = harness()
+    const opened = manager.open({})
+    fake.emit("before\x1b[6n\x1b[c after")
+    const events: TerminalStream[] = []
+
+    manager.attach({ id: opened.id }, (event) => events.push(event))
+
+    expect(events[0]).toMatchObject({ type: "snapshot", history: "before after" })
+  })
+
+  it("writes owner input straight to the pty", () => {
+    const { fake, manager } = harness()
+    const opened = manager.open({})
+    const view = manager.attach({ id: opened.id }, () => {})
+
+    view.write("ls\r")
+
+    expect(fake.writes).toEqual(["ls\r"])
+  })
+
+  it("resizes the session to the viewer", () => {
+    const { fake, manager } = harness()
+    const opened = manager.open({})
+    manager.attach({ id: opened.id, cols: 90, rows: 20 }, () => {})
+
+    expect(fake.resizes).toEqual([[90, 20]])
+  })
+
+  it("holds output until the viewer acknowledges it", () => {
+    const { fake, manager } = harness()
+    const opened = manager.open({})
+    const events: TerminalStream[] = []
+    const view = manager.attach({ id: opened.id }, (event) => events.push(event))
+    const first = "a".repeat(300 * 1024)
+
+    fake.emit(first)
+    fake.emit("second")
+
+    expect(events.map((event) => event.type)).toEqual(["snapshot", "output"])
+    view.ack(first.length)
+    expect(events.at(-1)).toEqual({ type: "output", data: "second" })
+  })
+
+  it("stops after detach and tells the viewer when the shell exits", () => {
+    const { fake, manager } = harness()
+    const opened = manager.open({})
+    const events: TerminalStream[] = []
+    const view = manager.attach({ id: opened.id }, (event) => events.push(event))
+
+    fake.exit(2)
+    view.detach()
+    fake.emit("late")
+
+    expect(events.map((event) => event.type)).toEqual(["snapshot", "exit"])
+    expect(events[1]).toEqual({ type: "exit", code: 2 })
+  })
+
+  it("refuses an unknown terminal", () => {
+    const { manager } = harness()
+
+    expect(() => manager.attach({ id: "nope" }, () => {})).toThrow(/there is no terminal nope/)
   })
 })
 
