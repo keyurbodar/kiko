@@ -320,6 +320,11 @@ describe("the remote clipboard", () => {
     const frames = () => run.sent.filter((frame) => frame.t === "clipboard")
 
     run.live.onControl({ holder: "human" })
+    reads.shift()?.("before the takeover")
+    await Promise.resolve()
+    assert.deepStrictEqual(frames(), [])
+
+    ticks[0]?.()
     reads.shift()?.("first")
     await Promise.resolve()
     assert.deepStrictEqual(frames(), [{ t: "clipboard", text: "first" }])

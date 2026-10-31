@@ -261,6 +261,10 @@ class Daemon implements Live {
     if (!clipboard) return
     const text = await clipboard.read()
     if (this.closed || this.holder !== "human" || text === null) return
+    if (this.lastClipboard === null) {
+      this.lastClipboard = text
+      return
+    }
     if (text === this.lastClipboard) return
     this.lastClipboard = text
     if (text.length === 0) return

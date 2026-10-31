@@ -84,6 +84,20 @@ function fakeDriver(path: string) {
   return { server, calls, ready: new Promise<void>((resolve) => server.listen(path, () => resolve())) }
 }
 
+async function mainDisplay(): Promise<{ width: number; height: number } | null> {
+  if (process.platform !== "darwin") return null
+  const script =
+    "ObjC.import('AppKit');const f=$.NSScreen.mainScreen.frame;JSON.stringify({width:f.size.width,height:f.size.height})"
+  try {
+    const out = await Bun.$`osascript -l JavaScript -e ${script}`.text()
+    const parsed = JSON.parse(out.trim()) as { width?: number; height?: number }
+    if (typeof parsed.width !== "number" || typeof parsed.height !== "number") return null
+    return { width: Math.round(parsed.width), height: Math.round(parsed.height) }
+  } catch {
+    return null
+  }
+}
+
 function status() {
   return {
     version: "test",
@@ -178,7 +192,8 @@ async function main(): Promise<void> {
       return page
     }
     const single = process.argv.includes("--single")
-    const leftPage = await openRemote(LEFT_PORT, 0, single ? 1920 : 1280, single ? 1080 : 1024)
+    const area = single ? await mainDisplay() : null
+    const leftPage = await openRemote(LEFT_PORT, 0, area?.width ?? 1280, area?.height ?? 1024)
     const rightPage = single ? leftPage : await openRemote(RIGHT_PORT, 1280, 1024, 768)
     await wait(1_500)
 
