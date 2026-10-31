@@ -46,7 +46,7 @@ vi.mock("./terminalSession", () => ({
     return {
       input: (data: string) => {
         view.inputs.push(data)
-        view.emit({ type: "output", data: data.replace(/\x1b\[20[01]~/g, "") })
+        view.emit({ type: "output", data: data.replaceAll("\x1b[200~", "").replaceAll("\x1b[201~", "") })
       },
       resize: (cols: number, rows: number) => view.resizes.push([cols, rows]),
       close: () => {

@@ -248,7 +248,7 @@ export class ComputerWiring {
       const row = yield* this.row(pcId)
       const out = this.hub.attachTerminal(socket, requestId, row.id, terminalId, cols, rows)
       if (!out.ok) return yield* new RefusedError({ reason: out.code, message: out.message })
-      subscribe(socket, { requestId, stream: out.value as string, cursor: 0 })
+      subscribe(socket, { requestId, stream: out.value, cursor: 0 })
     },
   )
 

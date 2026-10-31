@@ -103,6 +103,10 @@ type CallTarget = { ws: WebSocket; saved: PcAttachment; hello: Hello }
 
 export type CallOutcome = { ok: true; value: unknown } | { ok: false; code: FailCode; message: string }
 
+export type TerminalAttachOutcome =
+  | { ok: true; value: `term:${string}` }
+  | { ok: false; code: FailCode; message: string }
+
 export type PcReleased = { pcId: string; name: string; waiters: PcAgent[]; expired: boolean }
 
 type TabAttachment = { pcSession?: string; user?: { pcSession?: string } }
@@ -795,7 +799,7 @@ export class ComputerHub {
     terminalId: string,
     cols: number,
     rows: number,
-  ): CallOutcome {
+  ): TerminalAttachOutcome {
     const row = this.d.store.get(pcId)
     if (!row) return { ok: false, code: "unsupported", message: "there is no such computer" }
     const target = this.target(pcId)

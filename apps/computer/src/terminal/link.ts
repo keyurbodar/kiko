@@ -55,7 +55,7 @@ export function createTerminalLink(deps: {
       views.get(frame.id)?.ack(frame.bytes)
     },
     close() {
-      for (const id of [...views.keys()]) drop(id)
+      for (const id of views.keys()) drop(id)
     },
   }
 }

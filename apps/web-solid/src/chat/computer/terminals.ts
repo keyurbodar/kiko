@@ -1,7 +1,7 @@
 import type { TerminalSummary } from "@kiko/protocol"
 import { owner, run } from "../../state/runtime"
 
-export async function listTerminals(pcId: string): Promise<TerminalSummary[]> {
+export async function listTerminals(pcId: string): Promise<readonly TerminalSummary[]> {
   const result = await run(owner.commands.terminalList, { pcId })
   return result._tag === "Success" ? result.value : []
 }

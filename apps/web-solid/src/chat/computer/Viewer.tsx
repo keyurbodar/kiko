@@ -19,7 +19,7 @@ const tab =
   "h-control-md cursor-pointer rounded-base px-2.5 type-sm font-medium whitespace-nowrap transition-colors duration-(--duration-fast)"
 
 export default function Viewer(): JSX.Element {
-  const [terminals, setTerminals] = createSignal<TerminalSummary[]>([])
+  const [terminals, setTerminals] = createSignal<readonly TerminalSummary[]>([])
   const [active, setActive] = createSignal("desktop")
   const [opening, setOpening] = createSignal(false)
   const pc = () => computerById(viewerFor() ?? "")

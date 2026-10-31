@@ -1,5 +1,5 @@
 import { describe, expect, it } from "@effect/vitest"
-import type { FromDaemon, Holder, ToDaemon } from "@kiko/computer/wire"
+import type { FromDaemon, Holder } from "@kiko/computer/wire"
 import { createTerminalLink } from "./link"
 import { TerminalManager } from "./manager"
 import type { Pty, PtyInput } from "./pty"
