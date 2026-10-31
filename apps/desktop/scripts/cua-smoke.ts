@@ -133,6 +133,12 @@ function structuredOf(value: unknown): unknown {
   return isRecord(value) ? value.structuredContent : undefined
 }
 
+function treeOf(value: unknown): string {
+  const structured = structuredOf(value)
+  const markdown = isRecord(structured) ? structured.tree_markdown : undefined
+  return typeof markdown === "string" ? markdown : textOf(value)
+}
+
 function parseJson(text: string): unknown {
   try {
     return JSON.parse(text)
@@ -190,13 +196,18 @@ function roleOf(row: string): string {
   return head.startsWith("ax") ? head.slice(2) : head
 }
 
-function tokenOf(text: string): string | undefined {
-  const snapshot = text.match(/snapshot_id=([A-Za-z0-9]+)/)?.[1]
-  if (!snapshot) return undefined
-  for (const line of text.split("\n")) {
+function snapshotOf(value: unknown, tree: string): string | undefined {
+  const structured = structuredOf(value)
+  const known = isRecord(structured) ? structured.snapshot_id : undefined
+  if (typeof known === "string") return known
+  return tree.match(/snapshot_id=([A-Za-z0-9]+)/)?.[1]
+}
+
+function rowOf(tree: string): number | undefined {
+  for (const line of tree.split("\n")) {
     const row = line.match(/^\s*- \[(\d+)\] (.+)$/)
     if (!row) continue
-    if (TEXT_ROLES.has(roleOf(row[2] ?? ""))) return `${snapshot}:${row[1]}`
+    if (TEXT_ROLES.has(roleOf(row[2] ?? ""))) return Number(row[1])
   }
   return undefined
 }
@@ -330,21 +341,36 @@ function readWindow(driver: Driver, window: CuaWindow): Promise<unknown> {
   })
 }
 
-async function typeInto(driver: Driver, window: CuaWindow, typed: string): Promise<string> {
+function tokens(snapshot: string, row: number): string[] {
+  return [row, row + 1, row - 1].filter((index) => index >= 0).map((index) => `${snapshot}:${index}`)
+}
+
+async function typeInto(driver: Driver, window: CuaWindow, typed: string): Promise<{ via: string; token: string }> {
   const state = await readWindow(driver, window)
-  const element = tokenOf(textOf(state))
-  if (!element) throw new Error(`no text field in the window state: ${textOf(state).slice(0, 600)}`)
+  const tree = treeOf(state)
+  const snapshot = snapshotOf(state, tree)
+  const row = rowOf(tree)
+  if (snapshot === undefined || row === undefined)
+    throw new Error(`no text field in the window state: ${tree.slice(0, 600)}`)
   const target = { kind: "window", pid: window.pid, window_id: window.id }
-  const attempts = [
-    { tool: "type_text", args: { target, element_token: element, text: typed } },
-    { tool: "set_value", args: { pid: window.pid, element_token: element, value: typed } },
-  ]
-  for (const attempt of attempts) {
-    const inserted = await driver.call("desktop.call", { name: attempt.tool, args: attempt.args })
-    if (isRecord(inserted) && inserted.isError === true) continue
-    if (textOf(await readWindow(driver, window)).includes(typed)) return attempt.tool
+  const failures: string[] = []
+  for (const token of tokens(snapshot, row)) {
+    const attempts = [
+      { tool: "type_text", args: { target, element_token: token, text: typed } },
+      { tool: "set_value", args: { pid: window.pid, element_token: token, value: typed } },
+    ]
+    for (const attempt of attempts) {
+      const inserted = await driver.call("desktop.call", { name: attempt.tool, args: attempt.args })
+      if (isRecord(inserted) && inserted.isError === true) {
+        failures.push(`${attempt.tool} ${token}: ${textOf(inserted).slice(0, 200)}`)
+        continue
+      }
+      if (treeOf(await readWindow(driver, window)).includes(typed)) return { via: attempt.tool, token }
+    }
   }
-  throw new Error(`the window does not show ${typed}: ${textOf(await readWindow(driver, window)).slice(0, 600)}`)
+  throw new Error(
+    `the window does not show ${typed}: ${failures.join(" | ") || "every tool reported success"} ${treeOf(await readWindow(driver, window)).slice(0, 400)}`,
+  )
 }
 
 async function waitForTools(driver: Driver): Promise<{ record: Record<string, unknown>; names: string[] }> {
@@ -387,7 +413,7 @@ async function main(): Promise<void> {
     fixture = await startFixture(dir)
     const window = await locateWindow(driver, fixture.title)
     const before = await frontAwayFrom(fixture)
-    const via = await typeInto(driver, window, typed)
+    const wrote = await typeInto(driver, window, typed)
     const after = await frontmost()
     if (before !== after || after.includes(fixture.title))
       throw new Error(`the desktop action changed the front window: ${before} -> ${after}`)
@@ -400,7 +426,7 @@ async function main(): Promise<void> {
         toolNames: names,
         window,
         typed,
-        via,
+        ...wrote,
         frontBefore: before,
         frontAfter: after,
       }),
