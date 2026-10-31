@@ -23,7 +23,7 @@ async function oracleCount(m: Machine): Promise<void> {
 
 async function checkCount(m: Machine): Promise<Verdict> {
   const text = await m.readText(join(m.workdir, "count.txt"))
-  const found = text === undefined ? "no count.txt" : text.trim()
+  const found = text === undefined ? "no count.txt" : (text.match(/[0-9]+/)?.[0] ?? text.trim())
   const pass = found === "3"
   return {
     pass,

@@ -46,11 +46,14 @@ describe("kiko tool schemas", () => {
     machines.push(machine)
     const contender = kikoContender()
     await contender.start(machine, "foreground")
-    const path = join(machine.workdir, "notes.txt")
-    const written = await contender.call("computer_write", { path, text: "hello\n" }, new AbortController().signal)
+    const written = await contender.call(
+      "computer_write",
+      { path: "notes.txt", text: "hello\n" },
+      new AbortController().signal,
+    )
     expect(written.isError).toBe(false)
     expect(written.text).toContain("6 bytes")
-    const read = await contender.call("computer_read", { path }, new AbortController().signal)
+    const read = await contender.call("computer_read", { path: "notes.txt" }, new AbortController().signal)
     expect(read.isError).toBe(false)
     expect(read.text).toContain("hello")
     const outside = await contender.call(

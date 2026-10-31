@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs"
+import { isAbsolute, resolve } from "node:path"
 import { ACTIONS, type ActParams, type DriverCall, type Look, type Window } from "@kiko/computer/driver"
 import type { Value } from "@kiko/computer/wire"
 import { Deadline } from "@kiko/computer-daemon/src/deadline.ts"
@@ -66,6 +67,8 @@ function shellHead(value: Value<"shell">, machine: Machine, timeoutMs: number): 
     .join(", ")
 }
 
+const pathIn = (machine: Machine, path: string): string => (isAbsolute(path) ? path : resolve(machine.workdir, path))
+
 async function shellCall(machine: Machine, args: Bag, signal: AbortSignal): Promise<ToolResult> {
   const command = stringOf(args.command)
   if (!command) return text("computer_shell needs a command", true)
@@ -73,7 +76,7 @@ async function shellCall(machine: Machine, args: Bag, signal: AbortSignal): Prom
     Math.max(typeof args.timeoutMs === "number" ? args.timeoutMs : SHELL_TIMEOUT_MS, 1_000),
     590_000,
   )
-  const cwd = stringOf(args.cwd) ?? machine.workdir
+  const cwd = pathIn(machine, stringOf(args.cwd) ?? machine.workdir)
   try {
     const value = await shell({ command, cwd, timeoutMs }, policyFor(machine), deadlineFor(timeoutMs + 10_000, signal))
     return text(
@@ -85,8 +88,9 @@ async function shellCall(machine: Machine, args: Bag, signal: AbortSignal): Prom
 }
 
 async function readCall(machine: Machine, args: Bag): Promise<ToolResult> {
-  const path = stringOf(args.path)
-  if (!path) return text("computer_read needs a path", true)
+  const raw = stringOf(args.path)
+  if (!raw) return text("computer_read needs a path", true)
+  const path = pathIn(machine, raw)
   const maxBytes = Math.min(Math.max(typeof args.maxBytes === "number" ? args.maxBytes : MAX_READ_BYTES, 1), 1_000_000)
   try {
     const value = await read({ path, maxBytes }, policyFor(machine))
@@ -103,9 +107,10 @@ async function readCall(machine: Machine, args: Bag): Promise<ToolResult> {
 }
 
 async function writeCall(machine: Machine, args: Bag): Promise<ToolResult> {
-  const path = stringOf(args.path)
+  const raw = stringOf(args.path)
   const body = stringOf(args.text)
-  if (!path) return text("computer_write needs a path", true)
+  if (!raw) return text("computer_write needs a path", true)
+  const path = pathIn(machine, raw)
   if (body === undefined) return text("computer_write needs text", true)
   try {
     const value = await write(
