@@ -63,22 +63,8 @@ options = json.load(open("options.json"))["options"]
 target = json.load(open("request.json"))["target"]
 index = options.index(target)
 
-master, slave = pty.openpty()
-environment = dict(os.environ, TERM="xterm-256color")
-process = subprocess.Popen(
-    [sys.executable, "menu.py"],
-    stdin=slave,
-    stdout=slave,
-    stderr=slave,
-    env=environment,
-    start_new_session=True,
-)
-os.close(slave)
-os.set_blocking(master, False)
-output = []
 
-
-def drain():
+def drain(master, output):
     while select.select([master], [], [], 0)[0]:
         try:
             chunk = os.read(master, 4096)
@@ -89,30 +75,60 @@ def drain():
         output.append(chunk)
 
 
-deadline = time.time() + 20
-while time.time() < deadline and not os.path.exists("menu-ready.txt"):
-    drain()
-    if process.poll() is not None:
-        break
-    time.sleep(0.05)
-if not os.path.exists("menu-ready.txt"):
-    sys.stderr.write(b"".join(output).decode("utf-8", "replace"))
+def run_menu(term, sequence):
+    for name in ("choice.txt", "menu-ready.txt"):
+        if os.path.exists(name):
+            os.remove(name)
+    master, slave = pty.openpty()
+    environment = dict(os.environ, TERM=term)
+    process = subprocess.Popen(
+        [sys.executable, "menu.py"],
+        stdin=slave,
+        stdout=slave,
+        stderr=slave,
+        env=environment,
+        start_new_session=True,
+    )
+    os.close(slave)
+    os.set_blocking(master, False)
+    output = []
+    deadline = time.time() + 6
+    while time.time() < deadline and not os.path.exists("menu-ready.txt"):
+        drain(master, output)
+        if process.poll() is not None:
+            break
+        time.sleep(0.05)
+    if os.path.exists("menu-ready.txt"):
+        for _ in range(index):
+            os.write(master, sequence)
+            time.sleep(0.2)
+            drain(master, output)
+        os.write(master, b"\\n")
+        deadline = time.time() + 4
+        while time.time() < deadline:
+            if os.path.exists("choice.txt"):
+                with open("choice.txt", encoding="utf-8") as handle:
+                    chosen = handle.read().strip()
+                process.wait()
+                return chosen == target, output
+            drain(master, output)
+            time.sleep(0.05)
     process.kill()
-    sys.exit(1)
-for _ in range(index):
-    os.write(master, b"\\x1bOB")
-    time.sleep(0.2)
-    drain()
-os.write(master, b"\\n")
-deadline = time.time() + 10
-while time.time() < deadline:
-    if os.path.exists("choice.txt"):
-        process.wait()
+    process.wait()
+    return False, output
+
+
+output = []
+for term, sequence in (
+    ("xterm-256color", b"\\x1bOB"),
+    ("xterm-256color", b"\\x1b[B"),
+    ("xterm", b"\\x1bOB"),
+    ("xterm", b"\\x1b[B"),
+):
+    ok, output = run_menu(term, sequence)
+    if ok:
         sys.exit(0)
-    drain()
-    time.sleep(0.05)
 sys.stderr.write(b"".join(output).decode("utf-8", "replace"))
-process.kill()
 sys.exit(1)
 `
 
@@ -131,15 +147,11 @@ export const tuiMenu: Task = {
     await writeJson(m, "request.json", { target })
     await writeText(m, "menu.py", MENU)
   },
-  oracle: async (m, seed) => {
-    const target = pick(mulberry32(seed), OPTIONS)
+  oracle: async (m) => {
     await writeText(m, "drive.py", DRIVER)
     const driven = await run(m, [python(m), "drive.py"], { timeoutMs: 60_000 })
     await run(m, [python(m), "-c", 'import os; os.remove("drive.py")'])
-    if (driven.code !== 0) {
-      await writeText(m, "driver-error.txt", `${driven.stderr}${driven.stdout}`)
-      await writeText(m, "choice.txt", `${target}\n`)
-    }
+    if (driven.code !== 0) throw new Error(`could not drive the menu: ${driven.stderr || driven.stdout}`)
   },
   check: async (m, seed) => {
     const target = pick(mulberry32(seed), OPTIONS)
