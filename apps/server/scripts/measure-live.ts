@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises"
 import { createServer } from "node:net"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { chromium, type Browser } from "playwright"
+import { chromium, type Browser, type Page } from "playwright"
 import { mintPairCode } from "../src/computer/pairing"
 
 const SERVER_PORT = 8899
@@ -293,33 +293,48 @@ async function main(): Promise<void> {
 
     const shots = process.argv.includes("--shots") ? process.argv[process.argv.indexOf("--shots") + 1] : undefined
     if (shots) await mkdir(shots, { recursive: true })
+    const noRtc = process.argv.includes("--no-rtc")
 
-    const context = await viewer.newContext()
-    await context.addInitScript((record) => {
-      localStorage.setItem("kiko:auth", record)
-      localStorage.setItem("kiko:schema", "1")
-    }, auth)
-    const page = await context.newPage()
-    try {
-      await page.goto(`http://localhost:${WEB_PORT}/`)
-      await page.waitForSelector('[data-action="computer-watch"], [data-action="skip-first-run"]', { timeout: 60_000 })
-      const skip = page.locator('[data-action="skip-first-run"]')
-      if ((await skip.count()) > 0) await skip.click()
-      await page.waitForSelector('[data-action="computer-watch"]', { timeout: 60_000 })
-    } catch (error) {
-      if (shots) {
-        await page.screenshot({ path: join(shots, "failure.png") }).catch(() => {})
-        await writeFile(join(shots, "failure.html"), await page.content()).catch(() => {})
+    const newViewer = async () => {
+      const context = await viewer.newContext()
+      if (noRtc)
+        await context.addInitScript(() => {
+          const Broken = class {
+            constructor() {
+              throw new Error("RTC is off for this measurement")
+            }
+          }
+          Object.defineProperty(window, "RTCPeerConnection", { value: Broken, configurable: true })
+        })
+      await context.addInitScript((record) => {
+        localStorage.setItem("kiko:auth", record)
+        localStorage.setItem("kiko:schema", "1")
+      }, auth)
+      const page = await context.newPage()
+      try {
+        await page.goto(`http://localhost:${WEB_PORT}/`)
+        await page.waitForSelector('[data-action="computer-watch"], [data-action="skip-first-run"]', {
+          timeout: 60_000,
+        })
+        const skip = page.locator('[data-action="skip-first-run"]')
+        if ((await skip.count()) > 0) await skip.click()
+        await page.waitForSelector('[data-action="computer-watch"]', { timeout: 60_000 })
+      } catch (error) {
+        if (shots) {
+          await page.screenshot({ path: join(shots, "failure.png") }).catch(() => {})
+          await writeFile(join(shots, "failure.html"), await page.content()).catch(() => {})
+        }
+        throw error
       }
-      throw error
+      await wait(1_500)
+      return { context, page }
     }
-    await wait(1_500)
 
-    const mode = () =>
+    const mode = (page: Page) =>
       page.evaluate(
         () => document.querySelector('[data-component="computer-screen"]')?.getAttribute("data-mode") ?? "unknown",
       )
-    const open = async () => {
+    const open = async (page: Page) => {
       const opened = Date.now()
       await page.click('[data-action="computer-watch"]')
       await page.waitForSelector('[data-component="computer-screen"]', { timeout: 30_000 })
@@ -331,16 +346,24 @@ async function main(): Promise<void> {
         },
         { timeout: 30_000 },
       )
-      return { openMs: Date.now() - opened, mode: await mode() }
+      return { openMs: Date.now() - opened, mode: await mode(page) }
     }
-    const close = async () => {
+    const close = async (page: Page) => {
       const hide = page.locator('[data-action="computer-hide"]')
       if ((await hide.count()) > 0) await hide.click()
       await page.waitForSelector('[data-component="computer-screen"]', { state: "detached", timeout: 15_000 })
       await wait(800)
     }
 
-    const cold = await open()
+    const colds: number[] = []
+    for (let round = 0; round < 5; round++) {
+      const fresh = await newViewer()
+      colds.push((await open(fresh.page)).openMs)
+      await fresh.context.close()
+    }
+
+    const { context, page } = await newViewer()
+    const cold = await open(page)
 
     const takeover = page.locator('[data-action="computer-takeover"]')
     if ((await takeover.count()) > 0) {
@@ -349,7 +372,7 @@ async function main(): Promise<void> {
       await wait(500)
     }
 
-    const path = (await mode()) === "relay" ? "relay" : "rtc"
+    const path = (await mode(page)) === "relay" ? "relay" : "rtc"
     const glass = await page.evaluate(MEASURE_GLASS, [path, 4_000])
     if (shots) await page.screenshot({ path: join(shots, `cold-${path}.png`) }).catch(() => {})
 
@@ -379,23 +402,23 @@ async function main(): Promise<void> {
       }
     }
 
-    await close()
+    await close(page)
     const warm: number[] = []
     for (let round = 0; round < 4; round++) {
-      const again = await open()
+      const again = await open(page)
       warm.push(again.openMs)
       await wait(500)
-      await close()
+      await close(page)
     }
     await context.close()
 
-    const coldOpen = [cold.openMs]
+    const coldOpen = summary(colds)
     const warmOpen = { ...summary(warm), n: warm.length }
     const output = {
       at: new Date().toISOString(),
       cold: { ...cold, glass: summary(glass.map((sample) => sample.glass)), input: summary(clicks) },
       warm: warmOpen,
-      open: { cold: summary(coldOpen), warm: warmOpen },
+      open: { cold: coldOpen, warm: warmOpen },
       path,
     }
     const out = process.argv.includes("--out") ? process.argv[process.argv.indexOf("--out") + 1] : undefined

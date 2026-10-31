@@ -37,8 +37,10 @@ jobs:
       - name: Live socket integration test
         working-directory: apps/server
         run: bunx vitest run --config vitest.config.ts integration/computer-live.integration.test.ts
-      - name: Measure
+      - name: Measure over WebRTC
         run: xvfb-run -a -s "-screen 0 1920x1080x24" bun apps/server/scripts/measure-live.ts --out live-measure.json --shots shots
+      - name: Measure over the relay
+        run: xvfb-run -a -s "-screen 0 1920x1080x24" bun apps/server/scripts/measure-live.ts --no-rtc --out live-measure-relay.json --shots shots-relay
       - name: Upload
         if: always()
         uses: actions/upload-artifact@v4
@@ -46,5 +48,7 @@ jobs:
           name: takeover-live
           path: |
             live-measure.json
+            live-measure-relay.json
             shots/
+            shots-relay/
           if-no-files-found: warn
