@@ -172,7 +172,7 @@ async function desktopCall(
   args: Bag,
   deadline: Deadline,
 ): Promise<ToolResult> {
-  const { pc, ...rest } = args
+  const { pc: _pc, ...rest } = args
   const value = await driver.call({ method: "desktop.call", params: { name: tool, args: rest } }, deadline)
   return mcpResult(value, machine)
 }
