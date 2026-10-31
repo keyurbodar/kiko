@@ -1,6 +1,7 @@
 import { setTerminalSize, terminalKey, type TerminalFeed } from "@kiko/client-runtime/state"
 import type { TerminalEvent } from "@kiko/protocol"
-import { observe, owner, run, valueOf } from "../../state/runtime"
+import * as AsyncResult from "effect/reactivity/AsyncResult"
+import { failureMessage, observe, owner, run, valueOf } from "../../state/runtime"
 
 export type TerminalStatus = "connecting" | "live" | "ended" | "error"
 
@@ -20,8 +21,7 @@ export function startTerminal(pcId: string, terminalId: string, hooks: TerminalH
   let seen = 0
   let closed = false
 
-  const drain = (feed: TerminalFeed | undefined) => {
-    if (closed || !feed) return
+  const read = (feed: TerminalFeed) => {
     let bytes = 0
     for (const item of feed.items) {
       if (item.seq <= seen) continue
@@ -37,7 +37,17 @@ export function startTerminal(pcId: string, terminalId: string, hooks: TerminalH
     if (bytes > 0) void run(owner.commands.terminalAck, { pcId, terminalId, bytes })
   }
 
-  const stop = observe(owner.terminalAtom(key), (result) => drain(valueOf(result)), { immediate: true })
+  const drain = (result: AsyncResult.AsyncResult<TerminalFeed, unknown>) => {
+    if (closed) return
+    if (AsyncResult.isFailure(result)) {
+      hooks.onStatus("error", failureMessage(result.cause, "Kiko could not open this terminal."))
+      return
+    }
+    const feed = valueOf(result)
+    if (feed) read(feed)
+  }
+
+  const stop = observe(owner.terminalAtom(key), drain, { immediate: true })
 
   return {
     input(data) {
