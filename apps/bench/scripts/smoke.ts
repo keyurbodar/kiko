@@ -7,19 +7,8 @@ import type { Condition, Contender, Machine } from "../src/types"
 import { prepareFixture, type Fixture } from "./fixture"
 import { focusApp, focusWindow, frontmost, waitForFrontmost } from "./focus"
 import { LocalMachine } from "./local-machine"
+import { asRecord, cuaWindows, desktopWindow, findCuaToken, findCuaWindow, parseJson, TEXT_ROLES } from "./parse"
 
-const TEXT_ROLES = new Set([
-  "entry",
-  "text",
-  "text area",
-  "text field",
-  "textfield",
-  "text box",
-  "textbox",
-  "textarea",
-  "edit",
-  "document",
-])
 const DISCOVERY_TIMEOUT_MS = 30_000
 const DISCOVERY_PAUSE_MS = 500
 const CALL_TIMEOUT_MS = 120_000
@@ -60,42 +49,8 @@ interface Options {
   readonly typed: string
 }
 
-interface CuaWindow {
-  readonly pid: number
-  readonly id: number
-  readonly title: string
-}
-
-interface DesktopWindow {
-  readonly id: string
-  readonly app: string
-}
-
 function pause(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null
-}
-
-function asRecord(value: unknown): Record<string, unknown> {
-  return isRecord(value) ? value : {}
-}
-
-function parseJson(text: string): unknown {
-  try {
-    return JSON.parse(text)
-  } catch {
-    const start = text.indexOf("{")
-    const end = text.lastIndexOf("}")
-    if (start < 0 || end <= start) return undefined
-    try {
-      return JSON.parse(text.slice(start, end + 1))
-    } catch {
-      return undefined
-    }
-  }
 }
 
 function createContender(name: string): Contender {
@@ -119,59 +74,20 @@ function parseArgs(argv: readonly string[]): Options {
   return { contender, out, typed }
 }
 
-function cuaWindows(text: string): CuaWindow[] {
-  const parsed = parseJson(text)
-  const records = Array.isArray(parsed)
-    ? parsed
-    : Array.isArray(asRecord(parsed).windows)
-      ? asRecord(parsed).windows
-      : []
-  if (Array.isArray(records) && records.length > 0) {
-    return records.flatMap((candidate) => {
-      const window = asRecord(candidate)
-      const id = Number(window.window_id)
-      const pid = Number(window.pid)
-      if (!Number.isFinite(id) || !Number.isFinite(pid)) return []
-      return [{ pid, id, title: String(window.title ?? "") }]
-    })
-  }
-  const windows: CuaWindow[] = []
-  for (const line of text.split("\n")) {
-    const id = line.match(/window_id[=:]\s*(\d+)/)?.[1]
-    const pid = line.match(/pid[=:]\s*(\d+)/)?.[1] ?? line.match(/\(pid (\d+)\)/)?.[1]
-    const title = line.match(/"([^"]*)"/)?.[1]
-    if (!id || !pid || title === undefined) continue
-    windows.push({ pid: Number(pid), id: Number(id), title })
-  }
-  return windows
-}
-
-async function findCuaWindow(c: Contender, f: Fixture, signal: AbortSignal): Promise<CuaWindow | undefined> {
+async function locateCuaWindow(c: Contender, f: Fixture, signal: AbortSignal) {
   const deadline = Date.now() + DISCOVERY_TIMEOUT_MS
   for (;;) {
     const listed = await c.call("list_windows", {}, signal)
-    const found = cuaWindows(listed.text).find((window) => window.title.includes(f.title))
+    const found = findCuaWindow(cuaWindows(listed.text), f.title)
     if (found) return found
     if (Date.now() >= deadline) return undefined
     await pause(DISCOVERY_PAUSE_MS)
   }
 }
 
-function findCuaToken(text: string): string | undefined {
-  const snapshot = text.match(/snapshot_id=([A-Za-z0-9]+)/)?.[1]
-  if (!snapshot) return undefined
-  for (const line of text.split("\n")) {
-    const row = line.match(/^\s*- \[(\d+)\] (.+)$/)
-    if (!row) continue
-    const role = (row[2] ?? "").split('"')[0]?.trim().toLowerCase() ?? ""
-    if (TEXT_ROLES.has(role)) return `${snapshot}:${row[1]}`
-  }
-  return undefined
-}
-
 async function cuaAction(c: Contender, f: Fixture, typed: string): Promise<Outcome> {
   const signal = AbortSignal.timeout(CALL_TIMEOUT_MS)
-  const window = await findCuaWindow(c, f, signal)
+  const window = await locateCuaWindow(c, f, signal)
   if (!window) return { ok: false, detail: "fixture window not listed" }
   const state = await c.call(
     "get_window_state",
@@ -192,21 +108,12 @@ async function cuaAction(c: Contender, f: Fixture, typed: string): Promise<Outco
   return { ok: true, detail: `typed into ${token}` }
 }
 
-async function findDesktopWindow(c: Contender, f: Fixture, signal: AbortSignal): Promise<DesktopWindow | undefined> {
+async function findDesktopWindow(c: Contender, f: Fixture, signal: AbortSignal) {
   const deadline = Date.now() + DISCOVERY_TIMEOUT_MS
   for (;;) {
     const listed = await c.call("list_windows", {}, signal)
-    const parsed = parseJson(listed.text)
-    const data = asRecord(parsed)
-    const windows = Array.isArray(parsed) ? parsed : Array.isArray(data.windows) ? data.windows : []
-    for (const candidate of windows) {
-      const window = asRecord(candidate)
-      if (!String(window.title ?? "").includes(f.title)) continue
-      const id = window.id ?? window.window_id
-      if (typeof id !== "string") continue
-      const app = window.app_name ?? window.app ?? window.application ?? f.app
-      return { id, app: typeof app === "string" ? app : f.app }
-    }
+    const found = desktopWindow(listed.text, f.title)
+    if (found) return found.app ? found : { id: found.id, app: f.app }
     if (Date.now() >= deadline) return undefined
     await pause(DISCOVERY_PAUSE_MS)
   }
