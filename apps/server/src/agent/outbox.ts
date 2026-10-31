@@ -327,7 +327,7 @@ export class Outbox {
       this.replayEntries(run, row, entries, liveId, livePartial)
       this.run = run
       if (run.posted > run.blocks.length + (run.generation?.blocks.length ?? 0)) this.rebase(run)
-      if (row.run_id !== liveId && row.run_id !== newestFinished && !this.unposted(run)) {
+      if (row.run_id !== liveId && row.run_id !== newestFinished && !this.unposted(run) && run.notes.length === 0) {
         this.run = null
         continue
       }

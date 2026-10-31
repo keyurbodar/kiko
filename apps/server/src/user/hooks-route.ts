@@ -41,12 +41,12 @@ function offeredDelivery(request: Request): string | null {
   return null
 }
 
-async function deliveryKey(request: Request, token: string, body: string): Promise<{ key: string; signed: boolean }> {
+async function deliveryKey(request: Request, token: string, body: string): Promise<string> {
   const offered = offeredDelivery(request)
   if (offered !== null && (await signatureMatches(token, body, request.headers.get("x-hub-signature-256"))))
-    return { key: offered, signed: true }
+    return offered
   const hash = (await sha256Hex(body)).slice(0, 32)
-  return { key: `${hash}:${Math.floor(Date.now() / RETRY_WINDOW_MS)}`, signed: false }
+  return `${hash}:${Math.floor(Date.now() / RETRY_WINDOW_MS)}`
 }
 
 function withinBudget(token: string, now: number): boolean {
@@ -72,12 +72,8 @@ export async function hooksRoute(request: Request, env: Env): Promise<Response |
     return answer(413, { error: "the body is larger than 64 kb" })
   const body = await readCapped(request, MAX_HOOK_BYTES)
   if (body === null) return answer(413, { error: "the body is larger than 64 kb" })
-  const delivery = await deliveryKey(request, token, body)
-  if (delivery.signed && !withinBudget(token, Date.now())) return answer(429, { error: "too many runs from this hook" })
-  const status = await ownerStub(env.OWNER, PRODUCTION_OWNER).userCall("routineHook", [
-    token,
-    delivery.key.slice(0, 128),
-    body,
-  ])
+  if (!withinBudget(token, Date.now())) return answer(429, { error: "too many runs from this hook" })
+  const key = await deliveryKey(request, token, body)
+  const status = await ownerStub(env.OWNER, PRODUCTION_OWNER).userCall("routineHook", [token, key.slice(0, 128), body])
   return status === "unknown" ? answer(404, { error: "no such hook" }) : answer(202, { status })
 }

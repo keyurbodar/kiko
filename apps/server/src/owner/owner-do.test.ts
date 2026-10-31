@@ -139,3 +139,29 @@ describe("OwnerDO", () => {
     vi.unstubAllGlobals()
   })
 })
+
+describe("OwnerDO recovery", () => {
+  it("enqueues a recovered run once, not on every later socket connect", async () => {
+    vi.stubGlobal("WebSocketRequestResponsePair", vi.fn())
+    const ctx = ownerState()
+    const { owner } = await coldStart(ctx)
+    const probe = owner as unknown as {
+      enqueueRun: (agent: string, requestId: string) => Promise<void>
+      mayHavePendingInput: () => boolean
+      pendingRooms: () => Promise<string[]>
+      resumeSocket: () => Promise<void>
+      unfinishedRuns: () => Promise<{ agent: string; room_id: string; slug: string; request_id: string }[]>
+    }
+    const enqueued: string[] = []
+    probe.unfinishedRuns = async () => [{ agent: "room:kiko", room_id: "room", slug: "kiko", request_id: "recovery" }]
+    probe.enqueueRun = async (agent: string) => void enqueued.push(agent)
+    probe.mayHavePendingInput = () => false
+    probe.pendingRooms = async () => []
+
+    await probe.resumeSocket()
+    await probe.resumeSocket()
+
+    expect(enqueued).toEqual(["room:kiko"])
+    vi.unstubAllGlobals()
+  })
+})

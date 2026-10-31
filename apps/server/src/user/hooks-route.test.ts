@@ -91,21 +91,18 @@ describe("webhook posts", () => {
     expect(calls).toHaveLength(60)
   })
 
-  it("does not spend the hourly budget on a post it cannot authenticate", async () => {
+  it("counts an unsigned post against the hourly budget too", async () => {
     const calls: Call[] = []
     const hook = token("e")
     const target = env(calls)
-    const forged = {
-      "x-github-delivery": "claimed-by-caller",
-      "x-hub-signature-256": `sha256=${"0".repeat(64)}`,
-    }
+    const forged = { "x-hub-signature-256": `sha256=${"0".repeat(64)}` }
     for (let sent = 0; sent < 60; sent += 1) expect((await hooksRoute(post(hook, forged), target))?.status).toBe(202)
-    const accepted = await hooksRoute(
+    const refused = await hooksRoute(
       post(hook, { "x-github-delivery": "delivery-1", "x-hub-signature-256": await signed(hook, BODY) }),
       target,
     )
-    expect(accepted?.status).toBe(202)
-    expect(calls.at(-1)?.args).toEqual([hook, "delivery-1", BODY])
+    expect(refused?.status).toBe(429)
+    expect(calls).toHaveLength(60)
   })
 
   it("counts each hook separately", async () => {

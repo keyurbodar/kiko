@@ -521,6 +521,7 @@ export class OwnerDO extends DurableObject<Env> {
 
   private async resumeSocket(): Promise<void> {
     const runs = await this.recoverRuns()
+    this.recovery = Promise.resolve([])
     if (runs.length || this.mayHavePendingInput())
       for (const roomId of await this.pendingRooms()) await this.room(roomId).settleHumanInput()
     for (const run of runs) if (!this.runs.has(run.agent)) await this.enqueueRun(run.agent, run.request_id)
