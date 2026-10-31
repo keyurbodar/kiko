@@ -342,7 +342,7 @@ fn session(
         Ok(backend) => backend,
         Err(reason) => return reason,
     };
-    let mut child = match spawn_mcp(binary, socket, env, log) {
+    let mut child = match spawn_mcp(binary, socket, env) {
         Ok(child) => child,
         Err(reason) => return reason,
     };
@@ -419,7 +419,7 @@ fn wait_for_exit(child: &mut Child, stop: &AtomicBool) -> String {
 fn version_of(binary: &Path, env: &[(String, String)]) -> Option<String> {
     let output = Command::new(binary)
         .arg("--version")
-        .envs(env.iter().map(|(key, value)| (key, value)))
+        .envs(env.iter().cloned())
         .output()
         .ok()?;
     let text = String::from_utf8_lossy(&output.stdout);
@@ -491,16 +491,9 @@ fn embedded_backend(_: &Path, _: &Path, _: &AtomicBool, _: &Log) -> Result<Backe
     Ok(Backend)
 }
 
-fn spawn_mcp(
-    binary: &Path,
-    socket: &Path,
-    env: &[(String, String)],
-    log: &Log,
-) -> Result<Child, String> {
+fn spawn_mcp(binary: &Path, socket: &Path, env: &[(String, String)]) -> Result<Child, String> {
     let mut command = Command::new(binary);
-    command
-        .arg("mcp")
-        .envs(env.iter().map(|(key, value)| (key, value)));
+    command.arg("mcp").envs(env.iter().cloned());
     #[cfg(target_os = "macos")]
     command
         .arg("--embedded")
@@ -513,11 +506,9 @@ fn spawn_mcp(
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
-    let child = command
+    command
         .spawn()
-        .map_err(|error| format!("cua-driver mcp did not start: {error}"))?;
-    let _ = log;
-    Ok(child)
+        .map_err(|error| format!("cua-driver mcp did not start: {error}"))
 }
 
 fn log_stderr(stream: Option<std::process::ChildStderr>, log: &Log) {
