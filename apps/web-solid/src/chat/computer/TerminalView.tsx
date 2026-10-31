@@ -3,7 +3,7 @@ import "@xterm/xterm/css/xterm.css"
 import { setTerminalSize, terminalKey } from "@kiko/client-runtime/state"
 import { createEffect, createSignal, onCleanup, onMount, Show, type JSX } from "solid-js"
 import { cn } from "../../lib/cn"
-import { startTerminal, type TerminalStatus } from "./terminalSession"
+import { startTerminal, type TerminalSession, type TerminalStatus } from "./terminalSession"
 
 const FONT_FAMILY = 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace'
 const FONT_SIZE = 13
@@ -40,6 +40,7 @@ export default function TerminalView(props: {
   const [message, setMessage] = createSignal<string | undefined>(undefined)
   let host!: HTMLDivElement
   let term: Terminal | undefined
+  let session: TerminalSession | undefined
   let resize: ResizeObserver | undefined
   const key = terminalKey(props.pcId, props.terminalId)
 
@@ -78,6 +79,7 @@ export default function TerminalView(props: {
         setMessage(detail)
       },
     })
+    session = current
     created.onData((data) => {
       if (props.interactive) current.input(data)
     })
@@ -88,6 +90,7 @@ export default function TerminalView(props: {
       resize?.disconnect()
       current.close()
       created.dispose()
+      session = undefined
       term = undefined
     })
   })
@@ -95,7 +98,9 @@ export default function TerminalView(props: {
   createEffect(() => {
     if (!term) return
     term.options.disableStdin = !props.interactive
-    if (props.interactive) term.focus()
+    if (!props.interactive) return
+    term.focus()
+    session?.resize(term.cols, term.rows)
   })
 
   const notice = () => {
