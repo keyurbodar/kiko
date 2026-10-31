@@ -1,7 +1,18 @@
 import { CliError, type Context } from "../context"
 import type { ComputerSummary } from "@kiko/protocol"
+import * as Effect from "effect/Effect"
 import * as Stream from "effect/Stream"
 import { withOwner } from "../owner"
+import {
+  describeComputer,
+  diagnose,
+  daemonLogTailCommand,
+  failureMessage,
+  pcStream,
+  readDaemonLog,
+  sshOutput,
+  waitForComputer,
+} from "./pc-add"
 
 function quote(text: string): string {
   return `'${text.replace(/'/g, `'\\''`)}'`
@@ -57,6 +68,18 @@ async function add(ctx: Context): Promise<void> {
       message: "usage: kiko pc add <user@host> [--name <name>] [--port <port>] [--identity <file>]",
     })
   const pair = await pairCode(ctx)
+  const known = await withOwner(ctx, (client) =>
+    client["user.subscribe"]({}).pipe(
+      Stream.takeUntil((item) => item.kind === "synchronized"),
+      Stream.runFold(
+        () => new Set<string>(),
+        (ids, item) =>
+          item.kind === "signal" && item.signal.t === "pcState"
+            ? new Set(item.signal.computers.map((pc) => pc.id))
+            : ids,
+      ),
+    ),
+  )
   const origin = new URL(pair.url).origin
   const remote = [`curl -fsSL ${quote(`${origin}/pc/install.sh`)} | sh -s -- ${quote(pair.url)}`]
   if (ctx.name) remote.push(`--name ${quote(ctx.name)}`)
@@ -68,7 +91,21 @@ async function add(ctx: Context): Promise<void> {
     throw new CliError({ message: `cannot run ssh (${e instanceof Error ? e.message : e})` })
   }
   if (exitCode !== 0) throw new CliError({ message: `ssh ${target} exited with ${exitCode}` })
-  console.log(`kiko: ${ctx.name ?? target} should appear in the app once the daemon connects.`)
+
+  const found = await withOwner(ctx, (client) =>
+    waitForComputer(pcStream(client), { name: ctx.name, known }).pipe(
+      Effect.catch(() => Effect.succeed(null as ComputerSummary | null)),
+    ),
+  )
+  if (found) {
+    console.log(`kiko: ${describeComputer(found)}`)
+    return
+  }
+  const remoteOs = await sshOutput(ctx, target, "uname -s | tr '[:upper:]' '[:lower:]' | sed 's/darwin/macos/'")
+  const os = remoteOs === "macos" ? "macos" : remoteOs === "linux" ? "linux" : undefined
+  const log = await sshOutput(ctx, target, daemonLogTailCommand(os))
+  const readings = readDaemonLog(log ? log.split("\n") : [])
+  throw new CliError({ message: failureMessage(diagnose(log, readings), target) })
 }
 
 export async function pc(ctx: Context): Promise<void> {
