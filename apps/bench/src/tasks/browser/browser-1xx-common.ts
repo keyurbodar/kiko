@@ -25,7 +25,7 @@ const stable = (value: unknown): string =>
             .map((key) => [key, (item as Record<string, unknown>)[key]]),
         )
       : item,
-  )
+  ) ?? ""
 
 export const sameJson = (name: string, actual: unknown, expected: unknown): Check =>
   check(name, stable(actual) === stable(expected), `${name} = ${JSON.stringify(actual)}`)
