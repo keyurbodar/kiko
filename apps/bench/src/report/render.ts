@@ -122,13 +122,14 @@ function toolLatencyRows(rows: readonly Row[]): string {
 
 function latencyTrack(track: string, trials: readonly Row[]): string {
   if (trials.length === 0) return `<h3>${escapeHtml(track)}</h3><p class="empty">No scored trials.</p>`
-  const groups = [...groupRows(trials, ["contender", "model"]).values()].sort(compareGroups)
+  const groups = [...groupRows(trials, ["contender", "model", "machine"]).values()].sort(compareGroups)
   const body = groups
     .map((group) => {
       const images = group.rows.map((row) => amount(row, "images_bytes"))
       const cells = [
         `<td>${escapeHtml(group.labels[0] ?? "")}</td>`,
         `<td>${escapeHtml(group.labels[1] ?? "")}</td>`,
+        `<td>${escapeHtml(group.labels[2] ?? "")}</td>`,
         `<td class="num">${group.rows.length}</td>`,
         `<td class="num">${millis(positive(group.rows, "ttft_ms"))}</td>`,
         `<td class="num">${millis(positive(group.rows, "model_p50_ms"))}</td>`,
@@ -141,7 +142,7 @@ function latencyTrack(track: string, trials: readonly Row[]): string {
       return `<tr>${cells.join("")}</tr>`
     })
     .join("")
-  const head = `<tr><th>Contender</th><th>Model</th><th class="num">Trials</th><th class="num">TTFT p50 / p95 ms</th><th class="num">Model p50 / p95 ms</th><th class="num">Tool p50 / p95 ms</th><th class="num">Transport p50 / p95 ms</th><th class="num">Op p50 / p95 ms</th><th class="num">Queue p50 / p95 ms</th><th class="num">Images bytes</th></tr>`
+  const head = `<tr><th>Contender</th><th>Model</th><th>Machine</th><th class="num">Trials</th><th class="num">TTFT p50 / p95 ms</th><th class="num">Model p50 / p95 ms</th><th class="num">Tool p50 / p95 ms</th><th class="num">Transport p50 / p95 ms</th><th class="num">Op p50 / p95 ms</th><th class="num">Queue p50 / p95 ms</th><th class="num">Images bytes</th></tr>`
   return `<h3>${escapeHtml(track)}</h3><table><thead>${head}</thead><tbody>${body}</tbody></table><h3>${escapeHtml(track)} by tool</h3>${toolLatencyRows(trials)}`
 }
 
