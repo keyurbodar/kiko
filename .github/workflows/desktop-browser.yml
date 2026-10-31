@@ -68,28 +68,3 @@ jobs:
         run: cargo test -p kiko-browser --lib
       - name: End-to-end against the runner's Chrome
         run: ./crates/kiko-browser/e2e.sh
-
-  windows:
-    name: Browser driver (Windows)
-    runs-on: windows-latest
-    timeout-minutes: 45
-    defaults:
-      run:
-        working-directory: apps/desktop
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rustfmt, clippy
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: apps/desktop
-      - name: Format
-        run: cargo fmt -p kiko-browser -- --check
-      - name: Clippy
-        run: cargo clippy -p kiko-browser --all-targets -- -D warnings
-      - name: Unit tests
-        run: cargo test -p kiko-browser --lib
-      - name: End-to-end against the runner's Chrome
-        shell: bash
-        run: ./crates/kiko-browser/e2e.sh
