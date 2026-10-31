@@ -37,7 +37,7 @@ export function Broken(props: { error: unknown; reset: () => void }) {
           draggable={false}
         />
         <div class="flex flex-col gap-1.5">
-          <h1 class="type-2xl font-semibold text-primary">Something broke in this view</h1>
+          <h1 class="type-display text-primary">Something broke in this view</h1>
           <p class="type-base text-secondary">Your chats are safe. Try again, or reload Kiko.</p>
         </div>
         <div class="flex w-full flex-col gap-2 sm:w-auto sm:flex-row-reverse sm:justify-center">

@@ -6,11 +6,11 @@
 
 .settings-page-title {
   color: var(--text-primary);
-  font-family: var(--font-family-sans);
-  font-size: var(--font-size-2xl);
-  font-weight: 600;
-  line-height: var(--line-height-2xl);
-  letter-spacing: var(--letter-spacing-2xl);
+  font-family: var(--font-family-serif);
+  font-size: var(--font-size-display);
+  font-weight: 400;
+  line-height: var(--line-height-display);
+  letter-spacing: var(--letter-spacing-display);
 }
 
 .kit-btn {

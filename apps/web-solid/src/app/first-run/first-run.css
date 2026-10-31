@@ -107,10 +107,11 @@
   z-index: 3;
   top: 30px;
   left: 36px;
-  font-family: var(--font-family-sans);
-  font-size: var(--font-size-lg);
-  font-weight: 600;
-  line-height: var(--line-height-lg);
+  font-family: var(--font-family-serif);
+  font-size: 24px;
+  font-weight: 400;
+  letter-spacing: -0.3px;
+  line-height: 28px;
 }
 .ob-stage {
   position: relative;
@@ -262,11 +263,11 @@
   margin: 0;
   flex: none;
   color: var(--text-primary);
-  font-family: var(--font-family-sans);
-  font-size: var(--font-size-2xl);
-  font-weight: 600;
-  letter-spacing: -0.01em;
-  line-height: var(--line-height-2xl);
+  font-family: var(--font-family-serif);
+  font-size: var(--font-size-display-lg);
+  font-weight: 400;
+  letter-spacing: var(--letter-spacing-display-lg);
+  line-height: var(--line-height-display-lg);
 }
 .welcome-lede {
   margin: -4px 0 0;

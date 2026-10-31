@@ -15,8 +15,8 @@ export function PageFrame(props: { title: string; children: JSX.Element }) {
         ref={pageIn}
         class="mx-auto flex w-full max-w-[960px] flex-col px-6 pt-4 pb-16 max-[767px]:pt-12 @min-[768px]/page:px-12 @min-[768px]/page:pt-6"
       >
-        <header class="flex h-10 shrink-0 items-center">
-          <h1 class="type-lg min-w-0 truncate font-semibold text-primary">{props.title}</h1>
+        <header class="flex shrink-0 items-end pt-4 pb-1">
+          <h1 class="type-display min-w-0 truncate text-primary">{props.title}</h1>
         </header>
         {props.children}
       </div>
