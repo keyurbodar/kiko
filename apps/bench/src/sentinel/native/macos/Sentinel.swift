@@ -160,6 +160,7 @@ final class Sentinel: NSObject, NSApplicationDelegate {
         guard !activated else { return }
         activated = true
         log.emit("ready", ["pid": Int(getpid())])
+        sample()
         sampler = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
             self?.sample()
         }
@@ -256,7 +257,8 @@ enum SentinelMain {
         if let pointerOffset {
             let parts = pointerOffset.split(separator: ",").compactMap { Double($0) }
             guard parts.count == 2, AXIsProcessTrusted() else {
-                log.emit("error", ["message": "pointer move needs two offsets and Accessibility"])
+                FileHandle.standardError.write(
+                    Data("sentinel: pointer move needs two offsets and Accessibility\n".utf8))
                 exit(2)
             }
             let origin = currentPointer()
@@ -269,7 +271,7 @@ enum SentinelMain {
             event?.post(tap: .cghidEventTap)
             let moved = currentPointer()
             guard hypot(moved.x - origin.x, moved.y - origin.y) > 1 else {
-                log.emit("error", ["message": "pointer did not move"])
+                FileHandle.standardError.write(Data("sentinel: pointer did not move\n".utf8))
                 exit(3)
             }
             exit(0)

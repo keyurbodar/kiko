@@ -193,6 +193,26 @@ function Resolve-Pending {
 
 $sampler = New-Object System.Windows.Forms.Timer
 $sampler.Interval = 100
+function Write-Sample {
+  $front = [KikoSentinelNative]::GetForegroundWindow()
+  $isSelf = $front -eq $script:form.Handle
+  $position = [System.Windows.Forms.Cursor]::Position
+  try {
+    $above = @(Get-Above)
+  } catch {
+    $script:sampler.Stop()
+    $script:ticker.Stop()
+    Write-Event "error" @{ message = $_.Exception.Message }
+    return
+  }
+  Write-Event "sample" @{
+    front = $(if ($isSelf) { "self" } else { "other" })
+    key = $isSelf
+    above = $above
+    pointer = @($position.X, $position.Y)
+  }
+}
+
 $sampler.Add_Tick({
   if ($StopFile -and (Test-Path $StopFile)) {
     if (-not $script:stopping) {
@@ -212,23 +232,7 @@ $sampler.Add_Tick({
     }
     return
   }
-  $front = [KikoSentinelNative]::GetForegroundWindow()
-  $isSelf = $front -eq $script:form.Handle
-  $position = [System.Windows.Forms.Cursor]::Position
-  try {
-    $above = @(Get-Above)
-  } catch {
-    $script:sampler.Stop()
-    $script:ticker.Stop()
-    Write-Event "error" @{ message = $_.Exception.Message }
-    return
-  }
-  Write-Event "sample" @{
-    front = $(if ($isSelf) { "self" } else { "other" })
-    key = $isSelf
-    above = $above
-    pointer = @($position.X, $position.Y)
-  }
+  Write-Sample
 })
 
 $ticker = New-Object System.Windows.Forms.Timer
@@ -254,6 +258,7 @@ $verify.Add_Tick({
   if ([KikoSentinelNative]::GetForegroundWindow() -eq $script:form.Handle) {
     $verify.Stop()
     Write-Event "ready" @{ pid = $PID }
+    Write-Sample
     $script:sampler.Start()
     $script:ticker.Start()
   } elseif ($script:attempts -ge 4) {

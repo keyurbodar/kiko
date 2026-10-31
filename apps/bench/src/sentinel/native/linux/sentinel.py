@@ -200,6 +200,7 @@ class Sentinel:
         if not self.ready():
             self.log.emit("error", message="window did not take the focus")
             return 3
+        self.sample()
         self.log.emit("ready", pid=os.getpid(), keycode=self.keycode)
         next_sample = time.time()
         next_tick = time.time() + 1.0

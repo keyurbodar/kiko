@@ -105,5 +105,5 @@ export async function movePointer(m: Machine, dx: number, dy: number): Promise<v
     cwd: m.workdir,
     timeoutMs: 30_000,
   })
-  if (run.code !== 0) throw new Error(`sentinel: pointer move failed: ${run.stderr}`)
+  if (run.code !== 0) throw new Error(`sentinel: pointer move failed with exit ${run.code}: ${run.stderr}`)
 }
