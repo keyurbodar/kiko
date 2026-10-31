@@ -5,7 +5,7 @@ import { TerminalManager } from "../src/terminal/manager"
 
 const manager = new TerminalManager()
 
-function ok(condition: boolean, what: string): void {
+function ok(condition: boolean, what: string): asserts condition {
   if (!condition) {
     console.error(`FAIL ${what}`)
     manager.closeAll()
