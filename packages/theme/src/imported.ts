@@ -1,11 +1,10 @@
-import { PALETTE_KEYS, type Palette, type ThemeAppearance } from "./palette"
+import { PALETTE_KEYS, PALETTES, type Palette, type ThemeAppearance } from "./palette"
 
 export type ImportedTheme = {
   id: string
   name: string
   source: string
   appearance: ThemeAppearance
-  accent: string
   palette: Palette
   syntax?: Syntax
 }
@@ -35,28 +34,51 @@ export function themeId(value: string): string {
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v)
 
+const LEGACY_KEYS = ["canvas", "sidebar", "text", "danger", "gold"] as const
+
+function legacyPalette(raw: Record<string, unknown>, accent: unknown, appearance: ThemeAppearance): Palette | null {
+  const old: Partial<Record<(typeof LEGACY_KEYS)[number], string>> = {}
+  for (const key of LEGACY_KEYS) {
+    const value = raw[key]
+    if (typeof value !== "string" || !HEX.test(value)) return null
+    old[key] = value
+  }
+  if (typeof accent !== "string" || !HEX.test(accent)) return null
+  const fallback = PALETTES[appearance]
+  return {
+    ...fallback,
+    chrome: old.canvas!,
+    sidebar: old.sidebar!,
+    editor: old.canvas!,
+    base: old.text!,
+    accent,
+    focus: accent,
+    warn: old.gold!,
+    danger: old.danger!,
+  }
+}
+
+function readPalette(raw: Record<string, unknown>, accent: unknown, appearance: ThemeAppearance): Palette | null {
+  if ("canvas" in raw) return legacyPalette(raw, accent, appearance)
+  const palette: Partial<Record<keyof Palette, string>> = {}
+  for (const key of PALETTE_KEYS) {
+    const value = raw[key]
+    if (typeof value !== "string" || !HEX.test(value)) return null
+    palette[key] = value
+  }
+  return palette as Palette
+}
+
 function readTheme(raw: unknown): ImportedTheme | null {
   if (!isObject(raw) || !isObject(raw.palette)) return null
-  const { id, name, source, appearance, accent } = raw
+  const { id, name, source, appearance } = raw
   if (typeof id !== "string" || !ID.test(id)) return null
   if (typeof name !== "string" || name.length === 0 || name.length > 48) return null
   if (typeof source !== "string" || source.length > 160) return null
   if (!APPEARANCES.includes(appearance as ThemeAppearance)) return null
-  if (typeof accent !== "string" || !HEX.test(accent)) return null
-  const palette: Partial<Record<keyof Palette, string>> = {}
-  for (const key of PALETTE_KEYS) {
-    const value = raw.palette[key]
-    if (typeof value !== "string" || !HEX.test(value)) return null
-    palette[key] = value
-  }
-  const theme: ImportedTheme = {
-    id,
-    name,
-    source,
-    appearance: appearance as ThemeAppearance,
-    accent,
-    palette: palette as Palette,
-  }
+  const palette = readPalette(raw.palette, raw.accent, appearance as ThemeAppearance)
+  if (!palette) return null
+  const theme: ImportedTheme = { id, name, source, appearance: appearance as ThemeAppearance, palette }
   const syntax = readSyntax(raw.syntax)
   return syntax ? { ...theme, syntax } : theme
 }

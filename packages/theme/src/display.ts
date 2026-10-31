@@ -1,4 +1,4 @@
-import { typeVars } from "./system"
+import { MONO_STACK, SANS_STACK, typeVars } from "./system"
 export type ChatWidth = "comfortable" | "wide" | "full"
 
 export type Display = Readonly<{
@@ -29,9 +29,6 @@ export const CHAT_WIDTHS: Record<ChatWidth, { label: string; width: string }> = 
   wide: { label: "Wide", width: "1152px" },
   full: { label: "Full", width: "100%" },
 }
-
-const SANS_STACK = 'Satoshi, -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif'
-const MONO_STACK = '"JetBrains Mono", "SF Mono", Menlo, Consolas, ui-monospace, monospace'
 
 function quoteFamily(name: string): string {
   const bare = name.trim()

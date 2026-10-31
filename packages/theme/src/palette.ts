@@ -1,271 +1,383 @@
-import { chipTokens } from "./chips"
-
 export type ThemeAppearance = "light" | "dark"
 export type ThemeMode = ThemeAppearance | "system"
 
 export type Palette = Readonly<{
-  canvas: string
+  chrome: string
   sidebar: string
-  text: string
-  muted: string
-  faint: string
-  action: string
-  actionHover: string
-  onAction: string
+  editor: string
+  base: string
+  accent: string
+  onPrimary: string
+  focus: string
+  success: string
+  warn: string
   danger: string
-  gold: string
+  red: string
+  orange: string
+  yellow: string
+  green: string
+  cyan: string
+  blue: string
+  magenta: string
+  purple: string
 }>
 
 export const PALETTE_KEYS = [
-  "canvas",
+  "chrome",
   "sidebar",
-  "text",
-  "muted",
-  "faint",
-  "action",
-  "actionHover",
-  "onAction",
+  "editor",
+  "base",
+  "accent",
+  "onPrimary",
+  "focus",
+  "success",
+  "warn",
   "danger",
-  "gold",
+  "red",
+  "orange",
+  "yellow",
+  "green",
+  "cyan",
+  "blue",
+  "magenta",
+  "purple",
 ] as const satisfies readonly (keyof Palette)[]
 
-export const DARK_THEME_IDS = ["kiko", "glacier", "slate", "graphite", "moss", "tide", "dusk", "plum"] as const
+export const DARK_THEME_IDS = ["dark", "dark-high-contrast", "dark-colorblind"] as const
+export const LIGHT_THEME_IDS = ["light", "light-high-contrast", "light-colorblind"] as const
 export type DarkThemeId = (typeof DARK_THEME_IDS)[number]
-export type ThemeId = DarkThemeId | "snow"
-export const THEME_IDS = [...DARK_THEME_IDS, "snow"] as const
-export const DEFAULT_DARK_THEME: DarkThemeId = "kiko"
+export type LightThemeId = (typeof LIGHT_THEME_IDS)[number]
+export type ThemeId = DarkThemeId | LightThemeId
+export const THEME_IDS = [...DARK_THEME_IDS, ...LIGHT_THEME_IDS] as const
+export const DEFAULT_DARK_THEME: DarkThemeId = "dark"
+export const DEFAULT_LIGHT_THEME: LightThemeId = "light"
 export const isDarkThemeId = (value: unknown): value is DarkThemeId => DARK_THEME_IDS.some((id) => id === value)
+export const isLightThemeId = (value: unknown): value is LightThemeId => LIGHT_THEME_IDS.some((id) => id === value)
+export const appearanceOfTheme = (id: ThemeId): ThemeAppearance => (isDarkThemeId(id) ? "dark" : "light")
+
+type Ladder = "standard" | "high-contrast"
+type Theme = Readonly<{ label: string; ladder: Ladder; palette: Palette }>
 
 export const THEMES = {
-  kiko: {
-    label: "Kiko",
-    accent: "#5b9cf6",
+  dark: {
+    label: "Dark",
+    ladder: "standard",
     palette: {
-      canvas: "#121212",
-      sidebar: "#171717",
-      text: "#ededed",
-      muted: "#a6a6a6",
-      faint: "#878787",
-      action: "#ededed",
-      actionHover: "#ffffff",
-      onAction: "#141414",
-      danger: "#ef6a6a",
-      gold: "#e8c47b",
+      chrome: "#141414",
+      sidebar: "#181818",
+      editor: "#181818",
+      base: "#f0f0f0",
+      accent: "#599ce7",
+      onPrimary: "#191c22",
+      focus: "#f0f0f0",
+      success: "#3fa266",
+      warn: "#f1b467",
+      danger: "#e34671",
+      red: "#fc6b83",
+      orange: "#d08770",
+      yellow: "#f1b467",
+      green: "#3fa266",
+      cyan: "#81a1c1",
+      blue: "#7bafe9",
+      magenta: "#b48ead",
+      purple: "#9386f2",
     },
   },
-  glacier: {
-    label: "Glacier",
-    accent: "#96c8eb",
+  "dark-high-contrast": {
+    label: "Dark High Contrast",
+    ladder: "high-contrast",
     palette: {
-      canvas: "#08131c",
-      sidebar: "#101a24",
-      text: "#e7f0f6",
-      muted: "#a5b7c4",
-      faint: "#a5b7c4",
-      action: "#e7f0f6",
-      actionHover: "#96c8eb",
-      onAction: "#08131c",
-      danger: "#ffb4ac",
-      gold: "#e8c47b",
+      chrome: "#0a0a0a",
+      sidebar: "#0a0a0a",
+      editor: "#0a0a0a",
+      base: "#f0f0f0",
+      accent: "#6cb6ff",
+      onPrimary: "#191c22",
+      focus: "#ffcc00",
+      success: "#50d080",
+      warn: "#ffd866",
+      danger: "#ff6b6b",
+      red: "#ff6b6b",
+      orange: "#ffb070",
+      yellow: "#ffd866",
+      green: "#50d080",
+      cyan: "#6cb6ff",
+      blue: "#7bafe9",
+      magenta: "#d9a0d9",
+      purple: "#9386f2",
     },
   },
-  slate: {
-    label: "Slate",
-    accent: "#becde1",
+  "dark-colorblind": {
+    label: "Dark Colorblind",
+    ladder: "standard",
     palette: {
-      canvas: "#0c0d10",
-      sidebar: "#121418",
-      text: "#e9ecf0",
-      muted: "#9298a2",
-      faint: "#9298a2",
-      action: "#e9ecf0",
-      actionHover: "#becde1",
-      onAction: "#0c0d10",
-      danger: "#ffb4ac",
-      gold: "#e8c47b",
+      chrome: "#141414",
+      sidebar: "#101010",
+      editor: "#191919",
+      base: "#f5f5f5",
+      accent: "#79b2fd",
+      onPrimary: "#f5f5f5",
+      focus: "#1f87fc",
+      success: "#79b2fd",
+      warn: "#f59725",
+      danger: "#ff905e",
+      red: "#ff6e6c",
+      orange: "#ff905e",
+      yellow: "#f59725",
+      green: "#32c878",
+      cyan: "#5bc6b3",
+      blue: "#79b2fd",
+      magenta: "#ff7ab2",
+      purple: "#b49cfe",
     },
   },
-  graphite: {
-    label: "Graphite",
-    accent: "#dcdcdc",
+  light: {
+    label: "Light",
+    ladder: "standard",
     palette: {
-      canvas: "#0c0c0c",
-      sidebar: "#131313",
-      text: "#ededed",
-      muted: "#959595",
-      faint: "#959595",
-      action: "#ededed",
-      actionHover: "#dcdcdc",
-      onAction: "#0c0c0c",
-      danger: "#ffb4ac",
-      gold: "#e8c47b",
+      chrome: "#f5f5f5",
+      sidebar: "#f5f5f5",
+      editor: "#ffffff",
+      base: "#1c1c1c",
+      accent: "#0b6dd3",
+      onPrimary: "#ffffff",
+      focus: "#1680f3",
+      success: "#00854a",
+      warn: "#aa6300",
+      danger: "#cd2834",
+      red: "#cd2834",
+      orange: "#c14c00",
+      yellow: "#aa6300",
+      green: "#00854a",
+      cyan: "#008273",
+      blue: "#0b6dd3",
+      magenta: "#c62378",
+      purple: "#7547d0",
     },
   },
-  moss: {
-    label: "Moss",
-    accent: "#86a38d",
+  "light-high-contrast": {
+    label: "Light High Contrast",
+    ladder: "high-contrast",
     palette: {
-      canvas: "#0a0e0c",
-      sidebar: "#0f1512",
-      text: "#e8efe9",
-      muted: "#8fa196",
-      faint: "#8fa196",
-      action: "#e8efe9",
-      actionHover: "#86a38d",
-      onAction: "#0a0e0c",
-      danger: "#ffb4ac",
-      gold: "#e8c47b",
+      chrome: "#fcfcfc",
+      sidebar: "#fcfcfc",
+      editor: "#fcfcfc",
+      base: "#0f0f0f",
+      accent: "#0756aa",
+      onPrimary: "#fcfcfc",
+      focus: "#0c56a8",
+      success: "#006537",
+      warn: "#814a00",
+      danger: "#a91f29",
+      red: "#a91f29",
+      orange: "#973a00",
+      yellow: "#814a00",
+      green: "#006537",
+      cyan: "#006357",
+      blue: "#0756aa",
+      magenta: "#a41b62",
+      purple: "#673db6",
     },
   },
-  tide: {
-    label: "Tide",
-    accent: "#78afc8",
+  "light-colorblind": {
+    label: "Light Colorblind",
+    ladder: "standard",
     palette: {
-      canvas: "#080c10",
-      sidebar: "#0c1318",
-      text: "#e6eff3",
-      muted: "#8a9ea8",
-      faint: "#8a9ea8",
-      action: "#e6eff3",
-      actionHover: "#78afc8",
-      onAction: "#080c10",
-      danger: "#ffb4ac",
-      gold: "#e8c47b",
+      chrome: "#fcfcfc",
+      sidebar: "#f5f5f5",
+      editor: "#ffffff",
+      base: "#1c1c1c",
+      accent: "#0b6dd3",
+      onPrimary: "#ffffff",
+      focus: "#1680f3",
+      success: "#0b6dd3",
+      warn: "#aa6300",
+      danger: "#c14c00",
+      red: "#cd2834",
+      orange: "#c14c00",
+      yellow: "#aa6300",
+      green: "#00854a",
+      cyan: "#008273",
+      blue: "#0b6dd3",
+      magenta: "#c62378",
+      purple: "#7547d0",
     },
   },
-  dusk: {
-    label: "Dusk",
-    accent: "#e6aa82",
-    palette: {
-      canvas: "#0f0c0b",
-      sidebar: "#181311",
-      text: "#f1ebe6",
-      muted: "#a59a92",
-      faint: "#a59a92",
-      action: "#f1ebe6",
-      actionHover: "#e6aa82",
-      onAction: "#0f0c0b",
-      danger: "#ffb4ac",
-      gold: "#e8c47b",
-    },
-  },
-  plum: {
-    label: "Plum",
-    accent: "#afa0dc",
-    palette: {
-      canvas: "#0d0c11",
-      sidebar: "#14121a",
-      text: "#ece9f2",
-      muted: "#9a95a6",
-      faint: "#9a95a6",
-      action: "#ece9f2",
-      actionHover: "#afa0dc",
-      onAction: "#0d0c11",
-      danger: "#ffb4ac",
-      gold: "#e8c47b",
-    },
-  },
-  snow: {
-    label: "Paper",
-    accent: "#2f6fe4",
-    palette: {
-      canvas: "#ffffff",
-      sidebar: "#f7f7f6",
-      text: "#1b1b1b",
-      muted: "#5c5c5c",
-      faint: "#808080",
-      action: "#1b1b1b",
-      actionHover: "#000000",
-      onAction: "#ffffff",
-      danger: "#d6453f",
-      gold: "#a86b00",
-    },
-  },
-} as const satisfies Record<ThemeId, { label: string; accent: string; palette: Palette }>
+} as const satisfies Record<ThemeId, Theme>
 
-export function paletteFor(mode: ThemeAppearance, darkTheme: DarkThemeId = DEFAULT_DARK_THEME): Palette {
-  return THEMES[mode === "light" ? "snow" : darkTheme].palette
+export function paletteFor(appearance: ThemeAppearance, id?: ThemeId): Palette {
+  const theme = id && appearanceOfTheme(id) === appearance ? id : appearance === "dark" ? "dark" : "light"
+  return THEMES[theme].palette
 }
 export const PALETTES: Record<ThemeAppearance, Palette> = { light: paletteFor("light"), dark: paletteFor("dark") }
 
-const round = (n: number, places: number) => Math.round(n * 10 ** places) / 10 ** places
+const LADDERS = {
+  standard: {
+    text: [100, 74, 60, 36],
+    icon: [100, 66, 52, 28],
+    bg: [20, 14, 8, 6, 4],
+    stroke: [20, 12, 8, 4],
+  },
+  "high-contrast": {
+    text: [100, 84, 72, 60],
+    icon: [100, 76, 64, 52],
+    bg: [36, 24, 14, 8, 5],
+    stroke: [48, 36, 28, 20],
+  },
+} as const satisfies Record<Ladder, Record<"text" | "icon" | "bg" | "stroke", readonly number[]>>
+
+const TIERS = ["primary", "secondary", "tertiary", "quaternary", "quinary"] as const
+const HUES = ["red", "orange", "yellow", "green", "cyan", "blue", "magenta", "purple"] as const
+const TONES = { accent: "accent", danger: "danger", warning: "warn", success: "success" } as const
+
+const round = (n: number) => Math.round(n * 100) / 100
 
 type Ink = Readonly<{
   p: Palette
-  accent: string
   dark: boolean
-  solid: (share: number) => string
-  clear: (share: number) => string
+  share: (n: number) => number
+  wash: (color: string, n: number) => string
+  over: (color: string, n: number, under: string) => string
 }>
 
-const ROLES: ReadonlyArray<readonly [token: string, value: (ink: Ink) => string]> = [
-  ["--bg", ({ p }) => p.canvas],
-  ["--side", ({ p }) => p.sidebar],
-  ["--panel", ({ solid, dark }) => solid(dark ? 2.9 : 1.6)],
-  ["--raise", ({ solid, dark }) => solid(dark ? 5.8 : 2.4)],
-  ["--hover", ({ clear, dark }) => clear(dark ? 8 : 4)],
-  ["--active", ({ clear, dark }) => clear(dark ? 11.3 : 6.5)],
-  ["--fill", ({ clear, dark }) => clear(dark ? 8.2 : 8)],
-  ["--fill-field", ({ clear, dark }) => clear(dark ? 4.6 : 2.4)],
-  ["--fill-hover", ({ clear, dark }) => clear(dark ? 6.4 : 4)],
-  ["--fill-control", ({ clear, dark }) => clear(dark ? 9.1 : 6.5)],
-  ["--fill-control-hover", ({ clear, dark }) => clear(dark ? 12.8 : 12)],
-  ["--fill-selected", ({ clear, dark }) => clear(dark ? 9.1 : 6.5)],
-  ["--fill-pressed", ({ clear, dark }) => clear(dark ? 12.8 : 12)],
-  ["--ghost", ({ clear, dark }) => clear(dark ? 8.2 : 8)],
-  ["--field-ring", ({ clear, dark }) => (dark ? "transparent" : clear(8))],
-  ["--me", ({ solid, dark }) => solid(dark ? 11.8 : 5.5)],
-  ["--kiko-bubble", ({ solid, dark }) => solid(dark ? 5.8 : 3)],
-  ["--line", ({ solid, dark }) => solid(dark ? 10.2 : 8)],
-  ["--line2", ({ solid, dark }) => solid(dark ? 15.5 : 12)],
-  ["--line3", ({ clear }) => clear(20)],
-  ["--fg", ({ p }) => p.text],
-  ["--fg2", ({ p }) => p.muted],
-  ["--fg3", ({ p }) => p.faint],
-  ["--fg4", ({ solid, dark }) => solid(dark ? 39.2 : 40)],
-  ["--on-fg", ({ p }) => p.onAction],
-  ["--ok", ({ dark }) => (dark ? "#5cc489" : "#1f9d55")],
-  ["--bad", ({ p }) => p.danger],
-  ["--warn", ({ p }) => p.gold],
-  ["--info", ({ accent }) => accent],
-  ["--accent-fill", ({ accent }) => `oklch(from ${accent} 0.59 min(calc(c * 1.4), 0.17) h)`],
-  ["--accent-fill-hover", ({ accent }) => `oklch(from ${accent} 0.65 min(calc(c * 1.4), 0.17) h)`],
-  ["--on-accent", () => "#ffffff"],
-  ["--accent-edge", () => "color-mix(in srgb, var(--accent-fill) 22%, transparent)"],
-  ["--leaf", ({ dark }) => (dark ? "#7fd19c" : "#2f9e5b")],
-  ["--info-wash", ({ accent, dark }) => `color-mix(in oklab, ${accent} ${dark ? 14 : 11}%, transparent)`],
-  ["--bad-wash", ({ p }) => `color-mix(in oklab, ${p.danger} 12%, transparent)`],
-  ["--scrollbar-thumb", ({ clear }) => clear(18)],
-  ["--scrollbar-thumb-hover", ({ clear }) => clear(30)],
-  [
-    "--card-shadow",
-    ({ clear, dark }) =>
+function ladderTokens(ink: Ink, ladder: Ladder): [string, string][] {
+  const l = LADDERS[ladder]
+  const base = ink.p.base
+  const tier = (role: string, shares: readonly number[]) =>
+    shares.map((n, i): [string, string] => [`--${role}-${TIERS[i]}`, i === 0 && n === 100 ? base : ink.wash(base, n)])
+  return [
+    ...tier("text", l.text),
+    ...tier("icon", l.icon),
+    ...tier("bg", l.bg),
+    ...tier("stroke", l.stroke),
+    ["--bg-active", ink.wash(base, 16)],
+    ["--bg-focused", ink.wash(base, 22)],
+  ]
+}
+
+function surfaceTokens({ p, dark, wash, over }: Ink): [string, string][] {
+  return [
+    ["--bg-chrome", p.chrome],
+    ["--bg-sidebar", p.sidebar],
+    ["--bg-editor", p.editor],
+    ["--bg-elevated", p.editor],
+    ["--bg-input", p.editor],
+    ["--bg-input-field", wash(p.base, 3)],
+    ["--bg-card", wash(p.base, 6)],
+    ["--bg-tertiary-opaque", over(p.base, 8, p.chrome)],
+    ["--bg-quaternary-opaque", over(p.base, 6, p.chrome)],
+    ["--bg-tertiary-opaque-elevated", over(p.base, 8, p.editor)],
+    ["--bg-quaternary-opaque-elevated", over(p.base, 6, p.editor)],
+    ["--bg-neutral", p.base],
+    ["--bg-neutral-hover", `color-mix(in oklab, ${p.chrome} 10%, ${p.base})`],
+    ["--bg-scrim", dark ? "#00000099" : "#00000066"],
+    ["--text-invert", p.editor],
+    ["--text-on-accent", p.onPrimary],
+    ["--icon-on-accent", p.onPrimary],
+    ["--text-link", p.blue],
+    ["--stroke-focused", wash(p.focus, 15)],
+    ["--stroke-accent", wash(p.accent, 56)],
+    ["--focus-ring", p.accent],
+    ["--selection-bg", wash(p.base, 14)],
+    ["--editor-selection-bg", wash(p.accent, 42)],
+    ["--scrollbar-thumb", wash(p.base, 14)],
+    ["--scrollbar-thumb-hover", wash(p.base, 22)],
+    ["--scrollbar-thumb-active", wash(p.base, 26)],
+    ["--diff-added-line", wash(p.success, 20)],
+    ["--diff-added-text", wash(p.success, 13)],
+    ["--diff-removed-line", wash(p.danger, 20)],
+    ["--diff-removed-text", wash(p.danger, 13)],
+  ]
+}
+
+function hoverOf(tone: keyof typeof TONES, fill: string, base: string): string {
+  if (tone === "danger") return `color-mix(in srgb, ${fill} 85%, black)`
+  if (tone === "success") return `color-mix(in srgb, ${fill} 85%, white)`
+  return `color-mix(in oklab, ${base} 10%, ${fill})`
+}
+
+function toneTokens({ p, wash }: Ink): [string, string][] {
+  const tones = Object.entries(TONES).flatMap(([tone, key]): [string, string][] => {
+    const fill = p[key]
+    return [
+      [`--bg-${tone}`, fill],
+      [`--bg-${tone}-hover`, hoverOf(tone as keyof typeof TONES, fill, p.base)],
+      [`--bg-${tone}-secondary`, wash(fill, 24)],
+      [`--bg-${tone}-tertiary`, wash(fill, 12)],
+      [`--bg-${tone}-quaternary`, wash(fill, 8)],
+      [`--bg-${tone}-soft`, wash(fill, 10)],
+      [`--bg-${tone}-soft-hover`, wash(fill, 18)],
+      [`--text-${tone}`, fill],
+      [`--icon-${tone}`, fill],
+      [`--stroke-${tone}`, wash(fill, 56)],
+    ]
+  })
+  const hues = HUES.flatMap((hue): [string, string][] => [
+    [`--text-${hue}`, p[hue]],
+    [`--bg-${hue}`, p[hue]],
+    [`--bg-${hue}-tertiary`, wash(p[hue], 12)],
+    [`--stroke-${hue}`, wash(p[hue], 32)],
+  ])
+  return [...tones, ...hues]
+}
+
+function shadowTokens({ dark, p }: Ink): [string, string][] {
+  const [primary, secondary, tertiary] = dark
+    ? ["#00000033", "#0000001f", "#0000000f"]
+    : ["#0000000f", "#00000009", "#00000005"]
+  const hairline = `color-mix(in oklab, ${p.base} 8%, transparent)`
+  return [
+    ["--shadow-primary", primary],
+    ["--shadow-secondary", secondary],
+    ["--shadow-tertiary", tertiary],
+    ["--box-shadow-sm", `0 2px 8px 0 ${secondary}`],
+    ["--box-shadow-base", `0 0 0 1px ${hairline}, 0 0 4px 0 ${secondary}, 0 8px 24px -2px ${secondary}`],
+    [
+      "--box-shadow-popup",
       dark
-        ? "inset 0 1px 0 rgb(255 255 255 / 3%)"
-        : `0 0 0 1px ${clear(6)}, 0 1px 2px rgb(0 0 0 / 4%), 0 8px 24px -16px rgb(0 0 0 / 18%)`,
-  ],
-]
+        ? "0 10px 15px -3px #00000066, 0 4px 6px -2px #0000004d"
+        : "0 10px 15px -3px #0000001a, 0 4px 6px -2px #0000000d",
+    ],
+    [
+      "--box-shadow-lg",
+      `0 0 4px 0 rgb(255 255 255 / 0.05) inset, 0 0 3px 0 ${secondary}, 0 16px 24px 0 ${tertiary}`,
+    ],
+    [
+      "--box-shadow-dialog",
+      `0 0 0 1px ${hairline}, ${dark ? "0 0 2px 0 #00000066, 0 6px 16px 0 #00000066" : "0 0 2px 0 #0000000f, 0 6px 16px 0 #0000000f"}`,
+    ],
+    [
+      "--box-shadow-command",
+      dark
+        ? "0 25px 50px -12px #00000080, 0 12px 24px -8px #00000066"
+        : "0 25px 50px -12px #00000040, 0 12px 24px -8px #00000026",
+    ],
+  ]
+}
 
 export function tokensFor(
-  mode: ThemeAppearance,
-  darkTheme: DarkThemeId = DEFAULT_DARK_THEME,
+  appearance: ThemeAppearance,
+  id?: ThemeId,
   contrast = 100,
-  imported?: { palette: Palette; accent: string },
+  imported?: { palette: Palette },
 ): Record<string, string> {
-  const p = imported?.palette ?? paletteFor(mode, darkTheme)
-  const accent = imported?.accent ?? THEMES[mode === "light" ? "snow" : darkTheme].accent
-  const share = (n: number) => Math.min(100, round((n * contrast) / 100, 2))
+  const themeId = id && appearanceOfTheme(id) === appearance ? id : appearance === "dark" ? "dark" : "light"
+  const p = imported?.palette ?? THEMES[themeId].palette
+  const ladder: Ladder = imported ? "standard" : THEMES[themeId].ladder
+  const share = (n: number) => Math.min(100, round((n * contrast) / 100))
   const ink: Ink = {
     p,
-    accent,
-    dark: mode === "dark",
-    solid: (n) => `color-mix(in oklab, ${p.text} ${share(n)}%, ${p.canvas})`,
-    clear: (n) => `color-mix(in oklab, ${p.text} ${share(n)}%, transparent)`,
+    dark: appearance === "dark",
+    share,
+    wash: (color, n) => `color-mix(in oklab, ${color} ${share(n)}%, transparent)`,
+    over: (color, n, under) => `color-mix(in oklab, ${color} ${share(n)}%, ${under})`,
   }
-  return {
-    ...Object.fromEntries(ROLES.map(([token, value]) => [token, value(ink)])),
-    ...chipTokens(mode, p),
-  }
+  return Object.fromEntries([
+    ...surfaceTokens(ink),
+    ...ladderTokens(ink, ladder),
+    ...toneTokens(ink),
+    ...shadowTokens(ink),
+  ])
 }
 
 export const resolveAppearance = (mode: ThemeMode, systemDark: boolean): ThemeAppearance =>
