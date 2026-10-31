@@ -37,11 +37,11 @@
       "contenders": [
         {
           "name": "kiko",
-          "models": ["beam-free"]
+          "models": ["beam-free", "iceman-contributor-free"]
         },
         {
           "name": "agent-browser",
-          "models": ["beam-free"]
+          "models": ["beam-free", "iceman-contributor-free"]
         }
       ]
     },
