@@ -336,13 +336,7 @@ export function VirtualThread(props: {
     for (let i = clampIndex(state.rangeStart, list.length); i < list.length; i += 1) {
       const item = list[i]
       if (item.kind !== "message") continue
-      const row = columnElement?.querySelector<HTMLElement>(`[data-message-id="${CSS.escape(item.message.id)}"]`)
-      const rect = row?.getBoundingClientRect()
-      const viewport = scrollElement?.getBoundingClientRect()
-      const offset =
-        rect && viewport
-          ? Math.round(rect.top - viewport.top)
-          : Math.round(virtualizer.getItemOffset(i) - state.scrollOffset)
+      const offset = Math.round(virtualizer.getItemOffset(i) - state.scrollOffset)
       props.scrollBook.saveScroll(key, { messageId: item.message.id, offset })
       return
     }
