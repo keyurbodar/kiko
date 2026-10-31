@@ -70,6 +70,23 @@ describe("shell and app steps", () => {
     expect(liveLabel(step("app_inspect", '{"name":"hn-live","what":"logs"}'))).toBe("Checked hn-live logs")
     expect(iconOf({ ...step("app_deploy", "{}"), app: undefined })).toBe("deploy")
   })
+
+  it("reads the cloud browser tools by their new names", () => {
+    expect(iconOf(step("web_read"))).toBe("globe")
+    expect(iconOf(step("web_look"))).toBe("eye")
+    expect(iconOf(step("web_act"))).toBe("cursor")
+    expect(iconOf(step("web_link"))).toBe("link")
+    expect(liveLabel(step("web_look"))).toBe("Looked at the page")
+    expect(liveLabel(step("web_act"))).toBe("Clicked through the page")
+    expect(liveLabel(step("web_link"))).toBe("Shared the browser")
+  })
+
+  it("keeps steps recorded before the rename readable", () => {
+    expect(iconOf(step("browse"))).toBe("globe")
+    expect(iconOf(step("browser_look"))).toBe("eye")
+    expect(liveLabel(step("browser_look"))).toBe("Looked at the page")
+    expect(liveLabel(step("browser_link"))).toBe("Shared the browser")
+  })
 })
 
 describe("summarizeSteps", () => {
