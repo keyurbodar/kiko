@@ -77,6 +77,8 @@ function sendText(
   const sent = `sent ${value.bytes} bytes to ${args.id} on ${pc.name}`
   if (until === undefined)
     return `${sent}. call terminal_wait to wait for the output, or terminal_read to see the screen.`
+  if (value.matched === undefined && value.timedOut === undefined && value.exited === undefined)
+    return `${sent}. the app on ${pc.name} cannot wait yet: update it, or call terminal_wait to wait.`
   const head = value.matched
     ? `${sent} and found ${JSON.stringify(until)}.`
     : value.exited

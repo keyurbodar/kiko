@@ -173,6 +173,14 @@ describe("terminal_send", () => {
     expect(textOf(out)).toContain("partial")
   })
 
+  it("says when the computer's app cannot wait yet", async () => {
+    const { tool } = harness(summary(), () => reply({ id: "t-1", bytes: 4 }))
+
+    const out = await tool("terminal_send").execute({ id: "t-1", text: "make", until: "done" }, api, context)
+
+    expect(textOf(out)).toContain("cannot wait yet")
+  })
+
   it("refuses an empty until", async () => {
     const { calls, tool } = harness(summary(), () => reply({ id: "t-1", bytes: 1 }))
 
