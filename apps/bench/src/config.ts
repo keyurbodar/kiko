@@ -125,7 +125,7 @@ export function readConfig(path: string): BenchConfig {
   if (!existsSync(path)) throw new Error(`there is no bench config at ${path}`)
   const raw: unknown = JSON.parse(readFileSync(path, "utf8"))
   if (!isBag(raw)) return fail("an object")
-  const validate = isBag(raw.validate) ? raw.validate : {}
+  const validate: Bag = isBag(raw.validate) ? raw.validate : {}
   const flat = {
     contenders: raw.contenders === undefined ? [] : strings(raw.contenders, "contenders"),
     models: raw.models === undefined ? ["beam-free"] : strings(raw.models, "models"),

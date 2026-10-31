@@ -16,6 +16,9 @@ on:
       tracks:
         description: "comma separated tracks to run; empty runs every track in the config"
         default: ""
+      models:
+        description: "comma separated models to run; empty runs every model in the config"
+        default: ""
 
 permissions:
   contents: read
@@ -27,6 +30,7 @@ concurrency:
 env:
   CONFIG: ${{ github.event.inputs.config || 'apps/bench/baseline.json' }}
   TRACKS: ${{ github.event.inputs.tracks }}
+  MODELS: ${{ github.event.inputs.models }}
 
 jobs:
   plan:
@@ -45,6 +49,9 @@ jobs:
           if [ -n "${TRACKS:-}" ]; then
             args+=(--track "$TRACKS")
           fi
+          if [ -n "${MODELS:-}" ]; then
+            args+=(--model "$MODELS")
+          fi
           matrix="$(bun run bench "${args[@]}")"
           echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
           echo "$matrix"
@@ -56,7 +63,7 @@ jobs:
     timeout-minutes: 90
     strategy:
       fail-fast: false
-      max-parallel: 12
+      max-parallel: 4
       matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
     env:
       OPENCODE_GO_KEY: ${{ secrets.OPENCODE_GO_KEY }}
@@ -124,6 +131,7 @@ jobs:
 
   validate:
     name: Validate (${{ matrix.machine }})
+    if: github.event.inputs.tracks == '' && github.event.inputs.models == ''
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 60
     strategy:

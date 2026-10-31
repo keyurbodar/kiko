@@ -10,6 +10,8 @@ if [ -n "${DISPLAY:-}" ]; then
   exec "$@"
 fi
 
+export NO_AT_BRIDGE=0
+
 exec dbus-run-session -- xvfb-run -a -s "-screen 0 1280x1024x24" bash -c '
   openbox --sm-disable >/dev/null 2>&1 &
   gdbus call --session --dest org.a11y.Bus --object-path /org/a11y/bus \

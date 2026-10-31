@@ -641,8 +641,10 @@ async function pull(runId: string): Promise<void> {
 function plan(flags: Parsed["flags"]): void {
   const config = readConfig(configPath(flags))
   const wanted = splitFlag(flags, "track", "")
+  const models = splitFlag(flags, "model", "")
   const tracks = wanted.length > 0 ? config.tracks.filter((track) => wanted.includes(track.track)) : config.tracks
-  console.log(JSON.stringify({ include: planJobs({ ...config, tracks }, TASKS) }))
+  const jobs = planJobs({ ...config, tracks }, TASKS).filter((job) => models.length === 0 || models.includes(job.model))
+  console.log(JSON.stringify({ include: jobs }))
 }
 
 async function main(): Promise<void> {
