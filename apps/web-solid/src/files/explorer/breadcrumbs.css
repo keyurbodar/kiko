@@ -39,7 +39,8 @@
   width: max-content;
   min-width: 100%;
   align-items: center;
-  font-size: 12px;
+  font-size: var(--font-size-base);
+  line-height: 20px;
 }
 
 .fb-item {
@@ -56,7 +57,7 @@
   cursor: pointer;
   overflow: hidden;
   border-radius: var(--radius-sm);
-  padding: 0 2px;
+  padding: 0 4px;
   color: var(--text-tertiary);
   text-align: left;
   text-overflow: ellipsis;
@@ -74,13 +75,12 @@
 }
 
 .fb-name[data-descendant] {
-  color: color-mix(in oklab, var(--text-quaternary) 70%, transparent);
+  color: var(--text-quaternary);
 }
 
 .fb-name[data-current] {
   cursor: default;
   color: var(--text-primary);
-  font-weight: 500;
 }
 
 @media (hover: hover) and (pointer: fine) {
@@ -98,7 +98,7 @@
   align-items: center;
   justify-content: center;
   border-radius: var(--radius-sm);
-  color: color-mix(in oklab, var(--text-quaternary) 60%, transparent);
+  color: var(--icon-quaternary);
   outline: none;
   transition:
     background-color var(--duration-fast) var(--ease-sharp),

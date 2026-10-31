@@ -59,7 +59,7 @@ export type FileTreeProps = {
 type MenuTarget = { kind: "directory" | "file"; path: string }
 
 const TOOL =
-  "grid size-6 shrink-0 place-items-center rounded-md text-tertiary transition-colors duration-(--duration-fast) hover:bg-tertiary hover:text-primary aria-pressed:text-primary"
+  "grid size-6 shrink-0 place-items-center rounded-base icon-tertiary transition-colors duration-(--duration-fast) hover:bg-quaternary hover:icon-primary aria-pressed:icon-primary"
 
 const asFolder = (path: string) => `${path.replace(/\/+$/, "")}/`
 const plain = (path: string) => path.replace(/\/+$/, "")
@@ -89,8 +89,8 @@ function storage() {
 function FolderToggleIcon(props: { open: boolean }) {
   return (
     <span class="kt-morph" data-open={props.open ? "" : undefined} aria-hidden="true">
-      <RemixIcon icon={ExpandAllIcon} size={16} class="kt-morph-rest" />
-      <RemixIcon icon={CollapseAllIcon} size={16} class="kt-morph-open" />
+      <RemixIcon icon={ExpandAllIcon} size={14} class="kt-morph-rest" />
+      <RemixIcon icon={CollapseAllIcon} size={14} class="kt-morph-open" />
     </span>
   )
 }
@@ -509,7 +509,7 @@ export function FileTree(props: FileTreeProps): JSX.Element {
             data-action="refresh-files"
             onClick={refresh}
           >
-            <RemixIcon icon={ResetIcon} size={16} class={refreshing() ? "motion-spin" : undefined} />
+            <RemixIcon icon={ResetIcon} size={14} class={refreshing() ? "motion-spin" : undefined} />
           </button>
         </TooltipV2>
         <input
@@ -549,7 +549,7 @@ export function FileTree(props: FileTreeProps): JSX.Element {
         </Show>
       </div>
       <Show when={noMatches()}>
-        <p role="status" class="px-3 py-4 text-xs text-tertiary">
+        <p role="status" class="type-sm px-3 py-4 text-tertiary">
           No files match
         </p>
       </Show>
@@ -660,8 +660,8 @@ export function FileTree(props: FileTreeProps): JSX.Element {
 function Empty(): JSX.Element {
   return (
     <div class="kt-empty" data-component="file-tree-empty">
-      <Pictogram name="files" size={44} />
-      <p class="type-xs">No files yet. What the agents make shows up here.</p>
+      <Pictogram name="files" size={32} />
+      <p class="type-sm">No files yet. What the agents make shows up here.</p>
     </div>
   )
 }

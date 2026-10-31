@@ -1,48 +1,27 @@
 .file-editor {
-  --fe-active-line: color-mix(in srgb, #ffffff 4%, transparent);
+  --fe-active-line: var(--bg-quinary);
   --fe-gutter: 28px;
+  --sh-class: var(--syntax-type);
+  --sh-identifier: var(--syntax-foreground);
+  --sh-sign: var(--syntax-punctuation);
+  --sh-property: var(--syntax-function);
+  --sh-entity: var(--syntax-function);
+  --sh-jsxliterals: var(--syntax-string);
+  --sh-string: var(--syntax-string);
+  --sh-keyword: var(--syntax-keyword);
+  --sh-comment: var(--syntax-comment);
   display: flex;
   min-height: 0;
   flex: 1;
   flex-direction: column;
-  background: var(--bg-tertiary);
-  color: var(--text-primary);
-}
-
-.file-editor {
-  --sh-class: #79c0ff;
-  --sh-identifier: #e6edf3;
-  --sh-sign: #8b949e;
-  --sh-property: #7ee787;
-  --sh-entity: #d2a8ff;
-  --sh-jsxliterals: #a5d6ff;
-  --sh-string: #a5d6ff;
-  --sh-keyword: #ff7b72;
-  --sh-comment: #8b949e;
-}
-
-:root:not(.dark) .file-editor {
-  --fe-active-line: color-mix(in srgb, #000000 4%, transparent);
-  --sh-class: #2d5e9d;
-  --sh-identifier: inherit;
-  --sh-sign: #8996a3;
-  --sh-property: #0550ae;
-  --sh-entity: #249a97;
-  --sh-jsxliterals: #6266d1;
-  --sh-string: #00a99a;
-  --sh-keyword: #f47067;
-  --sh-comment: #a19595;
+  background: var(--bg-editor);
+  color: var(--syntax-foreground);
 }
 
 .file-editor .fe-body {
   min-height: 0;
   flex: 1;
   overflow: hidden;
-}
-
-.file-editor .cm-editor {
-  font-size: 13px;
-  line-height: 21px;
 }
 
 .file-editor .cm-gutters {
@@ -63,12 +42,14 @@
 
 .file-editor .fe-bar {
   display: flex;
-  height: 40px;
+  height: 36px;
   flex: none;
   align-items: center;
   gap: 8px;
-  padding: 0 8px 0 16px;
+  padding: 0 8px 0 14px;
+  box-shadow: inset 0 1px 0 var(--stroke-tertiary);
   font-size: var(--font-size-sm);
+  line-height: var(--line-height-sm);
   color: var(--text-tertiary);
 }
 
@@ -78,7 +59,7 @@
 }
 
 .file-editor .fe-btn {
-  height: 24px;
+  height: var(--spacing-control-md);
   padding: 0 8px;
   border: none;
   border-radius: var(--radius-base);
@@ -86,6 +67,11 @@
   color: var(--text-primary);
   font: inherit;
   cursor: pointer;
+  transition: background-color var(--duration-fast) var(--ease-sharp);
+}
+
+.file-editor .fe-btn:not(:disabled):hover {
+  background: var(--bg-secondary);
 }
 
 .file-editor .fe-btn:disabled {

@@ -10,14 +10,16 @@
   height: 28px;
   min-width: 0;
   flex: 1;
-  padding: 0 9px;
+  padding: 0 8px;
   border: 1px solid transparent;
   border-radius: var(--radius-base);
   background: transparent;
   color: var(--text-primary);
-  font-size: 12px;
+  font-size: var(--font-size-base);
   outline: none;
-  transition: background-color var(--duration-fast) var(--ease-sharp);
+  transition:
+    background-color var(--duration-fast) var(--ease-sharp),
+    border-color var(--duration-fast) var(--ease-sharp);
 }
 
 .kt-search::placeholder {
@@ -30,13 +32,14 @@
 
 @media (hover: hover) and (pointer: fine) {
   .kt-search:hover {
-    background: color-mix(in oklab, var(--text-primary) 3%, transparent);
+    background: var(--bg-quinary);
   }
 }
 
 .kt-search:focus-visible {
   outline: none;
-  background: var(--bg-chrome);
+  border-color: var(--stroke-secondary);
+  background: var(--bg-input-field);
 }
 
 .kt-host {
@@ -92,9 +95,9 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 10px;
+  gap: 8px;
   padding: 24px 20px 40px;
-  color: var(--text-quaternary);
+  color: var(--icon-tertiary);
   text-align: center;
 }
 

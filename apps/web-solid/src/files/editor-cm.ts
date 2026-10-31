@@ -27,8 +27,8 @@ export type Mounted = {
 }
 
 const theme = EditorView.theme({
-  "&": { height: "100%", backgroundColor: "transparent", color: "var(--text-primary)", fontSize: "13px" },
-  ".cm-scroller": { fontFamily: "var(--font-family-mono)", lineHeight: "21px", overflow: "auto" },
+  "&": { height: "100%", backgroundColor: "transparent", color: "var(--syntax-foreground)", fontSize: "12px" },
+  ".cm-scroller": { fontFamily: "var(--font-family-mono)", lineHeight: "18px", overflow: "auto" },
   ".cm-content": { caretColor: "var(--text-primary)", padding: "8px 0" },
   "&.cm-focused": { outline: "none" },
   ".cm-cursor": { borderLeftColor: "var(--text-primary)" },
@@ -38,20 +38,21 @@ const theme = EditorView.theme({
   ".cm-activeLineGutter": { backgroundColor: "transparent", color: "var(--text-primary)" },
   "&.cm-readonly .cm-activeLine": { backgroundColor: "transparent" },
   "&.cm-readonly .cm-cursor": { display: "none" },
-  ".cm-selectionBackground, &.cm-focused .cm-selectionBackground": { backgroundColor: "var(--bg-secondary)" },
-  ".cm-selectionMatch": { backgroundColor: "var(--bg-secondary)" },
-  ".cm-searchMatch": { backgroundColor: "var(--bg-secondary)", outline: "1px solid var(--stroke-secondary)" },
+  ".cm-selectionBackground, &.cm-focused .cm-selectionBackground": { backgroundColor: "var(--editor-selection-bg)" },
+  ".cm-selectionMatch": { backgroundColor: "var(--bg-tertiary)" },
+  ".cm-searchMatch": { backgroundColor: "var(--bg-yellow-tertiary)", borderRadius: "2px" },
   ".cm-panels": {
     backgroundColor: "var(--bg-elevated)",
     color: "var(--text-primary)",
     fontFamily: "var(--font-family-sans)",
+    fontSize: "13px",
   },
-  ".cm-panels-bottom": { borderTop: "none" },
+  ".cm-panels-bottom": { borderTop: "1px solid var(--stroke-tertiary)" },
   ".cm-panel input, .cm-panel button": { font: "inherit", color: "inherit" },
   ".cm-textfield": {
     backgroundColor: "transparent",
     border: "none",
-    boxShadow: "inset 0 0 0 1px var(--bg-secondary)",
+    boxShadow: "inset 0 0 0 1px var(--stroke-secondary)",
     borderRadius: "6px",
   },
   ".cm-button": { backgroundImage: "none", backgroundColor: "var(--bg-tertiary)", border: "none", borderRadius: "6px" },
