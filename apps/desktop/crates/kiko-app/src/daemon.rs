@@ -15,6 +15,8 @@ const STABLE: Duration = Duration::from_secs(30);
 const POLL: Duration = Duration::from_millis(200);
 const GRACE: Duration = Duration::from_secs(3);
 
+pub const PARENT_PIPE: &str = "KIKO_PARENT_PIPE";
+
 static CHILD_PID: AtomicI32 = AtomicI32::new(0);
 
 pub struct Supervisor {
@@ -64,8 +66,10 @@ fn supervise(stop: &AtomicBool, shared: &Shared) {
         log::line(format!("kiko-core started as {}", child.id()));
         state::lock(shared).running = true;
         let started = Instant::now();
+        let lifeline = child.stdin.take();
         forward(&mut child);
         watch(&mut child, stop);
+        drop(lifeline);
         state::lock(shared).running = false;
         CHILD_PID.store(0, Ordering::SeqCst);
         if stop.load(Ordering::SeqCst) {
@@ -86,7 +90,8 @@ fn spawn() -> io::Result<Child> {
     command
         .arg("run")
         .env("KIKO_DRIVER", config::socket_name())
-        .stdin(Stdio::null())
+        .env(PARENT_PIPE, "1")
+        .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
     #[cfg(windows)]

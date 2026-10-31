@@ -8,12 +8,16 @@ use kiko_driver::{
 };
 
 use crate::permissions;
-use crate::worker::{Job, Reply, Worker};
+use crate::worker::{Call, Job, Reply, Ticket, Worker};
 
 const WINDOWS_TIMEOUT: Duration = Duration::from_secs(5);
-const LOOK_TIMEOUT: Duration = Duration::from_secs(8);
+const LOOK_TIMEOUT_MS: u64 = 8_000;
+const LOOK_TIMEOUT: Duration = Duration::from_millis(LOOK_TIMEOUT_MS);
 const ACT_TIMEOUT: Duration = Duration::from_secs(6);
 const OPEN_TIMEOUT: Duration = Duration::from_secs(20);
+
+const LOOK_BUDGET_MS: u64 = crate::look::LOOK_BUDGET_MS + 2 * crate::capture::TIMEOUT_MS;
+const _: () = assert!(LOOK_BUDGET_MS <= LOOK_TIMEOUT_MS);
 
 pub struct MacDriver {
     jobs: Sender<Job>,
@@ -41,13 +45,15 @@ impl MacDriver {
     fn call<T>(
         &self,
         timeout: Duration,
-        job: impl FnOnce(Reply<T>) -> Job,
+        job: impl FnOnce(Reply<T>) -> Call,
     ) -> kiko_driver::Result<T> {
         let (reply, answer) = mpsc::channel();
+        let ticket = Ticket::new();
         self.jobs
-            .send(job(reply))
+            .send(Job::new(ticket.clone(), job(reply)))
             .map_err(|_| DriverError::new(ErrorCode::Failed, "the driver thread stopped"))?;
         answer.recv_timeout(timeout).map_err(|_| {
+            ticket.cancel();
             DriverError::new(
                 ErrorCode::Timeout,
                 "the window server did not answer in time",
@@ -72,18 +78,18 @@ impl Native for MacDriver {
     }
 
     fn windows(&mut self) -> kiko_driver::Result<Vec<Window>> {
-        self.call(WINDOWS_TIMEOUT, Job::Windows)
+        self.call(WINDOWS_TIMEOUT, Call::Windows)
     }
 
     fn look(&mut self, params: &LookParams) -> kiko_driver::Result<Look> {
-        self.call(LOOK_TIMEOUT, |reply| Job::Look(params.clone(), reply))
+        self.call(LOOK_TIMEOUT, |reply| Call::Look(params.clone(), reply))
     }
 
     fn act(&mut self, params: &ActParams) -> kiko_driver::Result<ActResult> {
-        self.call(ACT_TIMEOUT, |reply| Job::Act(params.clone(), reply))
+        self.call(ACT_TIMEOUT, |reply| Call::Act(params.clone(), reply))
     }
 
     fn open(&mut self, params: &OpenParams) -> kiko_driver::Result<()> {
-        self.call(OPEN_TIMEOUT, |reply| Job::Open(params.clone(), reply))
+        self.call(OPEN_TIMEOUT, |reply| Call::Open(params.clone(), reply))
     }
 }

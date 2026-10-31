@@ -4,6 +4,7 @@ import { presence } from "./caps"
 import { preflightAccess } from "./desk/macos"
 import { CliError } from "./errors"
 import { pair } from "./pairing"
+import { exitWhenParentDies, parentPipeAsked } from "./parent"
 import { diagnose, serve } from "./serve"
 
 const USAGE = `usage: kiko-core <command>
@@ -34,7 +35,10 @@ export async function main(argv: string[]): Promise<number> {
     if (command === "access") return runAccess()
     if (command === "pair") return await runPair(dir, rest, values.name ?? null)
     if (command === "doctor") return await runDoctor(dir)
-    if (command === "run") return await serve(dir)
+    if (command === "run") {
+      if (parentPipeAsked(process.env)) exitWhenParentDies(process.stdin, () => process.exit(0))
+      return await serve(dir)
+    }
     if (command === "webrtc") return await runWebrtc()
     throw new CliError({ message: `unknown command: ${command ?? ""}\n\n${USAGE}` })
   } catch (error) {

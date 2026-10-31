@@ -9,14 +9,19 @@ use crate::ax::{self, Element};
 use crate::cf;
 
 pub const MAX_DEPTH: usize = 40;
-pub const DEADLINE: Duration = Duration::from_millis(3000);
+pub const DEADLINE_MS: u64 = 2_000;
+pub const DEADLINE: Duration = Duration::from_millis(DEADLINE_MS);
 pub const PAGE_HIDDEN: &str = "the page content is not exposed to macOS accessibility: use browser_tabs, browser_read or browser_act for it, and if they say the browser needs consent, ask the owner to allow remote debugging\n";
 const VALUE_LIMIT: usize = 500;
 const WEB_PROBE_DEPTH: usize = 10;
 const WEB_PROBE_NODES: usize = 400;
-const WEB_WAIT: Duration = Duration::from_secs(4);
+const WEB_WAIT_MS: u64 = 1_500;
+const WEB_WAIT: Duration = Duration::from_millis(WEB_WAIT_MS);
+const WEB_CHECK: Duration = Duration::from_millis(250);
 const WEB_POLL: Duration = Duration::from_millis(100);
 const REMEMBERED: usize = 32;
+
+pub const LOOK_BUDGET_MS: u64 = WEB_WAIT_MS + DEADLINE_MS;
 
 const ATTRIBUTES: [&str; 13] = [
     ax::ROLE,
@@ -69,6 +74,10 @@ pub struct Refs {
 impl Refs {
     pub fn get(&self, reference: Ref) -> Option<&Element> {
         self.elements.get(reference.checked_sub(1)? as usize)
+    }
+
+    pub fn count(&self) -> usize {
+        self.elements.len()
     }
 }
 
@@ -139,7 +148,6 @@ pub fn walk(window: &AXUIElement, origin: Rect, extras: &[Element]) -> Walk {
 }
 
 fn describe(element: &AXUIElement, origin: Rect) -> (Option<Node>, Vec<Element>) {
-    ax::timeout(element, ax::MESSAGING_TIMEOUT);
     let values = ax::attributes(element, &ATTRIBUTES);
     let children = ax::elements(&values[12]);
     let Some(role) = ax::text(&values[0]) else {
@@ -319,7 +327,9 @@ impl WebPages {
         let known = key.and_then(|key| self.seen.get(&key).copied());
         match known {
             Some(WebPage::Hidden) => return (application, WebPage::Hidden),
-            Some(WebPage::Exposed) if web_content_present(&application) => {
+            Some(WebPage::Exposed)
+                if web_content_present(&application, Instant::now() + WEB_CHECK) =>
+            {
                 return (application, WebPage::Exposed);
             }
             _ => {}
@@ -341,12 +351,13 @@ impl WebPages {
 }
 
 fn probe(application: &AXUIElement, bundle: Option<&str>, app: &str) -> (WebPage, bool) {
+    let deadline = Instant::now() + WEB_WAIT;
     let opt = opt_in(application, bundle, app);
     if !opt.active && !opt.refused {
         return (WebPage::Hidden, false);
     }
-    let present = web_content_present(application);
-    let appeared = !present && wait_for_web_area(application, bundle, app);
+    let present = web_content_present(application, deadline);
+    let appeared = !present && wait_for_web_area(application, bundle, app, deadline);
     decide(&opt, present || appeared)
 }
 
@@ -380,9 +391,13 @@ fn launch(pid: i32) -> Option<u64> {
     )
 }
 
-fn wait_for_web_area(application: &AXUIElement, bundle: Option<&str>, app: &str) -> bool {
-    let deadline = Instant::now() + WEB_WAIT;
-    while !web_content_present(application) {
+fn wait_for_web_area(
+    application: &AXUIElement,
+    bundle: Option<&str>,
+    app: &str,
+    deadline: Instant,
+) -> bool {
+    while !web_content_present(application, deadline) {
         if Instant::now() >= deadline {
             return false;
         }
@@ -471,16 +486,19 @@ pub fn open_menus(application: &AXUIElement) -> Vec<Element> {
     menus
 }
 
-fn web_content_present(application: &AXUIElement) -> bool {
+fn web_content_present(application: &AXUIElement, deadline: Instant) -> bool {
     let mut budget = WEB_PROBE_NODES;
     let mut stack: Vec<(Element, usize)> = vec![(ax::retain(application), 0)];
     while let Some((element, depth)) = stack.pop() {
-        if budget == 0 || depth >= WEB_PROBE_DEPTH {
+        if budget == 0 || Instant::now() >= deadline {
+            return false;
+        }
+        if depth >= WEB_PROBE_DEPTH {
             continue;
         }
         for child in ax::children(&element) {
             budget = budget.saturating_sub(1);
-            if budget == 0 {
+            if budget == 0 || Instant::now() >= deadline {
                 return false;
             }
             let values = ax::attributes(&child, &[ax::ROLE, ax::CHILDREN]);
@@ -504,6 +522,13 @@ mod tests {
         assert!(refused(AXError::AttributeUnsupported));
         assert!(!refused(AXError::CannotComplete));
         assert!(!refused(AXError::Success));
+    }
+
+    #[test]
+    fn an_expired_deadline_stops_the_web_probe() {
+        let application = ax::application(std::process::id() as i32);
+        let past = Instant::now() - Duration::from_millis(1);
+        assert!(!web_content_present(&application, past));
     }
 
     fn opt_in(active: bool, refused: bool) -> OptIn {

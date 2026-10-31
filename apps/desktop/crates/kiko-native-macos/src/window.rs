@@ -204,6 +204,11 @@ pub fn front_pid() -> Option<i32> {
     on_screen().first().map(|entry| entry.pid)
 }
 
+fn unique_pids(pids: impl IntoIterator<Item = i32>) -> Vec<i32> {
+    let mut seen = std::collections::HashSet::new();
+    pids.into_iter().filter(|pid| seen.insert(*pid)).collect()
+}
+
 pub fn list() -> Vec<Window> {
     let focused = front_pid().and_then(focused_window_id);
     let entries = every();
@@ -218,7 +223,7 @@ pub fn list() -> Vec<Window> {
         .map(|entry| build(entry, focused))
         .collect();
 
-    for pid in shown.iter().map(|entry| entry.pid).collect::<Vec<_>>() {
+    for pid in unique_pids(shown.iter().map(|entry| entry.pid)) {
         for window in ax_windows(pid) {
             let Some(id) = window.id else { continue };
             if !seen.insert(id) {
@@ -279,7 +284,7 @@ pub fn resolve(id: &str) -> Option<Window> {
             .is_some_and(|window| window.minimized);
         return Some(window);
     }
-    for pid in every().iter().map(|entry| entry.pid) {
+    for pid in unique_pids(every().iter().map(|entry| entry.pid)) {
         if let Some(window) = ax_windows(pid)
             .into_iter()
             .find(|window| window.id == Some(id))
@@ -299,4 +304,15 @@ pub fn resolve(id: &str) -> Option<Window> {
         }
     }
     None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn each_process_is_asked_for_its_windows_once() {
+        assert_eq!(unique_pids([7, 8, 7, 9, 8]), vec![7, 8, 9]);
+        assert_eq!(unique_pids([]), Vec::<i32>::new());
+    }
 }

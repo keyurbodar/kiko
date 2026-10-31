@@ -369,6 +369,89 @@ fn electron_web_area_answers_in_the_background() {
     owner.assert_unchanged();
 }
 
+#[test]
+#[ignore = "needs a mac with Accessibility and Screen Recording granted to this binary"]
+fn background_keys_reach_only_the_window_that_was_asked() {
+    let mut driver = MacDriver::new().expect("driver");
+    let first = write_document("a", "the first document keeps its text");
+    let second = write_document("b", "the second document loses its text");
+    let kept = open_document(&mut driver, &first);
+    let asked = open_document(&mut driver, &second);
+    set_window_frame(&kept, FRAME);
+    let offset = Rect {
+        x: FRAME.x + 40.0,
+        y: FRAME.y + 40.0,
+        ..FRAME
+    };
+    set_window_frame(&asked, offset);
+    let finder = cover_with_finder(&mut driver, FRAME);
+    set_document_text(&mut driver, &kept, "the first document keeps its text");
+    set_document_text(&mut driver, &asked, "the second document loses its text");
+    focus_text_area(&mut driver, &asked);
+    assert!(
+        make_key(&kept),
+        "the first document would not take the keyboard"
+    );
+    let owner = Owner::capture();
+
+    let look = look_at(&mut driver, &asked);
+    assert!(
+        look.nodes.iter().any(|node| node.role == "textarea"),
+        "the second document has no text area; nodes: {:?}",
+        look.nodes
+    );
+    press_keys(&mut driver, &asked, "cmd+a");
+    let route = press_keys(&mut driver, &asked, "delete");
+    assert!(
+        matches!(
+            route,
+            Route::Accessibility | Route::Private | Route::WindowEvent
+        ),
+        "delete took the foreground route {route:?}"
+    );
+
+    let cleared = wait_for(SETTLE, || {
+        document_text(&mut driver, &asked).filter(String::is_empty)
+    });
+    assert_eq!(
+        cleared.as_deref(),
+        Some(""),
+        "the second document still holds {:?}",
+        document_text(&mut driver, &asked)
+    );
+    assert_eq!(
+        document_text(&mut driver, &kept).as_deref(),
+        Some("the first document keeps its text"),
+        "the keys went to the wrong window"
+    );
+    assert_covered(&finder, &kept);
+    assert_covered(&finder, &asked);
+    owner.assert_unchanged();
+    quit(&asked);
+}
+
+fn write_document(name: &str, body: &str) -> PathBuf {
+    let path = std::env::temp_dir().join(format!("kiko-{name}-{}.txt", std::process::id()));
+    fs::write(&path, body).expect("write the document");
+    path
+}
+
+fn open_document(driver: &mut MacDriver, path: &Path) -> Window {
+    let name = path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or_default()
+        .to_string();
+    let argument = path.display().to_string();
+    let note = open_app_waiting(DOCUMENT_APPS[0].path, Some(&argument), true, OPEN_WAIT);
+    wait_for(LAUNCH, || window_titled(driver, "TextEdit", &name)).unwrap_or_else(|| {
+        panic!(
+            "no TextEdit window for {name}; {note}; windows: {:?}",
+            window_summary(driver)
+        )
+    })
+}
+
 fn check_document(driver: &mut MacDriver, document: &Window, finder: &Window, frame: Rect) {
     let listed = driver
         .windows()
@@ -628,6 +711,20 @@ fn focus_text_area(driver: &mut MacDriver, window: &Window) {
     let look = look_at(driver, window);
     let reference = node(&look, "textarea").reference;
     act_with(driver, window, reference, Action::Focus, None, 0.0, 0.0);
+}
+
+fn make_key(window: &Window) -> bool {
+    let id = window.id.parse().expect("a numeric window id");
+    let pid = window.pid as i32;
+    let application = ax::application(pid);
+    let Some(element) = window::ax_element_for(id, pid) else {
+        return false;
+    };
+    ax::set(&application, ax::FOCUSED_WINDOW, &element);
+    wait_for(SETTLE, || {
+        window::focused_window_id(pid).filter(|focused| *focused == id)
+    })
+    .is_some()
 }
 
 fn document_text(driver: &mut MacDriver, window: &Window) -> Option<String> {
