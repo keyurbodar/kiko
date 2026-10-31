@@ -30,6 +30,9 @@
     "apps/computer": {
       "entry": ["scripts/*.ts"]
     },
+    "apps/bench": {
+      "entry": ["src/sentinel/ci.ts"]
+    },
     "apps/builder": {
       "entry": ["scripts/*.ts"]
     },

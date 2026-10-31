@@ -1,0 +1,12 @@
+{
+  "name": "@kiko/bench",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsgo --noEmit"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.3.0",
+    "typescript": "^5.9.0"
+  }
+}

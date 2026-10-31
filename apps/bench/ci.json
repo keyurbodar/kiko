@@ -1,0 +1,6 @@
+{
+  "sentinel": {
+    "idleSeconds": 30,
+    "caseSeconds": 4
+  }
+}
