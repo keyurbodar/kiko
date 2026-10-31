@@ -28,6 +28,9 @@ describe("ImageDialog", () => {
     const onClose = vi.fn()
     await using _screen = await render(() => <ImageDialog images={images} index={0} onClose={onClose} />)
 
+    await vi.waitFor(() =>
+      expect(document.querySelector('[role="dialog"]')?.contains(document.activeElement)).toBe(true),
+    )
     await userEvent.keyboard("{Escape}")
 
     await vi.waitFor(() => expect(onClose).toHaveBeenCalled())
