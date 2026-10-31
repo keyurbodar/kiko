@@ -233,6 +233,7 @@ function CodeFiles(props: { files: readonly CodeFile[]; streaming?: boolean }): 
       dir="ltr"
       data-component="chat-code-block"
       data-wrap={wrapLines() ? "" : undefined}
+      data-bar={props.files.length > 1 || file().name ? "" : undefined}
       data-streaming={props.streaming ? "" : undefined}
     >
       <div class="chat-code-head">
@@ -241,13 +242,13 @@ function CodeFiles(props: { files: readonly CodeFile[]; streaming?: boolean }): 
         </Show>
         <div class="chat-code-actions" role="toolbar" aria-label="Code block actions">
           <Action label={wrapLines() ? "Disable line wrap" : "Wrap lines"} pressed={wrapLines()} onClick={toggleWrap}>
-            <RemixIcon icon={WrapTextIcon} size={16} />
+            <RemixIcon icon={WrapTextIcon} size={13} />
           </Action>
           <Action label="Download" onClick={() => download(file())}>
-            <RemixIcon icon={DownloadIcon} size={16} />
+            <RemixIcon icon={DownloadIcon} size={13} />
           </Action>
           <Action label={copied() ? "Copied" : "Copy code"} onClick={copy}>
-            <CopyCheckIcon copied={copied()} size={16} />
+            <CopyCheckIcon copied={copied()} size={13} />
           </Action>
         </div>
       </div>

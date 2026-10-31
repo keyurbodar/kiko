@@ -6,7 +6,6 @@ import { createRichTextCache } from "../rich/block-cache"
 import { RichText } from "../rich/RichText"
 import { elapsedLabel } from "../run/duration"
 import { Shine } from "../run/Shine"
-import { Mochi } from "../ui/Mochi"
 import { useSmoothText } from "./smooth"
 import "./thinking.css"
 
@@ -145,6 +144,16 @@ function Chevron(props: { open: boolean }): JSX.Element {
   )
 }
 
+function Dots(): JSX.Element {
+  return (
+    <span class="thinking-dots" data-component="thinking-dots" aria-hidden="true">
+      <i />
+      <i />
+      <i />
+    </span>
+  )
+}
+
 function Caption(props: { text: string; at?: number; running: boolean }): JSX.Element {
   const [leaving, setLeaving] = createSignal<string>()
   let shown = props.text
@@ -200,14 +209,14 @@ export function ThinkingLine(props: { thought: Thought | undefined; fallback: st
         when={text()}
         fallback={
           <div class="thinking-row">
-            <Mochi size={20} />
+            <Dots />
             <Caption text={props.fallback} running />
             <Show when={elapsed()}>{(time) => <span class="thinking-time">{time()}</span>}</Show>
           </div>
         }
       >
         <button type="button" class="thinking-row thinking-toggle" aria-expanded={open()} onClick={toggle}>
-          <Mochi size={20} />
+          <Dots />
           <Caption text={caption()} at={preview().at} running={thinking()} />
           <Show when={thinking()}>
             <span class="thinking-time">{took(thoughtMs(live()!, now()))}</span>

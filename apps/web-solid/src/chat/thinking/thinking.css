@@ -1,5 +1,5 @@
 .thinking {
-  --run-text: var(--text-secondary);
+  --run-text: var(--text-tertiary);
   display: flex;
   min-width: 0;
   max-width: 100%;
@@ -12,18 +12,37 @@
   display: flex;
   min-width: 0;
   max-width: 100%;
+  min-height: var(--spacing-control-md);
   align-items: center;
-  gap: 8px;
-  color: var(--text-secondary);
+  gap: 6px;
+  color: var(--text-tertiary);
   font-size: var(--font-size-base);
-  line-height: 22px;
+  line-height: var(--line-height-base);
+  letter-spacing: var(--letter-spacing-base);
+}
+
+.thinking-dots {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  width: 14px;
+  height: 14px;
+}
+.thinking-dots > i {
+  width: 3px;
+  height: 3px;
+  border-radius: var(--radius-full);
+  background: currentColor;
+  opacity: 0.35;
 }
 
 .thinking-live {
   display: block;
   min-width: 0;
   overflow: hidden;
-  color: var(--text-secondary);
+  color: var(--text-tertiary);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -55,8 +74,24 @@
   flex: none;
   color: var(--text-quaternary);
 }
+.thinking-time {
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-sm);
+  font-variant-numeric: tabular-nums;
+}
+.thinking-chevron {
+  opacity: 0;
+  transition:
+    opacity var(--duration-fast) var(--ease-sharp),
+    color var(--duration-fast) var(--ease-sharp),
+    transform var(--motion-run-chevron) var(--ease-sharp);
+}
 .thinking-chevron[data-open] {
+  opacity: 1;
   transform: rotate(90deg);
+}
+:is(.thinking-toggle, .thought-head):focus-visible .thinking-chevron {
+  opacity: 1;
 }
 
 .thinking-stream {
@@ -65,15 +100,15 @@
   max-width: 36rem;
   min-width: 0;
   max-height: 24rem;
-  margin-left: 9px;
-  padding: 2px 0 2px 18px;
+  margin-left: 6px;
+  padding: 0 0 0 13px;
   overflow-y: auto;
   overflow-x: hidden;
   border-left: 1px solid var(--stroke-tertiary);
-  scrollbar-width: thin;
   color: var(--text-tertiary);
   font-size: var(--font-size-base);
-  line-height: 22px;
+  line-height: var(--line-height-base);
+  letter-spacing: var(--letter-spacing-base);
   overflow-wrap: anywhere;
   user-select: text;
 }
@@ -93,18 +128,19 @@
   padding: 0 var(--bubble-pad-x) 4px;
 }
 .thought .thinking-stream {
-  margin-left: 7px;
-  padding-left: 16px;
+  margin-left: 0;
+  padding-left: 12px;
 }
 
 .thought-head {
   display: inline-flex;
   align-items: center;
-  gap: 9px;
-  min-height: 30px;
+  gap: 6px;
+  min-height: var(--spacing-control-md);
   color: var(--text-tertiary);
   font-size: var(--font-size-base);
-  line-height: 20px;
+  line-height: var(--line-height-base);
+  letter-spacing: var(--letter-spacing-base);
 }
 
 .thinking-toggle:focus-visible,
@@ -115,15 +151,25 @@
 @media (hover: hover) and (pointer: fine) {
   .thinking-toggle:hover,
   .thought-head:hover {
-    color: var(--text-primary);
+    color: var(--text-secondary);
   }
   .thinking-toggle:hover .thinking-chevron,
   .thought-head:hover .thinking-chevron {
-    color: var(--text-secondary);
+    opacity: 1;
+    color: var(--icon-secondary);
   }
 }
 
 @media (prefers-reduced-motion: no-preference) {
+  .thinking-dots > i {
+    animation: thinking-dot 1.2s var(--ease-sharp) infinite;
+  }
+  .thinking-dots > i:nth-child(2) {
+    animation-delay: 0.15s;
+  }
+  .thinking-dots > i:nth-child(3) {
+    animation-delay: 0.3s;
+  }
   .thinking-live {
     animation: thinking-slide 160ms var(--ease-sharp) backwards;
   }
@@ -136,6 +182,31 @@
   .thinking-leaving {
     visibility: visible;
     animation: thinking-leave 160ms var(--ease-sharp) forwards;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .thinking-chevron {
+    transition: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .thinking-chevron {
+    transition: none;
+  }
+}
+
+@keyframes thinking-dot {
+  0%,
+  60%,
+  100% {
+    opacity: 0.35;
+    transform: none;
+  }
+  30% {
+    opacity: 1;
+    transform: translateY(-2px);
   }
 }
 

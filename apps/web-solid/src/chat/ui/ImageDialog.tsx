@@ -31,10 +31,10 @@ import {
 } from "./zoom"
 
 const NAV =
-  "absolute top-1/2 z-20 grid size-9 -translate-y-1/2 place-items-center rounded-base text-white/90 hover:bg-white/10 hover:text-white"
+  "absolute top-1/2 z-20 grid size-control-xl -translate-y-1/2 place-items-center rounded-base text-white/90 transition-colors hover:bg-white/10 hover:text-white"
 
 const TOOL =
-  "grid size-8 cursor-pointer place-items-center rounded-base text-secondary transition-[background-color,color,transform] duration-(--duration-fast) ease-sharp hover:bg-tertiary hover:text-primary active:scale-[0.94] outline-none"
+  "grid size-control-md cursor-pointer place-items-center rounded-base text-secondary transition-[background-color,color,transform] duration-(--duration-fast) ease-sharp hover:bg-quaternary hover:text-primary active:scale-(--press-scale) outline-none"
 
 const DONE_MS = 1200
 const READOUT_MS = 1000
@@ -53,7 +53,7 @@ function Tool(props: { label: string; icon: Glyph; onClick?: () => void; childre
     <TooltipV2 placement="bottom" openDelay={500} value={props.label}>
       {props.children ?? (
         <button type="button" class={TOOL} aria-label={props.label} onClick={() => props.onClick?.()}>
-          <RemixIcon icon={props.icon} size={16} />
+          <RemixIcon icon={props.icon} size={13} />
         </button>
       )}
     </TooltipV2>
@@ -86,7 +86,7 @@ function Toolbar(props: { image: DialogImage | undefined; failed: boolean; onClo
   return (
     <div
       data-component="image-dialog-toolbar"
-      class="absolute top-0 right-0 z-30 flex items-center gap-0.5 rounded-xl bg-elevated p-1 shadow-[var(--popup-shadow)]"
+      class="absolute top-0 right-0 z-30 flex items-center gap-px rounded-lg bg-elevated p-0.5 shadow-[var(--popup-shadow)]"
     >
       <Show when={room.activeId() && props.image?.path} keyed>
         {(path) => <OpenInFiles path={path} onClose={props.onClose} />}
@@ -100,7 +100,7 @@ function Toolbar(props: { image: DialogImage | undefined; failed: boolean; onClo
             aria-label="Download"
             data-action="download-image"
           >
-            <RemixIcon icon={DownloadIcon} size={16} />
+            <RemixIcon icon={DownloadIcon} size={13} />
           </a>
         </Tool>
         <Show when={typeof ClipboardItem !== "undefined" && !props.image?.video}>
@@ -165,7 +165,7 @@ export default function ImageDialog(props: { images: readonly DialogImage[]; ind
           <Toolbar image={item()} failed={failed() === item()?.src} onClose={props.onClose} />
           <Show when={count() > 1}>
             <button type="button" class={`${NAV} left-0`} aria-label="Previous" onClick={() => step(-1)}>
-              <RemixIcon icon={ChevronLeftIcon} class="size-5" />
+              <RemixIcon icon={ChevronLeftIcon} size={16} />
             </button>
           </Show>
           <Show when={item()} keyed>
@@ -179,7 +179,7 @@ export default function ImageDialog(props: { images: readonly DialogImage[]; ind
                   fallback={
                     <div
                       role="alert"
-                      class="flex h-48 w-[min(92vw,32rem)] flex-col items-center justify-center gap-1 rounded-xl bg-editor p-6 text-center"
+                      class="flex h-48 w-[min(92vw,32rem)] flex-col items-center justify-center gap-1 rounded-lg bg-editor p-6 text-center"
                     >
                       <p class="type-base text-primary">{image.video ? "Video unavailable" : "Image unavailable"}</p>
                       <p class="type-sm text-tertiary">The file may have been moved or deleted.</p>
@@ -204,13 +204,13 @@ export default function ImageDialog(props: { images: readonly DialogImage[]; ind
                       autoplay
                       playsinline
                       aria-label={image.name}
-                      class="max-h-[80vh] max-w-[calc(92vw-96px)] rounded-xl shadow-[var(--popup-shadow)] outline-none max-sm:max-w-[92vw]"
+                      class="max-h-[80vh] max-w-[calc(92vw-96px)] rounded-lg shadow-[var(--popup-shadow)] outline-none max-sm:max-w-[92vw]"
                       onError={() => setFailed(image.src)}
                     />
                   </Show>
                 </Show>
                 <p
-                  class="mt-2 max-w-full truncate text-xs text-white/80"
+                  class="mt-2 max-w-full truncate type-sm text-white/80"
                   aria-live="polite"
                   data-component="image-dialog-caption"
                 >
@@ -230,7 +230,7 @@ export default function ImageDialog(props: { images: readonly DialogImage[]; ind
           </Show>
           <Show when={count() > 1}>
             <button type="button" class={`${NAV} right-0`} aria-label="Next" onClick={() => step(1)}>
-              <RemixIcon icon={ChevronRightIcon} class="size-5" />
+              <RemixIcon icon={ChevronRightIcon} size={16} />
             </button>
           </Show>
         </ModalV2.Content>
@@ -320,7 +320,7 @@ function ZoomableImage(props: {
         aria-describedby={hint}
         // biome-ignore lint/a11y/noNoninteractiveTabindex: a scrollable region takes focus so the keyboard can scroll it
         tabIndex={0}
-        class="max-w-[calc(92vw-96px)] overflow-auto overscroll-contain rounded-xl shadow-[var(--popup-shadow)] outline-none max-sm:max-w-[92vw]"
+        class="max-w-[calc(92vw-96px)] overflow-auto overscroll-contain rounded-lg shadow-[var(--popup-shadow)] outline-none max-sm:max-w-[92vw]"
         style={{
           width: width() ? `${width()}px` : undefined,
           height: height() ? `${height()}px` : undefined,

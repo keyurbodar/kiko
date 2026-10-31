@@ -58,21 +58,23 @@ export function DateChip(props: {
         class={cn(
           "flex w-max max-w-full flex-col items-stretch overflow-clip text-primary",
           open()
-            ? "w-[320px] max-w-full rounded-3xl bg-elevated shadow-popup"
-            : "rounded-full bg-chrome shadow-[0_6px_16px_-6px_oklch(0%_0_none/0.22),0_0_0_1px_color-mix(in_oklab,var(--text-primary)_6%,transparent)]",
+            ? "w-[320px] max-w-full rounded-2xl bg-elevated shadow-(--popup-shadow)"
+            : "rounded-full bg-elevated shadow-[var(--hairline),var(--box-shadow-sm)]",
         )}
         excludedElements={() => [trigger]}
         onDismiss={close}
       >
-        <div class={cn("relative flex items-center justify-center", open() ? "min-h-11 px-3 pt-2" : "min-h-6")}>
+        <div
+          class={cn("relative flex items-center justify-center", open() ? "min-h-10 px-3 pt-2" : "min-h-control-md")}
+        >
           <button
             ref={(element) => {
               trigger = element
             }}
             type="button"
             class={cn(
-              "chat-chip pointer-events-auto min-h-6 cursor-pointer rounded-full px-3 py-1 type-sm font-semibold text-secondary transition-colors duration-(--duration-fast) hover:bg-tertiary aria-expanded:bg-tertiary",
-              open() && "bg-secondary",
+              "chat-chip pointer-events-auto h-control-md cursor-pointer rounded-full px-2.5 type-sm text-quaternary transition-colors duration-(--duration-fast) hover:bg-quaternary hover:text-secondary aria-expanded:text-primary",
+              open() && "bg-quaternary",
             )}
             data-component="chat-day-chip"
             aria-expanded={open()}
@@ -91,11 +93,11 @@ export function DateChip(props: {
           <Show when={open()}>
             <button
               type="button"
-              class="pointer-events-auto absolute top-[calc(50%+4px)] right-3 grid size-7 -translate-y-1/2 cursor-pointer place-items-center rounded-full text-secondary hover:bg-tertiary hover:text-primary"
+              class="pointer-events-auto absolute top-[calc(50%+4px)] right-2 grid size-control-md -translate-y-1/2 cursor-pointer place-items-center rounded-base text-secondary transition-colors hover:bg-quaternary hover:text-primary"
               aria-label="Close calendar"
               onClick={close}
             >
-              <RemixIcon icon={CloseIcon} class="size-4" />
+              <RemixIcon icon={CloseIcon} size={13} />
             </button>
           </Show>
         </div>

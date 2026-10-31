@@ -1,38 +1,20 @@
 [data-slot="bubble"] {
-  --bubble-r: 18px;
-  --bubble-joint: 6px;
-  --bubble-pad-x: 16px;
-  --bubble-pad-y: 12px;
+  --bubble-r: var(--radius-xl);
 }
 
-[data-slot="bubble"][data-align="end"] {
-  --bubble-pad-y: 10px;
-}
-
-[data-slot="bubble"][data-align="start"]:not([data-variant="ghost"]) > [data-slot="bubble-content"] {
-  border-end-start-radius: var(--bubble-joint);
-}
-
-[data-slot="bubble"][data-align="end"]:not([data-variant="ghost"]) > [data-slot="bubble-content"] {
-  border-end-end-radius: var(--bubble-joint);
-}
-
-[data-slot="bubble"][data-align="start"]:is([data-position="middle"], [data-position="last"]):not(
-    [data-variant="ghost"]
-  )
-  > [data-slot="bubble-content"] {
-  border-start-start-radius: var(--bubble-joint);
-}
-
-[data-slot="bubble"][data-align="end"]:is([data-position="middle"], [data-position="last"]):not([data-variant="ghost"])
-  > [data-slot="bubble-content"] {
-  border-start-end-radius: var(--bubble-joint);
+[data-slot="bubble"][data-align="start"] {
+  --bubble-pad-y: 0px;
 }
 
 [data-slot="bubble-content"] {
   font-size: var(--font-size-lg);
   line-height: var(--line-height-lg);
-  transition: border-radius 260ms var(--ease-sharp);
+  letter-spacing: var(--letter-spacing-lg);
+  transition: background-color var(--duration-fast) var(--ease-sharp);
+}
+
+[data-slot="bubble"][data-variant="default"] > [data-slot="bubble-content"]:is(:hover, :focus-within) {
+  background: var(--bg-tertiary);
 }
 
 [data-slot="bubble"]:has([data-component="chat-attachments"]):not(
@@ -54,37 +36,18 @@
 
 [data-slot="bubble"] > .message-actions .bubble-time {
   color: var(--text-quaternary);
-  font-size: var(--font-size-xs);
-  line-height: var(--line-height-xs);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-sm);
   white-space: nowrap;
 }
 
 .message-actions {
-  transform: translateY(4px);
-  transition:
-    opacity 60ms var(--ease-drawer),
-    transform 60ms var(--ease-drawer);
-}
-
-.message-actions:focus-within,
-.message-actions[data-open] {
-  transform: none;
-  transition-duration: 120ms;
-}
-
-@media (hover: hover) and (pointer: fine) {
-  [data-component="chat-row"]:hover .message-actions {
-    transform: none;
-    transition-duration: 120ms;
-  }
+  transition: opacity var(--duration-fast) var(--ease-sharp);
 }
 
 @media (prefers-reduced-motion: reduce) {
   [data-slot="bubble-content"],
   .message-actions {
     transition: none;
-  }
-  .message-actions {
-    transform: none;
   }
 }

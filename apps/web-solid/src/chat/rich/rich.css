@@ -1,10 +1,11 @@
 :root {
   --rich-border: var(--stroke-secondary);
   --rich-surface: var(--bg-editor);
-  --rich-accent: var(--bg-secondary);
+  --rich-accent: var(--bg-quaternary);
   --rich-muted: var(--text-tertiary);
 }
 .rich {
+  --rich-block-gap: var(--spacing-conversation-block-gap);
   min-width: 0;
   overflow-wrap: anywhere;
 }
@@ -18,20 +19,17 @@
 .rich p,
 .rich ul,
 .rich ol,
-.rich blockquote {
-  margin: 8px 0;
-}
+.rich blockquote,
 .rich-table {
-  margin: 10px 0;
+  margin: var(--rich-block-gap) 0;
 }
 .rich strong {
   color: var(--text-primary);
   font-weight: 600;
 }
 .rich em {
-  font-style: normal;
-  font-weight: 500;
-  color: var(--text-primary);
+  font-style: italic;
+  font-synthesis-style: auto;
 }
 .rich h1,
 .rich h2,
@@ -39,28 +37,28 @@
 .rich h4,
 .rich h5,
 .rich h6 {
-  margin: 1.25rem 0 0.5rem;
+  margin: calc(var(--font-size-lg) * 22 / 15) 0 var(--rich-block-gap);
+  color: var(--text-primary);
   font-family: var(--font-family-sans);
   font-weight: 600;
-  line-height: 1.3;
 }
 .rich h1 {
-  font-size: calc(var(--font-size-lg) * 1.25);
-  line-height: 1.4;
+  font-size: var(--font-size-xl);
+  line-height: var(--line-height-xl);
+  letter-spacing: var(--letter-spacing-xl);
 }
-.rich h2 {
-  font-size: calc(var(--font-size-lg) * 1.125);
-  line-height: 1.4;
-}
+.rich h2,
 .rich h3 {
   font-size: var(--font-size-lg);
   line-height: var(--line-height-lg);
+  letter-spacing: var(--letter-spacing-lg);
 }
 .rich h4,
 .rich h5,
 .rich h6 {
   font-size: var(--font-size-base);
-  line-height: 20px;
+  line-height: var(--line-height-base);
+  letter-spacing: var(--letter-spacing-base);
 }
 .rich h6 {
   color: var(--rich-muted);
@@ -71,7 +69,8 @@
   --list-gutter: 1.25rem;
   padding-inline-start: var(--list-gutter);
 }
-.rich ol > li::marker {
+.rich li::marker {
+  color: var(--text-tertiary);
 }
 .rich ul {
   list-style: disc;
@@ -92,18 +91,18 @@
   list-style-type: lower-roman;
 }
 .rich li + li {
-  margin-top: 3px;
+  margin-top: 4px;
 }
 
 .rich li > p {
   margin: 0;
 }
 .rich li > p + p {
-  margin-top: 0.65rem;
+  margin-top: var(--rich-block-gap);
 }
 
 .rich-loose > li > p {
-  margin: 0.65rem 0;
+  margin: var(--rich-block-gap) 0;
 }
 
 .rich li.task-list-item {
@@ -111,9 +110,9 @@
   margin-inline-start: -1.25rem;
 }
 .rich blockquote {
-  padding-inline-start: 0.8rem;
-  border-inline-start: 2px solid var(--rich-border);
-  color: var(--rich-muted);
+  padding-inline-start: 12px;
+  border-inline-start: 2px solid var(--stroke-tertiary);
+  color: var(--text-secondary);
 }
 
 .rich .rich-link-anchor {
@@ -144,15 +143,15 @@
   width: fit-content;
   max-width: 100%;
   max-height: min(30rem, 65dvh);
-  margin: 0.65rem 0;
+  margin: var(--rich-block-gap) 0;
   padding: 0;
   overflow: hidden;
-  border: 1px solid color-mix(in oklab, var(--rich-border) 60%, transparent);
-  border-radius: var(--radius-base);
+  border: 1px solid var(--stroke-tertiary);
+  border-radius: var(--radius-lg);
   background: var(--rich-surface);
   cursor: zoom-in;
   color: var(--rich-muted);
-  font-size: 0.8125rem;
+  font-size: var(--font-size-base);
 }
 .rich .rich-image[data-state="loading"] {
   width: min(100%, 20rem);
@@ -179,9 +178,9 @@
   align-items: center;
   gap: 0.4rem;
   max-width: 100%;
-  margin: 0.65rem 0;
+  margin: var(--rich-block-gap) 0;
   color: var(--rich-muted);
-  font-size: 0.8125rem;
+  font-size: var(--font-size-base);
 }
 .rich .rich-image-broken > span {
   min-width: 0;
@@ -190,30 +189,30 @@
   white-space: nowrap;
 }
 .rich-link {
-  color: var(--text-accent);
+  color: var(--text-link);
   text-decoration: none;
+  text-underline-offset: 2px;
+  overflow-wrap: anywhere;
 }
 .rich-link:focus-visible {
-  background-image: radial-gradient(circle, currentcolor 0.75px, transparent 1px);
-  background-position: left bottom;
-  background-repeat: repeat-x;
-  background-size: 4px 2px;
+  text-decoration: underline;
 }
 
 @media (hover: hover) and (pointer: fine) {
   .rich-link:hover {
-    background-image: radial-gradient(circle, currentcolor 0.75px, transparent 1px);
-    background-position: left bottom;
-    background-repeat: repeat-x;
-    background-size: 4px 2px;
+    text-decoration: underline;
   }
 }
 .rich-inline-code {
+  --inline-code-bg: var(--bg-tertiary);
   font-family: var(--font-family-mono);
-  font-size: 13px;
-  padding: 1px 5px;
-  border-radius: 4px;
-  background: var(--bg-tertiary);
+  font-size: 0.9em;
+  padding: 1.5px 2px;
+  border-radius: 5px;
+  background: var(--inline-code-bg);
+  box-shadow:
+    0 -1.5px 0 var(--inline-code-bg),
+    0 1.5px 0 var(--inline-code-bg);
   box-decoration-break: clone;
   -webkit-box-decoration-break: clone;
 }
@@ -235,13 +234,14 @@
   width: 100%;
   min-width: 0;
   border-collapse: collapse;
-  font-size: 13px;
+  font-size: var(--font-size-base);
+  line-height: var(--line-height-base);
   overflow-wrap: normal;
   word-break: normal;
 }
 .rich-table-scroll th,
 .rich-table-scroll td {
-  padding: 0.45rem 0.75rem;
+  padding: 6px 12px;
   text-align: start;
   text-wrap: pretty;
   vertical-align: top;
@@ -256,10 +256,9 @@
   padding-inline-end: 0;
 }
 .rich-table-scroll thead th {
-  padding-block: 0.55rem;
+  padding-block: 6px;
   color: var(--text-primary);
   font-weight: 600;
-  line-height: 18px;
   overflow-wrap: normal;
   word-break: normal;
   border-bottom: 1px solid var(--stroke-tertiary);
@@ -279,13 +278,14 @@
 }
 .rich-table-more {
   display: inline-flex;
-  height: 28px;
+  height: var(--spacing-control-md);
   align-items: center;
   gap: 6px;
-  padding: 0 6px;
+  padding: 0 8px;
   border-radius: var(--radius-base);
   color: var(--text-secondary);
-  font-size: var(--font-size-xs);
+  font-size: var(--font-size-base);
+  line-height: var(--line-height-base);
   cursor: pointer;
   transition:
     background-color var(--duration-fast) var(--ease-sharp),
@@ -293,7 +293,7 @@
 }
 @media (hover: hover) and (pointer: fine) {
   .rich-table-more:hover {
-    background: var(--bg-secondary);
+    background: var(--bg-quaternary);
     color: var(--text-primary);
   }
 }
@@ -302,8 +302,8 @@
 }
 .rich-table-action {
   display: inline-flex;
-  width: 1.5rem;
-  height: 1.5rem;
+  width: var(--spacing-control-md);
+  height: var(--spacing-control-md);
   align-items: center;
   justify-content: center;
   padding: 0;
@@ -321,11 +321,11 @@
 }
 .rich-table-action[data-active] {
   color: var(--text-primary);
-  background: var(--rich-surface);
+  background: var(--bg-quaternary);
 }
 
 .rich-rule {
-  margin: 1rem 0;
+  margin: calc(var(--rich-block-gap) * 2) 0;
   border: 0;
   border-top: 1px solid var(--stroke-tertiary);
 }
@@ -338,6 +338,7 @@
 [data-slot="bubble"] .rich {
   font-size: var(--font-size-lg);
   line-height: var(--line-height-lg);
+  letter-spacing: var(--letter-spacing-lg);
 }
 [data-side="bot"] .rich {
   color: var(--text-primary);

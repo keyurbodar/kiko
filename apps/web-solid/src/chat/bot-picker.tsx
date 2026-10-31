@@ -72,7 +72,7 @@ export default function BotPicker() {
   }
 
   const rowClass =
-    "flex h-sidebar-row-tall w-full cursor-pointer items-center gap-3 rounded-base px-3 text-primary outline-none transition-colors duration-[var(--duration-fast)] data-[selected=true]:bg-secondary"
+    "flex h-sidebar-row-tall w-full cursor-pointer items-center gap-2.5 rounded-lg px-2.5 text-primary outline-none transition-colors duration-(--duration-fast) data-[selected=true]:bg-quaternary"
   return (
     <Dialog
       open
@@ -84,17 +84,19 @@ export default function BotPicker() {
       data-component="bot-picker"
     >
       <Cmdk label="Pick an agent" loop value={highlight()} onValueChange={setHighlight} onKeyDown={keys}>
-        <div class="mx-5 mb-2 flex h-12 items-center gap-3 rounded-xl bg-editor px-4">
-          <RemixIcon icon={SearchIcon} size={16} class="shrink-0 text-tertiary" />
+        <div class="mx-4 mb-2 flex h-control-xl items-center gap-2 rounded-lg bg-input-field px-2.5 shadow-(--hairline)">
+          <RemixIcon icon={SearchIcon} size={14} class="shrink-0 icon-tertiary" />
           <Cmdk.Input
-            class="h-full min-w-0 flex-1 border-0 bg-transparent text-base text-primary outline-none placeholder:text-quaternary"
+            class="h-full min-w-0 flex-1 border-0 bg-transparent type-base text-primary outline-none placeholder:text-quaternary"
             placeholder="Who do you want to talk to?"
             autofocus
             onValueChange={setQuery}
           />
         </div>
-        <Cmdk.List class="max-h-[min(360px,50dvh)] overflow-y-auto px-3 pb-2">
-          <Cmdk.Empty class="grid h-sidebar-row-tall place-items-center text-sm text-tertiary">No agents match</Cmdk.Empty>
+        <Cmdk.List class="max-h-[min(360px,50dvh)] overflow-y-auto px-2.5 pb-1.5">
+          <Cmdk.Empty class="grid h-sidebar-row-tall place-items-center type-base text-tertiary">
+            No agents match
+          </Cmdk.Empty>
           <For each={agents()}>
             {(agent) => {
               const on = () => picked().includes(agent.id)
@@ -106,10 +108,10 @@ export default function BotPicker() {
                   keywords={[agent.name, agent.slug]}
                   onSelect={() => pick(agent.id)}
                 >
-                  <IdentityAvatar seed={agent.slug} size={32} />
+                  <IdentityAvatar seed={agent.slug} size={28} />
                   <span class="flex min-w-0 flex-1 flex-col items-start">
-                    <span class="max-w-full truncate text-base">{agent.name}</span>
-                    <span class="max-w-full truncate text-sm text-tertiary">
+                    <span class="max-w-full truncate type-base">{agent.name}</span>
+                    <span class="max-w-full truncate type-sm text-tertiary">
                       {agent.id === KIKO ? "Leads every group" : `@${agent.slug}`}
                     </span>
                   </span>
@@ -119,9 +121,9 @@ export default function BotPicker() {
                       aria-checked={on()}
                       aria-label={`Pick ${agent.name}`}
                       data-check={on() ? "on" : "off"}
-                      class={`grid size-4 place-items-center rounded-sm border ${on() ? "border-transparent bg-neutral text-invert" : "border-primary text-transparent"}`}
+                      class={`grid size-3.5 place-items-center rounded-sm border ${on() ? "border-transparent bg-neutral text-invert" : "border-primary text-transparent"}`}
                     >
-                      <RemixIcon icon={CheckIcon} class="size-3" />
+                      <RemixIcon icon={CheckIcon} size={12} />
                     </span>
                   </span>
                 </Cmdk.Item>
@@ -129,17 +131,17 @@ export default function BotPicker() {
             }}
           </For>
           <Cmdk.Item class={rowClass} value={NEW_AGENT} forceMount onSelect={newAgent}>
-            <span class="grid size-8 shrink-0 place-items-center rounded-xl bg-tertiary text-secondary">
-              <RemixIcon icon={PlusIcon} size={16} />
+            <span class="grid size-7 shrink-0 place-items-center rounded-lg bg-tertiary icon-secondary">
+              <RemixIcon icon={PlusIcon} size={14} />
             </span>
-            <span class="text-base">New agent</span>
+            <span class="type-base">New agent</span>
           </Cmdk.Item>
         </Cmdk.List>
       </Cmdk>
-      <div class="flex h-14 items-center gap-3 px-5">
+      <div class="flex h-12 items-center gap-3 border-t border-tertiary px-4">
         <Show
           when={grouping() && picked().length > 1}
-          fallback={<span class="min-w-0 flex-1 truncate text-xs text-quaternary">Pick two or more for a group</span>}
+          fallback={<span class="min-w-0 flex-1 truncate type-sm text-quaternary">Pick two or more for a group</span>}
         >
           <input
             class={`${fieldClass} min-w-0 flex-1`}
@@ -154,7 +156,7 @@ export default function BotPicker() {
         <button
           type="button"
           data-action="start-chat"
-          class="h-control-xl shrink-0 cursor-pointer overflow-hidden rounded-base bg-neutral px-3 text-sm font-medium whitespace-nowrap text-invert transition-transform duration-[var(--duration-fast)] active:scale-[0.97] disabled:opacity-(--opacity-disabled)"
+          class="h-control-lg shrink-0 cursor-pointer overflow-hidden rounded-base bg-neutral px-2.5 type-base font-medium whitespace-nowrap text-invert transition-[background-color,transform] duration-(--duration-instant) hover:bg-neutral-hover active:scale-(--press-scale) disabled:opacity-(--opacity-disabled)"
           disabled={!grouping() && !highlighted() && highlight() !== NEW_AGENT}
           onClick={start}
         >

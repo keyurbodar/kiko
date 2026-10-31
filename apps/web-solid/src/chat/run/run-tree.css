@@ -1,20 +1,24 @@
 .run-tree {
-  --run-rail: color-mix(in oklab, var(--text-primary) 20%, var(--bg-chrome));
-  --run-inset: var(--bubble-pad-x);
-  --run-icon: 16px;
-  --run-space: 9px;
+  --run-rail: color-mix(in oklab, var(--text-primary) 8%, var(--bg-chrome));
+  --run-rail-live: color-mix(in oklab, var(--text-primary) 36%, var(--bg-chrome));
+  --run-inset: var(--spacing-conversation-text-inset);
+  --run-icon: 14px;
+  --run-space: 6px;
   --run-indent: calc(var(--run-icon) + var(--run-space));
-  --run-row: 30px;
-  --run-stroke: 1.5px;
+  --run-row: var(--spacing-control-md);
+  --run-stroke: 1px;
   --run-rail-x: calc((var(--run-icon) - var(--run-stroke)) / 2);
-  --run-elbow-gap: 5px;
+  --run-elbow-gap: 4px;
+  --run-card-pad: 8px;
+  --run-output-height: calc(5 * var(--line-height-base) + 6px);
   display: flex;
   flex-direction: column;
-  width: min(calc(100% - 3.5rem), 520px);
+  width: 100%;
   min-width: 0;
   padding: 0 var(--run-inset);
-  font-size: 14px;
-  line-height: 20px;
+  font-size: var(--font-size-base);
+  line-height: var(--line-height-base);
+  letter-spacing: var(--letter-spacing-base);
 }
 .run-tree:not([data-live]) {
   margin-top: calc(var(--row-gap) * 2);
@@ -25,8 +29,8 @@
   display: inline-flex;
   align-self: flex-start;
   align-items: center;
-  gap: 9px;
-  min-height: 30px;
+  gap: var(--run-space);
+  min-height: var(--run-row);
   max-width: 100%;
   color: var(--text-tertiary);
   cursor: pointer;
@@ -40,7 +44,7 @@
 }
 .run-tree-head[data-live] .run-tree-clock-slot {
   margin-left: auto;
-  padding-left: 14px;
+  padding-left: 8px;
 }
 .run-tree-summary {
   min-width: 0;
@@ -49,7 +53,7 @@
   white-space: nowrap;
 }
 .run-tree-head + .run-tree-fold {
-  margin-top: 2px;
+  margin-top: 0;
 }
 
 .run-tree-clock {
@@ -130,10 +134,10 @@
 }
 .run-tree-item[data-live]::before,
 .run-tree-item[data-hot]::after {
-  border-color: var(--text-primary);
+  border-color: var(--run-rail-live);
 }
 .run-tree-item[data-live]::after {
-  border-left-color: var(--text-primary);
+  border-left-color: var(--run-rail-live);
 }
 
 .run-tree-row {
@@ -145,8 +149,8 @@
   padding: 0;
   border-radius: var(--radius-base);
   color: var(--text-tertiary);
-  font-size: 14px;
-  line-height: 20px;
+  font-size: var(--font-size-base);
+  line-height: var(--line-height-base);
   white-space: nowrap;
   text-align: start;
   cursor: default;
@@ -183,16 +187,15 @@ button.run-tree-row:focus-visible,
   color: var(--text-secondary);
 }
 .run-tree-said-body {
-  margin: 2px 0 6px var(--run-indent);
-  color: var(--text-secondary);
+  margin: 0 0 6px var(--run-indent);
+  color: var(--text-tertiary);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   user-select: text;
 }
 
 .run-tree-object {
-  color: var(--text-primary);
-  font-weight: 500;
+  color: var(--text-secondary);
 }
 .run-tree-object[data-mono] {
   font-family: var(--font-family-mono);
@@ -204,19 +207,21 @@ button.run-tree-row:focus-visible,
 
 .run-tree-icon {
   flex: none;
-  color: var(--text-quaternary);
+  color: var(--icon-tertiary);
   transition: color var(--duration-fast) var(--ease-sharp);
 }
 .run-tree-icon[data-failed] {
-  color: var(--text-danger);
+  color: var(--icon-danger);
 }
 
 .run-tree-meta {
   flex: none;
   margin-left: auto;
-  padding-left: 14px;
+  padding-left: 8px;
   color: var(--text-quaternary);
   font-size: var(--font-size-sm);
+  line-height: var(--line-height-sm);
+  font-variant-numeric: tabular-nums;
 }
 .run-tree-time {
   margin-left: 0;
@@ -255,48 +260,46 @@ button.run-tree-row:focus-visible,
   display: grid;
   flex: none;
   place-items: center;
-  color: var(--text-quaternary);
-  transition:
-    color var(--duration-fast) var(--ease-sharp),
-    transform 200ms var(--ease-sharp);
-}
-.run-tree-chevron[data-open] {
-  transform: rotate(90deg);
-}
-button.run-tree-row[data-kind="step"] > .run-tree-chevron,
-button.run-tree-row[data-kind="thought"] > .run-tree-chevron,
-button.run-tree-row[data-kind="note"] > .run-tree-chevron {
+  color: var(--icon-quaternary);
   opacity: 0;
   transition:
     opacity var(--duration-fast) var(--ease-sharp),
     color var(--duration-fast) var(--ease-sharp),
-    transform 200ms var(--ease-sharp);
+    transform var(--duration-slow) var(--ease-sharp);
 }
-button.run-tree-row[data-kind="step"]:focus-visible > .run-tree-chevron,
-button.run-tree-row[data-kind="step"][aria-expanded="true"] > .run-tree-chevron,
-button.run-tree-row[data-kind="thought"]:focus-visible > .run-tree-chevron,
-button.run-tree-row[data-kind="thought"][aria-expanded="true"] > .run-tree-chevron,
-button.run-tree-row[data-kind="note"]:focus-visible > .run-tree-chevron,
-button.run-tree-row[data-kind="note"][aria-expanded="true"] > .run-tree-chevron {
+.run-tree-chevron[data-open] {
+  transform: rotate(90deg);
+}
+:is(button.run-tree-row, .run-tree-head):is(:focus-visible, [aria-expanded="true"]) > .run-tree-chevron {
   opacity: 1;
 }
 
 @media (hover: hover) and (pointer: fine) {
-  button.run-tree-row:hover,
-  .run-tree-head:hover {
+  button.run-tree-row:hover {
     color: var(--text-primary);
   }
-  button.run-tree-row:hover .run-tree-label,
-  .run-tree-head:hover .run-tree-label {
+  .run-tree-head:hover {
+    color: var(--text-secondary);
+  }
+  button.run-tree-row:hover .run-tree-label {
+    color: var(--text-primary);
+  }
+  button.run-tree-row:hover .run-tree-object {
     color: var(--text-primary);
   }
   button.run-tree-row:hover .run-tree-icon,
   button.run-tree-row:hover .run-tree-chevron,
   .run-tree-head:hover .run-tree-chevron {
-    color: var(--text-secondary);
+    color: var(--icon-secondary);
+  }
+  .run-tree-head:hover .run-tree-chevron {
+    opacity: 1;
+  }
+  .run-tree-head:hover .run-tree-meta {
+    color: var(--text-tertiary);
   }
   button.run-tree-row:hover .run-tree-icon[data-failed] {
-    color: var(--text-danger);
+    color: var(--icon-danger);
   }
   button.run-tree-row:hover > .run-tree-time-slot > .run-tree-time,
   .run-tree-head:hover .run-tree-time {
@@ -308,7 +311,7 @@ button.run-tree-row[data-kind="note"][aria-expanded="true"] > .run-tree-chevron 
   }
   button.run-tree-row[data-file]:hover .run-tree-label {
     text-decoration: underline;
-    text-decoration-color: color-mix(in oklab, var(--text-primary) 30%, transparent);
+    text-decoration-color: var(--stroke-primary);
     text-underline-offset: 3px;
   }
   .run-tree-input:hover > .run-tree-copy,
@@ -323,11 +326,11 @@ button.run-tree-row[data-kind="note"][aria-expanded="true"] > .run-tree-chevron 
   flex: none;
   width: var(--run-icon);
   height: var(--run-icon);
-  color: var(--text-primary);
+  color: var(--icon-tertiary);
 }
 .run-tree-leaves > i {
   position: absolute;
-  inset: 1.5px;
+  inset: 1px;
 }
 .run-tree-leaves > i:nth-child(2) {
   transform: rotate(90deg);
@@ -351,7 +354,7 @@ button.run-tree-row[data-kind="note"][aria-expanded="true"] > .run-tree-chevron 
   transform-origin: 50% 100%;
 }
 .run-tree-leaves[data-failed] {
-  color: var(--text-danger);
+  color: var(--icon-danger);
 }
 
 .run-tree-fold {
@@ -372,21 +375,22 @@ button.run-tree-row[data-kind="note"][aria-expanded="true"] > .run-tree-chevron 
   display: flex;
   min-width: 0;
   flex-direction: column;
-  gap: 4px;
-  padding: 2px 0 8px var(--run-indent);
+  gap: 6px;
+  padding: 0 0 6px var(--run-indent);
 }
 .run-tree-block {
   display: flex;
   min-width: 0;
   flex-direction: column;
+  margin-inline-start: calc(-1 * var(--spacing-conversation-text-inset));
   overflow: hidden;
-  border-radius: var(--radius-xl);
+  border-radius: var(--radius-base);
   background: var(--bg-editor);
-  box-shadow: inset 0 0 0 1px var(--stroke-tertiary);
+  box-shadow: var(--hairline);
 }
 .run-tree-mono {
   margin: 0;
-  padding: 8px 12px;
+  padding: 6px var(--run-card-pad);
   overflow: auto;
   font-family: var(--font-family-mono);
   font-size: var(--font-size-code);
@@ -403,8 +407,8 @@ button.run-tree-row[data-kind="note"][aria-expanded="true"] > .run-tree-chevron 
 .run-tree-input > .run-tree-mono {
   flex: 1;
   max-height: 8rem;
-  padding-right: 40px;
-  color: var(--text-primary);
+  padding-right: 32px;
+  color: var(--text-secondary);
 }
 .run-tree-output-wrap {
   position: relative;
@@ -413,8 +417,30 @@ button.run-tree-row[data-kind="note"][aria-expanded="true"] > .run-tree-chevron 
   flex-direction: column;
 }
 .run-tree-output {
-  max-height: 16rem;
-  color: var(--text-secondary);
+  --fade-top: 0px;
+  --fade-bottom: 0px;
+  max-height: var(--run-output-height);
+  color: var(--text-tertiary);
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent,
+    #000 var(--fade-top),
+    #000 calc(100% - var(--fade-bottom)),
+    transparent
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    transparent,
+    #000 var(--fade-top),
+    #000 calc(100% - var(--fade-bottom)),
+    transparent
+  );
+}
+.run-tree-output[data-fade-top] {
+  --fade-top: 16px;
+}
+.run-tree-output[data-fade-bottom] {
+  --fade-bottom: 16px;
 }
 .run-tree-input + .run-tree-output-wrap {
   border-top: 1px solid var(--stroke-tertiary);
@@ -426,34 +452,39 @@ button.run-tree-row[data-kind="note"][aria-expanded="true"] > .run-tree-chevron 
 }
 .run-tree-more-lines {
   align-self: flex-start;
-  margin: 0 12px 8px;
-  padding: 2px 8px;
+  height: var(--spacing-control-sm);
+  margin: 0 var(--run-card-pad) 6px;
+  padding: 0 6px;
   border-radius: var(--radius-base);
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
   font-size: var(--font-size-sm);
+  line-height: var(--line-height-sm);
   cursor: pointer;
-  background: var(--bg-quaternary);
+  background: var(--bg-tertiary);
 }
 @media (hover: hover) and (pointer: fine) {
   .run-tree-more-lines:hover {
+    background: var(--bg-secondary);
     color: var(--text-primary);
   }
 }
 
 .run-tree-copy {
   position: absolute;
-  top: 5px;
-  right: 6px;
+  top: 3px;
+  right: 3px;
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  height: 24px;
-  min-width: 24px;
+  height: var(--spacing-control-sm);
+  min-width: var(--spacing-control-sm);
   justify-content: center;
-  padding: 0 6px;
+  padding: 0 4px;
   border-radius: var(--radius-base);
+  background: var(--bg-editor);
   color: var(--text-tertiary);
   font-size: var(--font-size-xs);
+  line-height: var(--line-height-xs);
   cursor: pointer;
   opacity: 0;
   transition:
@@ -481,9 +512,9 @@ button.run-tree-row[data-kind="note"][aria-expanded="true"] > .run-tree-chevron 
   margin: 0 0 6px var(--run-indent);
   padding: 0;
   border-left: 0;
-  color: var(--text-quaternary);
-  font-size: 13.5px;
-  line-height: 21px;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-base);
+  line-height: var(--line-height-base);
 }
 .run-tree-thought {
   max-height: 16rem;
@@ -491,12 +522,12 @@ button.run-tree-row[data-kind="note"][aria-expanded="true"] > .run-tree-chevron 
   overflow-x: hidden;
 }
 .run-tree-thought[data-streaming] {
-  max-height: 88px;
+  max-height: var(--run-output-height);
 }
 
 @media (prefers-reduced-motion: no-preference) {
   .run-tree-fold.run-tree-fold {
-    transition: grid-template-rows 300ms var(--ease-drawer);
+    transition: grid-template-rows var(--duration-slower) var(--ease-drawer);
   }
 
   .run-tree-cross-out {
@@ -536,7 +567,7 @@ button.run-tree-row[data-kind="note"][aria-expanded="true"] > .run-tree-chevron 
     position: absolute;
     inset: -3px;
     border-radius: 50%;
-    background: var(--text-primary);
+    background: var(--icon-tertiary);
     animation: run-tree-disc 300ms var(--ease-sharp) forwards;
     pointer-events: none;
   }

@@ -20,12 +20,10 @@ export function EmptyState(props: { working?: boolean }) {
     <div class="chat-empty" data-component="chat-empty">
       <Show when={props.working}>
         <span class="chat-empty-mochi" data-component="chat-empty-working">
-          <Mochi size={52} />
+          <Mochi size={32} />
         </span>
       </Show>
-      <h1 class="font-sans text-[32px] leading-10 font-normal tracking-[-0.015em] text-[var(--text-primary)] [font-variation-settings:normal] sm:text-[40px] sm:leading-[46px]">
-        {greeting(profile()?.name, new Date())}
-      </h1>
+      <h1 class="type-3xl font-semibold text-primary">{greeting(profile()?.name, new Date())}</h1>
     </div>
   )
 }

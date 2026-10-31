@@ -23,8 +23,8 @@
   --chat-content-max-width: 720px;
   --bubble-pad-y: 6px;
   --bubble-pad-x: 10px;
-  --row-gap: 1px;
-  --run-gap: 10px;
+  --row-gap: 3px;
+  --run-gap: 13px;
   --opacity-disabled: 0.5;
   --hairline: inset 0 0 0 1px var(--stroke-tertiary);
   --hairline-strong: inset 0 0 0 1px var(--stroke-secondary);

@@ -118,11 +118,12 @@
   flex-shrink: 0;
   align-items: center;
   gap: 6px;
-  height: 28px;
+  height: var(--spacing-control-md);
   max-width: 11rem;
-  padding: 0 10px 0 7px;
-  border-radius: var(--radius-full);
-  font-size: var(--font-size-sm);
+  padding: 0 8px 0 4px;
+  border-radius: var(--radius-base);
+  font-size: var(--font-size-base);
+  line-height: var(--line-height-base);
   color: var(--text-tertiary);
   cursor: pointer;
   transition:
@@ -130,13 +131,13 @@
     color var(--duration-fast) var(--ease-sharp);
 }
 .helper-peek-tab[aria-selected="true"] {
-  background: var(--bg-secondary);
+  background: var(--bg-quaternary);
   color: var(--text-primary);
 }
 @media (hover: hover) and (pointer: fine) {
   .helper-peek-tab:hover {
     color: var(--text-primary);
-    background: var(--bg-tertiary);
+    background: var(--bg-quaternary);
   }
 }
 .helper-peek-tab span:last-child {
@@ -145,12 +146,12 @@
   white-space: nowrap;
 }
 .helper-peek-brief {
-  padding: 10px 12px;
+  padding: 6px 10px;
   border-radius: var(--radius-xl);
-  background: var(--bg-secondary);
+  background: var(--bg-quaternary);
   color: var(--text-primary);
-  font-size: var(--font-size-base);
-  line-height: 20px;
+  font-size: var(--font-size-lg);
+  line-height: var(--line-height-lg);
   overflow-wrap: anywhere;
 }
 .helper-peek-brief span {
@@ -161,21 +162,22 @@
   display: flex;
   flex-direction: column;
   margin-left: 6px;
-  padding-left: 16px;
-  border-left: 1px solid color-mix(in oklab, var(--text-quaternary) 45%, transparent);
-  border-bottom-left-radius: 8px;
+  padding-left: 14px;
+  border-left: 1px solid var(--stroke-tertiary);
+  border-bottom-left-radius: var(--radius-lg);
 }
 .helper-peek-step {
   display: flex;
   align-items: center;
-  gap: 10px;
-  min-height: 32px;
-  color: var(--text-secondary);
+  gap: 6px;
+  min-height: var(--spacing-control-md);
+  color: var(--text-tertiary);
   font-size: var(--font-size-base);
+  line-height: var(--line-height-base);
   overflow-wrap: anywhere;
 }
 .helper-peek-step[data-note] {
-  color: var(--text-tertiary);
+  color: var(--text-quaternary);
 }
 .helper-peek-step[data-failed] {
   color: var(--text-danger);
@@ -188,7 +190,8 @@
   align-items: center;
   gap: 6px;
   padding-top: 10px;
-  font-size: var(--font-size-xs);
-  color: var(--text-tertiary);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-sm);
+  color: var(--text-quaternary);
   background: var(--bg-chrome);
 }

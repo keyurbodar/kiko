@@ -24,11 +24,13 @@ export function ReactionStack(props: ReactionStackProps) {
           {(reaction) => (
             <button
               class={cn(
-                "pointer-events-auto relative inline-flex h-7 min-w-7 items-center justify-center rounded-full p-0 text-[15px] leading-none",
-                "bg-editor text-primary shadow-[0_0_0_2px_var(--bg-chrome)]",
-                "active:scale-[0.92]",
-                reaction.count > 1 && "px-2",
-                reaction.viewerReacted ? "z-[1] bg-quaternary text-primary hover:bg-quaternary" : "hover:bg-chrome focus-visible:bg-chrome",
+                "pointer-events-auto relative inline-flex h-control-md min-w-control-md items-center justify-center rounded-full p-0 leading-none",
+                "bg-elevated text-primary shadow-[0_0_0_2px_var(--bg-chrome),var(--hairline)]",
+                "transition-[background-color,transform] duration-(--duration-fast) active:scale-(--press-scale)",
+                reaction.count > 1 && "px-1.5",
+                reaction.viewerReacted
+                  ? "z-[1] bg-[var(--bg-tertiary-opaque-elevated)] shadow-[0_0_0_2px_var(--bg-chrome),inset_0_0_0_1px_var(--stroke-accent)]"
+                  : "hover:bg-[var(--bg-quaternary-opaque-elevated)] focus-visible:bg-[var(--bg-quaternary-opaque-elevated)]",
               )}
               data-component="chat-reaction-badge"
               data-emoji={reaction.emoji}
@@ -37,9 +39,9 @@ export function ReactionStack(props: ReactionStackProps) {
               aria-label={`${reaction.emoji} ${reaction.count}`}
               onClick={props.onToggle && (() => props.onToggle!(reaction.emoji))}
             >
-              <span class="font-emoji text-[17px] leading-none">{reaction.emoji}</span>
+              <span class="font-emoji text-[14px] leading-none">{reaction.emoji}</span>
               <Show when={reaction.count > 1}>
-                <span class="ml-[3px] text-xs font-medium">{reaction.count}</span>
+                <span class="ml-1 type-xs text-secondary tabular-nums">{reaction.count}</span>
               </Show>
             </button>
           )}

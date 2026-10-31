@@ -1,13 +1,18 @@
 @media (prefers-reduced-motion: no-preference) and (forced-colors: none) {
   .motion-shine {
+    --shine-base: var(--run-text, var(--text-tertiary));
+    --shine-highlight: var(--text-primary);
     color: transparent;
-    background-image:
-      linear-gradient(to right, transparent, var(--text-primary), transparent),
-      linear-gradient(var(--run-text, var(--text-secondary)), var(--run-text, var(--text-secondary)));
-    background-size:
-      4.5rem 100%,
-      100% 100%;
-    background-repeat: no-repeat;
+    background-image: linear-gradient(
+      90deg,
+      var(--shine-base) 0%,
+      var(--shine-base) 25%,
+      var(--shine-highlight) 50%,
+      var(--shine-base) 75%,
+      var(--shine-base) 100%
+    );
+    background-size: 200% 100%;
+    background-repeat: repeat-x;
     -webkit-background-clip: text;
     background-clip: text;
   }

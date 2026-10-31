@@ -1,27 +1,29 @@
 .run-error {
   display: grid;
   width: fit-content;
-  max-width: min(100%, 520px);
+  max-width: 100%;
   min-width: 0;
+  padding: 0 var(--spacing-conversation-text-inset);
   color: var(--text-tertiary);
 }
 
 [data-component="run-error"][data-latest] .run-error {
-  padding: 10px 14px 12px 12px;
-  border-radius: var(--radius-xl);
-  background: var(--bg-quinary);
+  width: 100%;
+  padding: 8px var(--spacing-conversation-text-inset);
+  border-radius: var(--radius-lg);
+  background: var(--bg-danger-soft);
 }
 
 .run-error-head {
   display: flex;
   min-width: 0;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   padding: 0;
   color: inherit;
   font: inherit;
-  font-size: var(--font-size-sm);
-  line-height: 20px;
+  font-size: var(--font-size-base);
+  line-height: var(--line-height-base);
   text-align: left;
   background: none;
   border: none;
@@ -33,13 +35,9 @@
   cursor: default;
 }
 
-[data-component="run-error"][data-latest] .run-error-head {
-  font-size: var(--font-size-sm);
-}
-
 .run-error-icon {
   flex: none;
-  color: var(--text-danger);
+  color: var(--icon-danger);
 }
 
 .run-error-label {
@@ -49,7 +47,10 @@
 
 [data-component="run-error"][data-latest] .run-error-label {
   color: var(--text-primary);
-  font-weight: 500;
+}
+
+[data-component="run-error"][data-latest] .run-error-reason {
+  color: var(--text-secondary);
 }
 
 .run-error-reason {
@@ -62,12 +63,12 @@
 
 .run-error-more {
   flex: none;
-  color: var(--text-quaternary);
+  color: var(--icon-quaternary);
   transition: color var(--duration-fast) var(--ease-sharp);
 }
 
 .run-error-head[aria-expanded="true"] .run-error-more {
-  color: var(--text-secondary);
+  color: var(--icon-secondary);
 }
 
 @media (hover: hover) and (pointer: fine) {
@@ -76,7 +77,7 @@
   }
 
   .run-error-head:not(:disabled):hover .run-error-more {
-    color: var(--text-secondary);
+    color: var(--icon-secondary);
   }
 }
 
@@ -89,49 +90,49 @@
 
 .run-error-pop-title {
   color: var(--text-primary);
-  font-size: var(--font-size-sm);
-  font-weight: 500;
-  line-height: 18px;
+  font-size: var(--font-size-base);
+  font-weight: 600;
+  line-height: var(--line-height-base);
 }
 
 .run-error-note {
   color: var(--text-secondary);
-  font-size: var(--font-size-sm);
-  line-height: 18px;
+  font-size: var(--font-size-base);
+  line-height: var(--line-height-base);
   overflow-wrap: anywhere;
 }
 
 .run-error-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 10px;
-  padding-left: 24px;
+  gap: 4px;
+  margin-top: 8px;
+  padding-left: 20px;
 }
 
 .run-error-action {
   display: inline-flex;
-  height: 28px;
+  height: var(--spacing-control-md);
   align-items: center;
-  padding: 0 12px;
+  padding: 0 8px;
   border-radius: var(--radius-base);
   color: var(--text-secondary);
-  font-size: var(--font-size-sm);
-  font-weight: 500;
+  font-size: var(--font-size-base);
+  line-height: var(--line-height-base);
   cursor: pointer;
   transition:
     background-color var(--duration-fast) var(--ease-sharp),
     color var(--duration-fast) var(--ease-sharp),
-    transform var(--duration-fast) var(--ease-sharp);
+    transform var(--duration-instant) var(--ease-sharp);
 }
 
 .run-error-action[data-primary] {
-  background: var(--bg-secondary);
+  background: var(--bg-tertiary);
   color: var(--text-primary);
 }
 
 .run-error-action:active:not(:disabled) {
-  transform: scale(0.97);
+  transform: scale(var(--press-scale));
 }
 
 .run-error-action:disabled {
@@ -141,13 +142,17 @@
 
 @media (hover: hover) and (pointer: fine) {
   .run-error-action:hover:not(:disabled) {
-    background: var(--bg-tertiary);
+    background: var(--bg-quaternary);
     color: var(--text-primary);
+  }
+
+  .run-error-action[data-primary]:hover:not(:disabled) {
+    background: var(--bg-secondary);
   }
 }
 
 @media (prefers-reduced-motion: no-preference) {
   [data-component="run-error"][data-latest] .run-error {
-    animation: motion-fade-scale-in var(--duration-normal) var(--ease-sharp) both;
+    animation: motion-reply-in var(--duration-normal) var(--ease-sharp) both;
   }
 }

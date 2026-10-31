@@ -1,25 +1,26 @@
 .lchip,
 .mchip {
-  --chip-fill: color-mix(in oklab, var(--text-primary) 9%, transparent);
-  --chip-fill-hover: color-mix(in oklab, var(--text-primary) 14%, transparent);
+  --chip-fill: var(--bg-tertiary);
+  --chip-fill-hover: var(--bg-secondary);
   display: inline-flex;
   box-sizing: border-box;
   max-width: 100%;
-  height: 22px;
+  height: var(--spacing-control-sm);
   align-items: center;
   border: 0;
   background: var(--chip-fill);
   color: var(--text-primary);
   font: inherit;
   font-size: var(--font-size-base);
-  line-height: 20px;
+  line-height: var(--line-height-base);
+  letter-spacing: var(--letter-spacing-base);
   vertical-align: middle;
   white-space: nowrap;
 }
 
 .lchip {
-  gap: 5px;
-  padding: 0 8px 0 4px;
+  gap: 4px;
+  padding: 0 6px 0 3px;
   border-radius: var(--radius-base);
   cursor: pointer;
   transition:
@@ -40,8 +41,8 @@
 .lchip > svg,
 .lchip-thumb {
   display: block;
-  width: 16px;
-  height: 16px;
+  width: 14px;
+  height: 14px;
   flex: none;
 }
 .lchip-thumb {
@@ -49,7 +50,7 @@
   object-fit: cover;
 }
 .lchip-folder {
-  color: var(--text-secondary);
+  color: var(--icon-secondary);
 }
 
 .lchip-label,
@@ -75,19 +76,17 @@
   }
 }
 .lchip:active {
-  transform: scale(0.97);
+  transform: scale(var(--press-scale));
 }
 
 .mchip {
-  --chip-fill: color-mix(in oklab, var(--text-primary) 11%, transparent);
   gap: 4px;
-  padding: 0 7px 0 3px;
+  padding: 0 6px 0 2px;
   border-radius: var(--radius-full);
-  font-weight: 500;
 }
 .mchip[data-self] {
-  padding-left: 7px;
-  background: color-mix(in oklab, var(--text-accent) 16%, transparent);
+  padding-left: 6px;
+  background: var(--bg-accent-tertiary);
   color: var(--text-accent);
 }
 

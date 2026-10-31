@@ -1,5 +1,5 @@
 import type { RunStep } from "@kiko/protocol"
-import { ChevronRightIcon } from "@kiko/ui/icons"
+import { ChevronRightIcon, LoaderIcon } from "@kiko/ui/icons"
 import { RemixIcon } from "@kiko/ui/remix-icon"
 import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
 import { CopyCheckIcon } from "@kiko/ui/v2/copy-check-icon"
@@ -22,8 +22,8 @@ import { room } from "../../state/room"
 import { filledParts, partMs, type Thought, type ThoughtPart } from "../../state/thoughts"
 import { fixedSurface, openFile, openSurface } from "../side/surfaces"
 import { findFile } from "../ui/find-file"
-import { Mochi } from "../ui/Mochi"
 import { ThoughtStream } from "../thinking/Thinking"
+import { codeEdges } from "../rich/code/edges"
 import { durationLabel, elapsedLabel, fullTimeLabel } from "./duration"
 import { GLYPH } from "./glyphs"
 import { dividerParts } from "../lib/time-label"
@@ -61,7 +61,7 @@ const FIRST_DELAY_MS = 0
 const STAGGER_MS = 30
 
 const PILL =
-  "cursor-pointer rounded-base bg-tertiary px-2.5 py-0.5 text-primary transition-transform hover:bg-quaternary active:scale-[0.97]"
+  "inline-flex h-control-sm cursor-pointer items-center rounded-base bg-tertiary px-1.5 type-sm text-primary transition-[background-color,transform] hover:bg-secondary active:scale-(--press-scale)"
 
 function withKey(current: ReadonlySet<string>, key: string): ReadonlySet<string> {
   const next = new Set(current)
@@ -195,10 +195,15 @@ function Leaves(props: { running: boolean; failed: boolean }) {
 function Icon(props: { icon?: StepIcon; running: boolean; failed: boolean; settled: boolean }) {
   return (
     <span class="run-tree-slot" aria-hidden="true" data-settled={props.settled && !props.running ? "" : undefined}>
-      <Show when={!props.running} fallback={<Mochi size={16} />}>
+      <Show
+        when={!props.running}
+        fallback={
+          <RemixIcon icon={LoaderIcon} size={14} class="run-tree-icon motion-spin" data-component="run-spinner" />
+        }
+      >
         <RemixIcon
           icon={GLYPH[props.failed ? "alert-circle" : (props.icon ?? "wrench")]}
-          size={16}
+          size={14}
           class="run-tree-icon"
           data-failed={props.failed ? "" : undefined}
         />
@@ -247,17 +252,20 @@ function DetailEmpty(props: { detail: RowDetail; onRetry: () => void }) {
 
 function Detail(props: { detail: RowDetail; onRetry: () => void }) {
   const [all, setAll] = createSignal(false)
+  const [fades, setFades] = createSignal({ top: false, bottom: false })
   let output: HTMLPreElement | undefined
   const lines = () => (props.detail.output ?? "").split("\n")
   const shown = () => (all() ? props.detail.output : lines().slice(0, LINE_LIMIT).join("\n"))
+  const measure = () => {
+    if (!output) return
+    const edges = codeEdges(output)
+    setFades({ top: edges.top, bottom: edges.bottom })
+  }
   createEffect(
-    on(
-      () => props.detail.output,
-      () => {
-        if (!props.detail.running || !output) return
-        output.scrollTop = output.scrollHeight
-      },
-    ),
+    on([() => props.detail.output, all], () => {
+      if (props.detail.running && output) output.scrollTop = output.scrollHeight
+      measure()
+    }),
   )
   return (
     <div class="run-tree-detail">
@@ -277,7 +285,13 @@ function Detail(props: { detail: RowDetail; onRetry: () => void }) {
           <Show when={props.detail.output}>
             {(text) => (
               <div class="run-tree-output-wrap">
-                <pre ref={output} class="run-tree-mono run-tree-output">
+                <pre
+                  ref={output}
+                  class="run-tree-mono run-tree-output"
+                  data-fade-top={fades().top ? "" : undefined}
+                  data-fade-bottom={fades().bottom ? "" : undefined}
+                  onScroll={measure}
+                >
                   {shown()}
                 </pre>
                 <CopyText text={text()} label="Copy output" />
@@ -440,7 +454,7 @@ function NoteRow(props: { note: NoteItem; view: View; order: number; live: boole
         onClick={() => setOpen(!open())}
       >
         <span class="run-tree-slot">
-          <RemixIcon icon={GLYPH.bulb} size={16} class="run-tree-icon" />
+          <RemixIcon icon={GLYPH.bulb} size={14} class="run-tree-icon" />
         </span>
         <span class="run-tree-label">{props.note.text}</span>
         <Chevron open={open()} />
@@ -475,7 +489,7 @@ function ThoughtRow(props: { part: ThoughtPart; order: number; now: number; live
         onClick={() => setOpened(!opened())}
       >
         <span class="run-tree-slot">
-          <RemixIcon icon={GLYPH.bulb} size={16} class="run-tree-icon" />
+          <RemixIcon icon={GLYPH.bulb} size={14} class="run-tree-icon" />
         </span>
         <span class="run-tree-label">Thought for {secondsLabel(ms())}</span>
         <Chevron open={isOpen()} />

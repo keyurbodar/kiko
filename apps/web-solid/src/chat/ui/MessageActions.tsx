@@ -15,10 +15,10 @@ const CLOSE_DELAY = 200
 const TIME_RESERVE = 52
 
 const BUTTON = cn(
-  "grid size-7 shrink-0 cursor-default place-items-center rounded-full p-0 text-secondary",
-  "transition-[background,color,transform] duration-[120ms] active:scale-95",
-  "hover:bg-tertiary hover:text-primary focus-visible:bg-tertiary focus-visible:text-primary",
-  "data-[open]:bg-secondary data-[open]:text-primary",
+  "grid size-control-md shrink-0 cursor-default place-items-center rounded-base p-0 text-secondary",
+  "transition-[background-color,color,transform] duration-(--duration-instant) ease-sharp active:scale-(--press-scale)",
+  "hover:bg-quaternary hover:text-primary focus-visible:bg-quaternary focus-visible:text-primary",
+  "data-[open]:bg-quaternary data-[open]:text-primary",
 )
 
 const COPIED_MS = 1200
@@ -102,22 +102,27 @@ export function MessageActions(props: {
     <div
       ref={root}
       class={cn(
-        "message-actions absolute z-[7] hidden items-center gap-1.5 pointer-fine:flex",
+        "message-actions absolute z-[7] hidden items-center gap-1 pointer-fine:flex",
         "pointer-events-none opacity-0 group-hover/row:pointer-events-auto group-hover/row:opacity-100",
         "focus-within:pointer-events-auto focus-within:opacity-100 data-[open]:pointer-events-auto data-[open]:opacity-100",
         placement() === "inside"
-          ? cn("top-0 -translate-y-[80%]", props.side === "user" ? "right-2 flex-row-reverse" : "left-2")
+          ? cn("top-0 -translate-y-[80%]", props.side === "user" ? "right-1 flex-row-reverse" : "left-1")
           : cn(
               "top-1/2 -translate-y-1/2",
-              props.side === "user" ? "right-full mr-1.5 flex-row-reverse" : "left-full ml-1.5",
+              props.side === "user" ? "right-full mr-1 flex-row-reverse" : "left-full ml-1",
             ),
       )}
-      style={props.reserve && placement() === "outside" ? { "margin-left": `${6 + props.reserve}px` } : undefined}
+      style={props.reserve && placement() === "outside" ? { "margin-left": `${4 + props.reserve}px` } : undefined}
       data-component="chat-actions"
       data-placement={placement()}
       data-open={open() ? "" : undefined}
     >
-      <div class="flex items-center gap-0.5 rounded-full bg-elevated p-0.5 shadow-[0_6px_18px_rgb(0_0_0/0.28),inset_0_0_0_1px_var(--stroke-tertiary)]">
+      <div
+        class={cn(
+          "flex items-center gap-px rounded-lg",
+          placement() === "inside" && "bg-elevated p-0.5 shadow-(--popup-shadow)",
+        )}
+      >
         <button
           ref={react}
           type="button"
@@ -139,7 +144,7 @@ export function MessageActions(props: {
           }}
           onClick={(event) => show(event.detail === 0)}
         >
-          <RemixIcon icon={ReactIcon} size={16} />
+          <RemixIcon icon={ReactIcon} size={13} />
         </button>
         <button
           type="button"
@@ -149,10 +154,10 @@ export function MessageActions(props: {
           data-copied={copied() ? "" : undefined}
           onClick={() => void copy()}
         >
-          <CopyCheckIcon copied={copied()} size={16} class={copied() ? "text-success" : undefined} />
+          <CopyCheckIcon copied={copied()} size={13} class={copied() ? "text-success" : undefined} />
         </button>
         <button type="button" class={BUTTON} aria-label="Reply" data-action="reply" onClick={() => props.onReply()}>
-          <RemixIcon icon={ReplyIcon} size={16} />
+          <RemixIcon icon={ReplyIcon} size={13} />
         </button>
         <button
           type="button"
@@ -161,7 +166,7 @@ export function MessageActions(props: {
           data-action="more"
           onClick={(event) => props.onMore(event.currentTarget)}
         >
-          <RemixIcon icon={MoreIcon} size={16} />
+          <RemixIcon icon={MoreIcon} size={13} />
         </button>
       </div>
       <Show when={props.sentAt}>

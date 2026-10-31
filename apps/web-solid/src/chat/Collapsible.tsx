@@ -140,7 +140,7 @@ export function Collapsible(props: { messageId: string; fixed?: boolean; childre
         <button
           ref={button}
           type="button"
-          class="mt-1 inline-flex cursor-pointer items-center gap-1 text-sm text-tertiary transition-colors duration-(--duration-fast) hover:text-primary"
+          class="mt-1 inline-flex cursor-pointer items-center gap-1 type-base text-tertiary transition-colors duration-(--duration-fast) hover:text-secondary"
           aria-expanded={!clamped()}
           data-component="chat-collapsible-toggle"
           data-disclosure=""

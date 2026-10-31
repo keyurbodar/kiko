@@ -18,7 +18,7 @@
   --motion-dialog: var(--duration-normal);
   --motion-collapse: var(--duration-normal);
   --motion-slide: 200ms;
-  --motion-run-chevron: var(--duration-normal);
+  --motion-run-chevron: var(--duration-slow);
   --dur-land: 160ms;
   --dur-shift: 200ms;
   --land-stagger: 40ms;
@@ -46,6 +46,18 @@
 
 .motion-spin {
   animation: motion-spin var(--motion-spin) linear infinite;
+}
+
+@keyframes motion-spin-pulse {
+  50% {
+    opacity: 0.4;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .motion-spin {
+    animation: motion-spin-pulse var(--duration-2s) ease infinite;
+  }
 }
 
 @keyframes motion-shimmer {
@@ -266,14 +278,10 @@
 
   @keyframes motion-shine {
     from {
-      background-position:
-        -4.5rem 0,
-        0 0;
+      background-position: 200% 0;
     }
     to {
-      background-position:
-        calc(100% + 4.5rem) 0,
-        0 0;
+      background-position: -200% 0;
     }
   }
 

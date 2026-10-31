@@ -7,14 +7,14 @@ export type BubbleVariant = "default" | "secondary" | "muted" | "tinted" | "outl
 
 const VARIANTS: Record<BubbleVariant, string> = {
   default: "[&>[data-slot=bubble-content]]:bg-quaternary [&>[data-slot=bubble-content]]:text-primary",
-  secondary: "[&>[data-slot=bubble-content]]:bg-[var(--bg-quinary)] [&>[data-slot=bubble-content]]:text-primary",
+  secondary: "[&>[data-slot=bubble-content]]:bg-transparent [&>[data-slot=bubble-content]]:text-primary",
   muted: "[&>[data-slot=bubble-content]]:bg-editor [&>[data-slot=bubble-content]]:text-primary",
   tinted: "[&>[data-slot=bubble-content]]:bg-secondary [&>[data-slot=bubble-content]]:text-primary",
   outline:
     "[&>[data-slot=bubble-content]]:bg-editor [&>[data-slot=bubble-content]]:text-primary [&>[data-slot=bubble-content]]:shadow-[inset_0_0_0_1px_var(--stroke-secondary)]",
   ghost: "[&>[data-slot=bubble-content]]:bg-transparent [&>[data-slot=bubble-content]]:p-0",
   destructive:
-    "[&>[data-slot=bubble-content]]:bg-quaternary [&>[data-slot=bubble-content]]:text-primary [&>[data-slot=bubble-content]]:shadow-[inset_0_0_0_1.5px_var(--text-danger)]",
+    "[&>[data-slot=bubble-content]]:bg-quaternary [&>[data-slot=bubble-content]]:text-primary [&>[data-slot=bubble-content]]:shadow-[inset_0_0_0_1px_var(--stroke-danger)]",
 }
 
 export type BubbleAlign = "start" | "end"
@@ -44,8 +44,8 @@ export function Bubble(rawProps: BubbleProps) {
       data-align={local.align}
       data-position={local.position}
       class={cn(
-        "relative flex w-fit min-w-0 max-w-[min(calc(100%-3.5rem),520px)] flex-col gap-1",
-        "data-[align=end]:self-end data-[variant=ghost]:max-w-full",
+        "relative flex w-fit min-w-0 max-w-full flex-col gap-1",
+        "data-[align=end]:ml-[20%] data-[align=end]:max-w-[80%] data-[align=end]:self-end data-[variant=ghost]:max-w-full",
         VARIANTS[local.variant],
         local.class,
       )}
