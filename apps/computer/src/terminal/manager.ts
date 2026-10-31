@@ -69,19 +69,20 @@ export class TerminalManager {
         code: "busy",
         message: `this computer already has ${MAX_TERMINALS} terminals open; close one with terminal_close first`,
       })
-    const shell = args.shell?.trim() || defaultShell()
+    const command = args.shell?.trim() ? [args.shell.trim()] : defaultShell()
+    const shell = command.join(" ")
     const cwd = resolve(args.cwd ? expandHome(args.cwd) : defaultCwd())
     const cols = args.cols ?? DEFAULT_COLS
     const rows = args.rows ?? DEFAULT_ROWS
     const id = crypto.randomUUID()
     this.counter += 1
-    const name = (args.name?.trim() || `${basename(shell)} ${this.counter}`).slice(0, 60)
+    const name = (args.name?.trim() || `${basename(command[0] ?? shell)} ${this.counter}`).slice(0, 60)
     let session: Session | undefined
     const screen = this.makeScreen(cols, rows, (data) => session?.pty.write(data))
     let pty: Pty
     try {
       pty = this.spawn({
-        command: [shell],
+        command,
         cwd,
         cols,
         rows,

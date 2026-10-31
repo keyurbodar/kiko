@@ -97,7 +97,7 @@ describe("terminal_open", () => {
     expect(opened.status).toBe("running")
     expect(opened.cols).toBe(120)
     expect(opened.rows).toBe(30)
-    expect(fake.input?.command).toEqual([opened.shell])
+    expect(fake.input?.command.join(" ")).toBe(opened.shell)
     expect(manager.list().terminals).toHaveLength(1)
   })
 
