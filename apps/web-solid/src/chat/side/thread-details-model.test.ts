@@ -21,7 +21,7 @@ const step = (over: Partial<RunStep>): RunStep =>
     runId: "r1",
     slug: "kiko",
     tool: "web",
-    name: "browse",
+    name: "web_read",
     label: "Browsed a page",
     status: "done",
     startedAt: 1,
@@ -93,7 +93,7 @@ describe("thread details model", () => {
       { sender: "bot", files: [{ name: "made.md", path: "/made.md", size: 1, type: "text/markdown" }] },
     ] as unknown as ChatMessage[]
     const steps = [
-      step({ id: "s1", name: "browse", label: "Browsed a page", input: '{"urls":["https://example.com"]}' }),
+      step({ id: "s1", name: "web_read", label: "Browsed a page", input: '{"urls":["https://example.com"]}' }),
       step({
         id: "s2",
         name: "composio_web_search",
@@ -111,6 +111,16 @@ describe("thread details model", () => {
     expect(rows[2]).toMatchObject({ label: "Pages read", summary: "1 page" })
     expect(rows[2]!.items[0]!.name).toBe("https://example.com")
     expect(rows[3]!.label).toBe("Memory")
+  })
+
+  it("still counts pages read before the cloud browser tools were renamed", () => {
+    const steps = [
+      step({ id: "s1", name: "browse", tool: "web", label: "Browsed a page", input: '{"urls":["https://a.example"]}' }),
+      step({ id: "s2", name: "browser_look", label: "Looked at the page", input: '{"urls":["https://b.example"]}' }),
+    ]
+    const rows = usedRows([], steps)
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toMatchObject({ kind: "pages", summary: "2 pages" })
   })
 
   it("leaves out categories with no client data", () => {

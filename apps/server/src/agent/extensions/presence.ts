@@ -106,7 +106,7 @@ const LABELS: Readonly<Record<string, (args: Record<string, unknown>) => string>
   update_task: () => "Updated a task",
   note: () => "Saved a note",
   recall: () => "Searched memory",
-  browse: () => "Browsed the web",
+  web_read: () => "Browsed the web",
 }
 
 const PATH_TOOLS = new Set(["read", "ls", "write", "edit", "mkdir"])

@@ -75,7 +75,7 @@ export type UsedItem = { id: string; name: string; meta: string }
 export type UsedKind = "uploads" | "web" | "pages" | "memory"
 export type UsedRow = { kind: UsedKind; label: string; summary: string; items: readonly UsedItem[] }
 
-const PAGE_NAMES = new Set(["browse", "browser_look"])
+const PAGE_NAMES = new Set(["web_read", "web_look", "browse", "browser_look"])
 const MEMORY_NAMES = new Set(["recall", "note", "zoom"])
 const isSearch = (step: Pick<RunStep, "name">) => step.name.startsWith("composio_") && /search/i.test(step.name)
 
