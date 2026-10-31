@@ -563,7 +563,7 @@ async function validate(flags: Parsed["flags"]): Promise<void> {
     for (let run = 0; run < Math.max(runs, 1); run++) oracles.push(await checked(task, machineId, "oracle"))
     const nothing = await checked(task, machineId, "null")
     const first = oracles[0] ?? failed("no oracle run")
-    const seen = oracles.map((verdict) => JSON.stringify(verdict.checks))
+    const seen = oracles.map((verdict) => JSON.stringify(verdict.checks.map((entry) => [entry.name, entry.pass])))
     const stable = seen.every((value) => value === seen[0])
     const good = first.pass && stable && !nothing.pass
     lines.push(

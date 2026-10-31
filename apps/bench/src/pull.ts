@@ -37,8 +37,12 @@ export async function harvestArtifacts(staging: string, plans: string, ghRun: st
     const base = join(staging, artifact)
     const root = existsSync(join(base, "results")) ? join(base, "results") : base
     for (const name of await filesIn(root)) {
-      if (!name.endsWith(".tsv") || name.startsWith("validate-")) continue
+      if (!name.endsWith(".tsv")) continue
       const source = join(root, name)
+      if (name.startsWith("validate-")) {
+        await cp(source, join(plans, name), { force: true })
+        continue
+      }
       const rows = await readRows(source)
       const first = rows[0]
       if (!first) continue
