@@ -3,7 +3,10 @@ import { createSignal } from "solid-js"
 import { describe, expect, it, vi } from "vitest"
 import { userEvent } from "vitest/browser"
 import { render } from "../../../test/render"
+import { fakeTimers } from "../../../test/timers"
 import LiveScreen from "./LiveScreen"
+
+const NOW = Date.UTC(2026, 9, 25, 12)
 
 const fakes = vi.hoisted(() => ({
   computer: undefined as ComputerSummary | undefined,
@@ -92,9 +95,11 @@ describe("live screen", () => {
   })
 
   it("says why the computer is offline and what to do about it", async () => {
+    using _timers = fakeTimers()
+    vi.setSystemTime(NOW)
     fakes.computer = mac(
       { screen: true, input: true },
-      { online: false, lastSeenAt: Date.now() - 180_000, lastCloseReason: "the network dropped" },
+      { online: false, lastSeenAt: NOW - 180_000, lastCloseReason: "the network dropped" },
     )
     await using screen = await render(() => <LiveScreen pcId="pc-1" interactive={false} />)
     await expect.element(screen.getByText("Mac is offline")).toBeVisible()

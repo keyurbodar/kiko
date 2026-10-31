@@ -142,10 +142,7 @@ export function pcSocketId(ws: WebSocket): string | null {
 
 export class ComputerHub {
   private readonly pending = new Map<string, Pending>()
-  private readonly takes = new Map<
-    string,
-    { epoch: number; settle: (ok: boolean) => void; timer: ReturnType<typeof setTimeout> }
-  >()
+  private readonly takes = new Map<string, { epoch: number; settle: (ok: boolean) => void }>()
   private readonly desk = new Map<string, { user: string; name: string; until: number }>()
   private readonly relaying = new Set<string>()
   private readonly memory = new Map<string, PcHold>()
@@ -825,12 +822,11 @@ export class ComputerHub {
       const settle = (ok: boolean) => {
         const current = this.takes.get(pcId)
         if (current?.epoch !== epoch) return
-        clearTimeout(current.timer)
         this.takes.delete(pcId)
         resolve(ok)
       }
-      const timer = setTimeout(() => settle(true), HOLD_ACK_MS)
-      this.takes.set(pcId, { epoch, settle, timer })
+      this.takes.set(pcId, { epoch, settle })
+      void this.pause(HOLD_ACK_MS).then(() => settle(true))
     })
   }
 

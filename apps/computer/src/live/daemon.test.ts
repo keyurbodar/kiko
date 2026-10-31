@@ -1,5 +1,5 @@
 import { assert, describe, it } from "@effect/vitest"
-import type { InputEvent } from "@kiko/computer/wire"
+import type { FromDaemon, InputEvent } from "@kiko/computer/wire"
 import { createLive } from "./daemon"
 import type { Injected } from "./input"
 import type { PeerModule } from "./rtc-link"
@@ -26,18 +26,18 @@ function fakePeer(closed: { count: number }, captured: { connections: Record<str
       this.incoming = handler
     }
     deliver(message: string) {
-      let onMessage: ((message: string) => void) | null = null
+      const sink: { onMessage?: (message: string) => void } = {}
       this.incoming?.({
         getLabel: () => "input",
         onMessage: (handler: (message: string) => void) => {
-          onMessage = handler
+          sink.onMessage = handler
         },
         isOpen: () => true,
         sendMessage: () => {},
         bufferedAmount: () => 0,
         close: () => {},
       })
-      onMessage?.(message)
+      sink.onMessage?.(message)
     }
     addRemoteCandidate() {}
     setRemoteDescription() {
@@ -97,7 +97,7 @@ type FakeChannel = {
 type FakeConnection = { deliver(message: string): void }
 
 function daemon(policy: LivePolicy) {
-  const sent: { t?: string }[] = []
+  const sent: FromDaemon[] = []
   const applied: InputEvent[][] = []
   const closed = { count: 0 }
   const captured: { connections: Record<string, FakeConnection> } = { connections: {} }
@@ -111,7 +111,7 @@ function daemon(policy: LivePolicy) {
   }
   const live = createLive({
     send: (frame) => {
-      sent.push(frame as { t?: string })
+      sent.push(frame)
     },
     sendBinary: () => {},
     warn: () => {},

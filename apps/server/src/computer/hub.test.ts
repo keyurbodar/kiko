@@ -1,11 +1,13 @@
 import { assert, describe, it } from "@effect/vitest"
 import { PROTOCOL } from "@kiko/computer/wire"
+import type { AgentSlug, RoomId } from "@kiko/protocol"
 import * as Clock from "effect/Clock"
 import * as Effect from "effect/Effect"
 import * as TestClock from "effect/testing/TestClock"
 import { DatabaseSync, type SQLInputValue } from "node:sqlite"
 import { ComputerHub, type HubDeps } from "./hub"
 import { ComputerStore, type ComputerRow, type NewComputer } from "./store"
+import type { PcTaken } from "./types"
 
 const CAPS = { shell: true, files: true, desktop: false, live: false, input: false }
 
@@ -494,6 +496,31 @@ describe("the owned hold", () => {
     }),
   )
 
+  it.effect("answers the take after the cap when the daemon never acknowledges", () =>
+    Effect.gen(function* () {
+      const clock = yield* Clock.Clock
+      const viewer = tab()
+      const pc = pcSocket("pc-1")
+      const computers = liveHub([viewer.ws], [pc.ws], ["pc-1"], onClock(clock))
+      yield* Effect.promise(() => computers.message(pc.ws, JSON.stringify(HELLO)))
+      let done = false
+      const taking = computers.take("pc-1", viewer.ws).then((ok) => {
+        done = true
+        return ok
+      })
+
+      yield* Effect.yieldNow
+      assert.isFalse(done)
+
+      yield* TestClock.adjust("1 second")
+      assert.isFalse(done)
+
+      yield* TestClock.adjust("1 second")
+      assert.isTrue(yield* Effect.promise(() => taking))
+      assert.isTrue(done)
+    }),
+  )
+
   it.effect("takes input only from the tab that holds the screen", () =>
     Effect.promise(async () => {
       const first = tab()
@@ -570,12 +597,12 @@ describe("the owned hold", () => {
         store,
         ownerId: "owner",
         released: () => {},
-        taken: (out) => woken.push(out),
+        taken: (out: PcTaken) => woken.push(out),
         wakeup: { set: () => Promise.resolve(), clear: () => Promise.resolve() },
       } as unknown as HubDeps)
       await computers.message(pc.ws, JSON.stringify(HELLO))
-      computers.link("pc-1", { slug: "kiko", roomId: "room-1" })
-      computers.link("pc-1", { slug: "muse", roomId: "room-1" })
+      computers.link("pc-1", { slug: "kiko" as AgentSlug, roomId: "01900000-0000-7000-8000-000000000001" as RoomId })
+      computers.link("pc-1", { slug: "muse" as AgentSlug, roomId: "01900000-0000-7000-8000-000000000001" as RoomId })
 
       await taken(computers, first.ws, pc)
       const taking = computers.take("pc-1", second.ws)
