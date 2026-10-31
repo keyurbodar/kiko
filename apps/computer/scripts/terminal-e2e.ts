@@ -32,26 +32,19 @@ try {
   await prompt(repl.id)
 
   if (process.platform === "win32") {
-    manager.send({ id: repl.id, text: "kiko-echo-probe" })
-    const typed = await manager.wait({ id: repl.id, until: "kiko-echo-probe", timeoutMs: 5_000 })
-    console.log(`probe powershell typed echo ${typed.matched}`)
+    manager.send({ id: repl.id, text: `& "${python}" -c "print('py-separate')"` })
     manager.send({ id: repl.id, keys: ["enter"] })
-    const ran = await manager.wait({ id: repl.id, until: "not recognized", timeoutMs: 5_000 })
-    console.log(`probe powershell enter ran ${ran.matched}`)
-    const cmd = manager.open({ shell: "cmd.exe", name: "probe", cols: 100, rows: 30 })
-    await prompt(cmd.id)
-    manager.send({ id: cmd.id, text: "kiko-echo-probe" })
-    const cmdTyped = await manager.wait({ id: cmd.id, until: "kiko-echo-probe", timeoutMs: 5_000 })
-    console.log(`probe cmd typed echo ${cmdTyped.matched}`)
-    manager.send({ id: cmd.id, keys: ["enter"] })
-    const cmdRan = await manager.wait({ id: cmd.id, until: "not recognized", timeoutMs: 5_000 })
-    console.log(`probe cmd enter ran ${cmdRan.matched}`)
-    await manager.close({ id: cmd.id })
+    const separate = await manager.wait({ id: repl.id, until: "py-separate", timeoutMs: 15_000 })
+    console.log(`probe separate writes ${separate.matched}`)
+    manager.send({ id: repl.id, text: `& "${python}" -c "print('py-combined')"`, keys: ["enter"] })
+    const combined = await manager.wait({ id: repl.id, until: "py-combined", timeoutMs: 15_000 })
+    console.log(`probe combined write ${combined.matched} tail ${JSON.stringify(combined.text.slice(-300))}`)
   }
 
-  manager.send({ id: repl.id, text: `"${python}" -q`, keys: ["enter"] })
+  const launch = process.platform === "win32" ? `& "${python}" -q` : `"${python}" -q`
+  manager.send({ id: repl.id, text: launch, keys: ["enter"] })
   const pythonPrompt = await manager.wait({ id: repl.id, until: ">>>", timeoutMs: 60_000 })
-  ok(pythonPrompt.matched, `the python prompt appeared: ${pythonPrompt.text.trim().split("\n").at(-1) ?? ""}`)
+  ok(pythonPrompt.matched, `the python prompt appeared: ${JSON.stringify(pythonPrompt.text.slice(-400))}`)
 
   manager.send({ id: repl.id, text: "print(6*7)", keys: ["enter"] })
   const answer = await manager.wait({ id: repl.id, until: "42", timeoutMs: 30_000 })

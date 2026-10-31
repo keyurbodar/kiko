@@ -127,10 +127,11 @@ export class TerminalManager {
 
   send(args: Args<"terminal_send">): Value<"terminal_send"> {
     const session = this.get(args.id)
+    const text = args.text ?? ""
     const keys = args.keys ?? []
-    if (args.text === undefined && keys.length === 0)
+    if (text.length === 0 && keys.length === 0)
       throw new Fail({ code: "failed", message: "terminal_send needs text, keys, or both" })
-    let payload = args.text ?? ""
+    let pressed = ""
     for (const key of keys) {
       const bytes = keyBytes(key)
       if (bytes === null)
@@ -138,11 +139,12 @@ export class TerminalManager {
           code: "failed",
           message: `terminal_send does not know the key ${key}; use ${KEY_NAMES.join(", ")}`,
         })
-      payload += bytes
+      pressed += bytes
     }
-    session.pty.write(payload)
+    if (text) session.pty.write(text)
+    if (pressed) session.pty.write(pressed)
     this.scheduleIdle(session)
-    return { id: session.id, bytes: Buffer.byteLength(payload) }
+    return { id: session.id, bytes: Buffer.byteLength(text + pressed) }
   }
 
   async read(args: Args<"terminal_read">): Promise<Value<"terminal_read">> {
