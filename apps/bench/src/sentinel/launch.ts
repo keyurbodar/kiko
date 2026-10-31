@@ -17,7 +17,15 @@ export interface PointerOptions {
   readonly dy: number
 }
 
-const WINDOWS_HOST = ["powershell.exe", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass"]
+const WINDOWS_HOST = [
+  "powershell.exe",
+  "-NoProfile",
+  "-NonInteractive",
+  "-WindowStyle",
+  "Hidden",
+  "-ExecutionPolicy",
+  "Bypass",
+]
 
 export function sentinelSource(os: Os, dir: string): string {
   switch (os) {

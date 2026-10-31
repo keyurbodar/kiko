@@ -92,17 +92,24 @@ class Sentinel:
     def focused(self):
         return self.focus_id() == self.window.id
 
+    def ready(self):
+        return self.focused() and self.active_id() == self.window.id
+
+    def handle(self, event):
+        if event.type == X.KeyPress:
+            if event.window.id == self.window.id:
+                self.keys_received += 1
+            elif self.stray_keys < 3:
+                self.stray_keys += 1
+                self.log.emit("stray_key", window=event.window.id)
+        if event.type == X.ClientMessage and event.data[1][0] == self.atom_delete:
+            self.begin_stop()
+
     def pump(self):
+        while select.select([self.display.fileno()], [], [], 0)[0]:
+            self.handle(self.display.next_event())
         while self.display.pending_events() > 0:
-            event = self.display.next_event()
-            if event.type == X.KeyPress:
-                if event.window.id == self.window.id:
-                    self.keys_received += 1
-                elif self.stray_keys < 3:
-                    self.stray_keys += 1
-                    self.log.emit("stray_key", window=event.window.id)
-            if event.type == X.ClientMessage and event.data[1][0] == self.atom_delete:
-                self.begin_stop()
+            self.handle(self.display.next_event())
 
     def wait(self, seconds):
         readable, _, _ = select.select([self.display.fileno()], [], [], seconds)
@@ -187,10 +194,10 @@ class Sentinel:
         self.window.map()
         self.display.flush()
         deadline = time.time() + 8
-        while time.time() < deadline and not self.focused():
+        while time.time() < deadline and not self.ready():
             self.activate()
             self.wait(0.2)
-        if not self.focused():
+        if not self.ready():
             self.log.emit("error", message="window did not take the focus")
             return 3
         self.log.emit("ready", pid=os.getpid(), keycode=self.keycode)

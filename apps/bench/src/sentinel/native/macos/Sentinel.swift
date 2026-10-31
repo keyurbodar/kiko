@@ -261,10 +261,17 @@ enum SentinelMain {
             }
             let origin = currentPointer()
             let target = CGPoint(x: origin.x + parts[0], y: origin.y + parts[1])
+            CGAssociateMouseAndMouseCursorPosition(1)
+            CGWarpMouseCursorPosition(target)
             let event = CGEvent(
                 mouseEventSource: nil, mouseType: .mouseMoved, mouseCursorPosition: target,
                 mouseButton: .left)
             event?.post(tap: .cghidEventTap)
+            let moved = currentPointer()
+            guard hypot(moved.x - origin.x, moved.y - origin.y) > 1 else {
+                log.emit("error", ["message": "pointer did not move"])
+                exit(3)
+            }
             exit(0)
         }
         guard logPath != nil else {

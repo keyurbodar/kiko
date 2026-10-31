@@ -21,6 +21,8 @@ describe("sentinel commands", () => {
       "powershell.exe",
       "-NoProfile",
       "-NonInteractive",
+      "-WindowStyle",
+      "Hidden",
       "-ExecutionPolicy",
       "Bypass",
       "-File",

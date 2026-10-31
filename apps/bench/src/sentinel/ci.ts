@@ -110,7 +110,18 @@ async function stealFocus(m: Machine): Promise<Cleanup> {
     case "windows": {
       const script = join(FIXTURES, "windows", "OtherWindow.ps1")
       const other = await m.spawn(
-        ["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", script, "-Seconds", "12"],
+        [
+          "powershell.exe",
+          "-NoProfile",
+          "-WindowStyle",
+          "Hidden",
+          "-ExecutionPolicy",
+          "Bypass",
+          "-File",
+          script,
+          "-Seconds",
+          "12",
+        ],
         { cwd: m.workdir },
       )
       await delay(2500)
@@ -135,7 +146,14 @@ async function writeFileElsewhere(m: Machine): Promise<Cleanup> {
   const target = join(m.workdir, "background.txt")
   const cmd =
     m.os === "windows"
-      ? ["powershell.exe", "-NoProfile", "-Command", `Set-Content -Path '${target}' -Value background`]
+      ? [
+          "powershell.exe",
+          "-NoProfile",
+          "-WindowStyle",
+          "Hidden",
+          "-Command",
+          `Set-Content -Path '${target}' -Value background`,
+        ]
       : ["sh", "-c", `printf background > '${target}'`]
   const run = await m.exec(cmd)
   if (run.code !== 0) throw new Error(`background write failed: ${run.stderr}`)
