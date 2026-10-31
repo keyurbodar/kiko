@@ -16,6 +16,7 @@ export const desktopForm: Task = {
   os: ["linux"],
   needs: ["display"],
   heldOut: false,
+  kind: "real",
   prompt: "In the open settings window, set the display name to the value in request.json and save.",
   limits: LIMITS,
   setup: async (m, seed) => {

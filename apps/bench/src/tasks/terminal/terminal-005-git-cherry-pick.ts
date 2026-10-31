@@ -24,6 +24,7 @@ export const gitCherryPick: Task = {
   os: ["linux", "macos"],
   needs: [],
   heldOut: false,
+  kind: "real",
   prompt: "Cherry-pick the commit titled in request.json from branch release onto main. Do not bring the other commit.",
   limits: LIMITS,
   setup: async (m, seed) => {

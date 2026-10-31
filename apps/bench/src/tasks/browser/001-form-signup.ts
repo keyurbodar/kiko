@@ -23,6 +23,7 @@ export const formSignup: Task = {
   os: ["linux", "macos"],
   needs: ["chrome"],
   heldOut: false,
+  kind: "real",
   prompt:
     "Sign up for the newsletter on the page whose address is in url.txt. Use the name, email and postal code in request.json.",
   limits: LIMITS,

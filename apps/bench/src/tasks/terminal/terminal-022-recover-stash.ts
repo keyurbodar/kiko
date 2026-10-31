@@ -23,6 +23,7 @@ export const recoverStash: Task = {
   os: ["linux", "macos"],
   needs: [],
   heldOut: true,
+  kind: "real",
   prompt:
     "Some work was stashed earlier. Restore it into the working tree and commit it with the message in request.json.",
   limits: LIMITS,

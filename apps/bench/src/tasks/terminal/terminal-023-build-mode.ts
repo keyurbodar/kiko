@@ -31,6 +31,7 @@ export const buildMode: Task = {
   os: ["linux", "macos"],
   needs: [],
   heldOut: false,
+  kind: "real",
   prompt: "The build fails because a setting is missing. Run it in the mode in request.json.",
   limits: LIMITS,
   setup: async (m, seed) => {

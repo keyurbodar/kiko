@@ -48,6 +48,7 @@ export const largestFiles: Task = {
   os: ["linux", "macos"],
   needs: [],
   heldOut: false,
+  kind: "real",
   prompt:
     "Write the relative paths of the three largest files under data/ to largest.txt, largest first, one per line, using forward slashes.",
   limits: LIMITS,

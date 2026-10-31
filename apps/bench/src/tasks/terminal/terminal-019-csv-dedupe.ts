@@ -91,6 +91,7 @@ export const csvDedupe: Task = {
   os: ["linux", "macos"],
   needs: [],
   heldOut: true,
+  kind: "real",
   prompt:
     "signups.csv has duplicate emails. Write clean.csv with one row per email: the row with the latest updated timestamp, sorted by email, keeping the same header.",
   limits: LIMITS,

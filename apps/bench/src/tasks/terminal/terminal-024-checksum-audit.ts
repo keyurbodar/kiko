@@ -50,6 +50,7 @@ export const checksumAudit: Task = {
   os: ["linux", "macos"],
   needs: [],
   heldOut: false,
+  kind: "real",
   prompt:
     "Verify every file in data/ against checksums.txt. Write the relative paths of the files whose contents do not match to bad.txt, one per line, sorted.",
   limits: LIMITS,

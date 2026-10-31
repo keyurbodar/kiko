@@ -26,6 +26,7 @@ export const extractArchive: Task = {
   os: ["linux", "macos"],
   needs: [],
   heldOut: false,
+  kind: "real",
   prompt: "Extract archive.tar.gz and write the contents of the secret.txt inside it to answer.txt.",
   limits: LIMITS,
   setup: async (m, seed) => {

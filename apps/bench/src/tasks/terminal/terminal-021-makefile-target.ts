@@ -40,6 +40,7 @@ export const makefileTarget: Task = {
   os: ["linux", "macos"],
   needs: [],
   heldOut: false,
+  kind: "real",
   prompt:
     "`make build` fails. Fix the Makefile so it produces dist/artifact.txt containing the token from src/main.txt, then run it.",
   limits: LIMITS,

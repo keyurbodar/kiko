@@ -51,6 +51,7 @@ export const unicodeLongOutput: Task = {
   os: ["linux", "macos"],
   needs: [],
   heldOut: false,
+  kind: "edge",
   prompt:
     "Extract every record whose region is apac from data.txt and write `name<TAB>id` for each to apac.txt, one per line, in the same order as data.txt.",
   limits: LIMITS,

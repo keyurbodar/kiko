@@ -28,6 +28,7 @@ export const modalDelete: Task = {
   os: ["linux", "macos"],
   needs: ["chrome"],
   heldOut: false,
+  kind: "real",
   prompt: "Delete the draft titled in request.json from the drafts page in url.txt. Leave the other drafts alone.",
   limits: LIMITS,
   setup: async (m, seed) => {

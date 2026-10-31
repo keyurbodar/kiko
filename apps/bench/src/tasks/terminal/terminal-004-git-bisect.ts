@@ -20,6 +20,7 @@ export const gitBisect: Task = {
   os: ["linux", "macos"],
   needs: [],
   heldOut: true,
+  kind: "real",
   prompt:
     "Something broke between the first commit and HEAD. Find the first commit where `bun check.ts` fails and write its full 40-character SHA to answer.txt. End the bisect and leave the working tree clean.",
   limits: LIMITS,

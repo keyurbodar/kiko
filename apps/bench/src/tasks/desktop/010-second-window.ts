@@ -18,6 +18,7 @@ export const desktopWindows: Task = {
   os: ["linux"],
   needs: ["display"],
   heldOut: false,
+  kind: "edge",
   prompt: "In the open window, open the notes window and save the note in request.json.",
   limits: LIMITS,
   setup: async (m, seed) => {

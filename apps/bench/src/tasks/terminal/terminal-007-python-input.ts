@@ -23,6 +23,7 @@ export const pythonInput: Task = {
   os: ["linux", "macos"],
   needs: [],
   heldOut: false,
+  kind: "real",
   prompt: "Run survey.py and answer its two prompts with the name and age in request.json.",
   limits: LIMITS,
   setup: async (m, seed) => {
