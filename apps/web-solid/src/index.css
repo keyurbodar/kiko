@@ -170,6 +170,15 @@
   --box-shadow-lg: 0 0 4px 0 rgb(255 255 255 / 0.05) inset, 0 0 3px 0 #0000001f, 0 16px 24px 0 #0000000f;
   --box-shadow-dialog: 0 0 0 1px color-mix(in oklab, #f0f0f0 8%, transparent), 0 0 2px 0 #00000066, 0 6px 16px 0 #00000066;
   --box-shadow-command: 0 25px 50px -12px #00000080, 0 12px 24px -8px #00000066;
+  --syntax-foreground: #d6d6dd;
+  --syntax-keyword: #82d2ce;
+  --syntax-string: #e394dc;
+  --syntax-function: #efb080;
+  --syntax-comment: #6e7781;
+  --syntax-constant: #f8c762;
+  --syntax-number: #ebc88d;
+  --syntax-type: #f8c762;
+  --syntax-punctuation: #d6d6dd;
 }
 
 :root:not(.dark) {
@@ -302,6 +311,15 @@
   --box-shadow-lg: 0 0 4px 0 rgb(255 255 255 / 0.05) inset, 0 0 3px 0 #00000009, 0 16px 24px 0 #00000005;
   --box-shadow-dialog: 0 0 0 1px color-mix(in oklab, #1c1c1c 8%, transparent), 0 0 2px 0 #0000000f, 0 6px 16px 0 #0000000f;
   --box-shadow-command: 0 25px 50px -12px #00000040, 0 12px 24px -8px #00000026;
+  --syntax-foreground: #141414eb;
+  --syntax-keyword: #b3003f;
+  --syntax-string: #8f84e0;
+  --syntax-function: #db704b;
+  --syntax-comment: #141414ad;
+  --syntax-constant: #206595;
+  --syntax-number: #b8448b;
+  --syntax-type: #206595;
+  --syntax-punctuation: #141414ad;
 }
 
 @theme inline {
@@ -987,7 +1005,7 @@
 
   :root {
     color-scheme: dark;
-    -webkit-font-smoothing: antialiased;
+    -webkit-font-smoothing: var(--font-smoothing, antialiased);
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
     font-synthesis: none;

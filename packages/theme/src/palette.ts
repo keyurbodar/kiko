@@ -338,10 +338,7 @@ function shadowTokens({ dark, p }: Ink): [string, string][] {
         ? "0 10px 15px -3px #00000066, 0 4px 6px -2px #0000004d"
         : "0 10px 15px -3px #0000001a, 0 4px 6px -2px #0000000d",
     ],
-    [
-      "--box-shadow-lg",
-      `0 0 4px 0 rgb(255 255 255 / 0.05) inset, 0 0 3px 0 ${secondary}, 0 16px 24px 0 ${tertiary}`,
-    ],
+    ["--box-shadow-lg", `0 0 4px 0 rgb(255 255 255 / 0.05) inset, 0 0 3px 0 ${secondary}, 0 16px 24px 0 ${tertiary}`],
     [
       "--box-shadow-dialog",
       `0 0 0 1px ${hairline}, ${dark ? "0 0 2px 0 #00000066, 0 6px 16px 0 #00000066" : "0 0 2px 0 #0000000f, 0 6px 16px 0 #0000000f"}`,
@@ -355,11 +352,47 @@ function shadowTokens({ dark, p }: Ink): [string, string][] {
   ]
 }
 
+export const SYNTAX_KEYS = ["keyword", "string", "func", "comment"] as const
+export type Syntax = Record<(typeof SYNTAX_KEYS)[number], string>
+
+const SYNTAX = {
+  dark: {
+    foreground: "#d6d6dd",
+    keyword: "#82d2ce",
+    string: "#e394dc",
+    function: "#efb080",
+    comment: "#6e7781",
+    constant: "#f8c762",
+    number: "#ebc88d",
+    type: "#f8c762",
+    punctuation: "#d6d6dd",
+  },
+  light: {
+    foreground: "#141414eb",
+    keyword: "#b3003f",
+    string: "#8f84e0",
+    function: "#db704b",
+    comment: "#141414ad",
+    constant: "#206595",
+    number: "#b8448b",
+    type: "#206595",
+    punctuation: "#141414ad",
+  },
+} as const satisfies Record<ThemeAppearance, Record<string, string>>
+
+function syntaxTokens(appearance: ThemeAppearance, own?: Syntax): [string, string][] {
+  const base = SYNTAX[appearance]
+  const colours = own
+    ? { ...base, keyword: own.keyword, string: own.string, function: own.func, comment: own.comment }
+    : base
+  return Object.entries(colours).map(([role, colour]): [string, string] => [`--syntax-${role}`, colour])
+}
+
 export function tokensFor(
   appearance: ThemeAppearance,
   id?: ThemeId,
   contrast = 100,
-  imported?: { palette: Palette },
+  imported?: { palette: Palette; syntax?: Syntax },
 ): Record<string, string> {
   const themeId = id && appearanceOfTheme(id) === appearance ? id : appearance === "dark" ? "dark" : "light"
   const p = imported?.palette ?? THEMES[themeId].palette
@@ -377,6 +410,7 @@ export function tokensFor(
     ...ladderTokens(ink, ladder),
     ...toneTokens(ink),
     ...shadowTokens(ink),
+    ...syntaxTokens(appearance, imported?.syntax),
   ])
 }
 

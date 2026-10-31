@@ -1,6 +1,6 @@
 import { formatHex, interpolate, parse, rgb, wcagContrast, wcagLuminance } from "culori"
-import { themeId, type ImportedTheme, type Syntax } from "./imported"
-import { PALETTES, type Palette, type ThemeAppearance } from "./palette"
+import { themeId, type ImportedTheme } from "./imported"
+import { PALETTES, type Palette, type Syntax, type ThemeAppearance } from "./palette"
 
 export type VsCodeTheme = {
   type?: unknown

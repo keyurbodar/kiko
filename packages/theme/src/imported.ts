@@ -1,4 +1,4 @@
-import { PALETTE_KEYS, PALETTES, type Palette, type ThemeAppearance } from "./palette"
+import { PALETTE_KEYS, PALETTES, SYNTAX_KEYS, type Palette, type Syntax, type ThemeAppearance } from "./palette"
 
 export type ImportedTheme = {
   id: string
@@ -8,9 +8,6 @@ export type ImportedTheme = {
   palette: Palette
   syntax?: Syntax
 }
-
-const SYNTAX_KEYS = ["keyword", "string", "func", "comment"] as const
-export type Syntax = Record<(typeof SYNTAX_KEYS)[number], string>
 
 export type Imported = {
   themes: ImportedTheme[]
