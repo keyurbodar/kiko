@@ -229,10 +229,18 @@ function daemonPair(dir: string, url: URL, code: string, name: string): Promise<
   })
 }
 
-function daemonRun(dir: string, driverPath?: string): ChildProcess {
-  const child = spawn("bun", [DAEMON, "run", "--dir", dir], {
-    cwd: dir,
-    env: { ...process.env, HOME: dir, ...(driverPath ? { KIKO_DRIVER: driverPath } : {}) },
+function daemonRun(home: string, configDir: string, driverPath?: string): ChildProcess {
+  const child = spawn("bun", [DAEMON, "run", "--dir", configDir], {
+    cwd: home,
+    env: {
+      ...process.env,
+      HOME: home,
+      XDG_CONFIG_HOME: configDir,
+      XDG_CACHE_HOME: configDir,
+      XDG_DATA_HOME: configDir,
+      KIKO_APP_DIR: configDir,
+      ...(driverPath ? { KIKO_DRIVER: driverPath } : {}),
+    },
     stdio: "ignore",
     detached: true,
   })
@@ -240,8 +248,8 @@ function daemonRun(dir: string, driverPath?: string): ChildProcess {
   return child
 }
 
-async function writePolicy(dir: string): Promise<void> {
-  const policy = { shell: true, files: { allow: [dir] }, desktop: true, live: false, input: true }
+async function writePolicy(dir: string, allow: readonly string[]): Promise<void> {
+  const policy = { shell: true, files: { allow: [...allow] }, desktop: true, live: false, input: true }
   await writeFile(join(dir, "policy.json"), JSON.stringify(policy, null, 2), "utf8")
 }
 
@@ -403,7 +411,9 @@ export function kikoRemote(): Contender {
   const daemons = new Map<string, ChildProcess>()
   const drivers = new Map<string, ChildProcess>()
   const dirs = new Map<string, string>()
+  const configDirs = new Map<string, string>()
   const restarted = new Set<string>()
+  let daemonRoot: string | null = null
 
   const need = (): Machine => {
     if (!machine) throw new Error("the kiko-remote contender has not started")
@@ -422,15 +432,19 @@ export function kikoRemote(): Contender {
   }
 
   async function bringUp(m: Machine, computer: EnvComputer): Promise<void> {
-    const dir = computer.dir
-    await mkdir(dir, { recursive: true })
-    dirs.set(computer.name, dir)
-    await writePolicy(dir)
+    const home = computer.dir
+    const root = daemonRoot ?? (daemonRoot = await mkdtemp(join(tmpdir(), "kiko-bench-daemons-")))
+    const config = join(root, computer.name)
+    await mkdir(home, { recursive: true })
+    await mkdir(config, { recursive: true })
+    dirs.set(computer.name, home)
+    configDirs.set(computer.name, config)
+    await writePolicy(config, [home])
     const code = await needRemote().pairCode()
-    await daemonPair(dir, needRemote().url, code, computer.name)
-    const driver = computer.desktop ? await startFakeDriver(dir) : null
+    await daemonPair(config, needRemote().url, code, computer.name)
+    const driver = computer.desktop ? await startFakeDriver(config) : null
     if (driver) drivers.set(computer.name, driver.process)
-    const daemon = daemonRun(dir, driver?.socket)
+    const daemon = daemonRun(home, config, driver?.socket)
     daemons.set(computer.name, daemon)
     const online = await waitFor(
       async () => {
@@ -445,11 +459,12 @@ export function kikoRemote(): Contender {
   }
 
   async function restart(name: string): Promise<void> {
-    const dir = dirs.get(name)
-    if (!dir) return
+    const home = dirs.get(name)
+    const config = configDirs.get(name)
+    if (!home || !config) return
     daemons.get(name)?.kill("SIGKILL")
     const driver = drivers.get(name)
-    const daemon = daemonRun(dir, driver ? join(dir, "desktop.sock") : undefined)
+    const daemon = daemonRun(home, config, driver ? join(config, "desktop.sock") : undefined)
     daemons.set(name, daemon)
     await waitFor(
       async () => {
@@ -583,7 +598,11 @@ export function kikoRemote(): Contender {
     daemons.clear()
     drivers.clear()
     dirs.clear()
+    configDirs.clear()
     restarted.clear()
+    const root = daemonRoot
+    daemonRoot = null
+    if (root) await rm(root, { recursive: true, force: true }).catch(() => undefined)
     const running = worker
     worker = null
     remote = null
