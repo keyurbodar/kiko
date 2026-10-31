@@ -33,6 +33,15 @@ describe("ImageDialog", () => {
     )
     await userEvent.keyboard("{Escape}")
 
+    await new Promise((r) => setTimeout(r, 300))
+    if (!onClose.mock.calls.length)
+      console.log(
+        "DIAG",
+        document.activeElement?.outerHTML.slice(0, 300),
+        [...document.body.children].map((e) => e.outerHTML.slice(0, 200)).join("\n"),
+        [...document.querySelectorAll("[data-kb-top-layer],[role=tooltip],[data-expanded]")].map((e) => e.outerHTML.slice(0, 200)),
+        getComputedStyle(document.body).pointerEvents,
+      )
     await vi.waitFor(() => expect(onClose).toHaveBeenCalled())
   })
 
