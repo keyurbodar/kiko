@@ -199,7 +199,15 @@ describe("pairing again", () => {
   )
 })
 
-type SentFrame = { t: string; holder?: string; on?: boolean }
+type SentFrame = {
+  t: string
+  holder?: string
+  on?: boolean
+  id?: string
+  terminal?: string
+  data?: string
+  bytes?: number
+}
 
 function pcSocket(id: string, holder: "agent" | "human" = "agent") {
   const sent: SentFrame[] = []
@@ -682,6 +690,166 @@ describe("driver desk", () => {
       for (const id of ids) await settle(computers, pc.ws, id)
       assert.isTrue((await first).ok)
       assert.isTrue((await second).ok)
+    }),
+  )
+})
+
+const TERMINAL = { ...HELLO, caps: { ...CAPS, terminal: true } }
+
+type ChunkFrame = { _tag: string; requestId: unknown; values: readonly { type: string; data?: string }[] }
+
+function terminalTab() {
+  const sent: unknown[] = []
+  let attachment: unknown = { user: { ready: true }, rooms: {}, rpc: [] }
+  const ws = {
+    send: (text: string) => sent.push(JSON.parse(text)),
+    serializeAttachment: (value: unknown) => {
+      attachment = structuredClone(value)
+    },
+    deserializeAttachment: () => structuredClone(attachment),
+    readyState: WebSocket.OPEN,
+  } as unknown as WebSocket
+  const chunks = () => sent as ChunkFrame[]
+  return { ws, chunks }
+}
+
+function attach(computers: ReturnType<typeof liveHub>, pc: ReturnType<typeof pcSocket>, tab: WebSocket, id = "t-1") {
+  const outcome = computers.attachTerminal(tab, "req-1", "pc-1", id, 100, 30)
+  const frame = pc.sent.find((sent) => sent.t === "terminal" && sent.on === true)
+  return { outcome, frame }
+}
+
+describe("terminal attach", () => {
+  it.effect("asks the daemon for a terminal and streams its output to the tab", () =>
+    Effect.promise(async () => {
+      const pc = pcSocket("pc-1")
+      const open = terminalTab()
+      const computers = liveHub([open.ws], [pc.ws], ["pc-1"])
+      await computers.message(pc.ws, JSON.stringify(TERMINAL))
+
+      const { outcome, frame } = attach(computers, pc, open.ws)
+      await computers.message(
+        pc.ws,
+        JSON.stringify({ t: "terminal", id: frame?.id, event: { type: "output", data: "hi" } }),
+      )
+
+      assert.isTrue(outcome.ok)
+      assert.strictEqual(frame?.terminal, "t-1")
+      assert.deepStrictEqual(open.chunks().at(-1), {
+        _tag: "Chunk",
+        requestId: "req-1",
+        values: [{ type: "output", data: "hi" }],
+      })
+    }),
+  )
+
+  it.effect("refuses a computer that does not allow terminals", () =>
+    Effect.promise(async () => {
+      const pc = pcSocket("pc-1")
+      const open = terminalTab()
+      const computers = liveHub([open.ws], [pc.ws], ["pc-1"])
+      await computers.message(pc.ws, JSON.stringify(HELLO))
+
+      const { outcome } = attach(computers, pc, open.ws)
+
+      assert.isFalse(outcome.ok)
+      if (!outcome.ok) assert.match(outcome.message, /does not allow terminal sessions/)
+    }),
+  )
+
+  it.effect("refuses a computer that is not connected", () =>
+    Effect.promise(async () => {
+      const open = terminalTab()
+      const computers = liveHub([open.ws], [], ["pc-1"])
+
+      const outcome = computers.attachTerminal(open.ws, "req-1", "pc-1", "t-1", 100, 30)
+
+      assert.isFalse(outcome.ok)
+      if (!outcome.ok) assert.match(outcome.message, /offline/)
+    }),
+  )
+
+  it.effect("tells the tab when the daemon disconnects", () =>
+    Effect.promise(async () => {
+      const pc = pcSocket("pc-1")
+      const open = terminalTab()
+      const computers = liveHub([open.ws], [pc.ws], ["pc-1"])
+      await computers.message(pc.ws, JSON.stringify(TERMINAL))
+      attach(computers, pc, open.ws)
+
+      await computers.close(pc.ws)
+
+      assert.match(open.chunks().at(-1)?.values[0]?.type ?? "", /error/)
+    }),
+  )
+})
+
+describe("terminal control", () => {
+  it.effect("refuses owner input until the owner takes over", () =>
+    Effect.promise(async () => {
+      const pc = pcSocket("pc-1")
+      const open = terminalTab()
+      const computers = liveHub([open.ws], [pc.ws], ["pc-1"])
+      await computers.message(pc.ws, JSON.stringify(TERMINAL))
+      attach(computers, pc, open.ws)
+
+      const before = computers.terminalInput(open.ws, "pc-1", "t-1", "ls\r")
+      computers.take("pc-1", open.ws)
+      const after = computers.terminalInput(open.ws, "pc-1", "t-1", "ls\r")
+
+      assert.isFalse(before.ok)
+      assert.isTrue(after.ok)
+      assert.isTrue(pc.sent.some((frame) => frame.t === "terminalInput" && frame.data === "ls\r"))
+    }),
+  )
+
+  it.effect("refuses input from another tab while one tab holds control", () =>
+    Effect.promise(async () => {
+      const pc = pcSocket("pc-1")
+      const mine = terminalTab()
+      const other = terminalTab()
+      const computers = liveHub([mine.ws, other.ws], [pc.ws], ["pc-1"])
+      await computers.message(pc.ws, JSON.stringify(TERMINAL))
+      attach(computers, pc, mine.ws)
+      attach(computers, pc, other.ws)
+      computers.take("pc-1", mine.ws)
+
+      const typed = computers.terminalInput(other.ws, "pc-1", "t-1", "rm -rf /\r")
+
+      assert.isFalse(typed.ok)
+      if (!typed.ok) assert.match(typed.message, /another viewer has control/)
+    }),
+  )
+
+  it.effect("refuses an agent terminal_send while the owner holds the terminal", () =>
+    Effect.promise(async () => {
+      const pc = pcSocket("pc-1")
+      const open = terminalTab()
+      const computers = liveHub([open.ws], [pc.ws], ["pc-1"])
+      await computers.message(pc.ws, JSON.stringify(TERMINAL))
+      computers.take("pc-1", open.ws)
+
+      const outcome = await computers.call("pc-1", "terminal_send", { id: "t-1", text: "ls" })
+
+      assert.isFalse(outcome.ok)
+      if (!outcome.ok) {
+        assert.strictEqual(outcome.code, "busy")
+        assert.strictEqual(outcome.message, "the owner has control of this terminal")
+      }
+    }),
+  )
+
+  it.effect("detaches the daemon attach when the tab leaves", () =>
+    Effect.promise(async () => {
+      const pc = pcSocket("pc-1")
+      const open = terminalTab()
+      const computers = liveHub([open.ws], [pc.ws], ["pc-1"])
+      await computers.message(pc.ws, JSON.stringify(TERMINAL))
+      const { frame } = attach(computers, pc, open.ws)
+
+      computers.leave(open.ws)
+
+      assert.isTrue(pc.sent.some((sent) => sent.t === "terminal" && sent.on === false && sent.id === frame?.id))
     }),
   )
 })

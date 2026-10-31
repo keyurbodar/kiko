@@ -17,14 +17,16 @@ import {
 import { CONNECT_HEADERS, CONNECT_SKEW_MS, connectMessage, verify } from "@kiko/computer/sign"
 import type { DesktopInfo } from "@kiko/computer/driver"
 import { decodeFrame } from "@kiko/computer/frame"
-import type { AgentSlug, ComputerFrame, ComputerSummary, RoomId } from "@kiko/protocol"
+import type { AgentSlug, ComputerFrame, ComputerSummary, RoomId, TerminalEvent } from "@kiko/protocol"
 import type { Env } from "../index"
 import { ago } from "../lib/ago"
 import { encodeBase64 } from "../lib/base64"
 import { BACKEND } from "../lib/version"
 import { dropStreams, socketView } from "../owner/socket"
+import type { RequestId } from "../rpc/wire"
 import { frameChunk, frameSubs, frameText } from "./frames"
 import type { ComputerRow, ComputerStore, NewComputer } from "./store"
+import { terminalStream, terminalText } from "./terminals"
 
 const HOLD_MS = 30 * 60_000
 const PRESENCE_MS = 45_000
@@ -109,6 +111,14 @@ type Pending = {
   detach: () => void
 }
 
+type TerminalAttach = {
+  pcId: string
+  terminal: string
+  tab: WebSocket
+  requestId: RequestId
+  stream: string
+}
+
 export type HubDeps = {
   ctx: DurableObjectState
   env: Env
@@ -139,6 +149,7 @@ export class ComputerHub {
   private readonly pending = new Map<string, Pending>()
   private readonly desk = new Map<string, { user: string; name: string; until: number }>()
   private readonly relaying = new Set<string>()
+  private readonly attaches = new Map<string, TerminalAttach>()
   private readonly memory = new Map<string, PcHold>()
   private readonly desktop = new Map<string, DesktopInfo>()
   private readonly marks = new Map<string, PcMark>()
@@ -421,6 +432,7 @@ export class ComputerHub {
       } catch {}
     }
     this.relaying.delete(id)
+    this.dropTerminalsFor(id, "the computer reconnected")
     const pair = new WebSocketPair()
     const client = pair[0]
     const server = pair[1]
@@ -461,6 +473,7 @@ export class ComputerHub {
     }
     if (frame.t === "result") return this.result(frame)
     if (frame.t === "rtc") return this.daemonRtc(saved.id, frame.session, frame.signal)
+    if (frame.t === "terminal") return this.terminalEvent(frame)
     if (frame.t === "humanInput") {
       this.enterHuman(saved.id)
       this.push()
@@ -568,6 +581,8 @@ export class ComputerHub {
     }
     if (op === "driver" && saved.holder === "human")
       return { ok: false, code: "busy", message: `the human has control of ${row.name} right now` }
+    if (op === "terminal_send" && saved.holder === "human")
+      return { ok: false, code: "busy", message: "the owner has control of this terminal" }
     let parsed: unknown
     try {
       parsed = Schema.decodeUnknownSync(Calls[op].args)(args)
@@ -675,6 +690,7 @@ export class ComputerHub {
       dropStreams(tab, `pc:${pcId}`)
       this.syncRelay(pcId)
     }
+    this.dropTabTerminals(tab)
     this.dropHuman(tab)
   }
 
@@ -759,6 +775,117 @@ export class ComputerHub {
   ack(pcId: string, seq: number): void {
     const ws = this.socket(pcId)
     if (ws) this.send(ws, { t: "ack", seq })
+  }
+
+  attachTerminal(
+    tab: WebSocket,
+    requestId: RequestId,
+    pcId: string,
+    terminalId: string,
+    cols: number,
+    rows: number,
+  ): CallOutcome {
+    const row = this.d.store.get(pcId)
+    if (!row) return { ok: false, code: "unsupported", message: "there is no such computer" }
+    const target = this.target(pcId)
+    if (!target) return { ok: false, code: "failed", message: this.offlineMessage(row) }
+    if (!target.hello.caps.terminal)
+      return { ok: false, code: "unsupported", message: `${row.name} does not allow terminal sessions` }
+    const id = crypto.randomUUID()
+    const stream = terminalStream(id)
+    this.dropTerminal(tab, terminalId)
+    this.attaches.set(id, { pcId, terminal: terminalId, tab, requestId, stream })
+    this.send(target.ws, {
+      t: "terminal",
+      on: true,
+      id,
+      terminal: terminalId,
+      cols: clamp(cols, 20, 500),
+      rows: clamp(rows, 5, 200),
+    })
+    return { ok: true, value: stream }
+  }
+
+  private terminalEvent(frame: Extract<FromDaemon, { t: "terminal" }>): void {
+    const attach = this.attaches.get(frame.id)
+    if (!attach) return
+    this.sendTerminal(attach, frame.event)
+  }
+
+  private sendTerminal(attach: TerminalAttach, event: TerminalEvent): void {
+    try {
+      attach.tab.send(terminalText(attach.requestId, event))
+    } catch {}
+  }
+
+  private dropTerminal(tab: WebSocket, terminalId: string): void {
+    for (const [id, attach] of this.attaches) {
+      if (attach.tab !== tab || attach.terminal !== terminalId) continue
+      this.attaches.delete(id)
+      this.sendTo(attach.pcId, { t: "terminal", on: false, id })
+    }
+  }
+
+  private terminalAttachOf(tab: WebSocket, pcId: string, terminalId: string): [string, TerminalAttach] | null {
+    for (const [id, attach] of this.attaches)
+      if (attach.tab === tab && attach.pcId === pcId && attach.terminal === terminalId) return [id, attach]
+    return null
+  }
+
+  private controls(tab: WebSocket, pcId: string): CallOutcome | null {
+    const hold = this.hold(pcId)
+    if (hold.holder !== "human")
+      return { ok: false, code: "busy", message: "take over this computer before using its terminal" }
+    if (hold.heldBy !== undefined && hold.heldBy !== this.sessionOf(tab))
+      return { ok: false, code: "busy", message: "another viewer has control of this computer" }
+    return null
+  }
+
+  terminalInput(tab: WebSocket, pcId: string, terminalId: string, data: string): CallOutcome {
+    const held = this.terminalAttachOf(tab, pcId, terminalId)
+    if (!held) return { ok: false, code: "failed", message: "open the terminal before typing into it" }
+    const refused = this.controls(tab, pcId)
+    if (refused) return refused
+    this.sendTo(pcId, { t: "terminalInput", id: held[0], data })
+    return { ok: true, value: undefined }
+  }
+
+  terminalResize(tab: WebSocket, pcId: string, terminalId: string, cols: number, rows: number): CallOutcome {
+    const held = this.terminalAttachOf(tab, pcId, terminalId)
+    if (!held) return { ok: false, code: "failed", message: "open the terminal before resizing it" }
+    const refused = this.controls(tab, pcId)
+    if (refused) return refused
+    this.sendTo(pcId, { t: "terminalResize", id: held[0], cols: clamp(cols, 20, 500), rows: clamp(rows, 5, 200) })
+    return { ok: true, value: undefined }
+  }
+
+  terminalAck(tab: WebSocket, pcId: string, terminalId: string, bytes: number): void {
+    const held = this.terminalAttachOf(tab, pcId, terminalId)
+    if (held) this.sendTo(pcId, { t: "terminalAck", id: held[0], bytes })
+  }
+
+  endTerminal(stream: string): void {
+    for (const [id, attach] of this.attaches) {
+      if (attach.stream !== stream) continue
+      this.attaches.delete(id)
+      this.sendTo(attach.pcId, { t: "terminal", on: false, id })
+    }
+  }
+
+  private dropTerminalsFor(pcId: string, message: string): void {
+    for (const [id, attach] of this.attaches) {
+      if (attach.pcId !== pcId) continue
+      this.attaches.delete(id)
+      this.sendTerminal(attach, { type: "error", message })
+    }
+  }
+
+  private dropTabTerminals(tab: WebSocket): void {
+    for (const [id, attach] of this.attaches) {
+      if (attach.tab !== tab) continue
+      this.attaches.delete(id)
+      this.sendTo(attach.pcId, { t: "terminal", on: false, id })
+    }
   }
 
   private send(ws: WebSocket, frame: ToDaemon): void {
@@ -856,6 +983,7 @@ export class ComputerHub {
     const replaced = this.sockets(saved.id).some((other) => other !== ws && other.readyState === WebSocket.OPEN)
     if (!replaced) {
       this.relaying.delete(saved.id)
+      this.dropTerminalsFor(saved.id, `${this.name(saved.id)} disconnected`)
       this.memory.set(saved.id, { ...saved, hello: saved.hello ?? this.memory.get(saved.id)?.hello })
       this.marks.set(saved.id, {
         ...this.marks.get(saved.id),
@@ -880,6 +1008,7 @@ export class ComputerHub {
       } catch {}
     this.dropCalls(id)
     this.relaying.delete(id)
+    this.dropTerminalsFor(id, "this computer was removed")
     this.desk.delete(id)
     this.memory.delete(id)
     this.desktop.delete(id)
@@ -903,4 +1032,8 @@ export class ComputerHub {
     this.push()
     return { ok: true }
   }
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, Math.round(value)))
 }
