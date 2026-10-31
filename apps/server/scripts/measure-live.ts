@@ -233,7 +233,15 @@ async function main(): Promise<void> {
         KIKO_SERVER_PORT: String(SERVER_PORT),
       }),
     )
-    await until("the web app", async () => (await fetch(`http://127.0.0.1:${WEB_PORT}/`)).ok)
+    await until("the web app", async () => {
+      for (const host of ["localhost", "127.0.0.1"]) {
+        const ok = await fetch(`http://${host}:${WEB_PORT}/`)
+          .then((answer) => answer.ok)
+          .catch(() => false)
+        if (ok) return true
+      }
+      return false
+    })
 
     const screen = Bun.serve({
       port: SCREEN_PORT,
