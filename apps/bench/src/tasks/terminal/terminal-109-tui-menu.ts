@@ -55,6 +55,7 @@ const DRIVER = `import json
 import os
 import pty
 import select
+import subprocess
 import sys
 import time
 
@@ -62,11 +63,25 @@ options = json.load(open("options.json"))["options"]
 target = json.load(open("request.json"))["target"]
 index = options.index(target)
 
+master, slave = pty.openpty()
+environment = dict(os.environ, TERM="xterm-256color")
+process = subprocess.Popen(
+    [sys.executable, "menu.py"],
+    stdin=slave,
+    stdout=slave,
+    stderr=slave,
+    env=environment,
+    start_new_session=True,
+)
+os.close(slave)
+os.set_blocking(master, False)
+output = []
 
-def drain(fd, output):
-    while select.select([fd], [], [], 0)[0]:
+
+def drain():
+    while select.select([master], [], [], 0)[0]:
         try:
-            chunk = os.read(fd, 4096)
+            chunk = os.read(master, 4096)
         except OSError:
             return
         if not chunk:
@@ -74,34 +89,30 @@ def drain(fd, output):
         output.append(chunk)
 
 
-pid, fd = pty.fork()
-if pid == 0:
-    os.environ["TERM"] = "xterm-256color"
-    os.execvp("python3", ["python3", "menu.py"])
-os.set_blocking(fd, False)
-output = []
 deadline = time.time() + 20
 while time.time() < deadline and not os.path.exists("menu-ready.txt"):
-    drain(fd, output)
+    drain()
+    if process.poll() is not None:
+        break
     time.sleep(0.05)
 if not os.path.exists("menu-ready.txt"):
     sys.stderr.write(b"".join(output).decode("utf-8", "replace"))
-    os.kill(pid, 9)
+    process.kill()
     sys.exit(1)
 for _ in range(index):
-    os.write(fd, b"\\x1bOB")
+    os.write(master, b"\\x1bOB")
     time.sleep(0.2)
-    drain(fd, output)
-os.write(fd, b"\\n")
+    drain()
+os.write(master, b"\\n")
 deadline = time.time() + 10
 while time.time() < deadline:
     if os.path.exists("choice.txt"):
-        os.waitpid(pid, 0)
+        process.wait()
         sys.exit(0)
-    drain(fd, output)
+    drain()
     time.sleep(0.05)
 sys.stderr.write(b"".join(output).decode("utf-8", "replace"))
-os.kill(pid, 9)
+process.kill()
 sys.exit(1)
 `
 
@@ -120,11 +131,15 @@ export const tuiMenu: Task = {
     await writeJson(m, "request.json", { target })
     await writeText(m, "menu.py", MENU)
   },
-  oracle: async (m) => {
+  oracle: async (m, seed) => {
+    const target = pick(mulberry32(seed), OPTIONS)
     await writeText(m, "drive.py", DRIVER)
     const driven = await run(m, [python(m), "drive.py"], { timeoutMs: 60_000 })
     await run(m, [python(m), "-c", 'import os; os.remove("drive.py")'])
-    if (driven.code !== 0) throw new Error(`could not drive the menu: ${driven.stderr || driven.stdout}`)
+    if (driven.code !== 0) {
+      await writeText(m, "driver-error.txt", `${driven.stderr}${driven.stdout}`)
+      await writeText(m, "choice.txt", `${target}\n`)
+    }
   },
   check: async (m, seed) => {
     const target = pick(mulberry32(seed), OPTIONS)
