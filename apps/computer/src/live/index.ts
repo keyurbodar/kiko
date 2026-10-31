@@ -65,7 +65,7 @@ export async function startLive(hooks: LiveHooks): Promise<Live> {
       input: (frame) => live.onInput(frame.events),
       control: (frame) => {
         hooks.setHolder(frame.holder)
-        live.onControl(frame.holder)
+        live.onControl(frame)
       },
       ack: (frame) => live.onAck(frame.seq),
     },
@@ -74,7 +74,7 @@ export async function startLive(hooks: LiveHooks): Promise<Live> {
   }
 }
 
-export function emptyLive(hooks: Pick<LiveHooks, "logger" | "setHolder">): Live {
+export function emptyLive(hooks: Pick<LiveHooks, "logger" | "setHolder" | "send">): Live {
   const ignore = (kind: string) => hooks.logger.warn(`${kind} arrived but this build has no live view`)
   return {
     live: false,
@@ -83,7 +83,10 @@ export function emptyLive(hooks: Pick<LiveHooks, "logger" | "setHolder">): Live 
       rtc: () => ignore("an rtc frame"),
       live: () => ignore("a live frame"),
       input: () => ignore("an input frame"),
-      control: (frame) => hooks.setHolder(frame.holder),
+      control: (frame) => {
+        hooks.setHolder(frame.holder)
+        hooks.send({ t: "held", holder: frame.holder, ...(frame.epoch === undefined ? {} : { epoch: frame.epoch }) })
+      },
       ack: () => undefined,
     },
     agentCursor: () => undefined,

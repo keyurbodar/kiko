@@ -20,13 +20,28 @@ const outcome = (result: SettledAsyncResult<unknown, unknown>): Outcome =>
 
 const [viewing, setViewing] = createSignal<string | null>(null)
 export const viewerFor = viewing
-export const openViewer = (pcId: string) => setViewing(pcId)
+export function openViewer(pcId: string): void {
+  setViewing(pcId)
+  void refreshList()
+}
 export function closeViewer(): void {
   const pcId = viewing()
   if (pcId === null) return
   const pc = computerById(pcId)
   if (pc?.holder === "human" && pc.heldBy === "you") void release(pcId)
   setViewing(null)
+}
+
+const [taking, setTaking] = createSignal<ReadonlySet<string>>(new Set())
+export const takePending = (pcId: string): boolean => taking().has(pcId)
+
+function markTaking(pcId: string, on: boolean): void {
+  setTaking((all) => {
+    const next = new Set(all)
+    if (on) next.add(pcId)
+    else next.delete(pcId)
+    return next
+  })
 }
 
 async function refreshList(): Promise<void> {
@@ -47,14 +62,19 @@ export function startComputers(): void {
 
 export async function takeOver(pcId: string): Promise<Outcome> {
   const previous = computerById(pcId)
+  markTaking(pcId, true)
   patch(pcId, (c) => ({ ...c, holder: "human", heldBy: "you" }))
-  const result = outcome(await run(owner.commands.pcTake, { pcId }))
-  if (!result.ok) {
-    if (previous) patch(pcId, () => previous)
+  try {
+    const result = outcome(await run(owner.commands.pcTake, { pcId }))
+    if (!result.ok) {
+      if (previous) patch(pcId, () => previous)
+      return result
+    }
+    openViewer(pcId)
     return result
+  } finally {
+    markTaking(pcId, false)
   }
-  openViewer(pcId)
-  return result
 }
 
 export async function release(pcId: string): Promise<Outcome> {
@@ -65,7 +85,6 @@ export async function release(pcId: string): Promise<Outcome> {
     if (previous) patch(pcId, () => previous)
     return result
   }
-  if (viewing() === pcId) closeViewer()
   return result
 }
 
