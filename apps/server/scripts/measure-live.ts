@@ -292,8 +292,16 @@ async function main(): Promise<void> {
       localStorage.setItem("kiko:schema", "1")
     }, auth)
     const page = await context.newPage()
-    await page.goto(`http://localhost:${WEB_PORT}/`)
-    await page.waitForSelector('[data-action="computer-watch"]', { timeout: 60_000 })
+    try {
+      await page.goto(`http://localhost:${WEB_PORT}/`)
+      await page.waitForSelector('[data-action="computer-watch"]', { timeout: 60_000 })
+    } catch (error) {
+      if (shots) {
+        await page.screenshot({ path: join(shots, "failure.png") }).catch(() => {})
+        await writeFile(join(shots, "failure.html"), await page.content()).catch(() => {})
+      }
+      throw error
+    }
     await wait(1_500)
 
     const mode = () =>

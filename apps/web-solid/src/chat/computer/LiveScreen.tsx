@@ -1,4 +1,4 @@
-import { createEffect, createMemo, createSignal, on, onCleanup, Show, type JSX } from "solid-js"
+import { createEffect, createMemo, createSignal, on, onCleanup, Show, untrack, type JSX } from "solid-js"
 import { cn } from "../../lib/cn"
 import { connection } from "../../state/connection"
 import { computerById } from "../computers"
@@ -65,7 +65,7 @@ export default function LiveScreen(props: {
       const next = startSession(props.pcId, {
         video,
         canvas,
-        display: display(),
+        display: untrack(display),
         onMode: setMode,
         onSize: (w, h) => setSize((prev) => (prev?.w === w && prev.h === h ? prev : { w, h })),
         onCursor: showAgent,
