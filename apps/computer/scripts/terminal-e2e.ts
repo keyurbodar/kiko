@@ -23,6 +23,10 @@ async function prompt(id: string): Promise<void> {
   ok(ready.matched, `${id} showed a prompt: ${JSON.stringify(ready.text.slice(-80))}`)
 }
 
+function run(path: string): string {
+  return process.platform === "win32" ? `& "${path}"` : `"${path}"`
+}
+
 try {
   console.log(`platform ${process.platform} bun ${Bun.version} pty ${typeof Bun.Terminal === "function"}`)
   ok(typeof Bun.Terminal === "function", "Bun has a pseudo-terminal")
@@ -31,18 +35,7 @@ try {
   const repl = manager.open({ name: "repl", cols: 100, rows: 30 })
   await prompt(repl.id)
 
-  if (process.platform === "win32") {
-    manager.send({ id: repl.id, text: `& "${python}" -c "print('py-separate')"` })
-    manager.send({ id: repl.id, keys: ["enter"] })
-    const separate = await manager.wait({ id: repl.id, until: "py-separate", timeoutMs: 15_000 })
-    console.log(`probe separate writes ${separate.matched}`)
-    manager.send({ id: repl.id, text: `& "${python}" -c "print('py-combined')"`, keys: ["enter"] })
-    const combined = await manager.wait({ id: repl.id, until: "py-combined", timeoutMs: 15_000 })
-    console.log(`probe combined write ${combined.matched} tail ${JSON.stringify(combined.text.slice(-300))}`)
-  }
-
-  const launch = process.platform === "win32" ? `& "${python}" -q` : `"${python}" -q`
-  manager.send({ id: repl.id, text: launch, keys: ["enter"] })
+  manager.send({ id: repl.id, text: `${run(python)} -q`, keys: ["enter"] })
   const pythonPrompt = await manager.wait({ id: repl.id, until: ">>>", timeoutMs: 60_000 })
   ok(pythonPrompt.matched, `the python prompt appeared: ${JSON.stringify(pythonPrompt.text.slice(-400))}`)
 
@@ -69,7 +62,7 @@ try {
   await writeFile(note, "kiko terminal screen\nsecond line\n")
   const editor = manager.open({ name: "editor", cols: 100, rows: 30 })
   await prompt(editor.id)
-  const command = vim ? `"${vim}" -u NONE -N "${note}"` : `"${python}" -u "${join(dir, "fullscreen.py")}"`
+  const command = vim ? `${run(vim)} -u NONE -N "${note}"` : `${run(python)} -u "${join(dir, "fullscreen.py")}"`
   if (!vim)
     await writeFile(
       join(dir, "fullscreen.py"),
