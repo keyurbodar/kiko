@@ -1,0 +1,51 @@
+name: bench-tasks
+
+on:
+  push:
+    branches:
+      - "t3/cu-*"
+    paths:
+      - "apps/bench/src/types.ts"
+      - "apps/bench/src/tasks/**"
+      - "apps/bench/fixtures/**"
+      - ".github/workflows/bench-tasks.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bench-tasks-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  linux:
+    name: Validate tasks (linux)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - name: Install display fixtures
+        run: sudo apt-get update && sudo apt-get install -y xvfb xauth python3-gi gir1.2-gtk-3.0 xdotool
+      - name: Validate
+        run: xvfb-run -a bash -c 'test -n "$DISPLAY" || exit 1; bunx vitest run apps/bench/src/tasks/validate.test.ts --reporter=verbose'
+
+  macos:
+    name: Validate tasks (macos)
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - name: Validate
+        run: bunx vitest run apps/bench/src/tasks/validate.test.ts --reporter=verbose
+
+  windows:
+    name: Validate tasks (windows)
+    runs-on: windows-2025
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - name: Validate
+        run: bunx vitest run apps/bench/src/tasks/validate.test.ts --reporter=verbose
