@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::sync::mpsc::{self, Sender};
 use std::thread::{self, JoinHandle};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use atspi::proxy::accessible::AccessibleProxy;
 use atspi::proxy::proxy_ext::ProxyExt;
@@ -22,7 +22,9 @@ use crate::tree::{self, RefAllocator};
 use crate::wayland::Wayland;
 use crate::x11::{Snapshot, X11};
 
-const FOREGROUND_X11: &str = "foreground input needs an X11 display or the RemoteDesktop portal";
+const LIST_DEADLINE: Duration = Duration::from_secs(5);
+const X11_UNAVAILABLE: &str = "the X11 display is unavailable";
+const X11_UNMATCHED: &str = "could not match that window to an X11 window; list windows again";
 
 pub(crate) struct State {
     a11y: Option<AccessibilityConnection>,
@@ -93,10 +95,11 @@ impl State {
                 a11y::enable().await
             }
             PermissionKind::Screen if self.screen_granted() => Ok(()),
-            PermissionKind::Screen if self.wayland => self.portal().request().await,
+            PermissionKind::Screen if self.wayland => self.portal().request_screen().await,
             PermissionKind::Screen => Err(unsupported(
                 "screen capture needs an X11 display or the Wayland ScreenCast portal",
             )),
+            PermissionKind::Automation if self.wayland => self.portal().request_input().await,
             PermissionKind::Automation => Ok(()),
             PermissionKind::Browser => Err(unsupported("no browser permission is needed on Linux")),
         }
@@ -117,35 +120,8 @@ impl State {
         let applications = a11y::within(a11y::CALL, root.get_children())
             .await
             .unwrap_or_default();
-        let dbus = zbus::fdo::DBusProxy::new(&bus).await.ok();
-        let mut frames = Vec::new();
-        for application in applications {
-            let Some(app_target) = Target::from_ref(&application) else {
-                continue;
-            };
-            let pid = match &dbus {
-                Some(dbus) => a11y::pid_of(dbus, &app_target.bus).await,
-                None => None,
-            };
-            let Ok(app) = a11y::accessible(&bus, &app_target).await else {
-                continue;
-            };
-            let app_name = a11y::within(a11y::CALL, app.name())
-                .await
-                .unwrap_or_default();
-            let children = a11y::within(a11y::CALL, app.get_children())
-                .await
-                .unwrap_or_default();
-            for frame in children {
-                let Some(frame_target) = Target::from_ref(&frame) else {
-                    continue;
-                };
-                if let Some(entry) = frame_entry(&bus, &frame_target, pid, &app_name).await {
-                    frames.push(entry);
-                }
-            }
-        }
-        Ok(frames)
+        let applications: Vec<Target> = applications.iter().filter_map(Target::from_ref).collect();
+        Ok(frames_of(&bus, applications, Instant::now() + LIST_DEADLINE).await)
     }
 
     async fn look(&mut self, params: &LookParams) -> Result<Look> {
@@ -184,10 +160,11 @@ impl State {
 
     async fn image(&mut self, entry: &Listed, max_width: u32) -> Result<Image> {
         if let Some(xid) = entry.xid {
-            let x11 = self
-                .x11()
-                .ok_or_else(|| failed("the X11 display is unavailable"))?;
+            let x11 = self.x11().ok_or_else(|| failed(X11_UNAVAILABLE))?;
             return capture::capture(x11, xid, max_width);
+        }
+        if !self.wayland {
+            return Err(not_found(X11_UNMATCHED));
         }
         self.portal().capture(entry.window.frame, max_width).await
     }
@@ -231,7 +208,7 @@ impl State {
         match entry.xid {
             Some(xid) => self.foreground_x11(params, target, frame, xid).await,
             None if self.wayland => self.foreground_wayland(params, target, entry).await,
-            None => Err(background_unavailable(FOREGROUND_X11)),
+            None => Err(not_found(X11_UNMATCHED)),
         }
     }
 
@@ -248,7 +225,7 @@ impl State {
                 let point = self.foreground_point(params, target, frame).await;
                 let x11 = self
                     .x11()
-                    .ok_or_else(|| background_unavailable(FOREGROUND_X11))?;
+                    .ok_or_else(|| background_unavailable(X11_UNAVAILABLE))?;
                 x11.activate(xid).map_err(failed)?;
                 x11.click(point.0, point.1).map_err(failed)?;
                 Ok(foreground())
@@ -258,7 +235,7 @@ impl State {
                 let point = self.foreground_point(params, target, frame).await;
                 let x11 = self
                     .x11()
-                    .ok_or_else(|| background_unavailable(FOREGROUND_X11))?;
+                    .ok_or_else(|| background_unavailable(X11_UNAVAILABLE))?;
                 x11.activate(xid).map_err(failed)?;
                 x11.scroll(point.0, point.1, params.dx, params.dy)
                     .map_err(failed)?;
@@ -267,7 +244,7 @@ impl State {
             Action::Focus | Action::Raise => {
                 let x11 = self
                     .x11()
-                    .ok_or_else(|| background_unavailable(FOREGROUND_X11))?;
+                    .ok_or_else(|| background_unavailable(X11_UNAVAILABLE))?;
                 x11.activate(xid).map_err(failed)?;
                 if params.action == Action::Focus {
                     act::focus(&self.bus().await?, target).await?;
@@ -344,7 +321,7 @@ impl State {
             .ok_or_else(|| failed("key needs keys"))?;
         let x11 = self
             .x11()
-            .ok_or_else(|| background_unavailable(FOREGROUND_X11))?;
+            .ok_or_else(|| background_unavailable(X11_UNAVAILABLE))?;
         x11.activate(xid).map_err(failed)?;
         x11.type_keys(keys).map_err(failed)?;
         Ok(foreground())
@@ -360,7 +337,7 @@ impl State {
         let text = params.text.as_deref().unwrap_or_default();
         let x11 = self
             .x11()
-            .ok_or_else(|| background_unavailable(FOREGROUND_X11))?;
+            .ok_or_else(|| background_unavailable(X11_UNAVAILABLE))?;
         x11.activate(xid).map_err(failed)?;
         let focused = match params.reference {
             Some(_) => {
@@ -376,7 +353,7 @@ impl State {
         };
         let x11 = self
             .x11()
-            .ok_or_else(|| background_unavailable(FOREGROUND_X11))?;
+            .ok_or_else(|| background_unavailable(X11_UNAVAILABLE))?;
         if let Some((x, y)) = click {
             x11.click(x, y).map_err(failed)?;
         }
@@ -474,24 +451,65 @@ impl Frame {
     }
 }
 
+async fn frames_of(bus: &Connection, applications: Vec<Target>, deadline: Instant) -> Vec<Frame> {
+    let dbus = zbus::fdo::DBusProxy::new(bus).await.ok();
+    let mut frames = Vec::new();
+    for application in applications {
+        if remaining(deadline).is_zero() {
+            break;
+        }
+        let pid = match &dbus {
+            Some(dbus) => a11y::pid_of(dbus, &application.bus, remaining(deadline)).await,
+            None => None,
+        };
+        let Ok(app) = a11y::accessible(bus, &application).await else {
+            continue;
+        };
+        let app_name = a11y::within(remaining(deadline), app.name())
+            .await
+            .unwrap_or_default();
+        let children = a11y::within(remaining(deadline), app.get_children())
+            .await
+            .unwrap_or_default();
+        for frame in children {
+            if remaining(deadline).is_zero() {
+                return frames;
+            }
+            let Some(frame_target) = Target::from_ref(&frame) else {
+                continue;
+            };
+            let entry = frame_entry(bus, &frame_target, pid, &app_name, remaining(deadline)).await;
+            if let Some(entry) = entry {
+                frames.push(entry);
+            }
+        }
+    }
+    frames
+}
+
+fn remaining(deadline: Instant) -> Duration {
+    deadline
+        .saturating_duration_since(Instant::now())
+        .min(a11y::CALL)
+}
+
 async fn frame_entry(
     bus: &Connection,
     target: &Target,
     pid: Option<u32>,
     app_name: &str,
+    budget: Duration,
 ) -> Option<Frame> {
     let frame = a11y::accessible(bus, target).await.ok()?;
-    let role = a11y::within(a11y::CALL, frame.get_role()).await?;
+    let role = a11y::within(budget, frame.get_role()).await?;
     if !tree::is_window_role(role) {
         return None;
     }
-    let title = a11y::within(a11y::CALL, frame.name())
-        .await
-        .unwrap_or_default();
-    let states = a11y::within(a11y::CALL, frame.get_state())
+    let title = a11y::within(budget, frame.name()).await.unwrap_or_default();
+    let states = a11y::within(budget, frame.get_state())
         .await
         .unwrap_or_else(StateSet::empty);
-    let extents = frame_rect(&frame).await;
+    let extents = frame_rect(&frame, budget).await;
     Some(Frame {
         target: target.clone(),
         pid,
@@ -502,10 +520,10 @@ async fn frame_entry(
     })
 }
 
-async fn frame_rect(frame: &AccessibleProxy<'_>) -> Option<kiko_driver::Rect> {
-    let proxies = a11y::within(a11y::CALL, frame.proxies()).await?;
+async fn frame_rect(frame: &AccessibleProxy<'_>, budget: Duration) -> Option<kiko_driver::Rect> {
+    let proxies = a11y::within(budget, frame.proxies()).await?;
     let component = proxies.component().await.ok()?;
-    let (x, y, w, h) = a11y::within(a11y::CALL, component.get_extents(CoordType::Screen)).await?;
+    let (x, y, w, h) = a11y::within(budget, component.get_extents(CoordType::Screen)).await?;
     (w > 0 && h > 0).then(|| kiko_driver::Rect {
         x: f64::from(x),
         y: f64::from(y),
@@ -601,10 +619,17 @@ impl Session {
         } else {
             Grant::Denied
         };
+        let automation = if !state.wayland {
+            Grant::NotNeeded
+        } else if state.portal().input_granted() {
+            Grant::Granted
+        } else {
+            Grant::Unknown
+        };
         Permissions {
             accessibility,
             screen,
-            automation: Grant::NotNeeded,
+            automation,
         }
     }
 
@@ -635,7 +660,7 @@ impl Native for Driver {
         self.run(Session::permissions).unwrap_or(Permissions {
             accessibility: Grant::Unknown,
             screen: Grant::Unknown,
-            automation: Grant::NotNeeded,
+            automation: Grant::Unknown,
         })
     }
 
@@ -674,7 +699,7 @@ pub fn status() -> Status {
         Err(_) => Permissions {
             accessibility: Grant::Unknown,
             screen: Grant::Unknown,
-            automation: Grant::NotNeeded,
+            automation: Grant::Unknown,
         },
     };
     Status {
@@ -693,5 +718,72 @@ fn session_name() -> String {
         "x11".to_string()
     } else {
         "unknown".to_string()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::time::{Duration, Instant};
+
+    use atspi::Role;
+
+    use super::frames_of;
+    use crate::a11y;
+    use crate::fake::{self, Hangs};
+
+    fn runtime() -> tokio::runtime::Runtime {
+        tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("the test runtime")
+    }
+
+    #[test]
+    #[ignore]
+    fn listing_windows_gives_up_on_a_frozen_app_and_keeps_the_healthy_ones() {
+        let healthy = fake::serve_app(Hangs::Never, Role::Frame as u32, "Kiko Healthy");
+        let frozen = fake::serve_app(Hangs::GetName, Role::Frame as u32, "Kiko Frozen");
+        let frozen_again = fake::serve_app(Hangs::GetName, Role::Frame as u32, "Kiko Frozen");
+        let runtime = runtime();
+        let connection = runtime
+            .block_on(a11y::connect())
+            .expect("the accessibility bus is missing");
+        let started = Instant::now();
+        let frames = runtime.block_on(frames_of(
+            connection.connection(),
+            vec![healthy, frozen, frozen_again],
+            Instant::now() + Duration::from_secs(2),
+        ));
+        let titles: Vec<String> = frames.iter().map(|frame| frame.title.clone()).collect();
+        assert_eq!(
+            frames.first().map(|frame| frame.title.as_str()),
+            Some("Kiko Healthy"),
+            "the healthy window before the frozen app is missing from {titles:?}"
+        );
+        assert!(
+            started.elapsed() < Duration::from_secs(4),
+            "listing windows took {:?} for a two second deadline",
+            started.elapsed()
+        );
+    }
+
+    #[test]
+    #[ignore]
+    fn listing_windows_skips_apps_once_the_deadline_is_spent() {
+        let healthy = fake::serve_app(Hangs::Never, Role::Frame as u32, "Kiko Healthy");
+        let runtime = runtime();
+        let connection = runtime
+            .block_on(a11y::connect())
+            .expect("the accessibility bus is missing");
+        let frames = runtime.block_on(frames_of(
+            connection.connection(),
+            vec![healthy],
+            Instant::now(),
+        ));
+        assert!(
+            frames.is_empty(),
+            "a spent deadline still listed {} windows",
+            frames.len()
+        );
     }
 }

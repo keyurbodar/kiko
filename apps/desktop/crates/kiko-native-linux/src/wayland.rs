@@ -1,5 +1,7 @@
 use std::future::Future;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use ashpd::desktop::remote_desktop::{DeviceType, KeyState, RemoteDesktop, SelectDevicesOptions};
@@ -8,6 +10,7 @@ use ashpd::desktop::screencast::{
 };
 use ashpd::desktop::{PersistMode, ResponseError, Session, SessionPortal};
 use ashpd::enumflags2::BitFlags;
+use futures_util::StreamExt as _;
 use kiko_driver::{DriverError, ErrorCode, Image, Rect};
 
 use crate::capture;
@@ -22,8 +25,12 @@ const RESTORE_BUDGET: Duration = Duration::from_secs(5);
 const PORTAL_BUDGET: Duration = Duration::from_secs(5);
 const CALL_BUDGET: Duration = Duration::from_secs(5);
 const CLOSE_BUDGET: Duration = Duration::from_secs(1);
-const SCREEN_HINT: &str = "ask the owner to allow screen capture from the kiko menu";
-const INPUT_HINT: &str = "ask the owner to allow remote control from the kiko menu";
+const SCREEN_HINT: &str =
+    "ask the owner to allow screen capture from the Screen Recording row of the kiko menu";
+const INPUT_HINT: &str =
+    "ask the owner to allow remote control from the Remote Control row of the kiko menu";
+const SCREEN_CANCEL: &str = "the owner cancelled the screen sharing dialog";
+const INPUT_CANCEL: &str = "the owner cancelled the remote control dialog";
 
 pub(crate) struct Wayland {
     tokens: Tokens,
@@ -32,7 +39,15 @@ pub(crate) struct Wayland {
 }
 
 struct Capture {
+    session: Arc<Session<Screencast>>,
     frames: Frames,
+    closed: Arc<AtomicBool>,
+}
+
+impl Capture {
+    fn needs_reset(&self) -> bool {
+        self.closed.load(Ordering::SeqCst) || self.frames.stopped()
+    }
 }
 
 struct Input {
@@ -63,23 +78,40 @@ impl Wayland {
         self.tokens.capture.is_some()
     }
 
-    pub async fn request(&mut self) -> Result<(), DriverError> {
-        let (screencast, session, streams) = open_capture(None, None).await?;
-        self.remember_capture(streams.restore_token());
-        self.capture = Some(Capture {
-            frames: read_frames(&screencast, &session, &streams).await?,
-        });
-        let (input, token) = open_input(None, None).await?;
-        self.remember_input(token.as_deref());
+    pub fn input_granted(&self) -> bool {
+        self.tokens.input.is_some()
+    }
+
+    pub async fn request_screen(&mut self) -> Result<(), DriverError> {
+        let (capture, restore) = open_capture_session(None, None).await?;
+        self.reset_capture().await;
+        self.remember_capture(restore.as_deref());
+        self.capture = Some(capture);
+        Ok(())
+    }
+
+    pub async fn request_input(&mut self) -> Result<(), DriverError> {
+        let (input, restore) = open_input(None, None).await?;
+        if let Some(old) = self.input.take() {
+            close(&old.session).await;
+        }
         self.input = Some(input);
+        self.remember_input(restore.as_deref());
         Ok(())
     }
 
     pub async fn capture(&mut self, covers: Rect, max_width: u32) -> Result<Image, DriverError> {
+        let result = self.shot(covers, max_width).await;
+        if result.is_ok() || !self.capture.as_ref().is_some_and(Capture::needs_reset) {
+            return result;
+        }
+        self.reset_capture().await;
+        self.shot(covers, max_width).await
+    }
+
+    async fn shot(&mut self, covers: Rect, max_width: u32) -> Result<Image, DriverError> {
         let frames = self.frames().await?;
-        let frame = frames
-            .latest()
-            .ok_or_else(|| timeout("the shared window has not sent a picture yet"))?;
+        let frame = frames.latest()?;
         capture::encode(frame.to_rgb()?, max_width, covers)
     }
 
@@ -99,6 +131,7 @@ impl Wayland {
                 Default::default(),
             ),
             "could not send the key",
+            INPUT_CANCEL,
         )
         .await
     }
@@ -138,6 +171,7 @@ impl Wayland {
                 Default::default(),
             ),
             "could not move the pointer",
+            INPUT_CANCEL,
         )
         .await
     }
@@ -158,6 +192,7 @@ impl Wayland {
                 Default::default(),
             ),
             "could not press the pointer",
+            INPUT_CANCEL,
         )
         .await
     }
@@ -185,23 +220,41 @@ impl Wayland {
                 Default::default(),
             ),
             "could not scroll",
+            INPUT_CANCEL,
         )
         .await
     }
 
     async fn frames(&mut self) -> Result<&mut Frames, DriverError> {
+        if self.capture.as_ref().is_none_or(Capture::needs_reset) {
+            self.reset_capture().await;
+        }
         if self.capture.is_none() {
-            let token = self.tokens.capture.clone().ok_or_else(|| {
-                denied(format!("kiko has no screen capture grant; {SCREEN_HINT}"))
-            })?;
-            let (screencast, session, streams) = restore_capture(&token).await?;
-            let frames = read_frames(&screencast, &session, &streams).await?;
-            self.capture = Some(Capture { frames });
+            self.ensure_capture().await?;
         }
         self.capture
             .as_mut()
             .map(|capture| &mut capture.frames)
             .ok_or_else(|| failed("the screen sharing session is unavailable"))
+    }
+
+    async fn ensure_capture(&mut self) -> Result<(), DriverError> {
+        let token =
+            self.tokens.capture.clone().ok_or_else(|| {
+                denied(format!("kiko has no screen capture grant; {SCREEN_HINT}"))
+            })?;
+        let (capture, restore) = open_capture_session(Some(&token), Some(RESTORE_BUDGET))
+            .await
+            .map_err(|error| needs_grant(error, SCREEN_HINT))?;
+        self.remember_capture(restore.as_deref());
+        self.capture = Some(capture);
+        Ok(())
+    }
+
+    async fn reset_capture(&mut self) {
+        if let Some(capture) = self.capture.take() {
+            close(capture.session.as_ref()).await;
+        }
     }
 
     async fn input_session(&mut self) -> Result<&mut Input, DriverError> {
@@ -235,13 +288,43 @@ impl Wayland {
     }
 }
 
-async fn restore_capture(
-    token: &str,
-) -> Result<(Screencast, Session<Screencast>, Streams), DriverError> {
-    match open_capture(Some(token), Some(RESTORE_BUDGET)).await {
-        Ok(opened) => Ok(opened),
-        Err(error) => Err(needs_grant(error, SCREEN_HINT)),
+async fn open_capture_session(
+    token: Option<&str>,
+    budget: Option<Duration>,
+) -> Result<(Capture, Option<String>), DriverError> {
+    let (screencast, session, streams) = open_capture(token, budget).await?;
+    let restore = streams.restore_token().map(str::to_string);
+    let session = Arc::new(session);
+    let closed = watch_closed(&session);
+    match read_frames(&screencast, session.as_ref(), &streams).await {
+        Ok(frames) => Ok((
+            Capture {
+                session,
+                frames,
+                closed,
+            },
+            restore,
+        )),
+        Err(error) => {
+            close(session.as_ref()).await;
+            Err(error)
+        }
     }
+}
+
+fn watch_closed(session: &Arc<Session<Screencast>>) -> Arc<AtomicBool> {
+    let closed = Arc::new(AtomicBool::new(false));
+    let flag = Arc::clone(&closed);
+    let session = Arc::clone(session);
+    tokio::spawn(async move {
+        let Ok(mut stream) = session.receive_closed().await else {
+            return;
+        };
+        if stream.next().await.is_some() {
+            flag.store(true, Ordering::SeqCst);
+        }
+    });
+    closed
 }
 
 async fn restore_input(token: &str) -> Result<(Input, Option<String>), DriverError> {
@@ -259,12 +342,14 @@ async fn open_capture(
         PORTAL_BUDGET,
         Screencast::new(),
         "the ScreenCast portal is unavailable",
+        SCREEN_CANCEL,
     )
     .await?;
     let session = portal_call(
         PORTAL_BUDGET,
         screencast.create_session(Default::default()),
         "could not open a screen sharing session",
+        SCREEN_CANCEL,
     )
     .await?;
     let started = match budget {
@@ -293,15 +378,15 @@ async fn start_capture(
     screencast
         .select_sources(session, capture_options(token))
         .await
-        .map_err(|error| portal_error("could not ask for a window", error))?
+        .map_err(|error| portal_error("could not ask for a window", SCREEN_CANCEL, error))?
         .response()
-        .map_err(|error| portal_error("could not select a window", error))?;
+        .map_err(|error| portal_error("could not select a window", SCREEN_CANCEL, error))?;
     screencast
         .start(session, None, Default::default())
         .await
-        .map_err(|error| portal_error("could not start screen sharing", error))?
+        .map_err(|error| portal_error("could not start screen sharing", SCREEN_CANCEL, error))?
         .response()
-        .map_err(|error| portal_error("the owner did not share a window", error))
+        .map_err(|error| portal_error("the owner did not share a window", SCREEN_CANCEL, error))
 }
 
 async fn read_frames(
@@ -318,6 +403,7 @@ async fn read_frames(
         PORTAL_BUDGET,
         screencast.open_pipe_wire_remote(session, Default::default()),
         "could not read the shared window",
+        SCREEN_CANCEL,
     )
     .await?;
     Frames::start(fd, node)
@@ -331,18 +417,21 @@ async fn open_input(
         PORTAL_BUDGET,
         RemoteDesktop::new(),
         "the RemoteDesktop portal is unavailable",
+        INPUT_CANCEL,
     )
     .await?;
     let screencast = portal_call(
         PORTAL_BUDGET,
         Screencast::new(),
         "the ScreenCast portal is unavailable",
+        INPUT_CANCEL,
     )
     .await?;
     let session = portal_call(
         PORTAL_BUDGET,
         remote.create_session(Default::default()),
         "could not open a remote control session",
+        INPUT_CANCEL,
     )
     .await?;
     let started = match budget {
@@ -381,21 +470,31 @@ async fn start_input(
     remote
         .select_devices(session, input_options(token))
         .await
-        .map_err(|error| portal_error("could not ask for input devices", error))?
+        .map_err(|error| portal_error("could not ask for input devices", INPUT_CANCEL, error))?
         .response()
-        .map_err(|error| portal_error("could not select input devices", error))?;
+        .map_err(|error| portal_error("could not select input devices", INPUT_CANCEL, error))?;
     screencast
         .select_sources(session, capture_options(token))
         .await
-        .map_err(|error| portal_error("could not ask for a window to control", error))?
+        .map_err(|error| {
+            portal_error("could not ask for a window to control", INPUT_CANCEL, error)
+        })?
         .response()
-        .map_err(|error| portal_error("could not select a window to control", error))?;
+        .map_err(|error| {
+            portal_error("could not select a window to control", INPUT_CANCEL, error)
+        })?;
     let selected = remote
         .start(session, None, Default::default())
         .await
-        .map_err(|error| portal_error("could not start remote control", error))?
+        .map_err(|error| portal_error("could not start remote control", INPUT_CANCEL, error))?
         .response()
-        .map_err(|error| portal_error("the owner did not allow remote control", error))?;
+        .map_err(|error| {
+            portal_error(
+                "the owner did not allow remote control",
+                INPUT_CANCEL,
+                error,
+            )
+        })?;
     let stream = selected
         .streams()
         .first()
@@ -428,10 +527,11 @@ async fn portal_call<T>(
     budget: Duration,
     future: impl Future<Output = Result<T, ashpd::Error>>,
     context: &str,
+    cancel: &str,
 ) -> Result<T, DriverError> {
     match tokio::time::timeout(budget, future).await {
         Ok(Ok(value)) => Ok(value),
-        Ok(Err(error)) => Err(portal_error(context, error)),
+        Ok(Err(error)) => Err(portal_error(context, cancel, error)),
         Err(_) => Err(timeout(format!("{context}: the portal did not answer"))),
     }
 }
@@ -444,11 +544,9 @@ fn needs_grant(error: DriverError, hint: &str) -> DriverError {
     }
 }
 
-fn portal_error(context: &str, error: ashpd::Error) -> DriverError {
+fn portal_error(context: &str, cancel: &str, error: ashpd::Error) -> DriverError {
     match error {
-        ashpd::Error::Response(ResponseError::Cancelled) => {
-            denied("the owner cancelled the screen sharing dialog")
-        }
+        ashpd::Error::Response(ResponseError::Cancelled) => denied(cancel),
         other => failed(format!("{context}: {other}")),
     }
 }

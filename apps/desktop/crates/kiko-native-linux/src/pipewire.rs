@@ -1,6 +1,7 @@
 use std::ffi::{c_char, c_int, c_void};
 use std::os::fd::{IntoRawFd, OwnedFd};
 use std::ptr;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
 use kiko_driver::DriverError;
@@ -18,12 +19,14 @@ const STREAM_EVENTS_VERSION: u32 = 2;
 const STREAM_FLAG_AUTOCONNECT: i32 = 1;
 const STREAM_FLAG_MAP_BUFFERS: i32 = 4;
 const DIRECTION_INPUT: i32 = 0;
+const STATE_STREAMING: i32 = 3;
 
 type Init = unsafe extern "C" fn(*mut c_int, *mut *mut *mut c_char);
 type Deinit = unsafe extern "C" fn();
 type MainLoopNew = unsafe extern "C" fn(*const sys::spa_dict) -> *mut c_void;
 type MainLoopDestroy = unsafe extern "C" fn(*mut c_void);
 type MainLoopRun = unsafe extern "C" fn(*mut c_void) -> c_int;
+type MainLoopQuit = unsafe extern "C" fn(*mut c_void) -> c_int;
 type MainLoopGetLoop = unsafe extern "C" fn(*mut c_void) -> *mut c_void;
 type ContextNew = unsafe extern "C" fn(*mut c_void, *mut c_void, usize) -> *mut c_void;
 type ContextDestroy = unsafe extern "C" fn(*mut c_void);
@@ -45,6 +48,7 @@ struct Api {
     main_loop_new: MainLoopNew,
     main_loop_destroy: MainLoopDestroy,
     main_loop_run: MainLoopRun,
+    main_loop_quit: MainLoopQuit,
     main_loop_get_loop: MainLoopGetLoop,
     context_new: ContextNew,
     context_destroy: ContextDestroy,
@@ -67,6 +71,7 @@ impl Api {
                 main_loop_new: *library.get(b"pw_main_loop_new\0").map_err(missing)?,
                 main_loop_destroy: *library.get(b"pw_main_loop_destroy\0").map_err(missing)?,
                 main_loop_run: *library.get(b"pw_main_loop_run\0").map_err(missing)?,
+                main_loop_quit: *library.get(b"pw_main_loop_quit\0").map_err(missing)?,
                 main_loop_get_loop: *library.get(b"pw_main_loop_get_loop\0").map_err(missing)?,
                 context_new: *library.get(b"pw_context_new\0").map_err(missing)?,
                 context_destroy: *library.get(b"pw_context_destroy\0").map_err(missing)?,
@@ -111,6 +116,8 @@ struct Sink {
     stream: *mut c_void,
     format: VideoInfoRaw,
     latest: Arc<Mutex<Option<Frame>>>,
+    streaming: Arc<AtomicBool>,
+    live: Arc<AtomicBool>,
 }
 
 impl Sink {
@@ -178,6 +185,22 @@ unsafe extern "C" fn on_param_changed(data: *mut c_void, id: u32, param: *const 
     let _ = sink.format.parse(pod);
 }
 
+unsafe extern "C" fn on_state_changed(
+    data: *mut c_void,
+    _old: i32,
+    state: i32,
+    _error: *const c_char,
+) {
+    let Some(sink) = (unsafe { data.cast::<Sink>().as_mut() }) else {
+        return;
+    };
+    let streaming = state == STATE_STREAMING;
+    sink.streaming.store(streaming, Ordering::SeqCst);
+    if streaming {
+        sink.live.store(true, Ordering::SeqCst);
+    }
+}
+
 unsafe extern "C" fn on_process(data: *mut c_void) {
     let Some(sink) = (unsafe { data.cast::<Sink>().as_mut() }) else {
         return;
@@ -218,11 +241,35 @@ pub(crate) struct Reader {
     _sink: Box<Sink>,
 }
 
+#[derive(Clone, Copy)]
+pub(crate) struct Control {
+    api: Api,
+    main_loop: *mut c_void,
+}
+
+unsafe impl Send for Control {}
+unsafe impl Sync for Control {}
+
+impl Control {
+    pub(crate) fn quit(&self) {
+        unsafe { (self.api.main_loop_quit)(self.main_loop) };
+    }
+}
+
 impl Reader {
+    pub(crate) fn control(&self) -> Control {
+        Control {
+            api: self.resources.api,
+            main_loop: self.resources.main_loop,
+        }
+    }
+
     pub(crate) fn start(
         fd: OwnedFd,
         node: u32,
         latest: Arc<Mutex<Option<Frame>>>,
+        streaming: Arc<AtomicBool>,
+        live: Arc<AtomicBool>,
     ) -> Result<Self, DriverError> {
         let library = load()?;
         let api = Api::load(&library)?;
@@ -260,9 +307,12 @@ impl Reader {
             stream: resources.stream,
             format: VideoInfoRaw::default(),
             latest,
+            streaming,
+            live,
         });
         let mut events: StreamEvents = unsafe { std::mem::zeroed() };
         events.version = STREAM_EVENTS_VERSION;
+        events.state_changed = Some(on_state_changed);
         events.param_changed = Some(on_param_changed);
         events.process = Some(on_process);
         let events = Box::new(events);

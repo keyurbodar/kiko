@@ -7,7 +7,7 @@ use atspi::{CoordType, ScrollType};
 use kiko_driver::{ActParams, ActResult, Action, ErrorCode, Rect, Route};
 
 use crate::a11y::{self, CALL, Target};
-use crate::error::{background_unavailable, failed, stale};
+use crate::error::{background_unavailable, failed, stale, timeout};
 
 const PRESS: &[&str] = &[
     "click",
@@ -131,8 +131,12 @@ async fn dispatch(action: &ActionProxy<'_>, index: usize) -> kiko_driver::Result
         Ok(Ok(true)) => Ok(()),
         Ok(Ok(false)) => Err(failed("the app refused the action")),
         Ok(Err(error)) => Err(failed(format!("the action failed: {error}"))),
-        Err(_) => Ok(()),
+        Err(_) => Err(unresponsive()),
     }
+}
+
+fn unresponsive() -> kiko_driver::DriverError {
+    timeout("the app did not answer; it may be frozen")
 }
 
 async fn set_value(accessible: &AccessibleProxy<'_>, text: &str) -> kiko_driver::Result<()> {
@@ -147,10 +151,11 @@ async fn set_value(accessible: &AccessibleProxy<'_>, text: &str) -> kiko_driver:
             .trim()
             .parse()
             .map_err(|_| failed("that element takes a number, not text"))?;
-        return value
-            .set_current_value(number)
-            .await
-            .map_err(|error| failed(format!("could not set the value: {error}")));
+        return match tokio::time::timeout(CALL, value.set_current_value(number)).await {
+            Ok(Ok(())) => Ok(()),
+            Ok(Err(error)) => Err(failed(format!("could not set the value: {error}"))),
+            Err(_) => Err(unresponsive()),
+        };
     }
     Err(background_unavailable(
         "this element takes no text; use foreground mode",
@@ -162,7 +167,7 @@ async fn write_text(editable: &EditableTextProxy<'_>, text: &str) -> kiko_driver
         Ok(Ok(true)) => Ok(()),
         Ok(Ok(false)) => Err(failed("the app refused the text")),
         Ok(Err(error)) => Err(failed(format!("could not set the text: {error}"))),
-        Err(_) => Ok(()),
+        Err(_) => Err(unresponsive()),
     }
 }
 
@@ -185,7 +190,7 @@ async fn type_text(accessible: &AccessibleProxy<'_>, text: &str) -> kiko_driver:
         Ok(Ok(true)) => Ok(()),
         Ok(Ok(false)) => Err(failed("the app refused the text")),
         Ok(Err(error)) => Err(failed(format!("could not type the text: {error}"))),
-        Err(_) => Ok(()),
+        Err(_) => Err(unresponsive()),
     }
 }
 
@@ -224,7 +229,7 @@ async fn select(
         Ok(Ok(true)) => Ok(()),
         Ok(Ok(false)) => Err(failed("the app refused the selection")),
         Ok(Err(error)) => Err(failed(format!("could not select: {error}"))),
-        Err(_) => Ok(()),
+        Err(_) => Err(unresponsive()),
     }
 }
 
@@ -243,10 +248,16 @@ async fn scroll(accessible: &AccessibleProxy<'_>, dx: f64, dy: f64) -> kiko_driv
         let minimum = a11y::within(CALL, value.minimum_value())
             .await
             .unwrap_or(0.0);
-        return value
-            .set_current_value((current + delta).clamp(minimum, maximum))
-            .await
-            .map_err(|error| failed(format!("could not scroll: {error}")));
+        return match tokio::time::timeout(
+            CALL,
+            value.set_current_value((current + delta).clamp(minimum, maximum)),
+        )
+        .await
+        {
+            Ok(Ok(())) => Ok(()),
+            Ok(Err(error)) => Err(failed(format!("could not scroll: {error}"))),
+            Err(_) => Err(unresponsive()),
+        };
     }
     let component = proxies.component().await.map_err(|_| {
         background_unavailable("this element cannot scroll in the background; use foreground mode")
@@ -268,7 +279,7 @@ async fn scroll(accessible: &AccessibleProxy<'_>, dx: f64, dy: f64) -> kiko_driv
             "this element did not scroll; use foreground mode",
         )),
         Ok(Err(error)) => Err(failed(format!("could not scroll: {error}"))),
-        Err(_) => Ok(()),
+        Err(_) => Err(unresponsive()),
     }
 }
 
@@ -276,11 +287,12 @@ pub(crate) async fn focus(conn: &Connection, target: &Target) -> kiko_driver::Re
     let component = a11y::component(conn, target)
         .await
         .ok_or_else(|| background_unavailable("this element cannot take focus"))?;
-    component
-        .grab_focus()
-        .await
-        .map_err(|error| failed(format!("could not focus: {error}")))?;
-    Ok(())
+    match tokio::time::timeout(CALL, component.grab_focus()).await {
+        Ok(Ok(true)) => Ok(()),
+        Ok(Ok(false)) => Err(failed("the app refused the focus")),
+        Ok(Err(error)) => Err(failed(format!("could not focus: {error}"))),
+        Err(_) => Err(unresponsive()),
+    }
 }
 
 pub(crate) async fn node_rect(conn: &Connection, target: &Target) -> Option<Rect> {
@@ -296,10 +308,174 @@ pub(crate) async fn node_rect(conn: &Connection, target: &Target) -> Option<Rect
 
 #[cfg(test)]
 mod tests {
-    use super::{EXPAND, PRESS, choose};
+    use super::{EXPAND, PRESS, background, choose, focus};
+    use crate::a11y;
+    use crate::fake::{self, Hangs};
+    use kiko_driver::{ActParams, Action, ErrorCode, Mode};
 
     fn names(values: &[&str]) -> Vec<String> {
         values.iter().map(|value| (*value).to_string()).collect()
+    }
+
+    fn runtime() -> tokio::runtime::Runtime {
+        tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("the test runtime")
+    }
+
+    fn params(
+        target: &a11y::Target,
+        action: Action,
+        text: Option<&str>,
+        dx: f64,
+        dy: f64,
+    ) -> ActParams {
+        ActParams {
+            window: target.id(),
+            reference: None,
+            point: None,
+            action,
+            text: text.map(str::to_string),
+            keys: None,
+            dx,
+            dy,
+            mode: Mode::Background,
+        }
+    }
+
+    struct Case {
+        name: &'static str,
+        hangs: Hangs,
+        interfaces: &'static [&'static str],
+        action: Action,
+        text: Option<&'static str>,
+        dx: f64,
+        dy: f64,
+    }
+
+    fn cases() -> [Case; 7] {
+        [
+            Case {
+                name: "press",
+                hangs: Hangs::DoAction,
+                interfaces: &[fake::ACTION],
+                action: Action::Press,
+                text: None,
+                dx: 0.0,
+                dy: 0.0,
+            },
+            Case {
+                name: "set_value text",
+                hangs: Hangs::SetTextContents,
+                interfaces: &[fake::EDITABLE_TEXT],
+                action: Action::SetValue,
+                text: Some("hello"),
+                dx: 0.0,
+                dy: 0.0,
+            },
+            Case {
+                name: "type",
+                hangs: Hangs::InsertText,
+                interfaces: &[fake::EDITABLE_TEXT, fake::TEXT],
+                action: Action::Type,
+                text: Some("hi"),
+                dx: 0.0,
+                dy: 0.0,
+            },
+            Case {
+                name: "select",
+                hangs: Hangs::SelectChild,
+                interfaces: &[fake::SELECTION],
+                action: Action::Select,
+                text: None,
+                dx: 0.0,
+                dy: 0.0,
+            },
+            Case {
+                name: "scroll a component",
+                hangs: Hangs::ScrollTo,
+                interfaces: &[fake::COMPONENT],
+                action: Action::Scroll,
+                text: None,
+                dx: 0.0,
+                dy: 30.0,
+            },
+            Case {
+                name: "scroll a value",
+                hangs: Hangs::SetCurrentValue,
+                interfaces: &[fake::VALUE],
+                action: Action::Scroll,
+                text: None,
+                dx: 0.0,
+                dy: 30.0,
+            },
+            Case {
+                name: "set_value number",
+                hangs: Hangs::SetCurrentValue,
+                interfaces: &[fake::VALUE],
+                action: Action::SetValue,
+                text: Some("5"),
+                dx: 0.0,
+                dy: 0.0,
+            },
+        ]
+    }
+
+    #[test]
+    #[ignore]
+    fn a_frozen_app_times_out_instead_of_reporting_success() {
+        let runtime = runtime();
+        let connection = runtime
+            .block_on(a11y::connect())
+            .expect("the accessibility bus is missing");
+        for case in cases() {
+            let target = fake::serve(case.hangs, case.interfaces);
+            let result = runtime.block_on(background(
+                connection.connection(),
+                &target,
+                &params(&target, case.action, case.text, case.dx, case.dy),
+            ));
+            let error = result
+                .err()
+                .unwrap_or_else(|| panic!("{} reported success for a frozen app", case.name));
+            assert_eq!(
+                error.code,
+                ErrorCode::Timeout,
+                "{}: {}",
+                case.name,
+                error.message
+            );
+        }
+    }
+
+    #[test]
+    #[ignore]
+    fn focusing_a_frozen_app_times_out() {
+        let target = fake::serve(Hangs::GrabFocus, &[fake::COMPONENT]);
+        let runtime = runtime();
+        let connection = runtime
+            .block_on(a11y::connect())
+            .expect("the accessibility bus is missing");
+        let error = runtime
+            .block_on(focus(connection.connection(), &target))
+            .expect_err("focusing a frozen app reported success");
+        assert_eq!(error.code, ErrorCode::Timeout, "{}", error.message);
+    }
+
+    #[test]
+    #[ignore]
+    fn the_driver_keeps_listing_windows_after_a_frozen_app() {
+        let target = fake::serve(Hangs::SetCurrentValue, &[fake::VALUE]);
+        let mut native = crate::driver().expect("the linux driver did not start");
+        let error = native
+            .act(&params(&target, Action::SetValue, Some("5"), 0.0, 0.0))
+            .expect_err("a frozen app reported success");
+        assert_eq!(error.code, ErrorCode::Timeout, "{}", error.message);
+        assert!(
+            native.windows().is_ok(),
+            "the driver stopped answering after a timed out action"
+        );
     }
 
     #[test]

@@ -2,7 +2,7 @@ name: Desktop Linux
 
 on:
   push:
-    branches: ["t3/bg-*"]
+    branches: ["t3/bg-*", "t3/cu-fix-linux"]
   pull_request:
     paths: ["apps/desktop/**"]
 

@@ -136,9 +136,13 @@ pub(crate) async fn root(conn: &Connection) -> Result<AccessibleProxy<'_>, Drive
         })
 }
 
-pub(crate) async fn pid_of(dbus: &zbus::fdo::DBusProxy<'_>, bus: &str) -> Option<u32> {
+pub(crate) async fn pid_of(
+    dbus: &zbus::fdo::DBusProxy<'_>,
+    bus: &str,
+    budget: Duration,
+) -> Option<u32> {
     let name = zbus::names::BusName::try_from(bus).ok()?;
-    within(CALL, dbus.get_connection_unix_process_id(name)).await
+    within(budget, dbus.get_connection_unix_process_id(name)).await
 }
 
 pub(crate) async fn component<'a>(

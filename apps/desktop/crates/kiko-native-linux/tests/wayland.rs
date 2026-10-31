@@ -235,6 +235,33 @@ fn wayland_image_only_look_without_a_grant_is_denied() {
         .expect_err("look returned an image without a screen capture grant");
     assert_eq!(error.code, ErrorCode::Denied);
     assert!(error.message.contains("kiko menu"), "{}", error.message);
+    assert!(
+        error.message.contains("Screen Recording"),
+        "{}",
+        error.message
+    );
+}
+
+#[test]
+#[ignore]
+fn wayland_reports_remote_control_as_its_own_permission() {
+    let native = driver().expect("driver");
+    let permissions = native.permissions();
+    assert_eq!(
+        permissions.accessibility,
+        kiko_driver::Grant::Granted,
+        "the accessibility bus is not reachable"
+    );
+    assert_eq!(
+        permissions.screen,
+        kiko_driver::Grant::Unknown,
+        "a fresh data directory should hold no screen capture grant"
+    );
+    assert_eq!(
+        permissions.automation,
+        kiko_driver::Grant::Unknown,
+        "a fresh data directory should hold no remote control grant"
+    );
 }
 
 #[test]
