@@ -7,20 +7,120 @@ on:
     paths:
       - "apps/bench/**"
       - ".github/workflows/bench.yml"
+      - ".github/actions/setup/**"
   workflow_dispatch:
+    inputs:
+      config:
+        description: "the bench config to run"
+        default: "apps/bench/baseline.json"
+      tracks:
+        description: "comma separated tracks to run; empty runs every track in the config"
+        default: ""
+      models:
+        description: "comma separated models to run; empty runs every model in the config"
+        default: ""
 
 permissions:
   contents: read
 
 concurrency:
-  group: bench-${{ github.ref }}
+  group: bench-${{ github.ref }}-${{ github.event.inputs.tracks || 'all' }}-${{ github.event.inputs.models || 'all' }}
   cancel-in-progress: true
 
+env:
+  CONFIG: ${{ github.event.inputs.config || 'apps/bench/baseline.json' }}
+  TRACKS: ${{ github.event.inputs.tracks }}
+  MODELS: ${{ github.event.inputs.models }}
+
 jobs:
-  validate:
-    name: Validate (${{ matrix.machine }})
+  plan:
+    name: Plan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    outputs:
+      matrix: ${{ steps.plan.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - id: plan
+        run: |
+          set -euo pipefail
+          args=(plan --config "$CONFIG")
+          if [ -n "${TRACKS:-}" ]; then
+            args+=(--track "$TRACKS")
+          fi
+          if [ -n "${MODELS:-}" ]; then
+            args+=(--model "$MODELS")
+          fi
+          matrix="$(bun run bench "${args[@]}")"
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+          echo "$matrix"
+
+  bench:
+    name: ${{ matrix.track }} ${{ matrix.os }} ${{ matrix.contender }} ${{ matrix.model }} ${{ matrix.shard }}
+    needs: plan
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    env:
+      OPENCODE_GO_KEY: ${{ secrets.OPENCODE_GO_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+
+      - name: Install the contender
+        if: runner.os == 'Linux' && matrix.contender != 'kiko' && matrix.contender != 'baseline-shell'
+        run: |
+          set -euo pipefail
+          case "${{ matrix.contender }}" in
+            cua-driver) script=install-cua-driver.sh; variable=KIKO_BENCH_CUA_DRIVER ;;
+            agent-desktop) script=install-agent-desktop.sh; variable=KIKO_BENCH_AGENT_DESKTOP ;;
+            agent-browser) script=install-agent-browser.sh; variable=KIKO_BENCH_AGENT_BROWSER ;;
+            *) echo "unknown contender ${{ matrix.contender }}" >&2; exit 1 ;;
+          esac
+          bin="$(bash "apps/bench/scripts/$script" | tail -n 1)"
+          test -x "$bin"
+          echo "$variable=$bin" >> "$GITHUB_ENV"
+
+      - name: Install the desktop test bed
+        if: runner.os == 'Linux' && matrix.track != 'terminal'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            xvfb xauth openbox xdotool dbus-x11 at-spi2-core python3-gi gir1.2-gtk-3.0 x11-utils jq
+
+      - name: Bench
+        if: runner.os == 'Linux'
+        run: |
+          set -euo pipefail
+          command=(bun run bench run --ci --config "$CONFIG" --track "${{ matrix.track }}"
+            --contender "${{ matrix.contender }}" --model "${{ matrix.model }}"
+            --shard "${{ matrix.shard }}" --machine "${{ matrix.machine }}" --results results)
+          if [ "${{ matrix.track }}" = "terminal" ]; then
+            "${command[@]}"
+          else
+            bash apps/bench/scripts/display.sh "${command[@]}"
+          fi
+
+      - name: Bench
+        if: runner.os == 'macOS'
+        run: bun run bench run --ci --config "$CONFIG" --track ${{ matrix.track }} --contender ${{ matrix.contender }} --model ${{ matrix.model }} --shard ${{ matrix.shard }} --machine ${{ matrix.machine }} --results results
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bench-${{ matrix.track }}-${{ matrix.os }}-${{ matrix.contender }}-${{ matrix.model }}-${{ matrix.label }}
+          path: results/
+          if-no-files-found: warn
+
+  validate:
+    name: Validate (${{ matrix.machine }})
+    if: github.event.inputs.tracks == ''
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
@@ -29,27 +129,21 @@ jobs:
             machine: gha-ubuntu-24.04-x11
           - runner: macos-15
             machine: gha-macos-15
-          - runner: windows-2025
-            machine: gha-windows-2025
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup
-        if: runner.os != 'Windows'
-      - uses: oven-sh/setup-bun@v2
-        if: runner.os == 'Windows'
-        with:
-          bun-version: "1.3.14"
-      - if: runner.os == 'Windows'
-        run: bun install --frozen-lockfile --ignore-scripts
-      - name: Install display fixtures
+      - name: Install the desktop test bed
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y xvfb xauth openbox python3-gi gir1.2-gtk-3.0 xdotool jq
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            xvfb xauth openbox xdotool dbus-x11 at-spi2-core python3-gi gir1.2-gtk-3.0 x11-utils jq
       - name: Validate
         if: runner.os == 'Linux'
-        run: xvfb-run -a bun run bench validate --results results --machine ${{ matrix.machine }}
+        run: bash apps/bench/scripts/display.sh bun run bench validate --config "$CONFIG" --results results --machine ${{ matrix.machine }}
       - name: Validate
         if: runner.os != 'Linux'
-        run: bun run bench validate --results results --machine ${{ matrix.machine }}
+        run: bun run bench validate --config "$CONFIG" --results results --machine ${{ matrix.machine }}
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -57,68 +151,30 @@ jobs:
           path: results/
           if-no-files-found: warn
 
-  ubuntu:
-    name: Ubuntu 24.04
+  report:
+    name: Report
+    needs: [bench, validate]
+    if: always()
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
-    env:
-      OPENCODE_GO_KEY: ${{ secrets.OPENCODE_GO_KEY }}
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup
-      - name: Display
-        run: sudo apt-get update && sudo apt-get install -y xvfb xauth openbox || true
-      - name: Bench
+      - uses: actions/download-artifact@v4
+        with:
+          path: results
+          pattern: bench-*
+          merge-multiple: true
+      - name: Render the report
         run: |
-          if command -v xvfb-run >/dev/null; then
-            xvfb-run -a -s "-screen 0 1280x800x24" sh -c 'openbox >/dev/null 2>&1 & exec bun run bench run --ci --machine gha-ubuntu-24.04-x11 --results results'
-          else
-            bun run bench run --ci --machine gha-ubuntu-24.04-x11 --results results
+          set -euo pipefail
+          files="$(find results -name '*.tsv' ! -name 'validate-*' -print | sort)"
+          if [ -z "$files" ]; then
+            echo "no result ledgers were uploaded" >&2
+            exit 1
           fi
+          bun run bench report $files --out results/report.html
       - uses: actions/upload-artifact@v4
-        if: always()
         with:
-          name: bench-ubuntu-24.04
-          path: results/
-          if-no-files-found: warn
-
-  macos:
-    name: macOS 15
-    needs: ubuntu
-    runs-on: macos-15
-    timeout-minutes: 45
-    env:
-      OPENCODE_GO_KEY: ${{ secrets.OPENCODE_GO_KEY }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: ./.github/actions/setup
-      - name: Bench
-        run: bun run bench run --ci --machine gha-macos-15 --results results
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: bench-macos-15
-          path: results/
-          if-no-files-found: warn
-
-  windows:
-    name: Windows 2025
-    needs: ubuntu
-    runs-on: windows-2025
-    timeout-minutes: 45
-    env:
-      OPENCODE_GO_KEY: ${{ secrets.OPENCODE_GO_KEY }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: "1.3.14"
-      - run: bun install --frozen-lockfile --ignore-scripts
-      - name: Bench
-        run: bun run bench run --ci --machine gha-windows-2025 --results results
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: bench-windows-2025
-          path: results/
-          if-no-files-found: warn
+          name: bench-report
+          path: results/report.html
