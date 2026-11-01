@@ -17,6 +17,7 @@ export type ArchivedMessage = {
   message: Message | null
   fingerprint: string
   preview?: ReplyPreview
+  stepsLog?: string
 }
 
 export type PendingArchive = { day: string; rows: ArchivedMessage[]; snapshot: ArchivedMessage[] }
