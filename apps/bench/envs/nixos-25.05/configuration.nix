@@ -35,7 +35,7 @@ let
   ];
   benchPython = pkgs.python3.withPackages (ps: [
     ps.pygobject3
-    ps.python-xlib
+    ps.xlib
   ]);
   girepositoryPath = lib.makeSearchPath "lib/girepository-1.0" (
     with pkgs;
