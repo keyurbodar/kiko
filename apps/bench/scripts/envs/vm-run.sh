@@ -38,6 +38,11 @@ rsync -a --exclude .git --exclude node_modules --exclude results --exclude .nix-
   printf '#!/usr/bin/env bash\nset -euo pipefail\n'
   printf 'export BENCH_ENV_ID=%q\n' "$env_id"
   printf 'cd "$HOME/repo"\n'
+  if [ -x "$share/.bench-app/kiko" ]; then
+    printf 'export KIKO_BIN="$HOME/repo/.bench-app/kiko"\n'
+    printf 'export KIKO_CUA="$HOME/repo/.bench-app/cua-driver"\n'
+    printf 'export KIKO_AGENT_BROWSER="$HOME/repo/.bench-app/agent-browser"\n'
+  fi
   if [ "$track" = "desktop" ] || [ "${BENCH_SESSION:-}" = "true" ]; then
     printf 'exec bash apps/bench/envs/%q/session.sh bash apps/bench/scripts/envs/run-bench.sh %q' "$env_id" "$contender"
   else

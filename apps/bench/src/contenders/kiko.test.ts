@@ -74,6 +74,22 @@ function harness(): { manager: TerminalManager; writes: string[]; emit(text: str
   return { manager, writes, emit: (text) => input?.onData(new TextEncoder().encode(text)) }
 }
 
+async function withEnv(values: Record<string, string | undefined>, body: () => Promise<void>): Promise<void> {
+  const saved = new Map(Object.keys(values).map((key) => [key, process.env[key]]))
+  for (const [key, value] of Object.entries(values)) {
+    if (value === undefined) delete process.env[key]
+    else process.env[key] = value
+  }
+  try {
+    await body()
+  } finally {
+    for (const [key, value] of saved) {
+      if (value === undefined) delete process.env[key]
+      else process.env[key] = value
+    }
+  }
+}
+
 describe("kiko tool schemas", () => {
   it("matches the server's name, description and parameters", () => {
     const wanted = new Set(KIKO_TOOLS.map((tool) => tool.name))
@@ -101,6 +117,29 @@ describe("kiko tool schemas", () => {
       ...TERMINAL_NAMES,
     ])
     await contender.stop()
+  })
+
+  it("refuses to score a browser, desktop or cross track without the kiko app driver", async () => {
+    const machine = await createMachine("test-kiko-no-driver")
+    machines.push(machine)
+    for (const track of ["browser", "desktop", "cross"]) {
+      await withEnv({ BENCH_TRACK: track, KIKO_DRIVER: undefined }, async () => {
+        const contender = kikoContender()
+        await expect(contender.start(machine, "foreground")).rejects.toThrow(/needs the kiko app driver/)
+        await contender.stop()
+      })
+    }
+  })
+
+  it("still runs the terminal track without the kiko app driver", async () => {
+    const machine = await createMachine("test-kiko-terminal")
+    machines.push(machine)
+    await withEnv({ BENCH_TRACK: "terminal", KIKO_DRIVER: undefined }, async () => {
+      const contender = kikoContender()
+      await contender.start(machine, "foreground")
+      expect(contender.tools().map((tool) => tool.name)).toContain("computer_shell")
+      await contender.stop()
+    })
   })
 
   it("runs terminal sessions through the real terminal manager", async () => {

@@ -17,6 +17,7 @@ const MAX_OUTPUT_CHARS = 12_000
 const MAX_READ_BYTES = 64_000
 const SCREEN_MAX_WIDTH = 960
 const BROWSER_STEPS_MAX = 20
+const DRIVER_TRACKS: ReadonlySet<string> = new Set(["browser", "desktop", "mixed", "cross"])
 const TERMINAL_TOOLS = new Set([
   "terminal_open",
   "terminal_send",
@@ -446,6 +447,16 @@ export function kikoContender(options: KikoOptions = {}): Contender {
         owned = true
       }
       desktop = driver ? await loadDesktopTools(driver) : []
+      const track = process.env.BENCH_TRACK
+      if (track && DRIVER_TRACKS.has(track) && (!driver || desktop.length === 0)) {
+        if (owned) driver?.close()
+        driver = options.driver ?? null
+        desktop = []
+        owned = false
+        throw new Error(
+          `the ${track} track needs the kiko app driver: start kiko-app and point KIKO_DRIVER at its driver.sock`,
+        )
+      }
     },
     tools(): readonly ToolSpec[] {
       return [...KIKO_TOOLS, ...desktop.map(desktopSpec)]

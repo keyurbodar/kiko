@@ -536,6 +536,7 @@ async function run(flags: Parsed["flags"]): Promise<void> {
   let total = 0
   let passed = 0
   for (const track of plan.tracks) {
+    process.env.BENCH_TRACK = track.track
     const tasks = selectTasks(plan.pattern, track.track, os).filter((_, index) => inShard(index, plan.shard))
     if (tasks.length === 0) continue
     needDisplay(tasks)

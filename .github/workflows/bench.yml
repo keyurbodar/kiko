@@ -152,8 +152,15 @@ jobs:
           test -x "$bin"
           echo "$variable=$bin" >> "$GITHUB_ENV"
 
+      - name: Build the kiko app for the driver
+        if: (matrix.contender == 'kiko' || matrix.contender == 'kiko-remote') && matrix.track != 'terminal'
+        uses: ./.github/actions/bench-app
+        with:
+          cert: ${{ secrets.KIKO_MACOS_CERT_P12 }}
+          password: ${{ secrets.KIKO_MACOS_CERT_PASSWORD }}
+
       - name: Install the desktop test bed
-        if: runner.os == 'Linux' && (matrix.track == 'desktop' || matrix.condition == 'background')
+        if: runner.os == 'Linux' && (matrix.track == 'desktop' || matrix.track == 'cross' || matrix.condition == 'background')
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
@@ -169,7 +176,7 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           set -euo pipefail
-          command=(bun run bench run --ci --config "$CONFIG" --track "${{ matrix.track }}"
+          command=(bash apps/bench/scripts/app-driver.sh bun run bench run --ci --config "$CONFIG" --track "${{ matrix.track }}"
             --contender "${{ matrix.contender }}" --model "${{ matrix.model }}"
             --condition "${{ matrix.condition }}" --shard "${{ matrix.shard }}"
             --machine "${{ matrix.machine }}" --results results)
@@ -182,7 +189,7 @@ jobs:
       - name: Bench
         if: runner.os == 'macOS'
         run: |
-          bun run bench run --ci --config "$CONFIG" --track ${{ matrix.track }} --contender ${{ matrix.contender }} --model ${{ matrix.model }} --condition ${{ matrix.condition }} --shard ${{ matrix.shard }} --machine ${{ matrix.machine }} --results results
+          bash apps/bench/scripts/app-driver.sh bun run bench run --ci --config "$CONFIG" --track ${{ matrix.track }} --contender ${{ matrix.contender }} --model ${{ matrix.model }} --condition ${{ matrix.condition }} --shard ${{ matrix.shard }} --machine ${{ matrix.machine }} --results results
 
       - uses: actions/upload-artifact@v4
         if: always()
@@ -207,7 +214,7 @@ jobs:
       matrix: ${{ fromJSON(needs.plan.outputs.container) }}
     steps:
       - name: Base packages
-        run: apt-get update && apt-get install -y --no-install-recommends git ca-certificates curl nodejs unzip
+        run: apt-get update && apt-get install -y --no-install-recommends git ca-certificates curl nodejs unzip build-essential
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup
       - name: Environment packages
@@ -225,6 +232,9 @@ jobs:
           bin="$(bash "apps/bench/scripts/$script" | tail -n 1)"
           test -x "$bin"
           echo "$variable=$bin" >> "$GITHUB_ENV"
+      - name: Build the kiko app for the driver
+        if: (matrix.contender == 'kiko' || matrix.contender == 'kiko-remote') && matrix.track != 'terminal'
+        uses: ./.github/actions/bench-app
       - name: Record the environment versions
         run: |
           mkdir -p results
@@ -232,7 +242,7 @@ jobs:
       - name: Bench
         run: |
           set -euo pipefail
-          command=(bun run bench run --ci --config "$CONFIG" --track "${{ matrix.track }}"
+          command=(bash apps/bench/scripts/app-driver.sh bun run bench run --ci --config "$CONFIG" --track "${{ matrix.track }}"
             --contender "${{ matrix.contender }}" --model "${{ matrix.model }}"
             --condition "${{ matrix.condition }}" --shard "${{ matrix.shard }}"
             --machine "${{ matrix.machine }}" --results results)
@@ -299,9 +309,20 @@ jobs:
             test -f .omarchy-image/omarchy.qcow2
             echo "path=.omarchy-image/omarchy.qcow2" >> "$GITHUB_OUTPUT"
           fi
+      - name: Build the kiko app for the driver
+        if: (matrix.contender == 'kiko' || matrix.contender == 'kiko-remote') && matrix.track != 'terminal'
+        uses: ./.github/actions/bench-app
+      - name: Put the app and its engines where the virtual machine can see them
+        if: (matrix.contender == 'kiko' || matrix.contender == 'kiko-remote') && matrix.track != 'terminal'
+        run: |
+          set -euo pipefail
+          mkdir -p .bench-app
+          cp "$KIKO_BIN" .bench-app/kiko
+          cp "$KIKO_CUA" .bench-app/cua-driver
+          cp "$KIKO_AGENT_BROWSER" .bench-app/agent-browser
       - name: Bench
         env:
-          BENCH_SESSION: ${{ matrix.track == 'desktop' || matrix.track == 'cross' || matrix.condition == 'background' }}
+          BENCH_SESSION: ${{ matrix.track == 'desktop' || matrix.track == 'cross' || matrix.condition == 'background' || ((matrix.contender == 'kiko' || matrix.contender == 'kiko-remote') && matrix.track != 'terminal') }}
         run: |
           bash apps/bench/scripts/envs/vm-run.sh \
             "${{ matrix.env }}" "${{ steps.image.outputs.path }}" results 2222 \

@@ -28,4 +28,4 @@ fi
 mkdir -p results
 bash apps/bench/scripts/envs/versions.sh >"results/env-versions-${BENCH_ENV_ID:-unknown}.txt" 2>&1 || true
 
-exec bun run bench "$@"
+exec bash apps/bench/scripts/app-driver.sh bun run bench "$@"
