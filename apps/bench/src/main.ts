@@ -3,6 +3,7 @@ import { existsSync, readFileSync } from "node:fs"
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises"
 import { homedir, tmpdir } from "node:os"
 import { basename, dirname, join, resolve } from "node:path"
+import { BACKGROUND_COUNTERS, ZERO_BACKGROUND, backgroundSafe, counterCell } from "./background"
 import { CONTENDERS } from "./contenders"
 import { inShard, planJobs, readConfig, type BenchConfig } from "./config"
 import { appendRow, escape, readRows, writeRows, type Row } from "./ledger"
@@ -11,12 +12,13 @@ import { clearGitHookEnv, createMachine, localOs, removeMachine } from "./machin
 import { ModelClient } from "./model"
 import { appendIndex, harvestArtifacts } from "./pull"
 import { renderReport } from "./report/render"
+import { startSentinel, type Sentinel } from "./sentinel"
 import { TASKS } from "./tasks"
 import type { Background, Condition, Contender, Machine, ModelSpec, Os, Task, Track, Verdict } from "./types"
 
-const ZERO_BACKGROUND: Background = { focusSteals: 0, pointerMoves: 0, keysSwallowed: 0, windowsRaised: 0 }
 const PLANS = join(homedir(), "kiko-plans", "computer-use-2026-10-31", "results")
 const VALIDATE_HEADER = ["task", "os", "machine", "kind", "pass", "detail"].join("\t")
+const UNMEASURED_BACKGROUND: Background = { ...ZERO_BACKGROUND, unmeasured: BACKGROUND_COUNTERS }
 
 const MODELS: Readonly<Record<string, ModelSpec>> = {
   "beam-free": { id: "beam-free", vision: false },
@@ -150,28 +152,8 @@ function list(flags: Parsed["flags"]): void {
   console.log(`${tasks.length} tasks`)
 }
 
-interface Witness {
-  stop(): Promise<Background>
-}
-
-async function startWitness(machine: Machine): Promise<Witness> {
-  const path = "./sentinel/index.ts"
-  let module: { startSentinel?: (m: Machine) => Promise<Witness> }
-  try {
-    module = (await import(path)) as { startSentinel?: (m: Machine) => Promise<Witness> }
-  } catch {
-    throw new Error("the background condition needs the sentinel, which is not in this branch")
-  }
-  if (!module.startSentinel) throw new Error("the sentinel module has no startSentinel")
-  return module.startSentinel(machine)
-}
-
 const safe = (condition: Condition, background: Background): boolean =>
-  condition === "foreground" ||
-  (background.focusSteals === 0 &&
-    background.pointerMoves === 0 &&
-    background.keysSwallowed === 0 &&
-    background.windowsRaised === 0)
+  condition === "foreground" || backgroundSafe(background)
 
 const scored = (outcome: Outcome): boolean => outcome === "done" || outcome === "turns" || outcome === "timeout"
 
@@ -255,17 +237,17 @@ interface TrialOutput {
 async function runTrial(input: TrialInput): Promise<TrialOutput> {
   const machine = await createMachine(input.machineId)
   const trajectoryDir = join(input.resultsDir, input.runId)
-  let witness: Witness | undefined
+  let witness: Sentinel | undefined
   let started = false
   let result: LoopResult | undefined
   let failure: string | undefined
-  let background = ZERO_BACKGROUND
+  let background = input.condition === "background" ? UNMEASURED_BACKGROUND : ZERO_BACKGROUND
 
   try {
     await input.task.setup(machine, input.seed)
     await input.contender.start(machine, input.condition)
     started = true
-    if (input.condition === "background") witness = await startWitness(machine)
+    if (input.condition === "background") witness = await startSentinel(machine)
     result = await runLoop({
       task: input.task,
       contender: input.contender,
@@ -282,7 +264,12 @@ async function runTrial(input: TrialInput): Promise<TrialOutput> {
     failure = caught instanceof Error ? caught.message : String(caught)
   }
 
-  if (witness) background = await witness.stop().catch(() => ZERO_BACKGROUND)
+  if (witness) {
+    background = await witness
+      .stop()
+      .then((measured) => measured.background)
+      .catch(() => UNMEASURED_BACKGROUND)
+  }
   if (started) await input.contender.stop().catch(() => undefined)
 
   let verdict: Verdict
@@ -356,10 +343,10 @@ function rowFor(
     bytes_to_model: result.bytesToModel,
     images_sent: result.imagesSent,
     images_dropped: result.imagesDropped,
-    focus_steals: background.focusSteals,
-    pointer_moves: background.pointerMoves,
-    keys_swallowed: background.keysSwallowed,
-    windows_raised: background.windowsRaised,
+    focus_steals: counterCell(background, "focusSteals"),
+    pointer_moves: counterCell(background, "pointerMoves"),
+    keys_swallowed: counterCell(background, "keysSwallowed"),
+    windows_raised: counterCell(background, "windowsRaised"),
     system_prompt_sha: SYSTEM_PROMPT_SHA,
     trajectory: `${input.runId}/${input.trialId}.json`,
     ttft_ms: result.ttftMs,
@@ -376,6 +363,45 @@ function rowFor(
 
 const configPath = (flags: Parsed["flags"]): string =>
   resolve(flagString(flags, "config") ?? join(import.meta.dirname, "..", "ci.json"))
+
+interface CiConfig {
+  readonly tracks?: readonly string[]
+  readonly contenders?: readonly string[]
+  readonly models?: readonly string[]
+  readonly reps?: number
+  readonly conditions?: readonly Condition[]
+  readonly seed?: number
+  readonly pattern?: string
+  readonly validateRuns?: number
+  readonly sentinelIdleSeconds?: number
+}
+
+const stringList = (value: unknown): string[] | undefined =>
+  Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : undefined
+
+function readCi(flags: Parsed["flags"]): CiConfig {
+  const path = configPath(flags)
+  if (!existsSync(path)) throw new Error(`no CI config at ${path}`)
+  const raw = JSON.parse(readFileSync(path, "utf8")) as Record<string, unknown>
+  const conditions = stringList(raw.conditions)?.filter(
+    (value): value is Condition => value === "foreground" || value === "background",
+  )
+  const validate =
+    typeof raw.validate === "object" && raw.validate !== null ? (raw.validate as Record<string, unknown>) : {}
+  const sentinel =
+    typeof raw.sentinel === "object" && raw.sentinel !== null ? (raw.sentinel as Record<string, unknown>) : {}
+  return {
+    ...(stringList(raw.tracks) ? { tracks: stringList(raw.tracks) } : {}),
+    ...(stringList(raw.contenders) ? { contenders: stringList(raw.contenders) } : {}),
+    ...(stringList(raw.models) ? { models: stringList(raw.models) } : {}),
+    ...(conditions ? { conditions } : {}),
+    ...(typeof raw.reps === "number" ? { reps: raw.reps } : {}),
+    ...(typeof raw.seed === "number" ? { seed: raw.seed } : {}),
+    ...(typeof raw.pattern === "string" ? { pattern: raw.pattern } : {}),
+    ...(typeof validate.runs === "number" ? { validateRuns: validate.runs } : {}),
+    ...(typeof sentinel.idleSeconds === "number" ? { sentinelIdleSeconds: sentinel.idleSeconds } : {}),
+  }
+}
 
 interface Pair {
   readonly contender: Contender
@@ -499,9 +525,6 @@ async function run(flags: Parsed["flags"]): Promise<void> {
   const plan = buildPlan(flags, flags.ci ? readConfig(configPath(flags)) : undefined, os)
   const dir = resultsDir(flags)
   const machineId = flagString(flags, "machine") ?? `local-${os}`
-  const sentinel = existsSync(join(import.meta.dirname, "sentinel", "index.ts"))
-  if (plan.conditions.includes("background") && !sentinel)
-    throw new Error("the background condition needs the sentinel, which is not in this branch")
   const client = new ModelClient({ key: readKey(), version: benchVersion() })
   const runId = newRunId()
   const path = join(dir, `${runId}.tsv`)
@@ -540,40 +563,83 @@ async function run(flags: Parsed["flags"]): Promise<void> {
   console.log(path)
 }
 
-async function withFreshMachine<T>(id: string, work: (machine: Machine) => Promise<T>): Promise<T> {
+const failed = (detail: string): Verdict => ({ pass: false, checks: [{ name: "task", pass: false, detail }] })
+
+interface Attempt {
+  readonly verdict: Verdict
+  readonly background: Background
+}
+
+async function attempt(task: Task, id: string, kind: "oracle" | "null", condition: Condition): Promise<Attempt> {
   const machine = await createMachine(id)
+  let witness: Sentinel | undefined
+  let background = condition === "background" ? UNMEASURED_BACKGROUND : ZERO_BACKGROUND
+  const release = async (): Promise<Background> => {
+    if (!witness) return background
+    const running = witness
+    witness = undefined
+    background = await running
+      .stop()
+      .then((measured) => measured.background)
+      .catch(() => UNMEASURED_BACKGROUND)
+    return background
+  }
   try {
-    return await work(machine)
+    await task.setup(machine, 1)
+    if (condition === "background") witness = await startSentinel(machine)
+    if (kind === "oracle") await task.oracle(machine, 1)
+    background = await release()
+    const verdict = await task.check(machine, 1)
+    return { verdict, background }
+  } catch (caught) {
+    return { verdict: failed(caught instanceof Error ? caught.message : String(caught)), background: await release() }
   } finally {
     await removeMachine(machine)
   }
 }
 
-const failed = (detail: string): Verdict => ({ pass: false, checks: [{ name: "task", pass: false, detail }] })
+const COUNTER_COLUMNS = {
+  focusSteals: "focus_steals",
+  pointerMoves: "pointer_moves",
+  keysSwallowed: "keys_swallowed",
+  windowsRaised: "windows_raised",
+} as const
 
-async function checked(task: Task, id: string, kind: "oracle" | "null"): Promise<Verdict> {
-  try {
-    return await withFreshMachine(id, async (machine) => {
-      await task.setup(machine, 1)
-      if (kind === "oracle") await task.oracle(machine, 1)
-      return task.check(machine, 1)
-    })
-  } catch (caught) {
-    return failed(caught instanceof Error ? caught.message : String(caught))
-  }
-}
+const countersOf = (background: Background): string =>
+  BACKGROUND_COUNTERS.map((counter) => `${COUNTER_COLUMNS[counter]}=${counterCell(background, counter)}`).join(" ")
 
-const detailOf = (verdict: Verdict, stable: boolean): string =>
+const detailOf = (verdict: Verdict, stable: boolean, background: Background): string =>
   `${stable ? "stable" : "flaky"}: ${verdict.checks
     .map((check) => `${check.name}=${check.pass ? "pass" : "fail"} (${check.detail})`)
-    .join("; ")}`
+    .join("; ")}; ${countersOf(background)}`
 
-const validateRow = (task: Task, os: Os, machineId: string, kind: string, pass: boolean, detail: string): string =>
-  [task.id, os, machineId, kind, pass ? "1" : "0", escape(detail)].join("\t")
+const validateRow = (taskId: string, os: Os, machineId: string, kind: string, pass: boolean, detail: string): string =>
+  [taskId, os, machineId, kind, pass ? "1" : "0", escape(detail)].join("\t")
 
 const runCount = (flags: Parsed["flags"]): number => {
   const fromFlag = flagString(flags, "runs")
   return fromFlag === undefined ? readConfig(configPath(flags)).validateRuns : Number(fromFlag)
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+async function idleGate(id: string, seconds: number): Promise<string> {
+  const machine = await createMachine(id)
+  try {
+    const witness = await startSentinel(machine)
+    await delay(seconds * 1000)
+    const measured = await witness.stop()
+    if (measured.keysSent === 0 || measured.keysReceived !== measured.keysSent) {
+      throw new Error(
+        `the sentinel received ${measured.keysReceived} of ${measured.keysSent} keys in ${seconds}s of idle, so it cannot judge the background condition`,
+      )
+    }
+    return `${measured.keysReceived}/${measured.keysSent} keys received while idle for ${seconds}s`
+  } finally {
+    await removeMachine(machine)
+  }
 }
 
 async function validate(flags: Parsed["flags"]): Promise<void> {
@@ -581,27 +647,55 @@ async function validate(flags: Parsed["flags"]): Promise<void> {
   const runs = runCount(flags)
   const os = localOs()
   const machineId = flagString(flags, "machine") ?? `local-${os}`
+  const condition: Condition = flagString(flags, "condition") === "background" ? "background" : "foreground"
   const tasks = selectTasks(flagString(flags, "task") ?? "*", flagString(flags, "track"), os)
   if (tasks.length === 0) throw new Error("no tasks match this track and machine")
   const runId = newRunId()
+  const path = join(dir, `validate-${runId}.tsv`)
   const lines: string[] = []
+  if (condition === "background") {
+    const idleSeconds = readCi(flags).sentinelIdleSeconds ?? 30
+    try {
+      console.log(`OK idle: ${await idleGate(machineId, idleSeconds)}`)
+    } catch (caught) {
+      await mkdir(dir, { recursive: true })
+      const detail = caught instanceof Error ? caught.message : String(caught)
+      const row = validateRow(tasks[0]?.id ?? "*", os, machineId, "idle", false, detail)
+      await writeFile(path, [VALIDATE_HEADER, row].join("\n") + "\n", "utf8")
+      throw new Error(`the ${machineId} sentinel failed its idle check: ${detail}`, { cause: caught })
+    }
+  }
   const quarantined: string[] = []
   for (const task of tasks) {
-    const oracles: Verdict[] = []
-    for (let run = 0; run < Math.max(runs, 1); run++) oracles.push(await checked(task, machineId, "oracle"))
-    const nothing = await checked(task, machineId, "null")
-    const first = oracles[0] ?? failed("no oracle run")
-    const seen = oracles.map((verdict) => JSON.stringify(verdict.checks.map((entry) => [entry.name, entry.pass])))
+    const oracles: Attempt[] = []
+    for (let run = 0; run < Math.max(runs, 1); run++) oracles.push(await attempt(task, machineId, "oracle", condition))
+    const nothing = await attempt(task, machineId, "null", condition)
+    const first = oracles[0] ?? { verdict: failed("no oracle run"), background: ZERO_BACKGROUND }
+    const seen = oracles.map((entry) => JSON.stringify(entry.verdict.checks.map((check) => [check.name, check.pass])))
     const stable = seen.every((value) => value === seen[0])
-    const good = first.pass && stable && !nothing.pass
+    const clean = oracles.every((entry) => safe(condition, entry.background))
+    const good = first.verdict.pass && stable && clean && !nothing.verdict.pass
     lines.push(
-      validateRow(task, os, machineId, "oracle", first.pass && stable, detailOf(first, stable)),
-      validateRow(task, os, machineId, "null", !nothing.pass, detailOf(nothing, true)),
+      validateRow(
+        task.id,
+        os,
+        machineId,
+        "oracle",
+        first.verdict.pass && stable && clean,
+        detailOf(first.verdict, stable, first.background),
+      ),
+      validateRow(
+        task.id,
+        os,
+        machineId,
+        "null",
+        !nothing.verdict.pass && safe(condition, nothing.background),
+        detailOf(nothing.verdict, true, nothing.background),
+      ),
     )
     if (!good) quarantined.push(task.id)
     console.log(`${good ? "OK" : "QUARANTINE"} ${task.id}`)
   }
-  const path = join(dir, `validate-${runId}.tsv`)
   await mkdir(dir, { recursive: true })
   await writeFile(path, [VALIDATE_HEADER, ...lines].join("\n") + "\n", "utf8")
   console.log(`${tasks.length} tasks, ${quarantined.length} quarantined`)

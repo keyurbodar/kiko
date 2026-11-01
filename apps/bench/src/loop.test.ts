@@ -209,6 +209,9 @@ describe("agent loop", () => {
     const background = { focusSteals: 0, pointerMoves: 0, keysSwallowed: 0, windowsRaised: 0 }
     expect(classifyFailure(result, { pass: true, checks: [] }, background)).toBe("")
     expect(classifyFailure(result, { pass: false, checks: [] }, { ...background, pointerMoves: 1 })).toBe("background")
+    expect(classifyFailure(result, { pass: true, checks: [] }, { ...background, unmeasured: ["focusSteals"] })).toBe(
+      "background",
+    )
     expect(classifyFailure(result, { pass: false, checks: [] }, background)).toBe("targeting")
   })
 

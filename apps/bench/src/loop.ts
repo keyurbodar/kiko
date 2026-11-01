@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto"
 import { mkdir, writeFile } from "node:fs/promises"
 import { join } from "node:path"
+import { backgroundSafe } from "./background"
 import { percentile } from "./ledger"
 import type { ChatMessage, ChatPart, ModelClient, ModelReply, ModelUsage, RawToolCall } from "./model"
 import type { Background, Condition, Contender, Image, ModelSpec, Task, ToolResult, ToolSpec, Verdict } from "./types"
@@ -177,12 +178,6 @@ function toolMessage(call: RawToolCall, text: string, images: readonly Image[], 
   return { role: "tool", tool_call_id: call.id, content: parts }
 }
 
-const allZero = (background: Background): boolean =>
-  background.focusSteals === 0 &&
-  background.pointerMoves === 0 &&
-  background.keysSwallowed === 0 &&
-  background.windowsRaised === 0
-
 function latencyByName(durations: ReadonlyMap<string, number[]>): Record<string, ToolLatency> {
   const out: Record<string, ToolLatency> = {}
   for (const [name, values] of durations)
@@ -206,7 +201,7 @@ const perceptionTools = new Set([
 ])
 
 export function classifyFailure(result: LoopResult, verdict: Verdict, background: Background): string {
-  if (!allZero(background)) return "background"
+  if (!backgroundSafe(background)) return "background"
   if (verdict.pass) return ""
   if (result.outcome === "model_error") return "model"
   if (result.outcome === "setup_error" || result.outcome === "tool_crash") return "environment"
