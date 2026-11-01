@@ -113,6 +113,35 @@ interface Tally {
   raised: number
 }
 
+interface Seen {
+  focused: boolean
+  moved: boolean
+  baseline: readonly [number, number] | undefined
+  above: ReadonlySet<string> | undefined
+}
+
+function countSample(state: Tally, seen: Seen, event: Extract<WitnessEvent, { ev: "sample" }>) {
+  state.samples += 1
+  if (event.pointer) {
+    seen.baseline ??= event.pointer
+    const [x, y] = event.pointer
+    const [baseX, baseY] = seen.baseline
+    const far = Math.hypot(x - baseX, y - baseY) > POINTER_TOLERANCE_PX
+    if (far && !seen.moved) state.pointerMoves += 1
+    seen.moved = far
+  }
+  const nowFocused = event.front === "self" && event.key
+  if (!nowFocused && seen.focused) state.steals += 1
+  seen.focused = nowFocused
+  const current = new Set(event.above)
+  if (seen.above !== undefined) {
+    for (const name of current) {
+      if (!seen.above.has(name)) state.raised += 1
+    }
+  }
+  seen.above = current
+}
+
 function tally(events: readonly WitnessEvent[]): Tally {
   const state: Tally = {
     ready: false,
@@ -125,10 +154,7 @@ function tally(events: readonly WitnessEvent[]): Tally {
     pointerMoves: 0,
     raised: 0,
   }
-  let focused = true
-  let moved = false
-  let baseline: readonly [number, number] | undefined
-  let above: ReadonlySet<string> | undefined
+  const seen: Seen = { focused: true, moved: false, baseline: undefined, above: undefined }
   for (const event of events) {
     switch (event.ev) {
       case "ready":
@@ -144,28 +170,9 @@ function tally(events: readonly WitnessEvent[]): Tally {
         state.keysSent += 1
         if (event.received) state.keysReceived += 1
         break
-      case "sample": {
-        state.samples += 1
-        if (event.pointer) {
-          baseline ??= event.pointer
-          const [x, y] = event.pointer
-          const [baseX, baseY] = baseline
-          const far = Math.hypot(x - baseX, y - baseY) > POINTER_TOLERANCE_PX
-          if (far && !moved) state.pointerMoves += 1
-          moved = far
-        }
-        const nowFocused = event.front === "self" && event.key
-        if (!nowFocused && focused) state.steals += 1
-        focused = nowFocused
-        const current = new Set(event.above)
-        if (above !== undefined) {
-          for (const name of current) {
-            if (!above.has(name)) state.raised += 1
-          }
-        }
-        above = current
+      case "sample":
+        countSample(state, seen, event)
         break
-      }
       default: {
         const exhaustive: never = event
         throw new Error(`unhandled sentinel event ${JSON.stringify(exhaustive)}`)
