@@ -192,6 +192,20 @@ describe("the holder", () => {
     run.live.close()
   })
 
+  it("takes relay input only while the owner holds the screen", async () => {
+    const run = daemon({ live: true, input: true })
+    run.live.onInput([{ k: "text", s: "before" }])
+    await run.live.idle()
+    assert.deepStrictEqual(run.applied, [])
+
+    run.live.onControl({ holder: "human", session: "s1" })
+    run.live.onInput([{ k: "text", s: "after" }])
+    await run.live.idle()
+
+    assert.deepStrictEqual(run.applied, [[{ k: "text", s: "after" }]])
+    run.live.close()
+  })
+
   it("applies input only from the session that holds the screen", async () => {
     const run = daemon({ live: true, input: true })
     run.live.onRtc("s1", { type: "offer", sdp: OFFER })

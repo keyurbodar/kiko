@@ -281,6 +281,10 @@ export class ComputerWiring {
     return Effect.sync(() => this.hub.summaries(socket))
   })
 
+  readonly session = Effect.fn("Computers.session")({ self: this }, function (socket: WebSocket) {
+    return Effect.sync(() => ({ session: this.hub.session(socket) }))
+  })
+
   private row(pcId: string) {
     return Effect.suspend(() => {
       const row = this.find(pcId)

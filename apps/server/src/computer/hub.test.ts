@@ -214,6 +214,7 @@ type SentFrame = {
   data?: string
   bytes?: number
   tab?: string
+  session?: string
   maxWidth?: number
   maxHeight?: number
   quality?: number
@@ -251,6 +252,7 @@ function liveHub(
     ctx: {
       getWebSockets: (tag: string) => (tag === "tab" ? [...tabs] : tag.startsWith("live:") ? [...lives] : [...pcs]),
       getWebSocketAutoResponseTimestamp: () => null,
+      acceptWebSocket: () => {},
     },
     env: {},
     store,
@@ -492,7 +494,7 @@ describe("leaving the viewer", () => {
 })
 
 function liveSocket(pcId: string, want = true) {
-  let attachment: { kind: "live"; pcId: string; want?: boolean } = { kind: "live", pcId, want }
+  let attachment: { kind: "live"; pcId: string; want?: boolean; session?: string } = { kind: "live", pcId, want }
   const sent: string[] = []
   return {
     send: (text: string) => sent.push(text),
@@ -502,7 +504,8 @@ function liveSocket(pcId: string, want = true) {
     deserializeAttachment: () => structuredClone(attachment),
     readyState: WebSocket.OPEN,
     sent,
-  } as unknown as WebSocket & { sent: string[] }
+    session: () => attachment.session,
+  } as unknown as WebSocket & { sent: string[]; session(): string | undefined }
 }
 
 const onClock =
@@ -617,6 +620,53 @@ describe("the owned hold", () => {
 
       assert.strictEqual(computers.releaseBy("pc-1", computers.session(first.ws)), "ok")
       assert.strictEqual(computers.holder("pc-1"), "agent")
+    }),
+  )
+
+  it.effect("gives a viewer's live socket the session its own tab holds with", () =>
+    Effect.promise(async () => {
+      const first = tab()
+      const second = tab()
+      const pc = pcSocket("pc-1")
+      const lives: WebSocket[] = []
+      const computers = liveHub([first.ws, second.ws], [pc.ws], ["pc-1"], undefined, lives)
+      await computers.message(pc.ws, JSON.stringify(HELLO))
+      await taken(computers, first.ws, pc)
+
+      const mine = liveSocket("pc-1")
+      const theirs = liveSocket("pc-1")
+      lives.push(mine, theirs)
+      computers.admitLive(mine, "pc-1")
+      computers.admitLive(theirs, "pc-1")
+      computers.liveMessage(mine, JSON.stringify({ t: "who", session: computers.session(first.ws) }))
+      computers.liveMessage(theirs, JSON.stringify({ t: "who", session: computers.session(second.ws) }))
+
+      assert.strictEqual(mine.session(), computers.session(first.ws))
+      assert.strictEqual(theirs.session(), computers.session(second.ws))
+      assert.notStrictEqual(theirs.session(), computers.session(first.ws))
+
+      await computers.rtcFromTab(first.ws, "pc-1", { type: "offer", sdp: "v=0" })
+      const offer = pc.sent.find((frame) => frame.t === "rtc")
+      assert.strictEqual(offer?.session, computers.session(first.ws))
+      assert.strictEqual(offer?.session, mine.session())
+      assert.isFalse(computers.input("pc-1", computers.session(second.ws), input("theirs")))
+    }),
+  )
+
+  it.effect("ignores a session that belongs to none of the owner's tabs", () =>
+    Effect.promise(async () => {
+      const viewer = tab()
+      const pc = pcSocket("pc-1")
+      const lives: WebSocket[] = []
+      const computers = liveHub([viewer.ws], [pc.ws], ["pc-1"], undefined, lives)
+      await computers.message(pc.ws, JSON.stringify(HELLO))
+
+      const strange = liveSocket("pc-1")
+      lives.push(strange)
+      computers.admitLive(strange, "pc-1")
+      computers.liveMessage(strange, JSON.stringify({ t: "who", session: "not-a-tab-of-this-owner" }))
+
+      assert.isUndefined(strange.session())
     }),
   )
 

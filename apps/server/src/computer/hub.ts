@@ -182,6 +182,7 @@ export function pcSocketId(ws: WebSocket): string | null {
 type LiveAttachment = { kind: "live"; pcId: string; want?: boolean; session?: string }
 
 type LiveMessage =
+  | { t: "who"; session?: string }
   | { t: "ack"; seq?: number }
   | { t: "live"; on?: boolean; fps?: number; maxWidth?: number; quality?: number }
   | { t: "screen"; id?: string }
@@ -747,15 +748,13 @@ export class ComputerHub {
   live(pcId: string): Response {
     if (!this.row(pcId)) return new Response("there is no such computer", { status: 404 })
     const pair = new WebSocketPair()
-    this.d.ctx.acceptWebSocket(pair[1], [`live:${pcId}`])
-    const held = this.hold(pcId).heldBy
-    pair[1].serializeAttachment({
-      kind: "live",
-      pcId,
-      want: false,
-      ...(held ? { session: held } : {}),
-    } satisfies LiveAttachment)
+    this.admitLive(pair[1], pcId)
     return new Response(null, { status: 101, webSocket: pair[0] })
+  }
+
+  admitLive(ws: WebSocket, pcId: string): void {
+    this.d.ctx.acceptWebSocket(ws, [`live:${pcId}`])
+    ws.serializeAttachment({ kind: "live", pcId, want: false } satisfies LiveAttachment)
   }
 
   liveMessage(ws: WebSocket, raw: string | ArrayBuffer): boolean {
@@ -768,7 +767,8 @@ export class ComputerHub {
     } catch {
       return true
     }
-    if (message.t === "ack" && typeof message.seq === "number") this.ack(live.pcId, message.seq)
+    if (message.t === "who" && typeof message.session === "string") this.identify(ws, live, message.session)
+    else if (message.t === "ack" && typeof message.seq === "number") this.ack(live.pcId, message.seq)
     else if (message.t === "screen" && typeof message.id === "string" && message.id.length > 0)
       this.sendTo(live.pcId, { t: "screen", id: message.id })
     else if (message.t === "browser") this.liveBrowser(ws, live.pcId, message)
@@ -799,6 +799,15 @@ export class ComputerHub {
     if (on) this.relaying.add(pcId)
     else this.relaying.delete(pcId)
     this.send(ws, on ? { t: "live", on: true, ...RELAY, ...this.profiles.get(pcId) } : { t: "live", on: false })
+  }
+
+  private identify(ws: WebSocket, live: LiveAttachment, session: string): void {
+    if (session.length > 64 || !this.tabSession(session)) return
+    ws.serializeAttachment({ ...live, session } satisfies LiveAttachment)
+  }
+
+  private tabSession(session: string): boolean {
+    return this.d.ctx.getWebSockets("tab").some((tab) => this.sessionOf(tab) === session)
   }
 
   async watchRtc(pcId: string, tab: WebSocket): Promise<void> {
@@ -839,15 +848,10 @@ export class ComputerHub {
     return id
   }
 
-  private liveSession(tab: WebSocket): string {
-    const saved = tab.deserializeAttachment() as LiveAttachment | null
-    return saved?.kind === "live" && saved.session ? saved.session : this.session(tab)
-  }
-
   async rtcFromTab(tab: WebSocket, pcId: string, signal: RtcSignal): Promise<void> {
     const ws = this.socket(pcId)
     if (!ws) return
-    this.send(ws, { t: "rtc", session: this.liveSession(tab), signal, iceServers: await this.iceServers() })
+    this.send(ws, { t: "rtc", session: this.session(tab), signal, iceServers: await this.iceServers() })
   }
 
   private daemonRtc(pcId: string, session: string, signal: RtcSignal): void {

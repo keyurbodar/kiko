@@ -342,13 +342,7 @@ async function main(): Promise<void> {
       await until("the click on the first display", () => at(640, 400), 10_000)
       result.first = await pointer()
 
-      const focus = await command(["xdotool", "getwindowfocus", "getwindowname"])
-      const before = await command(["xclip", "-o", "-selection", "clipboard"])
-      process.stderr.write(`[paste] focus=${focus ?? "?"} clipboard=${JSON.stringify(before)}\n`)
       await pasteInto(TEXT)
-      await wait(1_000)
-      const after = await command(["xclip", "-o", "-selection", "clipboard"])
-      process.stderr.write(`[paste] clipboard after the set=${JSON.stringify(after)}\n`)
       await until("the pasted text", pasted, 30_000)
 
       const exact = await pasted()
