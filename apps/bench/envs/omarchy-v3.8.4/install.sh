@@ -51,11 +51,15 @@ run "$OMARCHY_INSTALL/config/mimetypes.sh"
 run "$OMARCHY_INSTALL/config/user-dirs.sh"
 
 mkdir -p "$HOME/.config/hypr"
-printf 'monitor=HEADLESS-1,1920x1080@60,0x0,1\n' >"$HOME/.config/hypr/monitors.conf"
 
-for pkg in git python python-gobject nodejs bun chromium vim tmux sqlite jq libreoffice-fresh gtk3 curl zip unzip make wtype ydotool; do
+for pkg in git python python-gobject nodejs bun chromium vim tmux sqlite jq libreoffice-fresh gtk3 curl zip unzip make wtype ydotool python-xlib; do
   sudo pacman -S --noconfirm --needed "$pkg" || echo "!! $pkg failed" >&2
 done
+
+sudo pacman -Scc --noconfirm >/dev/null 2>&1 || true
+rm -rf "$HOME/.cache" "$HOME/.local/share/omarchy/.git" 2>/dev/null || true
+sudo journalctl --vacuum-size=16M >/dev/null 2>&1 || true
+sudo rm -rf /var/tmp/* /tmp/* 2>/dev/null || true
 
 df -h /
 

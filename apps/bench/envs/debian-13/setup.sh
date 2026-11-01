@@ -24,6 +24,7 @@ apt-get install -y --no-install-recommends \
   openssh-server \
   python3 \
   python3-gi \
+  python3-xlib \
   sqlite3 \
   tmux \
   unzip \
