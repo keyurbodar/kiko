@@ -31,9 +31,9 @@ if (!valid.includes(mode)) {
   fs.writeFileSync("service.log", 'error: mode "' + mode + '" is not a valid widget mode (valid: strict, loose)\n')
   Bun.serve({ hostname: "127.0.0.1", port: listen, fetch: () => new Response("upstream unavailable", { status: 500 }) })
 } else {
+  Bun.serve({ hostname: "127.0.0.1", port: listen, fetch: () => new Response("ok " + mode) })
   fs.writeFileSync("service.log", "ready mode=" + mode + "\n")
   fs.writeFileSync("ready.txt", "ok " + mode + "\n")
-  Bun.serve({ hostname: "127.0.0.1", port: listen, fetch: () => new Response("ok " + mode) })
 }
 `
 

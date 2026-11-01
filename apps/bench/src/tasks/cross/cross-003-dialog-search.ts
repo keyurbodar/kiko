@@ -38,9 +38,7 @@ export const dialogSearch: Task = {
     await launchCrossApp(m, "error", { code, expectedKey: key })
   },
   oracle: async (m, seed) => {
-    const { key } = plan(seed)
-    const state = await crossAppState(m)
-    const code = String(state?.code ?? "")
+    const { code, key } = plan(seed)
     const log = (await readText(m, "logs/sync.log")) ?? ""
     const line = log.split("\n").find((entry) => entry.includes(`code=${code}`))
     if (!line) throw new Error(`no log line for ${code}`)
