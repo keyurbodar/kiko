@@ -349,7 +349,7 @@ describe("browser_act", () => {
       () => ({ ok: true, value: PAGE }),
       DESKTOP,
       false,
-      (args) => ({
+      () => ({
         ok: true,
         value: {
           done: 1,

@@ -154,6 +154,14 @@ function claimsDesk(op: Op, args: unknown): boolean {
   return call.params?.mode === "foreground"
 }
 
+function capFor(op: Op): "terminal" | "shell" | "files" | "browser" | "desktop" {
+  if (TERMINAL_OPS.has(op)) return "terminal"
+  if (op === "shell") return "shell"
+  if (op === "read" || op === "write") return "files"
+  if (op === "browser_steps") return "browser"
+  return "desktop"
+}
+
 export function pcSocketId(ws: WebSocket): string | null {
   return attachmentOf(ws)?.id ?? null
 }
@@ -616,15 +624,7 @@ export class ComputerHub {
     if (!this.online(pcId)) target = await this.wakeAndTarget(pcId, deadlineMs)
     if (!target) return this.offline(row)
     const { ws, saved, hello } = target
-    const cap = TERMINAL_OPS.has(op)
-      ? "terminal"
-      : op === "shell"
-        ? "shell"
-        : op === "read" || op === "write"
-          ? "files"
-          : op === "browser_steps"
-            ? "browser"
-            : "desktop"
+    const cap = capFor(op)
     if (op === "driver") {
       if (!hello.caps.background)
         return { ok: false, code: "unsupported", message: `${row.name} does not allow background work` }

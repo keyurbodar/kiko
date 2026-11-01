@@ -451,17 +451,17 @@ class Link {
   }
 
   private async driver(call: DriverCall, context: Deadline): Promise<unknown> {
-    const driver = await this.backgroundDriver(call)
+    const driver = await this.backgroundDriver(call.method)
     if (this.host.holder() === "human")
       throw new Fail({ code: "busy", message: "the owner has control of this screen right now" })
     return driver.call(call, context)
   }
 
-  private async backgroundDriver(call: DriverCall): Promise<Driver> {
+  private async backgroundDriver(method: DriverCall["method"]): Promise<Driver> {
     const policy = await this.host.policy()
     if (!policy.desktop)
       throw new Fail({ code: "denied", message: "policy.json turns desktop control off on this machine" })
-    if (!policy.input && INPUT_METHODS.has(call.method))
+    if (!policy.input && INPUT_METHODS.has(method))
       throw new Fail({ code: "denied", message: "policy.json turns input off on this machine" })
     if (this.host.paused()) throw new Fail({ code: "busy", message: PAUSED })
     const driver = this.host.driver()
@@ -470,7 +470,7 @@ class Link {
   }
 
   private async browserSteps(args: Args<"browser_steps">, context: Deadline): Promise<Value<"browser_steps">> {
-    const driver = await this.backgroundDriver({ method: "browser.act" })
+    const driver = await this.backgroundDriver("browser.act")
     const outcome = await this.runSteps(driver, args, context)
     if (outcome.stoppedBy !== undefined || !args.read) return outcome
     const page = await driver.call(
