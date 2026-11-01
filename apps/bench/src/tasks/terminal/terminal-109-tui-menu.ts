@@ -23,6 +23,8 @@ options = json.load(open("options.json"))["options"]
 
 def main(screen):
     curses.curs_set(0)
+    curses.noecho()
+    curses.cbreak()
     screen.keypad(True)
     index = 0
     ready = False
@@ -58,14 +60,24 @@ import select
 import subprocess
 import sys
 import time
+import tty
 
 options = json.load(open("options.json"))["options"]
 target = json.load(open("request.json"))["target"]
 index = options.index(target)
 
+log = open("driver.log", "w")
+
+
+def note(message):
+    log.write(f"{time.time():.3f} {message}\\n")
+    log.flush()
+
 
 def drain(master, output):
-    while select.select([master], [], [], 0)[0]:
+    for _ in range(128):
+        if not select.select([master], [], [], 0)[0]:
+            return
         try:
             chunk = os.read(master, 4096)
         except OSError:
@@ -75,11 +87,12 @@ def drain(master, output):
         output.append(chunk)
 
 
-def run_menu(term, sequence):
+def run_menu(attempt, term, sequence):
     for name in ("choice.txt", "menu-ready.txt"):
         if os.path.exists(name):
             os.remove(name)
     master, slave = pty.openpty()
+    tty.setraw(slave)
     environment = dict(os.environ, TERM=term)
     process = subprocess.Popen(
         [sys.executable, "menu.py"],
@@ -92,43 +105,54 @@ def run_menu(term, sequence):
     os.close(slave)
     os.set_blocking(master, False)
     output = []
-    deadline = time.time() + 6
+    note(f"attempt {attempt} term={term} sequence={sequence!r} pid={process.pid}")
+    deadline = time.time() + 5
     while time.time() < deadline and not os.path.exists("menu-ready.txt"):
         drain(master, output)
         if process.poll() is not None:
+            note(f"attempt {attempt} exited code={process.returncode}")
             break
         time.sleep(0.05)
     if os.path.exists("menu-ready.txt"):
+        note(f"attempt {attempt} ready")
         for _ in range(index):
             os.write(master, sequence)
             time.sleep(0.2)
             drain(master, output)
         os.write(master, b"\\n")
-        deadline = time.time() + 4
+        deadline = time.time() + 3
         while time.time() < deadline:
             if os.path.exists("choice.txt"):
                 with open("choice.txt", encoding="utf-8") as handle:
                     chosen = handle.read().strip()
+                note(f"attempt {attempt} choice={chosen!r}")
                 process.wait()
+                os.close(master)
                 return chosen == target, output
             drain(master, output)
             time.sleep(0.05)
+        note(f"attempt {attempt} no choice")
     process.kill()
     process.wait()
+    os.close(master)
+    note(f"attempt {attempt} failed")
     return False, output
 
 
 output = []
-for term, sequence in (
+attempts = (
     ("xterm-256color", b"\\x1bOB"),
     ("xterm-256color", b"\\x1b[B"),
     ("xterm", b"\\x1bOB"),
     ("xterm", b"\\x1b[B"),
-):
-    ok, output = run_menu(term, sequence)
+)
+for attempt, (term, sequence) in enumerate(attempts, 1):
+    ok, output = run_menu(attempt, term, sequence)
     if ok:
+        note("driven")
         sys.exit(0)
-sys.stderr.write(b"".join(output).decode("utf-8", "replace"))
+sys.stderr.write(b"".join(output).decode("utf-8", "replace")[-4000:])
+note("giving up")
 sys.exit(1)
 `
 
@@ -151,7 +175,10 @@ export const tuiMenu: Task = {
     await writeText(m, "drive.py", DRIVER)
     const driven = await run(m, [python(m), "drive.py"], { timeoutMs: 60_000 })
     await run(m, [python(m), "-c", 'import os; os.remove("drive.py")'])
-    if (driven.code !== 0) throw new Error(`could not drive the menu: ${driven.stderr || driven.stdout}`)
+    if (driven.code !== 0) {
+      const driverLog = (await readText(m, "driver.log")) ?? ""
+      throw new Error(`could not drive the menu: ${driven.stderr || driven.stdout}\n${driverLog.slice(-2000)}`)
+    }
   },
   check: async (m, seed) => {
     const target = pick(mulberry32(seed), OPTIONS)
