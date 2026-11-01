@@ -16,7 +16,11 @@ export XDG_CURRENT_DESKTOP=GNOME
 export DISPLAY=:0
 export NO_AT_BRIDGE=0
 export GTK_A11Y=atspi
-export GI_TYPELIB_PATH="/run/current-system/sw/lib/girepository-1.0:${GI_TYPELIB_PATH:-}"
+if [ -r /etc/kiko-bench/girepository ]; then
+  export GI_TYPELIB_PATH="$(cat /etc/kiko-bench/girepository)${GI_TYPELIB_PATH:+:$GI_TYPELIB_PATH}"
+else
+  export GI_TYPELIB_PATH="/run/current-system/sw/lib/girepository-1.0${GI_TYPELIB_PATH:+:$GI_TYPELIB_PATH}"
+fi
 export LIBGL_ALWAYS_SOFTWARE=1
 
 exec dbus-run-session -- bash -c '
