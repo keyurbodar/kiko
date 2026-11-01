@@ -79,8 +79,10 @@ class H264 {
     if (this.stopped || !args) return
     console.warn(`h264 probe: ${args.join(" ")}`)
     this.launchedAt = performance.now()
-    this.child = Bun.spawn(args, { stdin: "ignore", stdout: "pipe", stderr: "pipe" })
-    void this.pump(this.child)
+    const child: Child = Bun.spawn(args, { stdin: "ignore", stdout: "pipe", stderr: "pipe" })
+    this.child = child
+    describe("h264", child)
+    void this.pump(child)
   }
 
   private async pump(proc: Child): Promise<void> {
@@ -88,7 +90,10 @@ class H264 {
       if (this.stopped || proc !== this.child) return
       this.emit(chunk)
     }
-    const tail = await new Response(proc.stderr).text().catch(() => "")
+    let tail = ""
+    try {
+      tail = await new Response(proc.stderr).text()
+    } catch {}
     const code = await proc.exited
     if (this.stopped || proc !== this.child) return
     this.child = null
@@ -189,13 +194,10 @@ class Mjpeg {
     if (this.stopped || !args) return
     console.warn(`mjpeg probe: ${args.join(" ")}`)
     this.pending = new Uint8Array(0)
-    this.child = Bun.spawn(args, { stdin: "ignore", stdout: "pipe", stderr: "pipe" })
-    const child = this.child
-    setTimeout(() => {
-      if (this.child !== child) return
-      console.warn(`mjpeg probe: 6s later pid=${child.pid} exit=${child.exitCode} stopped=${this.stopped}`)
-    }, 6_000)
-    void this.pump(this.child)
+    const child: Child = Bun.spawn(args, { stdin: "ignore", stdout: "pipe", stderr: "pipe" })
+    this.child = child
+    describe("mjpeg", child)
+    void this.pump(child)
   }
 
   private async pump(proc: Child): Promise<void> {
@@ -203,7 +205,10 @@ class Mjpeg {
       if (this.stopped || proc !== this.child) return
       this.emit(chunk)
     }
-    const tail = await new Response(proc.stderr).text().catch(() => "")
+    let tail = ""
+    try {
+      tail = await new Response(proc.stderr).text()
+    } catch {}
     const code = await proc.exited
     if (this.stopped || proc !== this.child) return
     this.child = null
@@ -248,4 +253,30 @@ function join(left: Uint8Array, right: Uint8Array): Uint8Array {
   out.set(left, 0)
   out.set(right, left.byteLength)
   return out
+}
+
+function describe(name: string, child: Child): void {
+  const errors: string[] = []
+  void (async () => {
+    if (!child.stderr) return
+    for await (const chunk of child.stderr) errors.push(new TextDecoder().decode(chunk))
+  })()
+  setTimeout(() => {
+    void state(child.pid).then((where) => {
+      console.warn(
+        `${name} probe: 6s later pid=${child.pid} exit=${child.exitCode} state=${where} stderr=${errors.join("").trim().slice(0, 300) || "none"}`,
+      )
+    })
+  }, 6_000)
+}
+
+async function state(pid: number): Promise<string> {
+  try {
+    const proc = Bun.spawn(["ps", "-p", String(pid), "-o", "state="], { stdout: "pipe", stderr: "ignore" })
+    const out = await new Response(proc.stdout).text()
+    await proc.exited
+    return out.trim() || "gone"
+  } catch {
+    return "unknown"
+  }
 }

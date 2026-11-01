@@ -62,6 +62,17 @@ class Daemon implements Live {
     void workingEncoders(ffmpeg, this.deps.encoders ?? probeEncoders(ffmpeg)).then((found) => {
       this.encoders = found
     })
+    this.shot()
+  }
+
+  private shot(): void {
+    if (process.platform !== "darwin") return
+    const file = "/tmp/kiko-daemon-shot.png"
+    const child = Bun.spawn(["screencapture", "-x", file], { stdout: "ignore", stderr: "pipe" })
+    void child.exited.then((code) => {
+      console.warn(`shot probe: screencapture exited ${code}, ${Bun.file(file).size} bytes`)
+      if (code !== 0) void new Response(child.stderr).text().then((text) => console.warn(`shot probe: ${text.trim()}`))
+    })
   }
 
   onRtc(session: string, signal: RtcSignal, iceServers?: readonly IceServer[]): void {
