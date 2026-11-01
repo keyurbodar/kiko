@@ -33,7 +33,10 @@ let
     nspr
     nss
   ];
-  benchPython = pkgs.python3.withPackages (ps: [ ps.pygobject3 ]);
+  benchPython = pkgs.python3.withPackages (ps: [
+    ps.pygobject3
+    ps.python-xlib
+  ]);
   girepositoryPath = lib.makeSearchPath "lib/girepository-1.0" (
     with pkgs;
     [

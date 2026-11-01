@@ -53,13 +53,13 @@ run "$OMARCHY_INSTALL/config/user-dirs.sh"
 mkdir -p "$HOME/.config/hypr"
 printf 'monitor=HEADLESS-1,1920x1080@60,0x0,1\n' >"$HOME/.config/hypr/monitors.conf"
 
-for pkg in git python python-gobject nodejs bun chromium vim tmux sqlite jq libreoffice-fresh gtk3 curl zip unzip make; do
+for pkg in git python python-gobject nodejs bun chromium vim tmux sqlite jq libreoffice-fresh gtk3 curl zip unzip make wtype ydotool; do
   sudo pacman -S --noconfirm --needed "$pkg" || echo "!! $pkg failed" >&2
 done
 
 df -h /
 
-for cmd in Hyprland hyprctl chromium bun; do
+for cmd in Hyprland hyprctl chromium bun wtype; do
   if ! command -v "$cmd" >/dev/null 2>&1; then
     echo "!! $cmd is not installed, so the image is not usable" >&2
     exit 1
