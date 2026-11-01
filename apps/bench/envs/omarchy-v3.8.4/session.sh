@@ -19,7 +19,6 @@ export WLR_BACKENDS=headless
 export WLR_LIBINPUT_NO_DEVICES=1
 export WLR_RENDERER=pixman
 export DISPLAY=:0
-export GDK_BACKEND=x11
 export NO_AT_BRIDGE=0
 
 export YDOTOOL_SOCKET="$XDG_RUNTIME_DIR/.ydotool_socket"
@@ -42,6 +41,10 @@ exec dbus-run-session -- bash -c '
     sleep 0.5
   done
   export HYPRLAND_INSTANCE_SIGNATURE="$signature"
+  export WAYLAND_DISPLAY="hypr/$signature/.wayland.sock"
+  if [ ! -S "$XDG_RUNTIME_DIR/$WAYLAND_DISPLAY" ]; then
+    echo "warning: Hyprland did not publish $XDG_RUNTIME_DIR/$WAYLAND_DISPLAY" >&2
+  fi
   hyprctl keyword monitor HEADLESS-1,1920x1080@60,0x0,1 >/dev/null 2>&1 || true
   for _ in $(seq 1 120); do
     if DISPLAY=:0 xdotool getdisplaygeometry >/dev/null 2>&1; then break; fi

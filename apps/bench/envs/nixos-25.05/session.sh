@@ -14,7 +14,6 @@ chmod 700 "$XDG_RUNTIME_DIR"
 export XDG_SESSION_TYPE=wayland
 export XDG_CURRENT_DESKTOP=GNOME
 export DISPLAY=:0
-export GDK_BACKEND=x11
 export NO_AT_BRIDGE=0
 export GTK_A11Y=atspi
 export GI_TYPELIB_PATH="/run/current-system/sw/lib/girepository-1.0:${GI_TYPELIB_PATH:-}"
@@ -23,8 +22,10 @@ export LIBGL_ALWAYS_SOFTWARE=1
 exec dbus-run-session -- bash -c '
   env -u DISPLAY gnome-shell --headless --virtual-monitor 1920x1080 >/tmp/gnome-shell.log 2>&1 &
   shell=$!
+  socket=""
   for _ in $(seq 1 240); do
-    if [ -S "$XDG_RUNTIME_DIR/wayland-0" ]; then break; fi
+    socket=$(ls "$XDG_RUNTIME_DIR"/wayland-* 2>/dev/null | head -n 1 || true)
+    if [ -n "$socket" ]; then break; fi
     if ! kill -0 "$shell" 2>/dev/null; then
       echo "gnome-shell exited before the session came up" >&2
       tail -n 200 /tmp/gnome-shell.log >&2 || true
@@ -32,6 +33,12 @@ exec dbus-run-session -- bash -c '
     fi
     sleep 0.5
   done
+  if [ -z "$socket" ]; then
+    echo "gnome-shell never published a Wayland socket in $XDG_RUNTIME_DIR" >&2
+    tail -n 200 /tmp/gnome-shell.log >&2 || true
+    exit 1
+  fi
+  export WAYLAND_DISPLAY="$(basename "$socket")"
   for _ in $(seq 1 120); do
     if DISPLAY=:0 xdotool getdisplaygeometry >/dev/null 2>&1; then break; fi
     sleep 0.5

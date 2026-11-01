@@ -21,8 +21,9 @@ async function linuxFixture(
   m: Machine,
 ): Promise<{ app: string; title: string; decoyTitle: string; processes: Process[] }> {
   const script = join(BENCH_ROOT, "fixtures", "desktop", "gtk_window.py")
-  const fixture = await m.spawn(["python3", script, "kiko-bench-fixture", "seed"])
-  const decoy = await m.spawn(["python3", script, "kiko-bench-decoy", ""])
+  const env = { env: { GDK_BACKEND: "x11" } }
+  const fixture = await m.spawn(["python3", script, "kiko-bench-fixture", "seed"], env)
+  const decoy = await m.spawn(["python3", script, "kiko-bench-decoy", ""], env)
   return { app: "", title: "kiko-bench-fixture", decoyTitle: "kiko-bench-decoy", processes: [fixture, decoy] }
 }
 
