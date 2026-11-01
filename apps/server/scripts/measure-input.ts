@@ -4,7 +4,18 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { chromium, type Browser, type Page } from "playwright"
 import { mintPairCode } from "../src/computer/pairing"
-import { signIn, start, startWeb, startWorker, until, wait, WEB_PORT, SERVER_PORT, type Child } from "./measure-harness"
+import {
+  finishFirstRun,
+  signIn,
+  start,
+  startWeb,
+  startWorker,
+  until,
+  wait,
+  WEB_PORT,
+  SERVER_PORT,
+  type Child,
+} from "./measure-harness"
 
 const LEFT_PORT = 5198
 const RIGHT_PORT = 5197
@@ -179,31 +190,12 @@ async function main(): Promise<void> {
     page.on("pageerror", (error) => process.stderr.write(`[viewer] pageerror: ${error.message}\n`))
     await page.goto(`http://localhost:${WEB_PORT}/`)
     await page.waitForSelector('[data-action="computer-watch"], [data-action="skip-first-run"]', { timeout: 60_000 })
-    const tap = async (locator: ReturnType<typeof page.locator>) => {
-      if ((await locator.count()) === 0 || !(await locator.isVisible())) return
-      await locator.click({ timeout: 2_000 }).catch(() => {})
-    }
-    const opened = { at: false }
-    for (let attempt = 0; attempt < 8 && !opened.at; attempt += 1) {
-      await tap(page.locator('[data-action="skip-first-run"]'))
-      await tap(page.locator('[data-action="open-kiko"]'))
-      await tap(page.locator('[data-action="computer-watch"]'))
-      opened.at = await page
-        .waitForSelector('[data-component="computer-viewer"]', { timeout: 8_000 })
-        .then(() => true)
-        .catch(() => false)
-      if (!opened.at) await wait(500)
-    }
-    if (!opened.at) {
-      const state = await page.evaluate(() => ({
-        parts: [...document.querySelectorAll("[data-component]")].map((element) =>
-          element.getAttribute("data-component"),
-        ),
-        text: document.body.innerText.slice(0, 400),
-      }))
-      process.stderr.write(`[viewer] no viewer ${JSON.stringify(state)}\n`)
-      throw new Error("the viewer did not open")
-    }
+    await finishFirstRun(page)
+    await page.reload()
+    await page.waitForSelector('[data-action="computer-watch"], [data-action="skip-first-run"]', { timeout: 60_000 })
+    await finishFirstRun(page)
+    await page.waitForSelector('[data-action="computer-watch"]', { timeout: 60_000 })
+    await page.click('[data-action="computer-watch"]', { timeout: 10_000 })
     await page.waitForSelector('[data-component="computer-screen"]', { timeout: 45_000 })
     let ticks = 0
     let streaming = true

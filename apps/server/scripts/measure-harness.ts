@@ -1,5 +1,6 @@
 import { randomBytes } from "node:crypto"
 import { join } from "node:path"
+import type { Page } from "playwright"
 
 export const SERVER_PORT = 8899
 export const WEB_PORT = 5174
@@ -104,4 +105,22 @@ export async function signIn(): Promise<string> {
     30_000,
   )
   return found.token ?? ""
+}
+
+export async function finishFirstRun(page: Page): Promise<void> {
+  for (let step = 0; step < 6; step += 1) {
+    const skip = page.locator('[data-action="skip-first-run"]')
+    if ((await skip.count()) > 0 && (await skip.isVisible())) {
+      await skip.click({ timeout: 5_000 }).catch(() => {})
+      await wait(600)
+      continue
+    }
+    const done = page.locator('[data-action="open-kiko"]')
+    if ((await done.count()) > 0 && (await done.isVisible())) {
+      await done.click({ timeout: 5_000 }).catch(() => {})
+      await wait(1_500)
+      continue
+    }
+    return
+  }
 }
