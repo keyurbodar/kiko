@@ -38,6 +38,12 @@ class Sentinel:
         self.atom_desktop = self.atom("_NET_WM_DESKTOP")
         self.atom_current_desktop = self.atom("_NET_CURRENT_DESKTOP")
         self.atom_pid = self.atom("_NET_WM_PID")
+        self.atom_type = self.atom("_NET_WM_WINDOW_TYPE")
+        self.chrome_types = {
+            self.atom("_NET_WM_WINDOW_TYPE_DOCK"),
+            self.atom("_NET_WM_WINDOW_TYPE_DESKTOP"),
+            self.atom("_NET_WM_WINDOW_TYPE_NOTIFICATION"),
+        }
         self.atom_delete = self.atom("WM_DELETE_WINDOW")
         self.atom_protocols = self.atom("WM_PROTOCOLS")
         self.window = self.build_window()
@@ -153,6 +159,9 @@ class Sentinel:
                 return None
             owner = window.get_full_property(self.atom_pid, Xatom.CARDINAL)
             if owner is not None and len(owner.value) and owner.value[0] == os.getpid():
+                return None
+            kinds = window.get_full_property(self.atom_type, Xatom.ATOM)
+            if kinds is not None and any(kind in self.chrome_types for kind in kinds.value):
                 return None
             desktop = window.get_full_property(self.atom_desktop, Xatom.CARDINAL)
             if desktop is not None and len(desktop.value) and current_desktop is not None:

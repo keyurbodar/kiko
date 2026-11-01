@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { parseEvents, witness } from "./witness"
+import { parseEvents, missingKeys, witness } from "./witness"
 
 type Line = Record<string, unknown>
 
@@ -86,6 +86,46 @@ describe("witness", () => {
       ),
     )
     expect(result.background.windowsRaised).toBe(3)
+  })
+
+  it("counts nothing for a dock that is already above when the witness is ready", () => {
+    const result = witness(
+      parseEvents(
+        text([
+          ready,
+          sample(100, "self", true, ["xfce4-panel"], [0, 0]),
+          sample(200, "self", true, ["xfce4-panel"], [0, 0]),
+          sample(300, "self", true, ["xfce4-panel"], [0, 0]),
+        ]),
+      ),
+    )
+    expect(result.background.windowsRaised).toBe(0)
+  })
+
+  it("counts a window that rises above the dock after the witness is ready", () => {
+    const result = witness(
+      parseEvents(
+        text([
+          ready,
+          sample(100, "self", true, ["xfce4-panel"], [0, 0]),
+          sample(200, "self", true, ["xfce4-panel", "Other"], [0, 0]),
+          sample(300, "self", true, ["xfce4-panel", "Other"], [0, 0]),
+        ]),
+      ),
+    )
+    expect(result.background.windowsRaised).toBe(1)
+  })
+
+  it("names the keys a tick number says were swallowed", () => {
+    const events = parseEvents(
+      text([
+        ready,
+        { ev: "tick", t: 1000, received: true, n: 0 },
+        { ev: "tick", t: 2000, received: false, n: 1 },
+        { ev: "tick", t: 3000, received: false, n: 2 },
+      ]),
+    )
+    expect(missingKeys(events)).toEqual([1, 2])
   })
 
   it("counts one pointer move per excursion beyond one pixel", () => {

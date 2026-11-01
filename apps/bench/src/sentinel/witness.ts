@@ -6,7 +6,7 @@ export type WitnessEvent =
   | { readonly ev: "ready"; readonly t: number; readonly unmeasured?: readonly BackgroundCounter[] }
   | { readonly ev: "exit"; readonly t: number }
   | { readonly ev: "error"; readonly t: number; readonly message: string }
-  | { readonly ev: "tick"; readonly t: number; readonly received: boolean }
+  | { readonly ev: "tick"; readonly t: number; readonly received: boolean; readonly n?: number }
   | {
       readonly ev: "sample"
       readonly t: number
@@ -63,7 +63,9 @@ function readEvent(value: unknown): WitnessEvent | undefined {
     case "error":
       return typeof value.message === "string" ? { ev: "error", t: value.t, message: value.message } : undefined
     case "tick":
-      return typeof value.received === "boolean" ? { ev: "tick", t: value.t, received: value.received } : undefined
+      return typeof value.received === "boolean"
+        ? { ev: "tick", t: value.t, received: value.received, ...(typeof value.n === "number" ? { n: value.n } : {}) }
+        : undefined
     case "sample":
       return isFront(value.front) &&
         typeof value.key === "boolean" &&
@@ -126,7 +128,7 @@ function tally(events: readonly WitnessEvent[]): Tally {
   let focused = true
   let moved = false
   let baseline: readonly [number, number] | undefined
-  let above: ReadonlySet<string> = new Set()
+  let above: ReadonlySet<string> | undefined
   for (const event of events) {
     switch (event.ev) {
       case "ready":
@@ -156,8 +158,10 @@ function tally(events: readonly WitnessEvent[]): Tally {
         if (!nowFocused && focused) state.steals += 1
         focused = nowFocused
         const current = new Set(event.above)
-        for (const name of current) {
-          if (!above.has(name)) state.raised += 1
+        if (above !== undefined) {
+          for (const name of current) {
+            if (!above.has(name)) state.raised += 1
+          }
         }
         above = current
         break
@@ -169,6 +173,17 @@ function tally(events: readonly WitnessEvent[]): Tally {
     }
   }
   return state
+}
+
+export function missingKeys(events: readonly WitnessEvent[]): number[] {
+  const missing: number[] = []
+  let index = 0
+  for (const event of events) {
+    if (event.ev !== "tick") continue
+    if (!event.received) missing.push(event.n ?? index)
+    index += 1
+  }
+  return missing
 }
 
 export function witness(events: readonly WitnessEvent[]): Witness {
