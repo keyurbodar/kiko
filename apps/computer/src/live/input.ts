@@ -28,13 +28,6 @@ export function createInput(area: () => Screen | null, gate: Gate, native = crea
   if (!native) return null
   const bounds = () => area() ?? native.screen()
   const scale = (x: number, y: number) => place(area(), bounds(), x, y)
-  const trace = (kind: string, x: number, y: number, at: { x: number; y: number }) => {
-    if (process.env.KIKO_INPUT_DEBUG !== "1") return
-    const box = area()
-    process.stderr.write(
-      `[input] ${kind} ${x.toFixed(3)},${y.toFixed(3)} -> ${at.x},${at.y} area=${box?.width ?? 0}x${box?.height ?? 0}@${box?.originX ?? 0},${box?.originY ?? 0} scale=${box?.scale ?? 1}\n`,
-    )
-  }
 
   return {
     apply(events) {
@@ -45,11 +38,9 @@ export function createInput(area: () => Screen | null, gate: Gate, native = crea
         else if (event.k === "key") native.key(event.code, event.key, event.down)
         else if (event.k === "move") {
           const at = scale(event.x, event.y)
-          trace("move", event.x, event.y, at)
           native.move(at.x, at.y)
         } else if (event.k === "down" || event.k === "up") {
           const at = scale(event.x, event.y)
-          trace(event.k, event.x, event.y, at)
           native.button(BUTTONS.get(event.b) ?? 0, event.k === "down", at.x, at.y)
         } else {
           native.wheel(Math.round(event.dy), false)

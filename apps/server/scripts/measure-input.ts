@@ -160,7 +160,7 @@ async function main(): Promise<void> {
 
     const minted = await mintPairCode(kek, "owner")
     const computerDir = join(dir, "pc")
-    const env = { KIKO_COMPUTER_DIR: computerDir, KIKO_DRIVER: driverPath, DISPLAY: display, KIKO_INPUT_DEBUG: "1" }
+    const env = { KIKO_COMPUTER_DIR: computerDir, KIKO_DRIVER: driverPath, DISPLAY: display }
     const paired = start(
       "pair",
       ["bun", "src/index.ts", "pair", `http://127.0.0.1:${SERVER_PORT}#${minted.code}`, "--name", "kiko-ci"],
