@@ -183,9 +183,6 @@ class Daemon implements Live {
 
   private deliver(events: readonly InputEvent[], from?: string): void {
     if (events.length === 0) return
-    this.deps.warn(
-      `input walk: ${events.map((event) => event.k).join(",")} from=${from ?? "relay"} holder=${this.holder}/${this.holderSession ?? "none"}`,
-    )
     if (this.holder !== "human" || !this.deps.policy().input) return
     if (from !== undefined && this.holderSession !== undefined && from !== this.holderSession) {
       return

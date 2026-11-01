@@ -899,10 +899,7 @@ export class ComputerHub {
   }
 
   input(pcId: string, session: string, events: readonly InputEvent[]): boolean {
-    if (!this.owns(pcId, session)) {
-      console.warn(`input walk: the hub refuses ${session} for ${pcId}`)
-      return false
-    }
+    if (!this.owns(pcId, session)) return false
     const ws = this.socket(pcId)
     if (!ws) return false
     this.send(ws, { t: "input", events })

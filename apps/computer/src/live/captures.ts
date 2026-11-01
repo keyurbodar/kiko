@@ -1,4 +1,3 @@
-import type { Subprocess } from "bun"
 import { capturePlans, type Screen } from "./capture"
 import { AnnexB, type AccessUnit } from "./annexb"
 
@@ -19,6 +18,7 @@ export type H264Options = {
   maxWidth: number
   encoders: readonly string[]
   handlers: CaptureHandlers
+  spawn?: Spawn
 }
 
 const CLOCK = 90_000
@@ -28,7 +28,20 @@ const STARTUP_GRACE_MS = 4_000
 const RESTART_LIMIT = 5
 const RESTART_DELAY_MS = 500
 
-type Child = Subprocess<"ignore", "pipe", "pipe">
+type Child = {
+  readonly pid: number
+  readonly exitCode: number | null
+  readonly stdout: ReadableStream<Uint8Array>
+  readonly stderr: ReadableStream<Uint8Array>
+  readonly exited: Promise<number>
+  kill(): void
+}
+
+type Spawn = (args: string[]) => Child
+
+function launch(args: string[]): Child {
+  return Bun.spawn(args, { stdin: "ignore", stdout: "pipe", stderr: "pipe" })
+}
 
 class H264 {
   private readonly options: H264Options
@@ -81,7 +94,7 @@ class H264 {
     if (this.stopped || !args) return
     this.launchedAt = performance.now()
     this.frames = 0
-    const child: Child = Bun.spawn(args, { stdin: "ignore", stdout: "pipe", stderr: "pipe" })
+    const child = (this.options.spawn ?? launch)(args)
     this.child = child
     this.watchFirstFrame(child)
     void this.pump(child)
@@ -170,6 +183,7 @@ export type MjpegOptions = {
   maxWidth: number
   quality: number
   handlers: { frame(jpeg: Uint8Array): void; failed(reason: string): void }
+  spawn?: Spawn
 }
 
 export type MjpegCapture = { stop(): void }
@@ -221,7 +235,7 @@ class Mjpeg {
     if (this.stopped || !args) return
     this.pending = new Uint8Array(0)
     this.frames = 0
-    const child: Child = Bun.spawn(args, { stdin: "ignore", stdout: "pipe", stderr: "pipe" })
+    const child = (this.options.spawn ?? launch)(args)
     this.child = child
     this.watchFirstFrame(child)
     void this.pump(child)
