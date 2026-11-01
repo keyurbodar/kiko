@@ -180,6 +180,7 @@ class Mjpeg {
   private launch(): void {
     const args = this.plans[this.plan]
     if (this.stopped || !args) return
+    console.warn(`mjpeg probe: ${args.join(" ")}`)
     this.pending = new Uint8Array(0)
     this.child = Bun.spawn(args, { stdin: "ignore", stdout: "pipe", stderr: "pipe" })
     void this.pump(this.child)
@@ -194,6 +195,7 @@ class Mjpeg {
     const code = await proc.exited
     if (this.stopped || proc !== this.child) return
     this.child = null
+    console.warn(`mjpeg probe: ffmpeg exited with ${code}: ${tail.slice(0, 400)}`)
     if (this.plan + 1 < this.plans.length) {
       this.plan++
       this.launch()
@@ -204,6 +206,7 @@ class Mjpeg {
   }
 
   private emit(chunk: Uint8Array): void {
+    console.warn(`mjpeg probe: a chunk of ${chunk.byteLength} bytes`)
     this.pending = join(this.pending, chunk)
     let scan = 0
     while (scan + 3 < this.pending.byteLength) {

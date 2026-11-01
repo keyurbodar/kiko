@@ -109,6 +109,9 @@ jobs:
           ffmpeg -hide_banner -loglevel error -f avfoundation -capture_cursor 1 -framerate 5 -i "Capture screen 0" -t 2 -f mjpeg -q:v 5 pipe:1 > /tmp/frames.mjpeg 2>/tmp/frames.log || true
           echo "captured $(wc -c < /tmp/frames.mjpeg) bytes"
           cat /tmp/frames.log || true
+          ffmpeg -hide_banner -loglevel error -nostdin -f avfoundation -capture_cursor 1 -framerate 15 -i "Capture screen 0" -r 15 -an -vf scale=1024:768:flags=fast_bilinear -c:v mjpeg -q:v 19 -f mjpeg -t 2 pipe:1 > /tmp/daemon.mjpeg 2>/tmp/daemon.log || true
+          echo "the daemon's command captured $(wc -c < /tmp/daemon.mjpeg) bytes"
+          cat /tmp/daemon.log || true
       - name: Paste a Unicode string and click the display
         run: bun apps/server/scripts/measure-input.ts --single --out input-proof.json
       - name: Upload the proof
