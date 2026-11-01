@@ -126,6 +126,12 @@ def run_menu(attempt, term, sequence):
                 with open("choice.txt", encoding="utf-8") as handle:
                     chosen = handle.read().strip()
                 note(f"attempt {attempt} choice={chosen!r}")
+                deadline = time.time() + 3
+                while process.poll() is None and time.time() < deadline:
+                    drain(master, output)
+                    time.sleep(0.05)
+                if process.poll() is None:
+                    process.kill()
                 process.wait()
                 os.close(master)
                 return chosen == target, output
