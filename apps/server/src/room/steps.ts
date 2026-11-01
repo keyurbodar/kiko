@@ -65,11 +65,13 @@ function storedCard(step: RunStep): RunStep {
 }
 
 function shrink(step: RunStep, budget: number): RunStep {
-  const card: RunStep = { ...step, label: step.label.slice(0, 160) }
   const half = Math.max(0, Math.floor(budget / 4))
-  if (card.input !== undefined) card.input = card.input.slice(0, half)
-  if (card.output !== undefined) card.output = card.output.slice(0, Math.max(0, Math.floor(budget / 2)))
-  return card
+  return {
+    ...step,
+    label: step.label.slice(0, 160),
+    ...(step.input !== undefined ? { input: step.input.slice(0, half) } : {}),
+    ...(step.output !== undefined ? { output: step.output.slice(0, Math.max(0, Math.floor(budget / 2))) } : {}),
+  }
 }
 
 export function stepLog(steps: readonly RunStep[]): string | null {
@@ -89,7 +91,7 @@ export function stepLog(steps: readonly RunStep[]): string | null {
     kept.push(card)
     bytes += separator + size
   }
-  return kept.length ? JSON.stringify(kept.reverse()) : null
+  return kept.length ? JSON.stringify(kept.toReversed()) : null
 }
 
 export function parseStepLog(raw: string | null): RunStep[] | null {

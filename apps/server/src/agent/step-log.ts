@@ -3,7 +3,7 @@ import type { Conversation, ConversationId, Harness } from "@earendil-works/pi-d
 import { noteOf } from "./pacing"
 import { type Describe, outputOf, type StepItem, type StepScope, stepOf, type StepShown } from "./extensions/presence"
 
-type Part = { type?: string; text?: string; id?: string; name?: string; arguments?: unknown }
+type Part = { type: string; text?: string; id?: string; name?: string; arguments?: unknown }
 type Message = {
   role?: string
   content?: string | readonly Part[]

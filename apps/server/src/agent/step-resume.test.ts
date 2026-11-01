@@ -69,7 +69,11 @@ function state(db = new DatabaseSync(":memory:")): {
       }
     },
   }
-  return { db, storage, ctx: { storage, abort: () => {} } as unknown as DurableObjectState }
+  return {
+    db,
+    storage: storage as unknown as DurableObjectStorage,
+    ctx: { storage, abort: () => {} } as unknown as DurableObjectState,
+  }
 }
 
 function clone(from: State): State {

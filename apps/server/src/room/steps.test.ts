@@ -153,7 +153,8 @@ describe("a step log on a message row", () => {
     expect(Buffer.byteLength(raw!, "utf8")).toBeLessThanOrEqual(STEP_LOG_BYTES)
     expect(kept.at(-1)?.id).toBe("60")
     expect(kept.length).toBeLessThan(many.length)
-    expect(kept.map((s) => s.id)).toEqual([...kept.map((s) => s.id)].sort((a, b) => Number(a) - Number(b)))
+    const ids = kept.map((s) => Number(s.id))
+    expect(ids).toEqual(ids.toSorted((a, b) => a - b))
   })
 
   it("carries no image bytes", () => {

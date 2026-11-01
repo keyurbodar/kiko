@@ -2,7 +2,7 @@ import type { ConversationId } from "@earendil-works/pi-durable"
 import { describe, expect, it } from "vitest"
 import { stepsFromEntries } from "./step-log"
 
-const CONTEXT = "c1" as ConversationId
+const CONTEXT = "c1" as unknown as ConversationId
 const scope = () => ({ runId: "run:1" })
 
 type Entry = Parameters<typeof stepsFromEntries>[0][number]
