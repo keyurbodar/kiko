@@ -69,7 +69,7 @@ exec dbus-run-session -- bash -c '
   else
     export WAYLAND_DISPLAY="$(basename "$socket")"
   fi
-  output=$(hyprctl monitors -j 2>/dev/null | jq -r '.[0].name // empty' || true)
+  output=$(hyprctl monitors -j 2>/dev/null | jq -r ".[0].name // empty" || true)
   if [ -n "$output" ]; then
     hyprctl keyword monitor "$output,1920x1080@60,0x0,1" >/dev/null 2>&1 || true
   fi
