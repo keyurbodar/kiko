@@ -108,6 +108,48 @@ function status() {
   }
 }
 
+async function captureProbe(width: number, height: number): Promise<number> {
+  if (process.platform !== "darwin") return -1
+  const args = [
+    "ffmpeg",
+    "-hide_banner",
+    "-loglevel",
+    "error",
+    "-nostdin",
+    "-f",
+    "avfoundation",
+    "-capture_cursor",
+    "1",
+    "-framerate",
+    "15",
+    "-i",
+    "Capture screen 0:none",
+    "-r",
+    "15",
+    "-an",
+    "-vf",
+    `scale=${width}:${height}:flags=fast_bilinear`,
+    "-c:v",
+    "mjpeg",
+    "-q:v",
+    "18",
+    "-f",
+    "mjpeg",
+    "-t",
+    "2",
+    "pipe:1",
+  ]
+  const child = Bun.spawn(args, { stdin: "ignore", stdout: "pipe", stderr: "ignore" })
+  const reader = child.stdout.getReader()
+  const bytes = await Promise.race([
+    reader.read().then((part) => part.value?.byteLength ?? 0),
+    wait(5_000).then(() => -1),
+  ])
+  child.kill()
+  await Promise.race([child.exited, wait(3_000)])
+  return bytes
+}
+
 async function watchable(page: Page): Promise<void> {
   for (let tries = 0; tries < 6; tries++) {
     const ready = await page.waitForSelector('[data-action="computer-watch"]', { timeout: 15_000 }).then(
@@ -185,6 +227,7 @@ async function main(): Promise<void> {
       env,
     )
     if ((await paired.exited) !== 0) throw new Error("the daemon failed to pair")
+    result.captureProbe = await captureProbe(area?.width ?? 1024, area?.height ?? 768)
     children.push(start("daemon", ["bun", "src/index.ts", "run"], COMPUTER, env))
 
     const auth = JSON.stringify({
