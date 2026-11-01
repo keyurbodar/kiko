@@ -19,6 +19,19 @@ exec dbus-run-session -- xvfb-run -a -s "-screen 0 1920x1080x24" bash -c '
     if xprop -root _NET_SUPPORTING_WM_CHECK 2>/dev/null | grep -q "window id"; then break; fi
     sleep 0.1
   done
+  clients=""
+  settled=0
+  for _ in $(seq 1 200); do
+    now="$(xprop -root _NET_CLIENT_LIST 2>/dev/null || true)"
+    if [ -n "$now" ] && [ "$now" = "$clients" ]; then
+      settled=$((settled + 1))
+      if [ "$settled" -ge 5 ]; then break; fi
+    else
+      settled=0
+    fi
+    clients="$now"
+    sleep 0.1
+  done
   gdbus call --session --dest org.a11y.Bus --object-path /org/a11y/bus \
     --method org.freedesktop.DBus.Properties.Set org.a11y.Status IsEnabled "<true>" >/dev/null 2>&1 || true
   exec "$@"
