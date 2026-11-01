@@ -41,6 +41,7 @@ class Daemon implements Live {
   private stopClipboard: (() => void) | null = null
   private watchingClipboard = false
   private lastClipboard: string | null = null
+  private shell = false
 
   constructor(deps: LiveDeps) {
     this.deps = deps
@@ -72,6 +73,52 @@ class Daemon implements Live {
     void child.exited.then((code) => {
       console.warn(`shot probe: screencapture exited ${code}, ${Bun.file(file).size} bytes`)
       if (code !== 0) void new Response(child.stderr).text().then((text) => console.warn(`shot probe: ${text.trim()}`))
+    })
+  }
+
+  private shellProbe(): void {
+    if (this.shell) return
+    this.shell = true
+    const ffmpeg = this.ffmpeg()
+    if (!ffmpeg) return
+    const args = [
+      "-hide_banner",
+      "-loglevel",
+      "error",
+      "-nostdin",
+      "-f",
+      "avfoundation",
+      "-capture_cursor",
+      "1",
+      "-framerate",
+      "15",
+      "-i",
+      "Capture screen 0:none",
+      "-r",
+      "15",
+      "-an",
+      "-vf",
+      "scale=1024:768:flags=fast_bilinear",
+      "-c:v",
+      "mjpeg",
+      "-q:v",
+      "18",
+      "-f",
+      "mjpeg",
+      "-t",
+      "3",
+      "pipe:1",
+    ]
+    const line = [ffmpeg, ...args].map((part) => `'${part}'`).join(" ")
+    const child = Bun.spawn(["bash", "-c", `${line} > /tmp/kiko-shell.mjpeg 2> /tmp/kiko-shell.log`], {
+      stdin: "ignore",
+      stdout: "ignore",
+      stderr: "ignore",
+    })
+    void child.exited.then((code) => {
+      console.warn(
+        `shell probe: exited ${code}, ${Bun.file("/tmp/kiko-shell.mjpeg").size} bytes, log ${Bun.file("/tmp/kiko-shell.log").size}`,
+      )
     })
   }
 
@@ -338,6 +385,7 @@ class Daemon implements Live {
 
   private startRelay(frame: LiveFrame): void {
     this.deps.warn(`relay probe: asked for ${frame.fps} fps on ${JSON.stringify(this.screen)}`)
+    this.shellProbe()
     const profile = relayProfile(frame)
     if (this.relay) {
       if (sameProfile(this.relay.profile, profile)) return

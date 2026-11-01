@@ -108,6 +108,20 @@ function status() {
   }
 }
 
+async function watchable(page: Page): Promise<void> {
+  for (let tries = 0; tries < 6; tries++) {
+    const ready = await page.waitForSelector('[data-action="computer-watch"]', { timeout: 15_000 }).then(
+      () => true,
+      () => false,
+    )
+    if (ready) return
+    await page.reload()
+    await page.waitForSelector('[data-action="skip-first-run"]', { timeout: 15_000 }).catch(() => {})
+    await finishFirstRun(page)
+  }
+  throw new Error("the computer never showed up to watch")
+}
+
 async function main(): Promise<void> {
   const dir = await mkdtemp(join(tmpdir(), "kiko-input-"))
   const children: Child[] = []
@@ -197,7 +211,7 @@ async function main(): Promise<void> {
     await page.reload()
     await page.waitForSelector('[data-action="computer-watch"], [data-action="skip-first-run"]', { timeout: 60_000 })
     await finishFirstRun(page)
-    await page.waitForSelector('[data-action="computer-watch"]', { timeout: 60_000 })
+    await watchable(page)
     await page.click('[data-action="computer-watch"]', { timeout: 10_000 })
     await page.waitForSelector('[data-component="computer-screen"]', { timeout: 45_000 })
     let ticks = 0

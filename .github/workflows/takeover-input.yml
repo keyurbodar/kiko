@@ -115,7 +115,7 @@ jobs:
           echo "the daemon's command captured $(wc -c < /tmp/daemon.mjpeg) bytes"
           cat /tmp/daemon.log || true
       - name: Paste a Unicode string and click the display
-        run: bun apps/server/scripts/measure-input.ts --single --out input-proof.json
+        run: caffeinate -dimsu bun apps/server/scripts/measure-input.ts --single --out input-proof.json
       - name: Upload the proof
         if: always()
         uses: actions/upload-artifact@v4
