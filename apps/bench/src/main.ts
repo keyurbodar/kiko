@@ -14,7 +14,7 @@ import { appendIndex, harvestArtifacts } from "./pull"
 import { renderReport } from "./report/render"
 import { startSentinel, type Sentinel } from "./sentinel"
 import { TASKS } from "./tasks"
-import type { Background, Condition, Contender, Machine, ModelSpec, Os, Task, Track, Verdict } from "./types"
+import type { Background, Condition, Contender, ModelSpec, Os, Task, Track, Verdict } from "./types"
 
 const PLANS = join(homedir(), "kiko-plans", "computer-use-2026-10-31", "results")
 const VALIDATE_HEADER = ["task", "os", "machine", "kind", "pass", "detail"].join("\t")

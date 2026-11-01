@@ -18,7 +18,7 @@ export interface McpServerOptions {
   readonly timeoutMs?: number
 }
 
-export class McpError extends Error {}
+class McpError extends Error {}
 
 type RpcMessage = {
   readonly id?: number | string
@@ -60,7 +60,7 @@ function toText(item: Record<string, unknown>): string | undefined {
   return item.type === "text" && typeof item.text === "string" ? item.text : undefined
 }
 
-export function mapToolResult(result: unknown): ToolResult {
+function mapToolResult(result: unknown): ToolResult {
   const record = isRecord(result) ? result : {}
   const content = Array.isArray(record.content) ? record.content : []
   const texts: string[] = []
