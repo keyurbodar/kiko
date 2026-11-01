@@ -48,6 +48,8 @@ export type Changes = {
 export class RoomMemory {
   readonly tree: Tree
   private readonly sql: SqlStorage
+  private readonly doing = new Map<AgentSlug, string[]>()
+  private readonly traces = new Map<string, string>()
 
   constructor(
     private readonly storage: DurableObjectStorage,
@@ -108,16 +110,57 @@ export class RoomMemory {
   capture(): void {
     this.storage.transactionSync(() => {
       const turns = this.turns()
+      const stored = this.sql
+        .exec<TurnRow>("SELECT * FROM mem_turns WHERE room_id = ? ORDER BY pos", this.roomId)
+        .toArray()
+      let changed =
+        stored.length !== turns.length ||
+        turns.some((turn, i) => {
+          const row = stored[i]
+          return (
+            !row ||
+            row.pos !== turn.pos ||
+            row.key !== turn.key ||
+            row.last_seq !== turn.last_seq ||
+            row.at_last !== turn.at_last
+          )
+        })
+      for (const [key, trace] of this.traces) {
+        const row = stored.find((r) => r.key === key)
+        const turn = turns.find((t) => t.key === key)
+        if (turn) turn.trace = trace
+        if (row ? row.trace !== trace : turn !== undefined) changed = true
+      }
+      const missing = [...this.traces].filter(([key]) => !turns.some((t) => t.key === key))
+      if (!changed && !missing.length) {
+        this.forgetChanged()
+        return
+      }
       this.sql.exec(
         `INSERT INTO mem_turns (room_id, pos, key, first_seq, last_seq, at, at_last, trace)
          SELECT ?1, json_extract(value, '$.pos'), json_extract(value, '$.key'), json_extract(value, '$.first_seq'),
            json_extract(value, '$.last_seq'), json_extract(value, '$.at'), json_extract(value, '$.at_last'), json_extract(value, '$.trace')
          FROM json_each(?2) WHERE true
-         ON CONFLICT(room_id, pos) DO UPDATE SET last_seq = excluded.last_seq, at_last = excluded.at_last
-         WHERE mem_turns.last_seq IS NOT excluded.last_seq OR mem_turns.at_last IS NOT excluded.at_last`,
+         ON CONFLICT(room_id, pos) DO UPDATE SET last_seq = excluded.last_seq, at_last = excluded.at_last,
+           trace = COALESCE(excluded.trace, mem_turns.trace)
+         WHERE mem_turns.last_seq IS NOT excluded.last_seq OR mem_turns.at_last IS NOT excluded.at_last
+           OR (excluded.trace IS NOT NULL AND mem_turns.trace IS NOT excluded.trace)`,
         this.roomId,
         JSON.stringify(turns),
       )
+      const now = Date.now()
+      let pos = turns.length
+      for (const [key, trace] of missing) {
+        this.sql.exec(
+          "INSERT OR IGNORE INTO mem_turns (pos, key, first_seq, last_seq, at, at_last, trace, room_id) VALUES (?1, ?2, NULL, NULL, ?3, ?3, ?4, ?5)",
+          pos++,
+          key,
+          now,
+          trace,
+          this.roomId,
+        )
+      }
+      this.traces.clear()
       this.forgetChanged()
     })
   }
@@ -390,7 +433,6 @@ export class RoomMemory {
     seen?: number,
     skip: ReadonlySet<number> = new Set(),
   ): string[] {
-    this.capture()
     const lo = region(this.sync(), ROOM_SHAPE)
     const poss = new Map(hits.map((h) => [h.id, this.posOfSeq(h.seq)]))
     hits = hits
@@ -424,57 +466,24 @@ export class RoomMemory {
     })
   }
 
-  did(slug: AgentSlug, doing: string, now: number): void {
+  did(slug: AgentSlug, doing: string): void {
     if (doing === "writing a reply") return
-    this.sql.exec(
-      "INSERT OR IGNORE INTO mem_did (slug, doing, at, room_id) VALUES (?1, ?2, ?3, ?4)",
-      slug,
-      doing.slice(0, 160),
-      now,
-      this.roomId,
-    )
-  }
-
-  trace(slug: AgentSlug, runId: string, now: number): void {
-    const acts = this.sql
-      .exec<{ doing: string }>(
-        "SELECT doing FROM mem_did WHERE slug = ?1 AND mem_did.room_id = ?3 ORDER BY at LIMIT ?2",
-        slug,
-        TRACE_MAX,
-        this.roomId,
-      )
-      .toArray()
-      .map((r) => r.doing)
-    this.sql.exec("DELETE FROM mem_did WHERE slug = ?1 AND mem_did.room_id = ?2", slug, this.roomId)
-    if (!acts.length) return
-    this.capture()
-    const count = this.sync()
-    const trace = acts.join(", ")
-    const reply = this.sql
-      .exec<{ pos: number }>(
-        "SELECT pos FROM mem_turns WHERE key = ?1 AND mem_turns.room_id = ?2",
-        `agent:${slug}:${runId}`,
-        this.roomId,
-      )
-      .toArray()[0]
-    if (reply) {
-      this.sql.exec(
-        "UPDATE mem_turns SET trace = ?1 WHERE pos = ?2 AND mem_turns.room_id = ?3",
-        trace,
-        reply.pos,
-        this.roomId,
-      )
+    const text = doing.slice(0, 160)
+    const list = this.doing.get(slug)
+    if (!list) {
+      this.doing.set(slug, [text])
       return
     }
-    this.sql.exec(
-      "INSERT OR IGNORE INTO mem_turns (pos, key, first_seq, last_seq, at, at_last, trace, room_id) VALUES (?1, ?2, NULL, NULL, ?3, ?4, ?5, ?6)",
-      count,
-      `trace:${slug}:${runId}`,
-      now,
-      now,
-      trace,
-      this.roomId,
-    )
+    if (list.includes(text)) return
+    list.push(text)
+    if (list.length > TRACE_MAX) list.splice(0, list.length - TRACE_MAX)
+  }
+
+  trace(slug: AgentSlug, runId: string): void {
+    const acts = this.doing.get(slug)
+    this.doing.delete(slug)
+    if (!acts?.length) return
+    this.traces.set(`agent:${slug}:${runId}`, acts.slice(0, TRACE_MAX).join(", "))
   }
 
   pending(limit: number): Span[] {
