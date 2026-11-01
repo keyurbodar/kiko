@@ -192,7 +192,12 @@ class Daemon implements Live {
     }
     const input = events.filter((event) => event.k !== "cursor")
     if (input.length === 0) return
-    this.queue = this.queue.then(() => this.apply(input))
+    this.deps.warn(`input probe: taking ${input.map((event) => event.k).join(",")}`)
+    this.queue = this.queue
+      .then(() => this.apply(input))
+      .catch((error: unknown) =>
+        this.deps.warn(`input stopped at ${error instanceof Error ? error.message : String(error)}`),
+      )
   }
 
   private async apply(events: readonly InputEvent[]): Promise<void> {

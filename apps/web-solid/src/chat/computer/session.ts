@@ -359,7 +359,6 @@ export function startSession(pcId: string, hooks: Hooks): Session {
   let relay: ReturnType<typeof startRelay> | null = null
   let silent: ReturnType<typeof setTimeout> | undefined
   let picked: string | null = null
-  let reported = false
 
   const setMode = (next: Mode) => {
     if (closed || mode === next) return
@@ -416,10 +415,7 @@ export function startSession(pcId: string, hooks: Hooks): Session {
   return {
     send(events) {
       const overRtc = rtc?.send(events) === true
-      if (!reported) {
-        reported = true
-        console.info(`kiko input probe: ${overRtc ? "webrtc" : "relay"}`)
-      }
+      console.info(`kiko input probe: ${overRtc ? "webrtc" : "relay"} ${events.map((event) => event.k).join(",")}`)
       if (overRtc) return
       void run(owner.commands.pcInput, { pcId, events })
     },
