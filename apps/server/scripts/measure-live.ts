@@ -224,8 +224,6 @@ async function main(): Promise<void> {
           `CREDENTIALS_KEK:${kek}`,
           "--var",
           `SESSION_SECRET:${secret}`,
-          "--persist-to",
-          join(dir, "state"),
         ],
         SERVER,
       ),
