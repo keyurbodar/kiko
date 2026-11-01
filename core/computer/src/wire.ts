@@ -1,5 +1,5 @@
 import * as Schema from "effect/Schema"
-import { BrowserStatus, DesktopInfo, Display, DriverCall, Permissions, Tab } from "./driver"
+import { BrowserStatus, DesktopInfo, Display, DriverCall, Mode, Page, PageAction, Permissions, Tab } from "./driver"
 
 export { Display }
 
@@ -20,6 +20,7 @@ export const Caps = Schema.Struct({
   background: Schema.optionalKey(Schema.Boolean),
   browser: Schema.optionalKey(Schema.Boolean),
   terminal: Schema.optionalKey(Schema.Boolean),
+  steps: Schema.optionalKey(Schema.Boolean),
 })
 export type Caps = typeof Caps.Type
 
@@ -33,7 +34,7 @@ export const Hello = Schema.Struct({
   t: Schema.Literal("hello"),
   protocol: Count,
   version: Text,
-  os: Schema.Literals(["macos", "linux", "windows"]),
+  os: Schema.Literals(["macos", "linux"]),
   arch: Text,
   host: Text,
   caps: Caps,
@@ -61,12 +62,21 @@ const Cols = Schema.Int.check(Schema.isGreaterThanOrEqualTo(20), Schema.isLessTh
 const Rows = Schema.Int.check(Schema.isGreaterThanOrEqualTo(5), Schema.isLessThanOrEqualTo(200))
 const Lines = Schema.Int.check(Schema.isGreaterThanOrEqualTo(1), Schema.isLessThanOrEqualTo(5_000))
 
+export const MAX_BROWSER_STEPS = 20
+
+const BrowserStep = Schema.Struct({
+  ref: Count,
+  action: PageAction,
+  text: Schema.optionalKey(Text),
+})
+
 const OPS = [
   "shell",
   "read",
   "write",
   "driver",
   "browser_tabs",
+  "browser_steps",
   "terminal_open",
   "terminal_send",
   "terminal_read",
@@ -87,7 +97,10 @@ export const TERMINAL_OPS: ReadonlySet<Op> = new Set<Op>([
   "terminal_list",
 ])
 
-export const BROWSER_OPS: ReadonlySet<Op> = new Set<Op>(["browser_tabs"])
+export const BROWSER_OPS: ReadonlySet<Op> = new Set<Op>(["browser_tabs", "browser_steps"])
+
+export const FailCode = Schema.Literals(["denied", "busy", "stale", "timeout", "unsupported", "cancelled", "failed"])
+export type FailCode = typeof FailCode.Type
 
 export const Calls = {
   shell: {
@@ -124,6 +137,22 @@ export const Calls = {
   browser_tabs: {
     args: Schema.Struct({}),
     value: Schema.Struct({ tabs: Schema.Array(Tab) }),
+  },
+  browser_steps: {
+    args: Schema.Struct({
+      tab: Text,
+      steps: Schema.Array(BrowserStep).check(Schema.isMinLength(1), Schema.isMaxLength(MAX_BROWSER_STEPS)),
+      read: Schema.optionalKey(Schema.Boolean),
+      image: Schema.optionalKey(Schema.Boolean),
+      max_width: Schema.optionalKey(Count),
+      mode: Schema.optionalKey(Mode),
+    }),
+    value: Schema.Struct({
+      done: Count,
+      failed: Schema.optionalKey(Schema.Struct({ index: Count, code: FailCode, error: Text })),
+      stoppedBy: Schema.optionalKey(Schema.Literal("owner")),
+      page: Schema.optionalKey(Page),
+    }),
   },
   terminal_open: {
     args: Schema.Struct({
@@ -196,9 +225,6 @@ export const Calls = {
 } as const satisfies Record<Op, { args: Schema.Top; value: Schema.Top }>
 export type Args<O extends Op> = (typeof Calls)[O]["args"]["Type"]
 export type Value<O extends Op> = (typeof Calls)[O]["value"]["Type"]
-
-export const FailCode = Schema.Literals(["denied", "busy", "stale", "timeout", "unsupported", "cancelled", "failed"])
-export type FailCode = typeof FailCode.Type
 
 export const InputEvent = Schema.Union([
   Schema.Struct({ k: Schema.Literal("move"), x: Unit, y: Unit }),
@@ -316,12 +342,19 @@ export type ToDaemon = typeof ToDaemon.Type
 
 export const FromDaemon = Schema.Union([
   Hello,
-  Schema.Struct({ t: Schema.Literal("result"), id: Id, ok: Schema.Literal(true), value: Schema.Unknown }),
+  Schema.Struct({
+    t: Schema.Literal("result"),
+    id: Id,
+    ok: Schema.Literal(true),
+    value: Schema.Unknown,
+    opMs: Schema.optionalKey(Count),
+  }),
   Schema.Struct({
     t: Schema.Literal("result"),
     id: Id,
     ok: Schema.Literal(false),
     error: Schema.Struct({ code: FailCode, message: Text }),
+    opMs: Schema.optionalKey(Count),
   }),
   Schema.Struct({ t: Schema.Literal("chunk"), id: Id, data: Text }),
   Schema.Struct({ t: Schema.Literal("humanInput") }),

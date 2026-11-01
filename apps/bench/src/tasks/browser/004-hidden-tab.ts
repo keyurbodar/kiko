@@ -7,7 +7,7 @@ const ratingFor = (seed: number): number => int(mulberry32(seed), 1, 5)
 export const hiddenTab: Task = {
   id: "browser-004-hidden-tab",
   track: "browser",
-  os: ["linux", "macos", "windows"],
+  os: ["linux", "macos"],
   needs: ["chrome"],
   heldOut: true,
   kind: "edge",

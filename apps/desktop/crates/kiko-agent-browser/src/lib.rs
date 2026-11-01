@@ -27,6 +27,7 @@ const LIST_TIMEOUT: Duration = Duration::from_secs(30);
 const CLOSE_TIMEOUT: Duration = Duration::from_secs(5);
 const PROTOCOL_VERSION: &str = "2025-06-18";
 const ENGINE: &str = "agent-browser";
+const STALE: &str = "that ref is stale; read the page again";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Error {
@@ -135,7 +136,12 @@ pub struct Engine {
     worker: Mutex<Option<JoinHandle<()>>>,
     shot: PathBuf,
     bound: Option<String>,
-    refs: HashMap<String, HashSet<u32>>,
+    refs: HashMap<String, Refs>,
+}
+
+struct Refs {
+    url: String,
+    ids: HashSet<u32>,
 }
 
 impl Engine {
@@ -315,7 +321,13 @@ impl Engine {
             .and_then(Value::as_str)
             .ok_or_else(|| Error::Failed("the browser engine sent no page snapshot".into()))?;
         let built = snapshot::build(&snapshot::parse(tree), kiko_driver::MAX_NODES);
-        self.refs.insert(params.tab.clone(), built.refs);
+        self.refs.insert(
+            params.tab.clone(),
+            Refs {
+                url: tab.url.clone(),
+                ids: built.refs,
+            },
+        );
         let page = Page {
             tab,
             outline: kiko_driver::outline(&built.nodes),
@@ -349,61 +361,43 @@ impl Engine {
         if !self
             .refs
             .get(&params.tab)
-            .is_some_and(|refs| refs.contains(&params.reference))
+            .is_some_and(|refs| refs.ids.contains(&params.reference))
         {
-            return Err(Error::Stale(
-                "that ref is stale; read the page again".into(),
-            ));
+            return Err(Error::Stale(STALE.into()));
         }
-        let selector = format!("@e{}", params.reference);
-        let text = params.text.as_deref().unwrap_or_default();
-        let route = match params.action {
-            PageAction::Click => {
-                self.tool("agent_browser_click", json!({ "selector": selector }))?;
-                Route::Trusted
-            }
-            PageAction::Type => {
-                require_text(params.action, text)?;
-                self.tool(
-                    "agent_browser_type",
-                    json!({ "selector": selector, "text": text }),
-                )?;
-                Route::Trusted
-            }
-            PageAction::SetValue => {
-                require_text(params.action, text)?;
-                self.tool(
-                    "agent_browser_fill",
-                    json!({ "selector": selector, "text": text }),
-                )?;
-                Route::Dom
-            }
-            PageAction::Select => {
-                require_text(params.action, text)?;
-                self.tool(
-                    "agent_browser_select",
-                    json!({ "selector": selector, "values": [text] }),
-                )?;
-                Route::Dom
-            }
-            PageAction::PressKey => {
-                self.tool("agent_browser_focus", json!({ "selector": selector }))?;
-                self.tool("agent_browser_press", json!({ "key": text }))?;
-                Route::Trusted
-            }
-            PageAction::Scroll => {
-                self.tool(
-                    "agent_browser_scroll_into_view",
-                    json!({ "selector": selector }),
-                )?;
-                Route::Dom
-            }
-            PageAction::Focus => {
-                self.tool("agent_browser_focus", json!({ "selector": selector }))?;
-                Route::Dom
-            }
+        let mut commands = act_commands(params)?;
+        let actions = commands.len();
+        commands.push(vec!["get".into(), "url".into()]);
+        let entries = self.batch(&commands)?;
+        if let Some(error) = first_failure(&entries[..entries.len().min(actions)]) {
+            return Err(error);
+        }
+        if !self.refs_current(&params.tab, entries.get(actions).and_then(url_of)) {
+            self.refs.remove(&params.tab);
+        }
+        Ok(ActResult {
+            route: route_of(params.action),
+        })
+    }
+
+    fn batch(&self, commands: &[Vec<String>]) -> Outcome<Vec<Value>> {
+        let result = self.request(
+            "agent_browser_batch",
+            json!({ "commands": commands, "bail": true, "omitCommand": true }),
+            REQUEST_TIMEOUT,
+        )?;
+        if let Some(Value::Array(entries)) = result.pointer("/structuredContent/response") {
+            return Ok(entries.clone());
+        }
+        payload(&result)?;
+        Err(Error::Failed("the browser engine sent no steps answer".into()))
+    }
+
+    fn refs_current(&self, tab: &str, url: Option<&str>) -> bool {
+        let (Some(refs), Some(url)) = (self.refs.get(tab), url) else {
+            return false;
         };
-        Ok(ActResult { route })
+        same_document(&refs.url, url)
     }
 
     fn eval(&mut self, params: &BrowserEvalParams) -> Outcome<Value> {
@@ -492,6 +486,65 @@ fn require_text(action: PageAction, text: &str) -> Outcome<()> {
         return Err(Error::Failed(format!("{action:?} needs text")));
     }
     Ok(())
+}
+
+fn act_commands(params: &BrowserActParams) -> Outcome<Vec<Vec<String>>> {
+    let selector = format!("@e{}", params.reference);
+    let text = params.text.as_deref().unwrap_or_default();
+    let commands = match params.action {
+        PageAction::Click => vec![vec!["click".to_string(), selector]],
+        PageAction::Type => {
+            require_text(params.action, text)?;
+            vec![vec!["type".to_string(), selector, text.to_string()]]
+        }
+        PageAction::SetValue => {
+            require_text(params.action, text)?;
+            vec![vec!["fill".to_string(), selector, text.to_string()]]
+        }
+        PageAction::Select => {
+            require_text(params.action, text)?;
+            vec![vec!["select".to_string(), selector, text.to_string()]]
+        }
+        PageAction::PressKey => vec![
+            vec!["focus".to_string(), selector],
+            vec!["press".to_string(), text.to_string()],
+        ],
+        PageAction::Scroll => vec![vec!["scrollintoview".to_string(), selector]],
+        PageAction::Focus => vec![vec!["focus".to_string(), selector]],
+    };
+    Ok(commands)
+}
+
+fn route_of(action: PageAction) -> Route {
+    match action {
+        PageAction::Click | PageAction::Type | PageAction::PressKey => Route::Trusted,
+        PageAction::SetValue | PageAction::Select | PageAction::Scroll | PageAction::Focus => Route::Dom,
+    }
+}
+
+fn first_failure(entries: &[Value]) -> Option<Error> {
+    entries
+        .iter()
+        .find(|entry| entry.get("success").and_then(Value::as_bool) != Some(true))
+        .map(|entry| {
+            classify(
+                entry
+                    .get("error")
+                    .and_then(Value::as_str)
+                    .unwrap_or("the browser engine failed"),
+            )
+        })
+}
+
+fn url_of(entry: &Value) -> Option<&str> {
+    entry.get("result")?.get("url")?.as_str()
+}
+
+fn same_document(before: &str, now: &str) -> bool {
+    if before.is_empty() || now.is_empty() {
+        return true;
+    }
+    before.split('#').next() == now.split('#').next()
 }
 
 fn tabs_of(data: &Value) -> Vec<Tab> {

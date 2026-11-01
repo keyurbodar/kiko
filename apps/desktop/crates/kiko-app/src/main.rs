@@ -1,14 +1,9 @@
-#![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
-
 use std::io::Write;
 use std::path::PathBuf;
 use std::process::ExitCode;
 use std::time::Duration;
 
 fn main() -> ExitCode {
-    #[cfg(windows)]
-    attach_console();
-
     let args: Vec<String> = std::env::args().skip(1).collect();
     if args.first().map(String::as_str) == Some("run")
         && let Some(log) = std::env::var_os("KIKO_CORE_STUB_LOG")
@@ -37,16 +32,4 @@ fn stub_core(log: PathBuf) -> ExitCode {
     }
     std::thread::sleep(Duration::from_millis(300));
     ExitCode::SUCCESS
-}
-
-#[cfg(windows)]
-fn attach_console() {
-    use windows_sys::Win32::System::Console::{ATTACH_PARENT_PROCESS, AttachConsole};
-    let asked = std::env::args()
-        .any(|arg| arg == "--version" || arg == "-V" || arg == "--help" || arg == "-h");
-    if asked {
-        unsafe {
-            AttachConsole(ATTACH_PARENT_PROCESS);
-        }
-    }
 }

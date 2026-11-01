@@ -13,8 +13,9 @@ import {
   type Holder,
   type Op,
   type ToDaemon as Frame,
+  type Value,
 } from "@kiko/computer/wire"
-import type { DriverCall } from "@kiko/computer/driver"
+import type { DriverCall, Page } from "@kiko/computer/driver"
 import type { BrowserLink } from "./browser/link"
 import type { Policy } from "./config"
 import type { Driver } from "./driver"
@@ -67,6 +68,8 @@ type Result = Extract<FromDaemon, { t: "result" }>
 type Held = { at: number; frame: Result }
 
 const decodeFrame = Schema.decodeUnknownOption(ToDaemon)
+
+const elapsedMs = (started: number): number => Math.round(performance.now() - started)
 
 function decodeArgs(op: Op, raw: unknown): unknown {
   const decoded = Schema.decodeUnknownOption(Calls[op].args)(raw)
@@ -390,13 +393,14 @@ class Link {
       context.budgetMs,
     )
     let result: Result
+    const started = performance.now()
     try {
       const args = decodeArgs(frame.op, frame.args)
       const value = await this.execute(frame.op, args, context)
       if (context.aborted) throw abortReason(context.signal)
-      result = { t: "result", id: frame.id, ok: true, value: encodeValue(frame.op, value) }
+      result = { t: "result", id: frame.id, ok: true, value: encodeValue(frame.op, value), opMs: elapsedMs(started) }
     } catch (error) {
-      result = { t: "result", id: frame.id, ok: false, error: failure(error) }
+      result = { t: "result", id: frame.id, ok: false, error: failure(error), opMs: elapsedMs(started) }
     } finally {
       clearTimeout(timer)
       this.pending.delete(frame.id)
@@ -433,6 +437,7 @@ class Link {
     if (op === "write") return write(args as Parameters<typeof write>[0], await this.host.policy(), context)
     if (op === "driver") return this.driver(args as DriverCall, context)
     if (op === "browser_tabs") return this.browserTabs(context)
+    if (op === "browser_steps") return this.browserSteps(args as Args<"browser_steps">, context)
     if (TERMINAL_OPS.has(op)) return this.terminal(op, args, context)
     throw new Fail({ code: "unsupported", message: `${op} is not a call this machine makes` })
   }
@@ -464,17 +469,71 @@ class Link {
   }
 
   private async driver(call: DriverCall, context: Deadline): Promise<unknown> {
+    const driver = await this.backgroundDriver(call.method)
+    if (this.host.holder() === "human")
+      throw new Fail({ code: "busy", message: "the owner has control of this screen right now" })
+    return driver.call(call, context)
+  }
+
+  private async backgroundDriver(method: DriverCall["method"]): Promise<Driver> {
     const policy = await this.host.policy()
     if (!policy.desktop)
       throw new Fail({ code: "denied", message: "policy.json turns desktop control off on this machine" })
-    if (!policy.input && INPUT_METHODS.has(call.method))
+    if (!policy.input && INPUT_METHODS.has(method))
       throw new Fail({ code: "denied", message: "policy.json turns input off on this machine" })
     if (this.host.paused()) throw new Fail({ code: "busy", message: PAUSED })
-    if (this.host.holder() === "human")
-      throw new Fail({ code: "busy", message: "the owner has control of this screen right now" })
     const driver = this.host.driver()
     if (!driver) throw new Fail({ code: "unsupported", message: "the kiko app is not running on this machine" })
-    return driver.call(call, context)
+    return driver
+  }
+
+  private async browserSteps(args: Args<"browser_steps">, context: Deadline): Promise<Value<"browser_steps">> {
+    const driver = await this.backgroundDriver("browser.act")
+    const outcome = await this.runSteps(driver, args, context)
+    if (outcome.stoppedBy !== undefined || !args.read) return outcome
+    const page = await driver.call(
+      {
+        method: "browser.read",
+        params: {
+          tab: args.tab,
+          image: args.image ?? false,
+          ...(args.max_width !== undefined ? { max_width: args.max_width } : {}),
+        },
+      },
+      context,
+    )
+    return { ...outcome, page: page as Page }
+  }
+
+  private async runSteps(
+    driver: Driver,
+    args: Args<"browser_steps">,
+    context: Deadline,
+  ): Promise<Value<"browser_steps">> {
+    let done = 0
+    for (const step of args.steps) {
+      if (this.host.paused() || this.host.holder() === "human") return { done, stoppedBy: "owner" }
+      try {
+        await driver.call(
+          {
+            method: "browser.act",
+            params: {
+              tab: args.tab,
+              ref: step.ref,
+              action: step.action,
+              ...(args.mode !== undefined ? { mode: args.mode } : {}),
+              ...(step.text !== undefined ? { text: step.text } : {}),
+            },
+          },
+          context,
+        )
+      } catch (error) {
+        const reason = failure(error)
+        return { done, failed: { index: done, code: reason.code, error: reason.message } }
+      }
+      done += 1
+    }
+    return { done }
   }
 
   private cancel(id: string): void {

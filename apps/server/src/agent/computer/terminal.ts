@@ -21,10 +21,10 @@ const MAX_DEADLINE_MS = 590_000
 const MAX_KEYS = 20
 
 const OPEN_DESCRIPTION =
-  "open a terminal on the computer: a real shell that stays alive between your turns, so you can start a long job, a REPL, or a full-screen app and come back to it. returns an id. cwd is where it starts, default the owner's home folder. cols and rows are the text size, default 120x30. shell is the program to run, default the owner's login shell on macOS and Linux and powershell.exe on Windows. open a second terminal for a second job. for one command that finishes, computer_shell is simpler."
+  "open a terminal on the computer: a real shell that stays alive between your turns, so you can start a long job, a REPL, or a full-screen app and come back to it. returns an id. cwd is where it starts, default the owner's home folder. cols and rows are the text size, default 120x30. shell is the program to run, default the owner's login shell. open a second terminal for a second job. for one command that finishes, computer_shell is simpler."
 
 const SEND_DESCRIPTION =
-  'type into a terminal from terminal_open. text is typed exactly as written and does not press enter. keys presses named keys in order, such as ["enter"], ["ctrl+c"], ["up"], ["tab"], ["esc"], ["ctrl+d"]; use ctrl on macOS, Linux and Windows. give both to type a command and run it in one call. add until to send and wait in one call: the reply comes back as soon as that output appears, with the output up to it, or says it timed out. until is text, or a regular expression with regex true; timeoutMs defaults 30000 and is at most 120000. without until it does not return the screen: call terminal_wait to wait, or terminal_read to look.'
+  'type into a terminal from terminal_open. text is typed exactly as written and does not press enter. keys presses named keys in order, such as ["enter"], ["ctrl+c"], ["up"], ["tab"], ["esc"], ["ctrl+d"]; use ctrl. give both to type a command and run it in one call. add until to send and wait in one call: the reply comes back as soon as that output appears, with the output up to it, or says it timed out. until is text, or a regular expression with regex true; timeoutMs defaults 30000 and is at most 120000. without until it does not return the screen: call terminal_wait to wait, or terminal_read to look.'
 
 const READ_DESCRIPTION =
   "read a terminal as text. mode screen is the current visible screen, which is what a full-screen app such as vim, less or top shows. mode tail is the end of the output history, which is what a plain command printed; escape codes are removed. lines is how many lines of the tail to return, default 200, at most 2000. the reply says when older output was cut."
@@ -112,9 +112,7 @@ export function terminalTools(deps: ComputerToolDeps): ToolRegistration[] {
     parameters: Type.Object({
       pc: PC,
       cwd: Type.Optional(Type.String({ description: "the folder to start in, default the owner's home folder" })),
-      shell: Type.Optional(
-        Type.String({ description: "the shell program, default the owner's login shell or powershell.exe" }),
-      ),
+      shell: Type.Optional(Type.String({ description: "the shell program, default the owner's login shell" })),
       cols: Type.Optional(Type.Number({ description: "text columns, default 120, at most 500" })),
       rows: Type.Optional(Type.Number({ description: "text rows, default 30, at most 200" })),
       name: Type.Optional(Type.String({ description: "a short name to tell terminals apart" })),

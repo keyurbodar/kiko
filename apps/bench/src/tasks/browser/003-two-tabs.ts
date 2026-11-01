@@ -20,7 +20,7 @@ const scenario = (seed: number) => {
 export const twoTabs: Task = {
   id: "browser-003-two-tabs",
   track: "browser",
-  os: ["linux", "macos", "windows"],
+  os: ["linux", "macos"],
   needs: ["chrome"],
   heldOut: false,
   kind: "real",

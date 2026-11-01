@@ -3,7 +3,6 @@ import { dirname } from "node:path"
 import type { Args, Value } from "@kiko/computer/wire"
 import type { Policy } from "./config"
 import { Fail } from "./log"
-import { shellCommand } from "./platform"
 import { allowedPath } from "./policy"
 import { abortReason, type Deadline } from "./deadline"
 
@@ -44,12 +43,12 @@ export async function shell(args: Args<"shell">, policy: Policy, deadline: Deadl
   if (!policy.shell) throw new Fail({ code: "denied", message: "policy.json turns off shell commands on this machine" })
   throwIfCancelled(deadline)
   const budget = Math.max(1_000, Math.min(args.timeoutMs ?? 60_000, MAX_TIMEOUT_MS, deadline.remaining()))
-  const proc = Bun.spawn(shellCommand(args.command), {
+  const proc = Bun.spawn(["/bin/sh", "-lc", args.command], {
     cwd: args.cwd,
     stdin: "ignore",
     stdout: "pipe",
     stderr: "pipe",
-    detached: process.platform !== "win32",
+    detached: true,
   })
   const ring = new Ring(COLLECT_CAP)
   const drained = Promise.all([pump(proc.stdout, ring), pump(proc.stderr, ring)])
@@ -92,10 +91,6 @@ async function pump(stream: ReadableStream<Uint8Array> | undefined, ring: Ring):
 
 function killTree(pid: number | undefined): void {
   if (!pid) return
-  if (process.platform === "win32") {
-    Bun.spawnSync(["taskkill", "/pid", String(pid), "/T", "/F"], { stdout: "ignore", stderr: "ignore" })
-    return
-  }
   try {
     process.kill(-pid, "SIGKILL")
   } catch {

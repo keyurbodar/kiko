@@ -39,7 +39,7 @@ const SECTIONS: { [Id in SettingsId]: SectionMeta } = {
     label: "Computers",
     hint: "Machines your agents can use, and that you can watch and take over.",
     icon: MonitorIcon,
-    keywords: "computer pc mac linux windows desktop remote screen pair install daemon vps server takeover",
+    keywords: "computer pc mac linux desktop remote screen pair install daemon vps server takeover",
   },
   "web-apps": {
     group: "Connections",

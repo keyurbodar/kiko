@@ -6,5 +6,13 @@
   "conditions": ["foreground"],
   "seed": 1,
   "pattern": "terminal-02[5-7]-*",
-  "validate": { "runs": 10 }
+  "validate": { "runs": 10 },
+  "sentinel": {
+    "idleSeconds": 30,
+    "caseSeconds": 4
+  },
+  "backgroundValidate": {
+    "pattern": "browser-1*",
+    "runs": 1
+  }
 }

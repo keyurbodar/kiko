@@ -17,7 +17,7 @@ const state = (index: number): string => `${index <= 8 ? "ok" : "broken"} ${inde
 export const gitBisect: Task = {
   id: "terminal-004-git-bisect",
   track: "terminal",
-  os: ["linux", "macos", "windows"],
+  os: ["linux", "macos"],
   needs: [],
   heldOut: true,
   kind: "real",
