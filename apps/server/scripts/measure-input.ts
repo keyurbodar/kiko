@@ -399,7 +399,8 @@ async function main(): Promise<void> {
   const out = process.argv.includes("--out") ? process.argv[process.argv.indexOf("--out") + 1] : undefined
   if (out) await writeFile(out, `${JSON.stringify(result, null, 2)}\n`)
   console.log(JSON.stringify(result, null, 2))
-  if (failed) process.exit(1)
+  await new Promise<void>((resolve) => process.stdout.write("", () => resolve()))
+  process.exit(failed ? 1 : 0)
 }
 
 await main()
