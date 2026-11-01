@@ -23,6 +23,9 @@ const ROOT = join(import.meta.dirname, "..", "..", "..")
 const COMPUTER = join(ROOT, "apps", "computer")
 const TEXT = "Grüße, 世界 — deux lignes\nligne deux\n🎉 end"
 
+const FIRST = { x: 640, y: 400 }
+const SECOND = { x: 1920, y: 400 }
+
 const PAGE = (name: string) => `<!doctype html><meta charset="utf-8">
 <style>
 html,body{margin:0;height:100%;background:#111;color:#eee;font:16px system-ui}
@@ -356,12 +359,12 @@ async function main(): Promise<void> {
       await choose("Display 2", 1280)
       result.displays = await labels()
       await stageClick(0.5, 0.5)
-      await until("the click on the second display", () => at(1280 + 640, 400), 10_000)
+      await until("the click on the second display", () => at(SECOND.x, SECOND.y), 10_000)
       result.second = await pointer()
 
       await choose("Display 1", 1280)
       await stageClick(0.5, 0.5)
-      await until("the click on the first display", () => at(640, 400), 10_000)
+      await until("the click on the first display", () => at(FIRST.x, FIRST.y), 10_000)
       result.first = await pointer()
 
       await pasteInto(TEXT)
@@ -372,8 +375,8 @@ async function main(): Promise<void> {
 
       const exact = await pasted()
       result.click = (await landed(leftPage)) ?? (await landed(rightPage)) ?? null
-      const secondCentred = Math.abs((result.second as { x: number }).x - 1792) < 8
-      const firstCentred = Math.abs((result.first as { x: number }).x - 640) < 8
+      const secondCentred = Math.abs((result.second as { x: number }).x - SECOND.x) < 8
+      const firstCentred = Math.abs((result.first as { x: number }).x - FIRST.x) < 8
       result.pass = { exact, secondCentred, firstCentred }
       failed = !exact || !secondCentred || !firstCentred
     }

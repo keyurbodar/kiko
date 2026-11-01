@@ -89,11 +89,12 @@ jobs:
           set -euo pipefail
           database="/Library/Application Support/com.apple.TCC/TCC.db"
           now=$(date +%s)
-          client="$(which bun)"
           for service in kTCCServiceAccessibility kTCCServiceScreenCapture; do
-            sudo sqlite3 "$database" \
-              "INSERT OR REPLACE INTO access(service,client,client_type,auth_value,auth_reason,auth_version,csreq,policy_id,indirect_object_identifier_type,indirect_object_identifier,indirect_object_code_identity,flags,last_modified) \
-               VALUES('${service}','${client}',1,2,4,1,NULL,NULL,0,'UNUSED',NULL,0,${now});"
+            for client in "$(which bun)" "$(which ffmpeg)"; do
+              sudo sqlite3 "$database" \
+                "INSERT OR REPLACE INTO access(service,client,client_type,auth_value,auth_reason,auth_version,csreq,policy_id,indirect_object_identifier_type,indirect_object_identifier,indirect_object_code_identity,flags,last_modified) \
+                 VALUES('${service}','${client}',1,2,4,1,NULL,NULL,0,'UNUSED',NULL,0,${now});"
+            done
           done
           sudo killall tccd 2>/dev/null || true
           sleep 2
@@ -124,7 +125,7 @@ jobs:
               new Response(child.stdout).arrayBuffer().then((out) => out.byteLength),
               Bun.sleep(5_000).then(() => -1),
             ])
-            console.log(`${input}: ${bytes} bytes`)
+            console.log(`${input}: ${bytes} bytes, exit ${child.exitCode}`)
           }
           await attempt("Capture screen 0:none")
           await attempt("Capture screen 0")
