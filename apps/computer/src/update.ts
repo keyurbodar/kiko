@@ -126,23 +126,20 @@ export function createUpdater(deps: UpdaterDeps): Updater {
 }
 
 async function runInstallScript(origin: string, log: Logger): Promise<void> {
-  const windows = process.platform === "win32"
-  const name = windows ? "install.ps1" : "install.sh"
-  const url = new URL(`pc/${name}`, `${origin}/`)
+  const url = new URL("pc/install.sh", `${origin}/`)
   const response = await fetch(url, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) })
   if (!response.ok) throw new Error(`${url} answered ${response.status}`)
-  const file = join(tmpdir(), `kiko-install-${process.pid}${windows ? ".ps1" : ".sh"}`)
+  const file = join(tmpdir(), `kiko-install-${process.pid}.sh`)
   await writeFile(file, await response.text(), { mode: 0o700 })
   try {
-    const argv = windows ? ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", file] : ["sh", file]
-    const proc = Bun.spawn(argv, { stdout: "pipe", stderr: "pipe", timeout: INSTALL_TIMEOUT_MS })
+    const proc = Bun.spawn(["sh", file], { stdout: "pipe", stderr: "pipe", timeout: INSTALL_TIMEOUT_MS })
     const [out, err, code] = await Promise.all([
       new Response(proc.stdout).text(),
       new Response(proc.stderr).text(),
       proc.exited,
     ])
     for (const line of `${out}\n${err}`.split("\n").filter(Boolean)) log.info(`update: ${line}`)
-    if (code !== 0) throw new Error(`${name} exited with ${code}`)
+    if (code !== 0) throw new Error(`install.sh exited with ${code}`)
   } finally {
     await rm(file, { force: true }).catch(() => undefined)
   }

@@ -8,7 +8,6 @@ export type CaptureHandlers = {
 }
 
 export type H264Capture = {
-  requestKeyframe(): void
   stop(): void
   running(): boolean
 }
@@ -20,15 +19,12 @@ export type H264Options = {
   maxWidth: number
   encoders: readonly string[]
   handlers: CaptureHandlers
-  onRestart?: () => void
 }
 
 const CLOCK = 90_000
 const STARTUP_GRACE_MS = 4_000
 const RESTART_LIMIT = 5
 const RESTART_DELAY_MS = 500
-const KEYFRAME_HOLD_MS = 400
-const FRESH_MS = 2_000
 
 type Child = Subprocess<"ignore", "pipe", "pipe">
 
@@ -42,7 +38,6 @@ class H264 {
   private launchedAt = 0
   private child: Child | null = null
   private stopped = false
-  private keyframeAt = 0
   private pending: ReturnType<typeof setTimeout> | null = null
 
   constructor(options: H264Options) {
@@ -59,18 +54,6 @@ class H264 {
     this.launch()
   }
 
-  requestKeyframe(): void {
-    if (this.stopped) return
-    if (performance.now() - this.keyframeAt < KEYFRAME_HOLD_MS) return
-    if (performance.now() - this.launchedAt < FRESH_MS) return
-    this.restarts = 0
-    this.schedule(() => {
-      if (this.stopped) return
-      this.kill()
-      this.launch()
-    })
-  }
-
   stop(): void {
     this.stopped = true
     this.clearPending()
@@ -83,10 +66,7 @@ class H264 {
 
   private emit(chunk: Uint8Array): void {
     const timestamp = Math.round((performance.now() - this.epoch) * (CLOCK / 1000)) >>> 0
-    for (const unit of this.parser.push(chunk)) {
-      if (unit.key) this.keyframeAt = performance.now()
-      this.options.handlers.unit(unit, timestamp)
-    }
+    for (const unit of this.parser.push(chunk)) this.options.handlers.unit(unit, timestamp)
   }
 
   private launch(): void {
@@ -113,7 +93,6 @@ class H264 {
     const healthy = performance.now() - this.launchedAt > STARTUP_GRACE_MS
     if (healthy && this.restarts < RESTART_LIMIT) {
       this.restarts++
-      this.options.onRestart?.()
       this.schedule(() => this.launch())
       return
     }

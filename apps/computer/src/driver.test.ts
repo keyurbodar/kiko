@@ -40,10 +40,7 @@ function reply(request: Request, status: unknown): Reply {
 
 const deadline = () => new Deadline(5_000)
 
-const PIPE = "\\\\.\\pipe\\"
-
 function address(dir: string): string {
-  if (process.platform === "win32") return `${PIPE}kiko-driver-${process.pid}-${crypto.randomUUID()}`
   return join(dir, "driver.sock")
 }
 
@@ -72,7 +69,7 @@ async function fakeDriver(handler: Handler) {
   const listening = address(dir)
   await new Promise<void>((resolve) => server.listen(listening, resolve))
   return {
-    path: listening.startsWith(PIPE) ? listening.slice(PIPE.length) : listening,
+    path: listening,
     sockets,
     next: () => new Promise<void>((resolve) => waiting.push(resolve)),
     close: async () => {

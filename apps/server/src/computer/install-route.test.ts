@@ -5,7 +5,7 @@ import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileS
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import type { Env } from "../index"
-import { installPs1, installRoute, installSh } from "./install-route"
+import { installRoute, installSh } from "./install-route"
 
 const ORIGIN = "https://kiko.example"
 const PAIR = `${ORIGIN}/pc#owner.1.code`
@@ -239,23 +239,6 @@ describe.skipIf(process.platform !== "linux")("install.sh", () => {
     expect(run.status).toBe(0)
     expect(existsSync(marker)).toBe(false)
     expect(run.stdout).toContain("no pair link yet")
-  })
-})
-
-describe("install.ps1", () => {
-  const assets = { "kiko-windows-x64.zip": new Uint8Array([1]) }
-
-  it("escapes a quote in the request origin", () => {
-    const body = installPs1(`https://x'; touch /tmp/pwned; echo '`, signed(assets))
-    expect(body).toContain(`$origin = 'https://x''; touch /tmp/pwned; echo '''`)
-  })
-
-  it("installs the app under LOCALAPPDATA and swaps it through a detached helper", () => {
-    const body = installPs1(ORIGIN, signed(assets))
-    expect(body).toContain("kiko-windows-x64.zip")
-    expect(body).toContain("$root = Join-Path $local 'kiko'")
-    expect(body).toContain("Start-Process -FilePath 'powershell' -WindowStyle Hidden")
-    expect(body).toContain("Remove-ItemProperty -Path '__RUN__' -Name 'kiko-computer'")
   })
 })
 

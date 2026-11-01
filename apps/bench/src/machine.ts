@@ -1,4 +1,4 @@
-import { execFile, spawnSync, spawn as spawnProcess } from "node:child_process"
+import { execFile, spawn as spawnProcess } from "node:child_process"
 import { closeSync, openSync } from "node:fs"
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
@@ -29,16 +29,10 @@ function commandEnv(extra?: Record<string, string>): Record<string, string | und
 }
 
 export function localOs(platform: string = process.platform): Os {
-  if (platform === "darwin") return "macos"
-  if (platform === "win32") return "windows"
-  return "linux"
+  return platform === "darwin" ? "macos" : "linux"
 }
 
 function killTree(pid: number): void {
-  if (process.platform === "win32") {
-    spawnSync("taskkill", ["/pid", String(pid), "/T", "/F"], { stdio: "ignore" })
-    return
-  }
   try {
     process.kill(-pid, "SIGKILL")
   } catch {
@@ -65,7 +59,6 @@ function run(
         timeout: opts.timeoutMs,
         killSignal: "SIGKILL",
         maxBuffer: MAX_OUTPUT_BYTES,
-        windowsHide: true,
         encoding: "utf8",
       },
       (error, stdout, stderr) => {
@@ -108,7 +101,7 @@ class LocalMachine implements Machine {
       cwd: opts.cwd ?? this.workdir,
       env: commandEnv(opts.env),
       stdio: ["ignore", log, log],
-      detached: process.platform !== "win32",
+      detached: true,
     })
     closeSync(log)
     const pid = child.pid

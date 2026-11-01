@@ -4,7 +4,7 @@ export const KIKO_TOOLS: readonly ToolSpec[] = [
   {
     name: "computer_shell",
     description:
-      "run one command line on the computer and return its exit code and the end of its output. the fastest way to look around, read logs, check a program, or run a tool. macOS and linux run /bin/sh -lc, windows runs powershell, so write the command for that system. cwd starts in the human's home folder. timeoutMs is how long to wait, default 60000.",
+      "run one command line on the computer and return its exit code and the end of its output. the fastest way to look around, read logs, check a program, or run a tool. macOS and linux run /bin/sh -lc, so write the command for that system. cwd starts in the human's home folder. timeoutMs is how long to wait, default 60000.",
     parameters: {
       type: "object",
       required: ["command"],

@@ -42,13 +42,6 @@ fn launcher(url: &str) -> Command {
     command
 }
 
-#[cfg(windows)]
-fn launcher(url: &str) -> Command {
-    let mut command = Command::new("cmd");
-    command.args(["/C", "start", ""]).arg(url);
-    command
-}
-
 #[cfg(target_os = "linux")]
 fn launcher(url: &str) -> Command {
     let mut command = Command::new("xdg-open");

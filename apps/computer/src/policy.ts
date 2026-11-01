@@ -25,14 +25,11 @@ function canonical(path: string): string {
   }
 }
 
-const fold = (path: string): string => (process.platform === "win32" ? path.toLowerCase() : path)
-
 export function allowedPath(policy: Policy, path: string): string | null {
   const wanted = canonical(expandHome(path))
-  const key = fold(wanted)
   for (const root of policy.files.allow) {
-    const base = fold(canonical(expandHome(root)))
-    if (key === base || key.startsWith(base.endsWith(sep) ? base : `${base}${sep}`)) return wanted
+    const base = canonical(expandHome(root))
+    if (wanted === base || wanted.startsWith(base.endsWith(sep) ? base : `${base}${sep}`)) return wanted
   }
   return null
 }

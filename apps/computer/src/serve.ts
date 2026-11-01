@@ -191,11 +191,7 @@ export async function diagnose(dir = configDir()): Promise<{ checks: Check[]; de
   driver?.close()
   checks.push({ name: "desktop", ok: desktopOk(detection), detail: desktopDetail(detection) })
   checks.push({ name: "ffmpeg", ok: true, detail: Bun.which("ffmpeg") ?? "not installed; live video is off" })
-  checks.push({
-    name: "shell",
-    ok: true,
-    detail: process.platform === "win32" ? "powershell -NoProfile -Command" : "/bin/sh -lc",
-  })
+  checks.push({ name: "shell", ok: true, detail: "/bin/sh -lc" })
   checks.push({
     name: "terminal",
     ok: hasPty(),

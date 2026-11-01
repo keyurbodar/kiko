@@ -3,7 +3,6 @@ import { platform, type Screen } from "./capture"
 import type { Native } from "./native/contract"
 import { linuxNative } from "./native/linux"
 import { macNative } from "./native/macos"
-import { windowsNative } from "./native/windows"
 
 const BUTTONS = new Map<number, number>([
   [0, 0],
@@ -13,7 +12,6 @@ const BUTTONS = new Map<number, number>([
 
 export type Injected = {
   apply(events: readonly InputEvent[]): void
-  cursor(): { x: number; y: number } | null
   screen(): Screen | null
   release(): void
 }
@@ -21,10 +19,7 @@ export type Injected = {
 export type Gate = { holder(): Holder; allowed(): boolean }
 
 function createNative(): Native | null {
-  const name = platform()
-  if (name === "macos") return macNative()
-  if (name === "windows") return windowsNative()
-  return linuxNative()
+  return platform() === "macos" ? macNative() : linuxNative()
 }
 
 export function createInput(screen: Screen | null, gate: Gate): Injected | null {
@@ -53,16 +48,6 @@ export function createInput(screen: Screen | null, gate: Gate): Injected | null 
           native.wheel(Math.round(event.dy), false)
           if (event.dx) native.wheel(Math.round(event.dx), true)
         }
-      }
-    },
-    cursor() {
-      const at = native.cursor()
-      if (!at) return null
-      const width = area?.width ?? 1
-      const height = area?.height ?? 1
-      return {
-        x: Math.min(1, Math.max(0, (at.x - (screen?.originX ?? 0)) / width)),
-        y: Math.min(1, Math.max(0, (at.y - (screen?.originY ?? 0)) / height)),
       }
     },
     screen() {

@@ -34,9 +34,18 @@ function rowOf(value: string): Row {
 describe("ledger", () => {
   it("writes the exact header", () => {
     expect(toTsv([])).toBe(
-      "run_id\ttrial_id\tts\tcommit\tbench_version\ttask\ttrack\theld_out\tos\tmachine\tcontender\tcontender_version\tmodel\teffort\tcondition\tseed\trep\toutcome\tpass\tchecks_passed\tchecks_total\tfail_class\tturns\ttool_calls\ttool_errors\ttokens_in\ttokens_cached\ttokens_out\ttokens_reasoning\tcost_usd\twall_ms\tmodel_ms\ttool_ms\ttool_p50_ms\ttool_p95_ms\tbytes_to_model\timages_sent\timages_dropped\tfocus_steals\tpointer_moves\tkeys_swallowed\twindows_raised\tsystem_prompt_sha\ttrajectory\n",
+      "run_id\ttrial_id\tts\tcommit\tbench_version\ttask\ttrack\theld_out\tos\tmachine\tcontender\tcontender_version\tmodel\teffort\tcondition\tseed\trep\toutcome\tpass\tchecks_passed\tchecks_total\tfail_class\tturns\ttool_calls\ttool_errors\ttokens_in\ttokens_cached\ttokens_out\ttokens_reasoning\tcost_usd\twall_ms\tmodel_ms\ttool_ms\ttool_p50_ms\ttool_p95_ms\tbytes_to_model\timages_sent\timages_dropped\tfocus_steals\tpointer_moves\tkeys_swallowed\twindows_raised\tsystem_prompt_sha\ttrajectory\tttft_ms\tmodel_p50_ms\tmodel_p95_ms\ttool_transport_ms\ttool_op_ms\ttool_queue_ms\ttool_latency_by_name\timages_bytes\tbytes_from_tool\n",
     )
-    expect(HEADER.split("\t")).toHaveLength(44)
+    expect(HEADER.split("\t")).toHaveLength(53)
+  })
+
+  it("reads a file whose header stops before the newest columns", () => {
+    const old = COLUMNS.slice(0, 44)
+    const line = old.map((column) => (column === "run_id" ? "old" : "")).join("\t")
+    const [row] = parseTsv(`${old.join("\t")}\n${line}\n`)
+    expect(row?.run_id).toBe("old")
+    expect(row?.ttft_ms).toBe("")
+    expect(row?.tool_latency_by_name).toBe("")
   })
 
   it("round-trips every column, including tabs, newlines and backslashes", () => {

@@ -48,7 +48,7 @@ const plan = (seed: number): { data: string; expected: string } => {
 export const unicodeLongOutput: Task = {
   id: "terminal-014-unicode-long-output",
   track: "terminal",
-  os: ["linux", "macos", "windows"],
+  os: ["linux", "macos"],
   needs: [],
   heldOut: false,
   kind: "edge",

@@ -42,7 +42,7 @@ const PC_PROPERTY = {
 }
 
 const COMPUTER_RULES = [
-  "computers are the human's own machines; each one is macOS, Linux or Windows, and computer_shell says which shell it runs. pass pc by name or id; with one machine, leave it out.",
+  "computers are the human's own machines; each one is macOS or Linux, and computer_shell says which shell it runs. pass pc by name or id; with one machine, leave it out.",
   "prefer the shell and the file tools: they are exact and instant. use the screen only for a desktop app or a window.",
   "the desktop_* tools come from the machine's desktop engine. work in the background so the owner can keep using their computer: list_windows and get_window_state read any window, even a covered or minimized one, and the action tools act on the window you name without bringing it forward or moving the owner's mouse. act by the element tokens the window state returns, not by pixels.",
   "for an interactive program, a REPL, or a full-screen app, open a terminal with terminal_open: it stays alive between your turns. terminal_send types and presses keys, terminal_wait waits for output, terminal_read reads the screen or the tail. computer_shell is only for one command that finishes.",
@@ -155,7 +155,7 @@ export function computerExtension(deps: ComputerToolDeps): Extension {
   const shell = defineTool({
     name: "computer_shell",
     description:
-      "run one command line on the computer and return its exit code and the end of its output. the fastest way to look around, read logs, check a program, or run a tool. macOS and linux run /bin/sh -lc, windows runs powershell, so write the command for that system. cwd starts in the human's home folder. timeoutMs is how long to wait, default 60000.",
+      "run one command line on the computer and return its exit code and the end of its output. the fastest way to look around, read logs, check a program, or run a tool. macOS and linux run /bin/sh -lc, so write the command for that system. cwd starts in the human's home folder. timeoutMs is how long to wait, default 60000.",
     parameters: Type.Object({
       pc: PC,
       command: Type.String({ description: "the whole command line" }),
