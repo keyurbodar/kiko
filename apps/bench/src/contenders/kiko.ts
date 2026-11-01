@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs"
 import { isAbsolute, resolve } from "node:path"
-import type { DesktopInfo, DesktopTool } from "@kiko/computer/driver"
+import type { DesktopInfo, DesktopTool, Page, PageAction, Tab } from "@kiko/computer/driver"
 import type { Value } from "@kiko/computer/wire"
 import { Deadline } from "@kiko/computer-daemon/src/deadline.ts"
 import { startDriver, type Driver } from "@kiko/computer-daemon/src/driver.ts"
@@ -23,6 +23,8 @@ const SHELL_TIMEOUT_MS = 60_000
 const CALL_TIMEOUT_MS = 60_000
 const MAX_OUTPUT_CHARS = 12_000
 const MAX_READ_BYTES = 64_000
+const SCREEN_MAX_WIDTH = 960
+const BROWSER_STEPS_MAX = 20
 
 type Bag = Record<string, unknown>
 
@@ -187,6 +189,104 @@ async function desktopCall(
   const { pc: _pc, ...rest } = args
   const value = await driver.call({ method: "desktop.call", params: { name: tool, args: rest } }, deadline)
   return mcpResult(value, machine)
+}
+
+function tabLine(tab: Tab): string {
+  return `${tab.id}${tab.active ? " [in front]" : ""} ${tab.title || "(no title)"} — ${tab.url}`
+}
+
+function pageHead(page: Page): string {
+  return `${page.tab.title || "(no title)"} — ${page.tab.url} (tab ${page.tab.id}, read in the background)`
+}
+
+function pageResult(page: Page, head: string, isError = false): ToolResult {
+  const image = page.image
+  return {
+    text: cut(`${head}\n\n${page.outline.trim() || "(no controls on this page)"}`),
+    images: image && IMAGE_MIMES.has(image.mime) ? [{ mime: image.mime as Image["mime"], base64: image.data }] : [],
+    isError,
+  }
+}
+
+async function readPage(driver: Driver, tab: string, image: boolean, deadline: Deadline): Promise<Page> {
+  const value = await driver.call(
+    { method: "browser.read", params: { tab, image, max_width: SCREEN_MAX_WIDTH } },
+    deadline,
+  )
+  return value as Page
+}
+
+async function browserAct(driver: Driver, args: Bag, deadline: Deadline): Promise<ToolResult> {
+  const tab = stringOf(args.tab)
+  if (!tab) return text("browser_act needs a tab", true)
+  const wanted = Array.isArray(args.steps) ? args.steps.filter(isBag) : []
+  if (wanted.length === 0) return text("browser_act needs steps", true)
+  const mode = args.on_screen === true ? "foreground" : "background"
+  const steps = wanted.slice(0, BROWSER_STEPS_MAX).map((step) => ({
+    ref: typeof step.ref === "number" ? step.ref : Number.NaN,
+    action: String(step.action ?? "") as PageAction,
+    text: stringOf(step.text),
+  }))
+  let done = 0
+  let failure: string | undefined
+  while (done < steps.length && failure === undefined) {
+    const step = steps[done]!
+    try {
+      await driver.call(
+        {
+          method: "browser.act",
+          params: {
+            tab,
+            ref: step.ref,
+            action: step.action,
+            mode,
+            ...(step.text !== undefined ? { text: step.text } : {}),
+          },
+        },
+        deadline,
+      )
+      done += 1
+    } catch (error) {
+      failure = failureMessage(error)
+    }
+  }
+  const progress = `did ${done} of ${steps.length} steps`
+  try {
+    const page = await readPage(driver, tab, args.image === true, deadline)
+    const trouble = failure ? `. step ${done + 1} failed: ${failure}` : ""
+    return pageResult(page, `${progress} on ${pageHead(page)}${trouble}`, failure !== undefined)
+  } catch (error) {
+    return text(`${progress}. the page could not be read: ${failureMessage(error)}`, true)
+  }
+}
+
+async function browserCall(driver: Driver, name: string, args: Bag, deadline: Deadline): Promise<ToolResult> {
+  if (name === "browser_tabs") {
+    const tabs = (await driver.call({ method: "browser.tabs" }, deadline)) as Tab[]
+    return text(tabs.map(tabLine).join("\n") || "no browser tabs are open.")
+  }
+  if (name === "browser_open") {
+    const url = stringOf(args.url)
+    if (!url) return text("browser_open needs a url", true)
+    const opened = (await driver.call({ method: "browser.open", params: { url, mode: "background" } }, deadline)) as Tab
+    return text(`opened ${tabLine(opened)} in the background.`)
+  }
+  if (name === "browser_act") return browserAct(driver, args, deadline)
+  const tab = stringOf(args.tab)
+  if (!tab) return text(`${name} needs a tab`, true)
+  if (name === "browser_read") {
+    const page = await readPage(driver, tab, args.image === true, deadline)
+    return pageResult(page, pageHead(page))
+  }
+  if (name === "browser_close") {
+    await driver.call({ method: "browser.close", params: { tab } }, deadline)
+    return text(`closed tab ${tab}.`)
+  }
+  if (name === "browser_show") {
+    await driver.call({ method: "browser.show", params: { tab } }, deadline)
+    return text(`brought tab ${tab} to the front.`)
+  }
+  return text(`there is no tool called ${name}`, true)
 }
 
 export interface KikoOptions {
@@ -360,6 +460,8 @@ export function kikoContender(options: KikoOptions = {}): Contender {
         return withDriver((d) =>
           desktopCall(d, m, name.slice("desktop_".length), bag, deadlineFor(CALL_TIMEOUT_MS, signal)),
         )
+      if (name.startsWith("browser_"))
+        return withDriver((d) => browserCall(d, name, bag, deadlineFor(CALL_TIMEOUT_MS, signal)))
       if (TERMINAL_TOOLS.has(name))
         return withTerminals((manager) => {
           if (name === "terminal_open") return terminalOpen(manager, m, bag)

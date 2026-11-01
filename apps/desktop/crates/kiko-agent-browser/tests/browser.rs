@@ -160,6 +160,50 @@ fn a_read_before_each_act_keeps_the_refs_alive() {
 }
 
 #[test]
+fn a_step_that_leaves_the_page_makes_the_next_step_stale() {
+    let (_dir, mut engine) = start(vec![]);
+    assert!(engine.wait_ready(READY));
+    let tab = open(&mut engine);
+    read(&mut engine, &tab.id, false);
+    engine
+        .act(&BrowserActParams {
+            tab: tab.id.clone(),
+            reference: 2,
+            action: PageAction::Click,
+            text: None,
+            mode: Mode::Background,
+        })
+        .expect("click the button, which navigates");
+    let stale = engine
+        .act(&BrowserActParams {
+            tab: tab.id.clone(),
+            reference: 3,
+            action: PageAction::Type,
+            text: Some("hello".into()),
+            mode: Mode::Background,
+        })
+        .unwrap_err();
+    assert_eq!(stale.code, kiko_driver::ErrorCode::Stale);
+    assert!(stale.message.contains("read the page again"), "got {stale}");
+    let page = read(&mut engine, &tab.id, false);
+    let field = page
+        .nodes
+        .iter()
+        .find(|node| node.role == "text field")
+        .expect("the text field");
+    engine
+        .act(&BrowserActParams {
+            tab: tab.id.clone(),
+            reference: field.reference,
+            action: PageAction::Type,
+            text: Some("hello".into()),
+            mode: Mode::Background,
+        })
+        .expect("a fresh read makes a ref work again");
+    engine.stop();
+}
+
+#[test]
 fn evaluates_an_expression_in_the_tab() {
     let (_dir, mut engine) = start(vec![]);
     assert!(engine.wait_ready(READY));
@@ -215,6 +259,19 @@ fn an_engine_that_dies_on_its_first_start_is_retried() {
 }
 
 #[test]
+fn names_the_stream_of_the_tab_the_owner_watches() {
+    let (_dir, mut engine) = start(vec![]);
+    assert!(engine.wait_ready(READY));
+    assert_eq!(
+        engine
+            .stream(&TabParams { tab: "T1".into() })
+            .expect("a stream"),
+        "ws://127.0.0.1:9223"
+    );
+    engine.stop();
+}
+
+#[test]
 fn a_missing_engine_reports_no_browser() {
     let dir = tempfile::tempdir().expect("temp dir");
     let log = Arc::new(|line: String| println!("{line}"));
@@ -233,5 +290,6 @@ fn a_missing_engine_reports_no_browser() {
         })
         .unwrap_err();
     assert!(error.message.contains("not running"), "got {error}");
+    assert!(engine.stream(&TabParams { tab: "T1".into() }).is_err());
     engine.stop();
 }

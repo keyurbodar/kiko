@@ -13,6 +13,19 @@ fn refs() -> &'static Mutex<HashSet<String>> {
     REFS.get_or_init(|| Mutex::new(HashSet::new()))
 }
 
+fn page_url() -> &'static Mutex<String> {
+    static URL: OnceLock<Mutex<String>> = OnceLock::new();
+    URL.get_or_init(|| Mutex::new("https://example.com/".to_string()))
+}
+
+fn current_url() -> String {
+    page_url().lock().unwrap().clone()
+}
+
+fn set_url(value: &str) {
+    *page_url().lock().unwrap() = value.to_string();
+}
+
 fn clear_refs() {
     refs().lock().unwrap().clear();
 }
@@ -34,6 +47,59 @@ fn check_ref(selector: &str) -> Result<(), String> {
     Err(format!("Unknown ref: {name}"))
 }
 
+fn click(target: &str) -> Result<Value, String> {
+    check_ref(target)?;
+    if target == "@e2" {
+        set_url("https://example.com/next");
+    }
+    Ok(json!({ "clicked": true }))
+}
+
+fn command(items: &[&str]) -> Result<Value, String> {
+    let (action, args) = items.split_first().ok_or("an empty command")?;
+    let target = args.first().copied().unwrap_or_default();
+    match *action {
+        "get" if args.first() == Some(&"url") => Ok(json!({ "url": current_url() })),
+        "click" => click(target),
+        "type" | "fill" | "select" | "scrollintoview" | "focus" => {
+            check_ref(target)?;
+            Ok(json!({ "ok": true }))
+        }
+        "press" => Ok(json!({ "ok": true })),
+        other => Err(format!("unknown command {other}")),
+    }
+}
+
+fn batch(arguments: &Value) -> Result<Vec<Value>, String> {
+    let commands = arguments
+        .get("commands")
+        .and_then(Value::as_array)
+        .ok_or("no commands")?;
+    let bail = arguments
+        .get("bail")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    let mut entries = Vec::new();
+    for (index, line) in commands.iter().enumerate() {
+        let items: Vec<&str> = line
+            .as_array()
+            .map(|list| list.iter().filter_map(Value::as_str).collect())
+            .unwrap_or_default();
+        let result = command(&items);
+        let success = result.is_ok();
+        let mut entry = json!({ "index": index, "success": success });
+        match result {
+            Ok(data) => entry["result"] = data,
+            Err(message) => entry["error"] = json!(message),
+        }
+        entries.push(entry);
+        if !success && bail {
+            break;
+        }
+    }
+    Ok(entries)
+}
+
 fn jpeg() -> Vec<u8> {
     let mut bytes = vec![0xFF, 0xD8, 0xFF, 0xC0, 0x00, 0x11, 0x08];
     bytes.extend_from_slice(&720u16.to_be_bytes());
@@ -44,7 +110,7 @@ fn jpeg() -> Vec<u8> {
 
 fn tabs() -> Value {
     json!({ "tabs": [
-        { "tabId": "t1", "targetId": "T1", "label": null, "title": "Fixture", "url": "https://example.com/", "type": "page", "active": true },
+        { "tabId": "t1", "targetId": "T1", "label": null, "title": "Fixture", "url": current_url(), "type": "page", "active": true },
         { "tabId": "t2", "targetId": "T2", "label": null, "title": "Second", "url": "https://example.com/two", "type": "page", "active": false },
     ] })
 }
@@ -78,6 +144,14 @@ fn data(name: &str, arguments: &Value) -> Result<Value, String> {
             Ok(json!({ "tabId": arguments.get("tab").cloned().unwrap_or(Value::Null) }))
         }
         "agent_browser_tab_close" => Ok(json!({ "closed": true })),
+        "agent_browser_get_cdp_url" => Ok(json!({ "cdpUrl": "ws://127.0.0.1:9222/devtools/browser/fake" })),
+        "agent_browser_stream_status" => Ok(json!({ "enabled": false, "port": null, "connected": true })),
+        "agent_browser_stream_enable" => Ok(json!({
+            "enabled": true,
+            "port": 9223,
+            "connected": true,
+            "screencasting": false,
+        })),
         "agent_browser_snapshot" => {
             snapshot_refs();
             Ok(snapshot())
@@ -97,8 +171,13 @@ fn data(name: &str, arguments: &Value) -> Result<Value, String> {
             Ok(json!({ "result": 42 }))
         }
         "agent_browser_close" => Ok(json!({ "closed": true })),
-        "agent_browser_click"
-        | "agent_browser_type"
+        "agent_browser_click" => click(
+            arguments
+                .get("selector")
+                .and_then(Value::as_str)
+                .unwrap_or_default(),
+        ),
+        "agent_browser_type"
         | "agent_browser_fill"
         | "agent_browser_select"
         | "agent_browser_focus"
@@ -118,6 +197,25 @@ fn data(name: &str, arguments: &Value) -> Result<Value, String> {
 }
 
 fn call(name: &str, arguments: &Value) -> Value {
+    if name == "agent_browser_batch" {
+        return match batch(arguments) {
+            Ok(entries) => {
+                let failed = entries
+                    .iter()
+                    .any(|entry| entry.get("success").and_then(Value::as_bool) != Some(true));
+                json!({
+                    "content": [{ "type": "text", "text": "ok" }],
+                    "structuredContent": { "exitCode": failed as u8, "stdout": "", "stderr": "", "response": Value::Array(entries) },
+                    "isError": failed,
+                })
+            }
+            Err(message) => json!({
+                "content": [{ "type": "text", "text": message }],
+                "structuredContent": { "response": { "success": false, "error": message } },
+                "isError": true,
+            }),
+        };
+    }
     match data(name, arguments) {
         Ok(data) => json!({
             "content": [{ "type": "text", "text": "ok" }],
