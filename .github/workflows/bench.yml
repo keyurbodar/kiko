@@ -136,7 +136,7 @@ jobs:
       - uses: ./.github/actions/setup
 
       - name: Install the contender
-        if: runner.os == 'Linux' && matrix.contender != 'kiko' && matrix.contender != 'baseline-shell'
+        if: matrix.contender != 'kiko' && matrix.contender != 'baseline-shell' && (runner.os == 'Linux' || matrix.contender == 'agent-browser')
         run: |
           set -euo pipefail
           case "${{ matrix.contender }}" in
@@ -195,6 +195,9 @@ jobs:
     runs-on: ${{ matrix.runner }}
     container: ${{ matrix.image }}
     timeout-minutes: 90
+    defaults:
+      run:
+        shell: bash
     strategy:
       fail-fast: false
       max-parallel: 4
@@ -351,6 +354,9 @@ jobs:
     runs-on: ${{ matrix.runner }}
     container: ${{ matrix.image }}
     timeout-minutes: 90
+    defaults:
+      run:
+        shell: bash
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.plan.outputs.vcontainer) }}
@@ -477,6 +483,9 @@ jobs:
     runs-on: ${{ matrix.runner }}
     container: ${{ matrix.image }}
     timeout-minutes: 90
+    defaults:
+      run:
+        shell: bash
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.plan.outputs.vcontainer) }}

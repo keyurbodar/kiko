@@ -40,6 +40,10 @@ exec dbus-run-session -- bash -c '
   fi
   export WAYLAND_DISPLAY="$(basename "$socket")"
   for _ in $(seq 1 120); do
+    if [ -z "${XAUTHORITY:-}" ]; then
+      auth=$(ls "$XDG_RUNTIME_DIR"/.mutter-Xwaylandauth.* 2>/dev/null | head -n 1 || true)
+      if [ -n "$auth" ]; then export XAUTHORITY="$auth"; fi
+    fi
     if DISPLAY=:0 xdotool getdisplaygeometry >/dev/null 2>&1; then break; fi
     sleep 0.5
   done
