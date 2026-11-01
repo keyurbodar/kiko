@@ -106,6 +106,9 @@ jobs:
           ffmpeg -hide_banner -f avfoundation -list_devices true -i "" 2>&1 | head -20 || true
           sudo sqlite3 "/Library/Application Support/com.apple.TCC/TCC.db" \
             "SELECT service, client, client_type, auth_value FROM access WHERE service LIKE '%ScreenCapture%' OR service LIKE '%Accessibility%';" || true
+          ffmpeg -hide_banner -loglevel error -f avfoundation -capture_cursor 1 -framerate 5 -i "Capture screen 0" -t 2 -f mjpeg -q:v 5 pipe:1 > /tmp/frames.mjpeg 2>/tmp/frames.log || true
+          echo "captured $(wc -c < /tmp/frames.mjpeg) bytes"
+          cat /tmp/frames.log || true
       - name: Paste a Unicode string and click the display
         run: bun apps/server/scripts/measure-input.ts --single --out input-proof.json
       - name: Upload the proof

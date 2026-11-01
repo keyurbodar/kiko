@@ -26,7 +26,7 @@ const TEXT = "Grüße, 世界 — deux lignes\nligne deux\n🎉 end"
 const PAGE = (name: string) => `<!doctype html><meta charset="utf-8">
 <style>
 html,body{margin:0;height:100%;background:#111;color:#eee;font:16px system-ui}
-#field{position:absolute;left:20%;top:40%;width:60%;height:20%;font-size:20px}
+#field{position:absolute;left:15%;top:25%;width:70%;height:30%;font-size:20px}
 </style>
 <textarea id="field" autocomplete="off"></textarea>
 <script>
@@ -313,7 +313,12 @@ async function main(): Promise<void> {
     if (single) {
       result.displays = await labels()
       await stageClick(0.5, 0.5)
-      await until("the click on the only display", async () => (await events(leftPage)) > 0, 10_000)
+      await until("the click on the only display", async () => (await events(leftPage)) > 0, 10_000).catch(
+        async (error) => {
+          result.fields = { left: await inspect(leftPage) }
+          throw error
+        },
+      )
       const landed = (await leftPage.evaluate(() => {
         const log = window as unknown as { __events: { x: number; y: number; screenX: number; screenY: number }[] }
         return log.__events.at(-1)
