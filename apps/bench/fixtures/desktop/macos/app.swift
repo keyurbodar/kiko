@@ -408,7 +408,7 @@ func buildPreferences() {
             return ["ok": false, "error": "the command needs dark and font"]
         }
         apply(dark, font)
-        return ["ok": true"]
+        return ["ok": true]
     }
     show(window)
 }
@@ -439,7 +439,7 @@ func buildBigForm() {
             return ["ok": false, "error": "the command needs values"]
         }
         submit(values)
-        return ["ok": true"]
+        return ["ok": true]
     }
     show(window)
 }
@@ -503,7 +503,7 @@ func buildModal() {
         default:
             return ["ok": false, "error": "unknown action"]
         }
-        return ["ok": true"]
+        return ["ok": true]
     }
     show(window)
 }
@@ -569,7 +569,7 @@ func buildNotification() {
         case "save": save(["name": nameField.stringValue, "email": emailField.stringValue])
         default: return ["ok": false, "error": "unknown action"]
         }
-        return ["ok": true"]
+        return ["ok": true]
     }
     show(window)
 }
@@ -594,7 +594,7 @@ func buildSameTitle() {
         case "save": save(["target_code": codeField.stringValue])
         default: return ["ok": false, "error": "unknown action"]
         }
-        return ["ok": true"]
+        return ["ok": true]
     }
 }
 
@@ -629,7 +629,7 @@ func buildOwner() {
         case "save": save(["code": codeField.stringValue])
         default: return ["ok": false, "error": "unknown action"]
         }
-        return ["ok": true"]
+        return ["ok": true]
     }
 }
 
@@ -644,7 +644,7 @@ func buildMinimized() {
         case "save": save(["code": field.stringValue])
         default: return ["ok": false, "error": "unknown action"]
         }
-        return ["ok": true"]
+        return ["ok": true]
     }
     show(window)
     DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) { window.miniaturize(nil) }
