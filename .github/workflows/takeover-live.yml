@@ -1,0 +1,122 @@
+name: takeover-live
+
+on:
+  push:
+    branches: ["t3/cu-*"]
+    paths:
+      - "apps/computer/src/live/**"
+      - "apps/computer/src/browser/**"
+      - "apps/computer/src/caps.ts"
+      - "apps/desktop/crates/kiko-agent-browser/**"
+      - "apps/desktop/crates/kiko-driver/**"
+      - "apps/server/src/computer/**"
+      - "apps/server/scripts/measure-live.ts"
+      - "apps/server/scripts/measure-browser.ts"
+      - "apps/server/integration/computer-live.integration.test.ts"
+      - "apps/web-solid/src/chat/computer/**"
+      - "core/computer/src/frame.ts"
+      - ".github/workflows/takeover-live.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: takeover-live-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  measure-rtc:
+    name: live view measurement (WebRTC)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - name: Install ffmpeg and Xvfb
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg xvfb
+      - name: Install Chromium
+        run: node apps/server/node_modules/playwright/cli.js install --with-deps chromium
+      - name: Build the web app
+        run: bun run build
+      - name: Live socket integration test
+        working-directory: apps/server
+        run: bunx vitest run --config vitest.config.ts integration/computer-live.integration.test.ts
+      - name: Measure over WebRTC
+        run: xvfb-run -a -s "-screen 0 1920x1080x24" bun apps/server/scripts/measure-live.ts --out live-measure.json --shots shots
+      - name: Upload
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: takeover-live
+          path: |
+            live-measure.json
+            shots/
+          if-no-files-found: warn
+
+  measure-relay:
+    name: live view measurement (relay)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - name: Install ffmpeg and Xvfb
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg xvfb
+      - name: Install Chromium
+        run: node apps/server/node_modules/playwright/cli.js install --with-deps chromium
+      - name: Build the web app
+        run: bun run build
+      - name: Measure over the relay
+        run: xvfb-run -a -s "-screen 0 1920x1080x24" bun apps/server/scripts/measure-live.ts --no-rtc --out live-measure-relay.json --shots shots-relay
+      - name: Upload
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: takeover-live-relay
+          path: |
+            live-measure-relay.json
+            shots-relay/
+          if-no-files-found: warn
+
+  browser:
+    name: browser live measurement
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop
+      - uses: ./.github/actions/setup
+      - name: Install Chromium, Xvfb and the test desktop
+        run: |
+          node apps/server/node_modules/playwright/cli.js install --with-deps chromium
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            at-spi2-core dbus-x11 gir1.2-gtk-3.0 openbox python3-gi x11-utils xdotool xvfb
+      - name: Build kiko
+        working-directory: apps/desktop
+        run: cargo build --release --locked -p kiko-app
+      - name: Build the web app
+        run: bun run build
+      - name: Fetch the browser engine
+        run: |
+          browser="$(bash apps/desktop/scripts/fetch-agent-browser.sh linux-x64 "$RUNNER_TEMP/browser")"
+          echo "BROWSER_BIN=$browser" >> "$GITHUB_ENV"
+      - name: Measure the browser tab
+        env:
+          KIKO_BIN: ${{ github.workspace }}/apps/desktop/target/release/kiko
+          KIKO_AGENT_BROWSER: ${{ env.BROWSER_BIN }}
+        run: |
+          xvfb-run -a -s "-screen 0 1280x1024x24" \
+            bun apps/server/scripts/measure-browser.ts --out browser-measure.json --shots browser-shots
+      - name: Upload the browser record
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: takeover-live-browser
+          path: |
+            browser-measure.json
+            browser-shots/
+          if-no-files-found: warn

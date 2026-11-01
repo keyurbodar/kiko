@@ -1,0 +1,25 @@
+name: Sentinel on macOS
+description: Build the sentinel and its focus-stealing fixture, and grant both Accessibility.
+
+runs:
+  using: composite
+  steps:
+    - name: Build and trust
+      shell: bash
+      run: |
+        set -euo pipefail
+        mkdir -p "$RUNNER_TEMP/kiko-sentinel"
+        swiftc -O -parse-as-library apps/bench/src/sentinel/native/macos/Sentinel.swift -o "$RUNNER_TEMP/kiko-sentinel/Sentinel"
+        swiftc -O -parse-as-library apps/bench/fixtures/sentinel/macos/OtherWindow.swift -o "$RUNNER_TEMP/kiko-sentinel/OtherWindow"
+        echo "KIKO_SENTINEL_BIN=$RUNNER_TEMP/kiko-sentinel/Sentinel" >> "$GITHUB_ENV"
+        echo "KIKO_OTHER_WINDOW_BIN=$RUNNER_TEMP/kiko-sentinel/OtherWindow" >> "$GITHUB_ENV"
+        database="/Library/Application Support/com.apple.TCC/TCC.db"
+        now=$(date +%s)
+        for client in "$RUNNER_TEMP/kiko-sentinel/Sentinel" "$RUNNER_TEMP/kiko-sentinel/OtherWindow"; do
+          sudo sqlite3 "$database" \
+            "INSERT OR REPLACE INTO access(service,client,client_type,auth_value,auth_reason,auth_version,csreq,policy_id,indirect_object_identifier_type,indirect_object_identifier,indirect_object_code_identity,flags,last_modified) \
+             VALUES('kTCCServiceAccessibility','${client}',1,2,4,1,NULL,NULL,0,'UNUSED',NULL,0,${now});"
+        done
+        sudo killall tccd 2>/dev/null || true
+        sleep 2
+        sudo sqlite3 "$database" "SELECT service, client, auth_value FROM access WHERE client LIKE '%kiko-sentinel%';"

@@ -5,7 +5,7 @@ import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileS
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import type { Env } from "../index"
-import { installPs1, installRoute, installSh } from "./install-route"
+import { installRoute, installSh } from "./install-route"
 
 const ORIGIN = "https://kiko.example"
 const PAIR = `${ORIGIN}/pc#owner.1.code`
@@ -53,9 +53,10 @@ function tarball(): Uint8Array {
   writeFileSync(join(src, "kiko"), FAKE_APP)
   writeFileSync(join(src, "kiko-core"), FAKE_CORE)
   writeFileSync(join(src, "cua-driver"), FAKE_CORE)
+  writeFileSync(join(src, "agent-browser"), FAKE_CORE)
   writeFileSync(join(src, "kiko.desktop"), "[Desktop Entry]\nType=Application\nExec=kiko\nIcon=kiko\n")
   writeFileSync(join(src, "kiko.png"), "png")
-  for (const name of ["kiko", "kiko-core", "cua-driver"]) chmodSync(join(src, name), 0o755)
+  for (const name of ["kiko", "kiko-core", "cua-driver", "agent-browser"]) chmodSync(join(src, name), 0o755)
   const out = join(mkdtempSync(join(tmpdir(), "kiko-app-")), APP)
   const packed = spawnSync("tar", [
     "-czf",
@@ -65,6 +66,7 @@ function tarball(): Uint8Array {
     "kiko",
     "kiko-core",
     "cua-driver",
+    "agent-browser",
     "kiko.desktop",
     "kiko.png",
   ])
@@ -131,6 +133,7 @@ describe.skipIf(process.platform !== "linux")("install.sh", () => {
     expect(run.file(".local/share/kiko/kiko")).toBe(FAKE_APP)
     expect(run.file(".local/share/kiko/kiko-core")).toBe(FAKE_CORE)
     expect(run.file(".local/share/kiko/cua-driver")).toBe(FAKE_CORE)
+    expect(run.file(".local/share/kiko/agent-browser")).toBe(FAKE_CORE)
     expect(run.file(".local/share/kiko/VERSION")).toBe(`${VERSION}\n`)
     expect(run.file(".local/share/applications/kiko.desktop")).toContain(`Exec="${run.home}/.local/share/kiko/kiko"`)
     expect(run.calls()).toContain(`core pair ${PAIR}`)
@@ -236,23 +239,6 @@ describe.skipIf(process.platform !== "linux")("install.sh", () => {
     expect(run.status).toBe(0)
     expect(existsSync(marker)).toBe(false)
     expect(run.stdout).toContain("no pair link yet")
-  })
-})
-
-describe("install.ps1", () => {
-  const assets = { "kiko-windows-x64.zip": new Uint8Array([1]) }
-
-  it("escapes a quote in the request origin", () => {
-    const body = installPs1(`https://x'; touch /tmp/pwned; echo '`, signed(assets))
-    expect(body).toContain(`$origin = 'https://x''; touch /tmp/pwned; echo '''`)
-  })
-
-  it("installs the app under LOCALAPPDATA and swaps it through a detached helper", () => {
-    const body = installPs1(ORIGIN, signed(assets))
-    expect(body).toContain("kiko-windows-x64.zip")
-    expect(body).toContain("$root = Join-Path $local 'kiko'")
-    expect(body).toContain("Start-Process -FilePath 'powershell' -WindowStyle Hidden")
-    expect(body).toContain("Remove-ItemProperty -Path '__RUN__' -Name 'kiko-computer'")
   })
 })
 

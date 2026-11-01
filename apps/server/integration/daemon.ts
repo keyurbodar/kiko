@@ -25,8 +25,10 @@ export type Frame = Record<string, unknown>
 
 export type Wire = {
   send(text: string): void
+  sendBinary(bytes: Uint8Array): void
   next(message: string): Promise<string>
   take(ready: (frame: Frame) => boolean): Promise<Frame>
+  takeBinary(): Promise<Uint8Array>
   seen(): readonly Frame[]
   close(): void
 }
@@ -49,21 +51,29 @@ export const pair = (origin: URL, code: string, publicKey: string) =>
   post(new URL("api/pc/pair", origin), { code, publicKey, name: "fake daemon", hello: HELLO })
 
 function encode(text: string): Buffer {
-  const payload = Buffer.from(text)
+  return frame(0x1, Buffer.from(text))
+}
+
+function frame(opcode: number, payload: Buffer): Buffer {
   const mask = randomBytes(4)
-  const header = Buffer.alloc(payload.length < 126 ? 2 : 4)
-  header[0] = 0x81
+  const header = payload.length < 126 ? Buffer.alloc(2) : payload.length < 65_536 ? Buffer.alloc(4) : Buffer.alloc(10)
+  header[0] = 0x80 | opcode
   if (payload.length < 126) header[1] = 0x80 | payload.length
-  else {
+  else if (payload.length < 65_536) {
     header[1] = 0x80 | 126
     header.writeUInt16BE(payload.length, 2)
+  } else {
+    header[1] = 0x80 | 127
+    header.writeBigUInt64BE(BigInt(payload.length), 2)
   }
   const masked = Buffer.alloc(payload.length)
   for (let i = 0; i < payload.length; i++) masked[i] = payload[i]! ^ mask[i % 4]!
   return Buffer.concat([header, mask, masked])
 }
 
-function read(buffer: Buffer, onText: (text: string) => void): Buffer {
+type Received = { text(text: string): void; binary(bytes: Uint8Array): void }
+
+function read(buffer: Buffer, on: Received): Buffer {
   for (;;) {
     if (buffer.length < 2) return buffer
     const opcode = buffer[0]! & 0x0f
@@ -82,7 +92,8 @@ function read(buffer: Buffer, onText: (text: string) => void): Buffer {
     if (buffer.length < offset + length) return buffer
     const payload = buffer.subarray(offset, offset + length)
     buffer = buffer.subarray(offset + length)
-    if (opcode === 0x1) onText(payload.toString())
+    if (opcode === 0x1) on.text(payload.toString())
+    else if (opcode === 0x2) on.binary(new Uint8Array(payload))
   }
 }
 
@@ -90,6 +101,7 @@ function wire(socket: Duplex, head: Buffer): Wire {
   let buffer = head
   const messages: string[] = []
   const frames: Frame[] = []
+  const binaries: Uint8Array[] = []
   let failure: Error | null = null
   let wake: (() => void) | null = null
   const wakeUp = () => {
@@ -98,11 +110,14 @@ function wire(socket: Duplex, head: Buffer): Wire {
     next?.()
   }
   socket.on("data", (chunk: Buffer) => {
-    buffer = read(Buffer.concat([buffer, chunk]), (text) => {
-      messages.push(text)
-      frames.push(JSON.parse(text) as Frame)
-      wakeUp()
+    buffer = read(Buffer.concat([buffer, chunk]), {
+      text: (text) => {
+        messages.push(text)
+        frames.push(JSON.parse(text) as Frame)
+      },
+      binary: (bytes) => binaries.push(bytes),
     })
+    wakeUp()
   })
   socket.on("close", () => {
     failure = new Error("the worker closed the socket")
@@ -114,6 +129,7 @@ function wire(socket: Duplex, head: Buffer): Wire {
   })
   return {
     send: (text) => socket.write(encode(text)),
+    sendBinary: (bytes) => socket.write(frame(0x2, Buffer.from(bytes))),
     next: (message) =>
       new Promise((resolve, reject) => {
         const check = () => {
@@ -133,6 +149,19 @@ function wire(socket: Duplex, head: Buffer): Wire {
         const check = () => {
           if (failure) return reject(failure)
           const found = frames.find(ready)
+          if (found) {
+            resolve(found)
+            return
+          }
+          wake = check
+        }
+        check()
+      }),
+    takeBinary: () =>
+      new Promise((resolve, reject) => {
+        const check = () => {
+          if (failure) return reject(failure)
+          const found = binaries.shift()
           if (found) {
             resolve(found)
             return

@@ -1,5 +1,5 @@
 import { assert, describe, it } from "@effect/vitest"
-import { encodeBinary, IMAGE_REF } from "@kiko/computer/frame"
+import { encodeBinary, encodeBrowserFrame, IMAGE_REF } from "@kiko/computer/frame"
 import { OLDEST_PROTOCOL, PROTOCOL } from "@kiko/computer/wire"
 import type { AgentSlug, RoomId } from "@kiko/protocol"
 import * as Clock from "effect/Clock"
@@ -208,10 +208,16 @@ type SentFrame = {
   t: string
   holder?: string
   on?: boolean
+  seq?: number
   id?: string
   terminal?: string
   data?: string
   bytes?: number
+  tab?: string
+  maxWidth?: number
+  maxHeight?: number
+  quality?: number
+  events?: readonly unknown[]
 }
 
 function pcSocket(id: string, holder: "agent" | "human" = "agent") {
@@ -234,6 +240,7 @@ function liveHub(
   pcs: readonly WebSocket[],
   ids: readonly string[] = [],
   sleep?: (ms: number) => Promise<void>,
+  lives: readonly WebSocket[] = [],
 ) {
   const store = {
     get: (id: string) => ({ id, name: "box", os: "linux" }),
@@ -242,7 +249,7 @@ function liveHub(
   }
   const deps = {
     ctx: {
-      getWebSockets: (tag: string) => (tag === "tab" ? [...tabs] : [...pcs]),
+      getWebSockets: (tag: string) => (tag === "tab" ? [...tabs] : tag.startsWith("live:") ? [...lives] : [...pcs]),
       getWebSocketAutoResponseTimestamp: () => null,
     },
     env: {},
@@ -330,15 +337,9 @@ describe("daemon reconnect", () => {
 
   it.effect("arms the relay again when a disconnected daemon comes back", () =>
     Effect.promise(async () => {
-      const watching = tab()
-      watching.ws.serializeAttachment({
-        user: { ready: true },
-        rooms: {},
-        rpc: [{ requestId: "9", stream: "pc:pc-1" }],
-      })
       const first = pcSocket("pc-1")
       const pcs: WebSocket[] = [first.ws]
-      const computers = liveHub([watching.ws], pcs)
+      const computers = liveHub([], pcs, ["pc-1"], undefined, [liveSocket("pc-1")])
 
       await computers.message(first.ws, JSON.stringify(HELLO))
       await computers.close(first.ws)
@@ -489,6 +490,16 @@ describe("leaving the viewer", () => {
     }),
   )
 })
+
+function liveSocket(pcId: string) {
+  const attachment = { kind: "live", pcId }
+  return {
+    send: () => {},
+    serializeAttachment: () => {},
+    deserializeAttachment: () => attachment,
+    readyState: WebSocket.OPEN,
+  } as unknown as WebSocket
+}
 
 const onClock =
   (clock: Clock.Clock) =>
@@ -682,26 +693,43 @@ describe("computer pushes", () => {
 })
 
 describe("relay fallback", () => {
-  it.effect("tells the daemon to share again when a new frame subscription arrives", () =>
+  it.effect("shares while a live viewer is open and stops when the last one closes", () =>
     Effect.promise(async () => {
-      const viewing = tab()
-      viewing.ws.serializeAttachment({
-        user: { ready: true },
-        rooms: {},
-        rpc: [{ requestId: "9", stream: "pc:pc-1" }],
-      })
       const pc = pcSocket("pc-1")
-      const computers = liveHub([viewing.ws], [pc.ws], ["pc-1"])
+      const lives: WebSocket[] = []
+      const computers = liveHub([], [pc.ws], ["pc-1"], undefined, lives)
       await computers.message(pc.ws, JSON.stringify(HELLO))
 
-      computers.syncRelay("pc-1")
-      assert.strictEqual(pc.sent.filter((frame) => frame.t === "live").length, 1)
+      const viewer = liveSocket("pc-1")
+      lives.push(viewer)
+      assert.isTrue(computers.liveMessage(viewer, JSON.stringify({ t: "live", maxWidth: 2000 })))
 
-      computers.syncRelay("pc-1", true)
+      const first = pc.sent.filter((frame) => frame.t === "live")
+      assert.strictEqual(first.length, 1)
+      assert.strictEqual(first[0]?.on, true)
 
-      const live = pc.sent.filter((frame) => frame.t === "live")
-      assert.strictEqual(live.length, 2)
-      assert.strictEqual(live[1]?.on, true)
+      lives.length = 0
+      assert.isTrue(computers.liveClosed(viewer))
+
+      const all = pc.sent.filter((frame) => frame.t === "live")
+      assert.strictEqual(all.length, 2)
+      assert.strictEqual(all[1]?.on, false)
+    }),
+  )
+
+  it.effect("forwards an ack from the viewer to the daemon", () =>
+    Effect.promise(async () => {
+      const pc = pcSocket("pc-1")
+      const viewer = liveSocket("pc-1")
+      const computers = liveHub([], [pc.ws], ["pc-1"], undefined, [viewer])
+      await computers.message(pc.ws, JSON.stringify(HELLO))
+
+      assert.isTrue(computers.liveMessage(viewer, JSON.stringify({ t: "ack", seq: 7 })))
+
+      assert.deepStrictEqual(
+        pc.sent.filter((frame) => frame.t === "ack").map((frame) => frame.seq),
+        [7],
+      )
     }),
   )
 })
@@ -1087,6 +1115,227 @@ describe("terminal control", () => {
       computers.leave(open.ws)
 
       assert.isTrue(pc.sent.some((sent) => sent.t === "terminal" && sent.on === false && sent.id === frame?.id))
+    }),
+  )
+})
+
+const BROWSER = { ...HELLO, caps: { ...CAPS, browser: true } }
+const BROWSER_DAEMON = { ...BROWSER, caps: { ...BROWSER.caps, desktop: true, background: true } }
+
+function liveView() {
+  const sent: (string | ArrayBuffer)[] = []
+  const ws = {
+    send: (data: string | ArrayBuffer) => sent.push(data),
+    serializeAttachment: () => {},
+    deserializeAttachment: () => ({ kind: "live", pcId: "pc-1" }),
+    readyState: WebSocket.OPEN,
+  } as unknown as WebSocket
+  const json = () => sent.filter((item): item is string => typeof item === "string").map((item) => JSON.parse(item))
+  return { ws, sent, json }
+}
+
+function attachBrowser(
+  computers: ReturnType<typeof liveHub>,
+  pc: ReturnType<typeof pcSocket>,
+  live: ReturnType<typeof liveView>,
+  id = "client-1",
+  tab = "T1",
+) {
+  computers.liveMessage(live.ws, JSON.stringify({ t: "browser", on: true, id, tab, maxWidth: 1400 }))
+  return pc.sent.find((sent) => sent.t === "browser" && sent.on === true)
+}
+
+describe("browser attach", () => {
+  it.effect("turns the viewer's live socket into a screencast of one tab", () =>
+    Effect.promise(async () => {
+      const pc = pcSocket("pc-1")
+      const live = liveView()
+      const computers = liveHub([], [pc.ws], ["pc-1"], undefined, [live.ws])
+      await computers.message(pc.ws, JSON.stringify(BROWSER))
+
+      const frame = attachBrowser(computers, pc, live)
+      const start = { type: "start", tab: "T1", width: 1000, height: 500, viewportWidth: 1000, viewportHeight: 500 }
+      await computers.message(pc.ws, JSON.stringify({ t: "browser", id: frame?.id, event: start }))
+
+      assert.strictEqual(frame?.tab, "T1")
+      assert.strictEqual(frame?.maxWidth, 1400)
+      assert.deepStrictEqual(live.json().at(-1), { t: "browser", event: start })
+    }),
+  )
+
+  it.effect("says why a computer that cannot stream will not attach", () =>
+    Effect.promise(async () => {
+      const pc = pcSocket("pc-1")
+      const live = liveView()
+      const computers = liveHub([], [pc.ws], ["pc-1"], undefined, [live.ws])
+      await computers.message(pc.ws, JSON.stringify(HELLO))
+
+      attachBrowser(computers, pc, live)
+
+      assert.match(String(live.json().at(-1)?.event?.message), /does not allow browser work/)
+    }),
+  )
+
+  it.effect("forwards a binary frame to the socket that asked for the tab", () =>
+    Effect.promise(async () => {
+      const pc = pcSocket("pc-1")
+      const live = liveView()
+      const computers = liveHub([], [pc.ws], ["pc-1"], undefined, [live.ws])
+      await computers.message(pc.ws, JSON.stringify(BROWSER))
+      const frame = attachBrowser(computers, pc, live)
+
+      const bytes = encodeBrowserFrame(
+        { id: frame?.id ?? "", tab: "T1", seq: 3, width: 800, height: 400, viewportWidth: 1000, viewportHeight: 500 },
+        new Uint8Array([9, 8, 7]),
+      )
+      await computers.message(pc.ws, bytes.buffer as ArrayBuffer)
+
+      const forwarded = live.sent.find((item) => item instanceof ArrayBuffer)
+      assert.deepStrictEqual(new Uint8Array(forwarded as ArrayBuffer), bytes)
+    }),
+  )
+
+  it.effect("forwards the viewer's ack to the daemon attach", () =>
+    Effect.promise(async () => {
+      const pc = pcSocket("pc-1")
+      const live = liveView()
+      const computers = liveHub([], [pc.ws], ["pc-1"], undefined, [live.ws])
+      await computers.message(pc.ws, JSON.stringify(BROWSER))
+      const frame = attachBrowser(computers, pc, live)
+
+      computers.liveMessage(live.ws, JSON.stringify({ t: "browserAck", id: "client-1", bytes: 512 }))
+
+      assert.isTrue(pc.sent.some((sent) => sent.t === "browserAck" && sent.id === frame?.id && sent.bytes === 512))
+    }),
+  )
+
+  it.effect("stops the daemon screencast when the viewer's socket closes", () =>
+    Effect.promise(async () => {
+      const pc = pcSocket("pc-1")
+      const live = liveView()
+      const computers = liveHub([], [pc.ws], ["pc-1"], undefined, [live.ws])
+      await computers.message(pc.ws, JSON.stringify(BROWSER))
+      const frame = attachBrowser(computers, pc, live)
+
+      computers.liveClosed(live.ws)
+
+      assert.isTrue(pc.sent.some((sent) => sent.t === "browser" && sent.on === false && sent.id === frame?.id))
+    }),
+  )
+
+  it.effect("tells the viewer when the daemon disconnects", () =>
+    Effect.promise(async () => {
+      const pc = pcSocket("pc-1")
+      const live = liveView()
+      const computers = liveHub([], [pc.ws], ["pc-1"], undefined, [live.ws])
+      await computers.message(pc.ws, JSON.stringify(BROWSER))
+      attachBrowser(computers, pc, live)
+
+      await computers.close(pc.ws)
+
+      assert.strictEqual(live.json().at(-1)?.event?.type, "error")
+    }),
+  )
+})
+
+describe("browser control", () => {
+  it.effect("refuses owner input until the owner takes over, then forwards it", () =>
+    Effect.promise(async () => {
+      const pc = pcSocket("pc-1")
+      const open = terminalTab()
+      const live = liveView()
+      const computers = liveHub([open.ws], [pc.ws], ["pc-1"], undefined, [live.ws])
+      await computers.message(pc.ws, JSON.stringify(BROWSER))
+      const frame = attachBrowser(computers, pc, live)
+
+      const before = computers.browserInput(open.ws, "pc-1", "T1", [{ k: "down", x: 0.5, y: 0.5, b: 0 }])
+      void computers.take("pc-1", open.ws)
+      const after = computers.browserInput(open.ws, "pc-1", "T1", [{ k: "down", x: 0.5, y: 0.5, b: 0 }])
+
+      assert.isFalse(before.ok)
+      assert.isTrue(after.ok)
+      assert.isTrue(pc.sent.some((sent) => sent.t === "browserInput" && sent.id === frame?.id))
+    }),
+  )
+
+  it.effect("refuses input from another viewer while one tab holds", () =>
+    Effect.promise(async () => {
+      const pc = pcSocket("pc-1")
+      const mine = terminalTab()
+      const other = terminalTab()
+      const live = liveView()
+      const computers = liveHub([mine.ws, other.ws], [pc.ws], ["pc-1"], undefined, [live.ws])
+      await computers.message(pc.ws, JSON.stringify(BROWSER))
+      attachBrowser(computers, pc, live)
+      void computers.take("pc-1", mine.ws)
+
+      const typed = computers.browserInput(other.ws, "pc-1", "T1", [{ k: "text", s: "x" }])
+
+      assert.isFalse(typed.ok)
+      if (!typed.ok) assert.match(typed.message, /another viewer has control/)
+    }),
+  )
+
+  it.effect("refuses the agent's browser tools while the owner holds the tab", () =>
+    Effect.promise(async () => {
+      const pc = pcSocket("pc-1")
+      const open = terminalTab()
+      const computers = liveHub([open.ws], [pc.ws], ["pc-1"])
+      await computers.message(pc.ws, JSON.stringify(BROWSER_DAEMON))
+      void computers.take("pc-1", open.ws)
+
+      const clicked = await computers.call("pc-1", "driver", {
+        method: "browser.act",
+        params: { tab: "T1", ref: 1, action: "click" },
+      })
+      const opened = await computers.call("pc-1", "driver", {
+        method: "browser.open",
+        params: { url: "https://example.com" },
+      })
+
+      for (const outcome of [clicked, opened]) {
+        assert.isFalse(outcome.ok)
+        if (!outcome.ok) {
+          assert.strictEqual(outcome.code, "busy")
+          assert.strictEqual(outcome.message, "the owner has control of this browser tab")
+        }
+      }
+    }),
+  )
+
+  it.effect("lists the agent's tabs without taking them over", () =>
+    Effect.promise(async () => {
+      const pc = pcSocket("pc-1")
+      const computers = liveHub([], [pc.ws], ["pc-1"])
+      await computers.message(pc.ws, JSON.stringify(BROWSER))
+      const listed = computers.call("pc-1", "browser_tabs", {})
+      const call = pc.sent.find((sent) => sent.t === "call")
+
+      await computers.message(
+        pc.ws,
+        JSON.stringify({
+          t: "result",
+          id: call?.id,
+          ok: true,
+          value: {
+            tabs: [
+              {
+                id: "T1",
+                browser: "agent-browser",
+                window_id: 0,
+                index: 0,
+                active: true,
+                title: "Fixture",
+                url: "https://example.com/",
+              },
+            ],
+          },
+        }),
+      )
+
+      const outcome = await listed
+      assert.isTrue(outcome.ok)
+      if (outcome.ok) assert.strictEqual((outcome.value as { tabs: unknown[] }).tabs.length, 1)
     }),
   )
 })

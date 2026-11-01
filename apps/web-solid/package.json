@@ -21,6 +21,7 @@
     "@effect/atom-solid": "4.0.6",
     "@kiko/avatar": "workspace:*",
     "@kiko/client-runtime": "workspace:*",
+    "@kiko/computer": "workspace:*",
     "@kiko/protocol": "workspace:*",
     "@kiko/theme": "workspace:*",
     "@kiko/ui": "workspace:*",

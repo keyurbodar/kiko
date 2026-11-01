@@ -31,10 +31,10 @@ import { ThinkingLevel } from "./catalog"
 import {
   AgentOp,
   BrowserLinkResult,
+  BrowserTab,
   Chat,
   ChatOp,
   ComposioResult,
-  ComputerFrame,
   ComputerId,
   ComputerInput,
   ComputerSignal,
@@ -112,6 +112,7 @@ export const BackendBuild = Schema.Struct({
 export type BackendBuild = typeof BackendBuild.Type
 
 export const OWNER_RPC_PATH = "/api/rpc"
+export const COMPUTER_LIVE_PATH = "/api/pc/live"
 
 export const OwnerRpcs = RpcGroup.make(
   Rpc.make("user.subscribe", {
@@ -317,17 +318,10 @@ export const OwnerRpcs = RpcGroup.make(
     payload: { pcId: ComputerId, on: Schema.Boolean, mode: Schema.optionalKey(Schema.Literals(["rtc", "relay"])) },
     error: Lookup,
   }),
-  Rpc.make("pc.frames", {
-    payload: { pcId: ComputerId },
-    success: ComputerFrame,
-    error: Lookup,
-    stream: true,
-  }),
   Rpc.make("pc.take", { payload: { pcId: ComputerId }, error: Refusable }),
   Rpc.make("pc.release", { payload: { pcId: ComputerId }, error: Refusable }),
   Rpc.make("pc.rtc", { payload: { pcId: ComputerId, signal: ComputerSignal }, error: Lookup }),
   Rpc.make("pc.input", { payload: { pcId: ComputerId, events: Schema.Array(ComputerInput) }, error: Lookup }),
-  Rpc.make("pc.ack", { payload: { pcId: ComputerId, seq: Count }, error: Lookup }),
 
   Rpc.make("terminal.list", {
     payload: { pcId: ComputerId },
@@ -355,6 +349,12 @@ export const OwnerRpcs = RpcGroup.make(
   }),
   Rpc.make("terminal.ack", {
     payload: { pcId: ComputerId, terminalId: Id, bytes: Count },
+    error: Refusable,
+  }),
+
+  Rpc.make("browser.tabs", { payload: { pcId: ComputerId }, success: Schema.Array(BrowserTab), error: Refusable }),
+  Rpc.make("browser.input", {
+    payload: { pcId: ComputerId, tab: Id, events: Schema.Array(ComputerInput) },
     error: Refusable,
   }),
 

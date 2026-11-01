@@ -19,10 +19,16 @@ vi.mock("../computers", () => ({
   takePending: () => fakes.taking?.() ?? false,
 }))
 const started = vi.hoisted(() => ({ count: 0 }))
+const hooks = vi.hoisted(() => ({
+  current: undefined as
+    | { onCursor(cursor: { x: number; y: number } | null): void; onMode(mode: string): void }
+    | undefined,
+}))
 
 vi.mock("./session", () => ({
-  startSession: () => {
+  startSession: (_pcId: string, next: { onCursor(): void; onMode(): void }) => {
     started.count += 1
+    hooks.current = next
     return {
       close: () => {},
       send: (events: { k?: string; code?: string; down?: boolean; s?: string }[]) => fakes.sent.push(events),
@@ -92,6 +98,30 @@ describe("live screen", () => {
         .filter((event) => event.k === "key")
         .map((event) => `${event.code}:${event.down ? "down" : "up"}`),
     ).toEqual(["KeyA:down", "KeyA:up", "KeyB:down", "KeyB:up", "KeyC:down", "KeyC:up"])
+  })
+
+  it("paints the relay frame at once, swaps to video, and labels the agent cursor only while it acts", async () => {
+    using _timers = fakeTimers()
+    fakes.computer = mac({ screen: true, input: true })
+    await using screen = await render(() => <LiveScreen pcId="pc-1" interactive={false} agentName="Scout" />)
+    const session = hooks.current
+    expect(session).toBeDefined()
+    const canvas = () => screen.container.querySelector("canvas")
+    const video = () => screen.container.querySelector("video")
+    const cursor = () => screen.container.querySelector('[data-component="computer-cursor"]')
+
+    session?.onMode("relay")
+    expect(canvas()?.className).toContain("opacity-100")
+
+    session?.onCursor({ x: 0.5, y: 0.5 })
+    expect(cursor()?.textContent).toContain("Scout")
+
+    vi.advanceTimersByTime(1_600)
+    expect(cursor()).toBeNull()
+
+    session?.onMode("rtc")
+    expect(canvas()?.className).toContain("opacity-0")
+    expect(video()?.className).toContain("opacity-100")
   })
 
   it("says why the computer is offline and what to do about it", async () => {

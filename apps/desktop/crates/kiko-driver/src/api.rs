@@ -233,6 +233,8 @@ pub enum Call {
     DesktopCall(DesktopCallParams),
     #[serde(rename = "browser.tabs")]
     BrowserTabs,
+    #[serde(rename = "browser.stream")]
+    BrowserStream(TabParams),
     #[serde(rename = "browser.open")]
     BrowserOpen(BrowserOpenParams),
     #[serde(rename = "browser.close")]

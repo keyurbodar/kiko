@@ -9,14 +9,7 @@ use crate::driver::{Driver, SharedDriver};
 use crate::log;
 
 pub fn name(path: &str) -> io::Result<interprocess::local_socket::Name<'_>> {
-    #[cfg(windows)]
-    {
-        path.to_ns_name::<interprocess::local_socket::GenericNamespaced>()
-    }
-    #[cfg(unix)]
-    {
-        path.to_fs_name::<interprocess::local_socket::GenericFilePath>()
-    }
+    path.to_fs_name::<interprocess::local_socket::GenericFilePath>()
 }
 
 pub fn bind(path: &str) -> io::Result<LocalSocketListener> {

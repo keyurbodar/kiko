@@ -17,6 +17,7 @@ export function helloPayload(detection: Detection, driver: Driver | null): unkno
       ...detection.caps,
       background: driver?.background() ?? false,
       browser: driver?.browser() ?? false,
+      steps: true,
     },
     displays: detection.displays,
     ...(detection.access ? { access: detection.access } : {}),

@@ -46,6 +46,15 @@ export const COLUMNS = [
   "windows_raised",
   "system_prompt_sha",
   "trajectory",
+  "ttft_ms",
+  "model_p50_ms",
+  "model_p95_ms",
+  "tool_transport_ms",
+  "tool_op_ms",
+  "tool_queue_ms",
+  "tool_latency_by_name",
+  "images_bytes",
+  "bytes_from_tool",
 ] as const
 
 export type Column = (typeof COLUMNS)[number]
@@ -104,7 +113,11 @@ export const toTsv = (rows: readonly Row[]): string => [HEADER, ...rows.map(form
 export function parseTsv(text: string): Row[] {
   const lines = text.split("\n").filter((line) => line.length > 0)
   const first = lines[0]
-  if (first === undefined || first !== HEADER) throw new Error("not a bench ledger: the header does not match")
+  if (first === undefined) throw new Error("not a bench ledger: the header does not match")
+  const header = first.split("\t")
+  const current: readonly string[] = COLUMNS
+  const known = header.length <= current.length && header.every((column, index) => column === current[index])
+  if (!known) throw new Error("not a bench ledger: the header does not match")
   return lines.slice(1).map(parseRow)
 }
 

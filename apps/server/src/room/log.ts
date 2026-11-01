@@ -24,7 +24,7 @@ import { listMembers } from "./members"
 import { replyAddressees, resolveRecipients, tags } from "./recipients"
 import type { Pending } from "./burst"
 import { listAsks } from "./human-asks"
-import { type HeardStep, RunSteps } from "./steps"
+import { type HeardStep, parseStepLog, RunSteps, stepLog } from "./steps"
 import { listTasks } from "./workspace"
 import { actorFromKey, actorKey } from "./actor-key"
 
@@ -92,7 +92,11 @@ type MessageRow = {
   client_id: string | null
   message_payload: string | null
   mentions: string | null
+  run_steps_log: string | null
 }
+
+const MESSAGE_COLUMNS =
+  "id, seq, at, sender, text, rich, reply_to, files, run_id, run_attempt, run_index, edited_at, deleted_at, goto, quote, addressed, initiative, steps, step_after, event, client_id, message_payload, mentions"
 
 export type NewMessage = {
   from: Sender
@@ -129,10 +133,11 @@ export class RoomLog {
     event: Extract<RoomEvent, { t: "message" }>,
     steps: number,
     open: { after: number; count: number } | null,
+    log: string | null,
   ): void {
     this.sql.exec(
-      `INSERT INTO messages (room_id, id, seq, at, sender, text, rich, reply_to, files, run_id, run_attempt, run_index, goto, quote, addressed, initiative, event, steps, step_after, client_id, message_payload, mentions)
-				 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO messages (room_id, id, seq, at, sender, text, rich, reply_to, files, run_id, run_attempt, run_index, goto, quote, addressed, initiative, event, steps, step_after, client_id, message_payload, mentions, run_steps_log)
+				 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       this.roomId,
       id,
       event.seq,
@@ -155,6 +160,7 @@ export class RoomLog {
       input.clientId ?? null,
       JSON.stringify(event),
       input.mentions ? JSON.stringify(input.mentions) : null,
+      log,
     )
   }
 
@@ -212,6 +218,17 @@ export class RoomLog {
       text: "",
       event: { kind: "activity", agent: slug, private: true },
     }).event
+  }
+
+  storedSteps(after: number): RunStep[] | null {
+    const row = this.sql
+      .exec<{ run_steps_log: string | null }>(
+        "SELECT run_steps_log FROM messages WHERE room_id = ? AND step_after = ? AND run_steps_log IS NOT NULL ORDER BY seq DESC LIMIT 1",
+        this.roomId,
+        after,
+      )
+      .toArray()[0]
+    return parseStepLog(row?.run_steps_log ?? null)
   }
 
   hearStep(heard: HeardStep): RunStep | null {
@@ -289,7 +306,7 @@ export class RoomLog {
   snapshot(): RoomSnapshot {
     const rows = this.sql
       .exec<MessageRow>(
-        "SELECT * FROM (SELECT * FROM messages WHERE room_id = ? AND deleted_at IS NULL ORDER BY seq DESC LIMIT ?) ORDER BY seq",
+        `SELECT ${MESSAGE_COLUMNS} FROM (SELECT ${MESSAGE_COLUMNS} FROM messages WHERE room_id = ? AND deleted_at IS NULL ORDER BY seq DESC LIMIT ?) ORDER BY seq`,
         this.roomId,
         SNAPSHOT_MESSAGES,
       )
@@ -319,7 +336,7 @@ export class RoomLog {
     const older = before
       ? this.sql
           .exec<MessageRow>(
-            "SELECT * FROM messages WHERE room_id = ? AND seq < ? AND deleted_at IS NULL ORDER BY seq DESC LIMIT ?",
+            `SELECT ${MESSAGE_COLUMNS} FROM messages WHERE room_id = ? AND seq < ? AND deleted_at IS NULL ORDER BY seq DESC LIMIT ?`,
             this.roomId,
             seq,
             before,
@@ -330,7 +347,7 @@ export class RoomLog {
     const newer = after
       ? this.sql
           .exec<MessageRow>(
-            "SELECT * FROM messages WHERE room_id = ? AND seq >= ? AND deleted_at IS NULL ORDER BY seq LIMIT ?",
+            `SELECT ${MESSAGE_COLUMNS} FROM messages WHERE room_id = ? AND seq >= ? AND deleted_at IS NULL ORDER BY seq LIMIT ?`,
             this.roomId,
             seq,
             after,
@@ -345,7 +362,7 @@ export class RoomLog {
     if (!ids.length) return out
     for (const r of this.sql
       .exec<MessageRow>(
-        "SELECT * FROM messages WHERE room_id = ? AND seq IN (SELECT value FROM json_each(?))",
+        `SELECT ${MESSAGE_COLUMNS} FROM messages WHERE room_id = ? AND seq IN (SELECT value FROM json_each(?))`,
         this.roomId,
         messageSeqs(this.roomId, ids),
       )
@@ -427,16 +444,20 @@ export class RoomLog {
       else grouped.set(reaction.message_id, [reaction])
     }
     const previews = this.previews(rows.map((row) => row.id))
-    return rows.map((row) => ({
-      id: row.id,
-      seq: row.seq,
-      at: row.at,
-      message: messages.get(row.id) ?? null,
-      ...(previews.has(row.id) ? { preview: previews.get(row.id) } : {}),
-      fingerprint: createHash("sha256")
-        .update(JSON.stringify([row, grouped.get(row.id) ?? []]))
-        .digest("hex"),
-    }))
+    return rows.map((row) => {
+      const { run_steps_log: stepsLog, ...printed } = row
+      return {
+        id: row.id,
+        seq: row.seq,
+        at: row.at,
+        message: messages.get(row.id) ?? null,
+        ...(stepsLog ? { stepsLog } : {}),
+        ...(previews.has(row.id) ? { preview: previews.get(row.id) } : {}),
+        fingerprint: createHash("sha256")
+          .update(JSON.stringify([printed, grouped.get(row.id) ?? []]))
+          .digest("hex"),
+      }
+    })
   }
 
   deleteArchived(snapshot: ArchivedMessage[]): void {
@@ -470,7 +491,7 @@ export class RoomLog {
   message(id: string): Message | null {
     const row = this.sql
       .exec<MessageRow>(
-        "SELECT * FROM messages WHERE room_id = ? AND seq = ? AND deleted_at IS NULL",
+        `SELECT ${MESSAGE_COLUMNS} FROM messages WHERE room_id = ? AND seq = ? AND deleted_at IS NULL`,
         this.roomId,
         messageSeq(this.roomId, id),
       )
@@ -550,6 +571,7 @@ export class RoomLog {
       const owner = windowOwner(input)
       const open = owner ? this.window(owner) : null
       const steps = open?.count ?? 0
+      const cards = owner && open && steps ? stepLog(this.steps.cardsOf(owner, open.after)) : null
       const reply = input.replyTo ? this.previews([input.replyTo]).get(input.replyTo) : undefined
       const message = this.messagePayload(input, id, open, steps, reply)
       const event = {
@@ -559,8 +581,11 @@ export class RoomLog {
         seq,
         at: this.now(),
       } satisfies RoomEvent
-      this.insertMessage(input, id, event, steps, open)
-      if (owner) this.windows.set(owner, { after: event.seq, count: 0 })
+      this.insertMessage(input, id, event, steps, open, cards)
+      if (owner && open) {
+        this.steps.clearWindow(owner, open.after)
+        this.windows.set(owner, { after: event.seq, count: 0 })
+      }
       this.trim(event.seq)
       return { id, seq: event.seq, event }
     })
@@ -752,7 +777,7 @@ export class RoomLog {
     for (let page = 0; page < UNANSWERED_PAGES && pending.length < limit; page++) {
       const rows = this.sql
         .exec<MessageRow>(
-          "SELECT * FROM messages WHERE room_id = ? AND seq > ? AND json_extract(sender, '$.kind') = 'human' ORDER BY seq LIMIT ?",
+          `SELECT ${MESSAGE_COLUMNS} FROM messages WHERE room_id = ? AND seq > ? AND json_extract(sender, '$.kind') = 'human' ORDER BY seq LIMIT ?`,
           this.roomId,
           cursor,
           limit,

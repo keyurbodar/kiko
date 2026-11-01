@@ -104,6 +104,7 @@ check_mac() {
   local app="$HOME/Applications/kiko.app"
   [ -x "$app/Contents/MacOS/kiko" ] || fail "no kiko in $app"
   [ -x "$app/Contents/MacOS/kiko-core" ] || fail "no kiko-core in $app"
+  [ -x "$app/Contents/MacOS/agent-browser" ] || fail "no agent-browser in $app"
   [ ! -e "$HOME/.kiko-computer" ] || fail "the old daemon directory is still there"
   [ ! -e "$HOME/Library/LaunchAgents/com.kiko.computer.move.plist" ] || fail "the move job is still there"
   [ -e "$HOME/Library/Application Support/kiko-computer/keep-me" ] || fail "the old config directory was deleted"
@@ -120,6 +121,7 @@ check_mac() {
 check_linux() {
   [ -x "$HOME/.local/share/kiko/kiko" ] || fail "no kiko in ~/.local/share/kiko"
   [ -x "$HOME/.local/share/kiko/kiko-core" ] || fail "no kiko-core in ~/.local/share/kiko"
+  [ -x "$HOME/.local/share/kiko/agent-browser" ] || fail "no agent-browser in ~/.local/share/kiko"
   [ -f "$HOME/.local/share/applications/kiko.desktop" ] || fail "no desktop entry"
   [ ! -e "$HOME/.kiko-computer" ] || fail "the old daemon directory is still there"
   [ ! -e "$HOME/.config/systemd/user/kiko-computer.service" ] || fail "the old systemd unit is still there"

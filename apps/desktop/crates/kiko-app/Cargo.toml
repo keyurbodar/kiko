@@ -22,7 +22,7 @@ fd-lock = "4"
 dirs = "7"
 interprocess = "2"
 png = "0.18"
-kiko-browser = { path = "../kiko-browser" }
+kiko-agent-browser = { path = "../kiko-agent-browser" }
 kiko-cua = { path = "../kiko-cua" }
 
 [target.'cfg(unix)'.dependencies]
@@ -38,19 +38,7 @@ ksni = { version = "0.3", default-features = false, features = ["blocking", "tok
 zbus = { version = "5", default-features = false, features = ["blocking-api", "tokio"] }
 tokio = { version = "1", features = ["rt-multi-thread"] }
 
-[target.'cfg(any(target_os = "macos", target_os = "windows"))'.dependencies]
+[target.'cfg(target_os = "macos")'.dependencies]
 muda = "0.21"
 tao = "0.37"
 tray-icon = "0.26"
-
-[target.'cfg(target_os = "windows")'.dependencies]
-windows-sys = { version = "0.61", features = [
-  "Win32_Foundation",
-  "Win32_System_Console",
-  "Win32_System_JobObjects",
-  "Win32_System_Threading",
-] }
-winreg = "0.55"
-
-[target.'cfg(target_os = "windows")'.build-dependencies]
-winresource = "0.1"

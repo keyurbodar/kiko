@@ -12,11 +12,7 @@ fn binary() -> &'static Path {
 }
 
 fn core_name() -> &'static str {
-    if cfg!(windows) {
-        "kiko-core.exe"
-    } else {
-        "kiko-core"
-    }
+    "kiko-core"
 }
 
 struct App {
@@ -47,11 +43,7 @@ impl App {
     }
 
     fn socket(&self) -> String {
-        if cfg!(windows) {
-            "kiko-driver".to_string()
-        } else {
-            self.dir.join("driver.sock").to_string_lossy().into_owned()
-        }
+        self.dir.join("driver.sock").to_string_lossy().into_owned()
     }
 
     fn starts(&self) -> usize {
@@ -108,15 +100,9 @@ fn connect(name: &str) -> LocalSocketStream {
     let target = name.to_string();
     let mut last = None;
     for _ in 0..200 {
-        let parsed = if cfg!(windows) {
-            target
-                .clone()
-                .to_ns_name::<interprocess::local_socket::GenericNamespaced>()
-        } else {
-            target
-                .clone()
-                .to_fs_name::<interprocess::local_socket::GenericFilePath>()
-        };
+        let parsed = target
+            .clone()
+            .to_fs_name::<interprocess::local_socket::GenericFilePath>();
         match parsed
             .map_err(std::io::Error::other)
             .and_then(LocalSocketStream::connect)
