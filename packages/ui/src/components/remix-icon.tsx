@@ -4,7 +4,7 @@ import { glyphNodes } from "./glyph-cache"
 
 export type { Glyph }
 
-export type IconSize = 12 | 13 | 14 | 16 | 18 | 20 | 24
+export type IconSize = 12 | 13 | 14 | 15 | 16 | 18 | 20 | 24
 
 export type RemixIconProps = Omit<ComponentProps<"svg">, "children"> & {
   icon: Glyph

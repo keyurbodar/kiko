@@ -309,6 +309,7 @@ export function ChatView(props: { covered: boolean }) {
           room={room.active()}
           tray={<ModelPickerButton draft={draft()} />}
           disabled={readOnly()}
+          empty={empty()}
           sendBlock={readOnly() ? null : block()}
           sendBlockAgent={answering()?.slug}
           threadId={roomId() ?? ""}

@@ -31,6 +31,7 @@ import { useMemoryStore } from "../info/memory/views"
 import { taskOwner, taskText } from "../info/tasks-model"
 import { stepWindows } from "../run/run-log"
 import { fixedSurface, helperSurface, openFile, openSurface } from "./surfaces"
+import { threadDetailsShows, type ThreadDetailsPresence } from "./thread-details-default"
 import { THREAD_DETAILS_ITEMS, type ThreadDetailsItemId } from "./thread-details-items"
 import {
   agentFiles,
@@ -615,7 +616,11 @@ export default function ThreadDetails(props: { chatId: string }) {
     }
   }
   const shown = (id: ThreadDetailsItemId) => visibility()[id] && has(id)
-  const present = () => THREAD_DETAILS_ITEMS.some((item) => shown(item.id))
+  const presence = createMemo(
+    (): ThreadDetailsPresence =>
+      Object.fromEntries(THREAD_DETAILS_ITEMS.map((item) => [item.id, has(item.id)])) as ThreadDetailsPresence,
+  )
+  const present = () => threadDetailsShows(visibility(), presence())
   return (
     <div
       class="flex min-h-0 flex-1 flex-col"

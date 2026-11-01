@@ -2,11 +2,23 @@ import { describe, expect, it, vi } from "vitest"
 import { page } from "vitest/browser"
 import { setThreadDetailsFloating, threadDetailsOpenFor, toggleThreadDetails } from "./thread-details-layer"
 
-const fake = vi.hoisted(() => ({ rows: new Map<string, { preview: string; lastFrom?: string }>() }))
+const fake = vi.hoisted(() => ({
+  rows: new Map<string, { preview: string; lastFrom?: string }>(),
+  helpers: [] as unknown[],
+}))
 
 vi.mock("../../state/room", () => ({
   fileSrc: () => "",
-  room: { chatById: (id: string) => fake.rows.get(id), messages: () => [] },
+  room: {
+    chatById: (id: string) => fake.rows.get(id),
+    messages: () => [],
+    tasks: () => [],
+    helpers: () => fake.helpers,
+    files: () => [],
+    typingSlugs: () => [],
+    active: () => ({ asks: () => [] }),
+    runSteps: () => [],
+  },
 }))
 
 const CHAT = "01900000-0000-7000-8000-0000000000d1"
@@ -33,14 +45,17 @@ describe("thread details open state", () => {
     expect(threadDetailsOpenFor(CHAT)).toBe(false)
   })
 
-  it("opens by default for a chat with history even before its messages load", async () => {
+  it("opens by default only when the panel has something to show", async () => {
     await page.viewport(1440, 900)
     localStorage.clear()
     setThreadDetailsFloating(false)
     fake.rows.set(OLD, { preview: "hi", lastFrom: "human" })
     fake.rows.set(FRESH, { preview: "" })
 
-    expect(threadDetailsOpenFor(OLD)).toBe(true)
+    expect(threadDetailsOpenFor(OLD)).toBe(false)
     expect(threadDetailsOpenFor(FRESH)).toBe(false)
+
+    fake.helpers = [{ id: "w1", title: "Helper", state: "working", startedAt: 0 }]
+    expect(threadDetailsOpenFor(OLD)).toBe(true)
   })
 })
