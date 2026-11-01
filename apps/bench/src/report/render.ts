@@ -524,6 +524,11 @@ function tokenSection(rows: readonly Row[]): string {
   return section("Tokens per success by track", `<table><thead>${head}</thead><tbody>${body}</tbody></table>`, caption)
 }
 
+const BACKGROUND_COLUMNS = ["focus_steals", "pointer_moves", "keys_swallowed", "windows_raised"] as const
+
+const measured = (rows: readonly Row[], column: keyof Row): Row[] =>
+  rows.filter((row) => field(row, column) !== "unmeasured")
+
 function backgroundSection(rows: readonly Row[]): string {
   const contenders = uniqueSorted(rows, "contender")
   if (contenders.length === 0) return section("Background safety", `<p class="empty">No trials.</p>`)
@@ -533,26 +538,26 @@ function backgroundSection(rows: readonly Row[]): string {
     .map((contender) => {
       const group = groups.get(contender)
       const trials = group?.rows ?? []
-      const steals = total(trials, "focus_steals")
-      const moves = total(trials, "pointer_moves")
-      const keys = total(trials, "keys_swallowed")
-      const raised = total(trials, "windows_raised")
-      const per100 = trials.length === 0 ? 0 : ((steals + moves + keys + raised) / trials.length) * 100
+      const sums = BACKGROUND_COLUMNS.map((column) => integer(total(measured(trials, column), column)))
+      const whole = trials.filter((row) => BACKGROUND_COLUMNS.every((column) => field(row, column) !== "unmeasured"))
+      const blind = trials.length - whole.length
+      const per100 =
+        whole.length === 0
+          ? 0
+          : (BACKGROUND_COLUMNS.reduce((sum, column) => sum + total(whole, column), 0) / whole.length) * 100
       return [
         "<tr>",
         `<th>${escapeHtml(contender)}</th>`,
         `<td class="num">${trials.length}</td>`,
-        `<td class="num">${integer(steals)}</td>`,
-        `<td class="num">${integer(moves)}</td>`,
-        `<td class="num">${integer(keys)}</td>`,
-        `<td class="num">${integer(raised)}</td>`,
+        ...sums.map((sum) => `<td class="num">${sum}</td>`),
+        `<td class="num">${blind}</td>`,
         `<td class="num">${per100.toFixed(1)}</td>`,
         "</tr>",
       ].join("")
     })
     .join("")
-  const head = `<tr><th>Contender</th><th class="num">Background trials</th><th class="num">Focus steals</th><th class="num">Pointer moves</th><th class="num">Keys swallowed</th><th class="num">Windows raised</th><th class="num">Per 100 trials</th></tr>`
-  const caption = `n=${background.length} background trials; disturbance counters are summed and scaled to 100 trials. Zero means no background trials or no disturbances.`
+  const head = `<tr><th>Contender</th><th class="num">Background trials</th><th class="num">Focus steals</th><th class="num">Pointer moves</th><th class="num">Keys swallowed</th><th class="num">Windows raised</th><th class="num">Unmeasured trials</th><th class="num">Per 100 measured</th></tr>`
+  const caption = `n=${background.length} background trials; counters are summed over the trials that measured them and scaled to 100 trials that measured all four. A trial that measured nothing is counted as unmeasured, never as zero.`
   return section("Background safety", `<table><thead>${head}</thead><tbody>${body}</tbody></table>`, caption)
 }
 

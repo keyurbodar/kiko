@@ -275,4 +275,34 @@ describe("renderReport", () => {
     expect(empty.startsWith("<!doctype html>")).toBe(true)
     expect(empty).not.toContain("<svg")
   })
+
+  it("counts a trial that measured nothing as unmeasured instead of zero", () => {
+    const blind = renderReport(
+      [
+        makeRow({
+          trial_id: "blind",
+          ts: "2026-10-03T10:00:00Z",
+          commit: "cccc3333",
+          task: "open-app",
+          track: "desktop",
+          machine: "m1",
+          contender: "cua",
+          model: "model-a",
+          condition: "background",
+          rep: 1,
+          outcome: "ok",
+          pass: false,
+          focus_steals: "unmeasured",
+          pointer_moves: "unmeasured",
+          keys_swallowed: "unmeasured",
+          windows_raised: "unmeasured",
+        }),
+      ],
+      OPTIONS,
+    )
+    expect(blind).toContain('<th class="num">Unmeasured trials</th>')
+    expect(blind).toContain(
+      '<th>cua</th><td class="num">1</td><td class="num">0</td><td class="num">0</td><td class="num">0</td><td class="num">0</td><td class="num">1</td><td class="num">0.0</td>',
+    )
+  })
 })

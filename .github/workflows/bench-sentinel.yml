@@ -1,0 +1,149 @@
+name: Bench sentinel
+
+on:
+  push:
+    branches:
+      - "t3/cu-*"
+    paths:
+      - "apps/bench/src/**"
+      - "apps/bench/fixtures/**"
+      - "apps/bench/ci.json"
+      - ".github/actions/sentinel-macos/**"
+      - ".github/workflows/bench-sentinel.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bench-sentinel-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  cases:
+    name: sentinel cases (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-24.04
+          - macos-15
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/setup
+
+      - name: Read the run parameters
+        id: params
+        shell: bash
+        run: |
+          set -euo pipefail
+          idle=$(node -e 'console.log(require("./apps/bench/ci.json").sentinel?.idleSeconds ?? 30)')
+          seconds=$(node -e 'console.log(require("./apps/bench/ci.json").sentinel?.caseSeconds ?? 4)')
+          echo "idle_seconds=$idle" >> "$GITHUB_OUTPUT"
+          echo "case_seconds=$seconds" >> "$GITHUB_OUTPUT"
+
+      - name: Start an X11 display
+        if: runner.os == 'Linux'
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq xvfb openbox x11-utils python3-xlib
+          Xvfb :99 -screen 0 1280x800x24 -nolisten tcp &
+          sleep 1
+          DISPLAY=:99 openbox &
+          sleep 1
+          echo "DISPLAY=:99" >> "$GITHUB_ENV"
+          xdpyinfo -display :99 | head -5
+
+      - uses: ./.github/actions/sentinel-macos
+        if: runner.os == 'macOS'
+
+      - name: Run the sentinel cases
+        run: >-
+          bun apps/bench/src/sentinel/ci.ts
+          --out sentinel-${{ matrix.os }}.json
+          --logs sentinel-logs
+          --idle-seconds ${{ steps.params.outputs.idle_seconds }}
+          --case-seconds ${{ steps.params.outputs.case_seconds }}
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: sentinel-${{ matrix.os }}
+          path: |
+            sentinel-${{ matrix.os }}.json
+            sentinel-logs
+          if-no-files-found: warn
+
+  background:
+    name: background validate (${{ matrix.os }})
+    needs: cases
+    if: ${{ !cancelled() }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            runner: ubuntu-24.04
+            machine: gha-ubuntu-24.04-x11
+          - os: macos-15
+            runner: macos-15
+            machine: gha-macos-15
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/setup
+
+      - name: Read the run parameters
+        id: params
+        shell: bash
+        run: |
+          set -euo pipefail
+          pattern=$(node -e 'console.log(require("./apps/bench/ci.json").backgroundValidate?.pattern ?? "browser-1*")')
+          runs=$(node -e 'console.log(require("./apps/bench/ci.json").backgroundValidate?.runs ?? 1)')
+          echo "pattern=$pattern" >> "$GITHUB_OUTPUT"
+          echo "runs=$runs" >> "$GITHUB_OUTPUT"
+
+      - name: Install the display
+        if: runner.os == 'Linux'
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq xvfb xauth openbox python3-xlib x11-utils
+          echo "DISPLAY=:99" >> "$GITHUB_ENV"
+
+      - uses: ./.github/actions/sentinel-macos
+        if: runner.os == 'macOS'
+
+      - name: Validate in the background condition
+        if: runner.os == 'Linux'
+        run: >-
+          xvfb-run -a -s "-screen 0 1280x1024x24" sh -c
+          'openbox >/dev/null 2>&1 & exec bun run bench validate
+          --task "${{ steps.params.outputs.pattern }}"
+          --condition background
+          --runs ${{ steps.params.outputs.runs }}
+          --results results
+          --machine ${{ matrix.machine }}'
+
+      - name: Validate in the background condition
+        if: runner.os == 'macOS'
+        run: >-
+          bun run bench validate
+          --task "${{ steps.params.outputs.pattern }}"
+          --condition background
+          --runs ${{ steps.params.outputs.runs }}
+          --results results
+          --machine ${{ matrix.machine }}
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bench-background-${{ matrix.machine }}
+          path: results/
+          if-no-files-found: warn

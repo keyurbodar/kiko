@@ -9,6 +9,14 @@
   "validate": {
     "runs": 10
   },
+  "sentinel": {
+    "idleSeconds": 30,
+    "caseSeconds": 4
+  },
+  "backgroundValidate": {
+    "pattern": "browser-1*",
+    "runs": 1
+  },
   "runners": ["ubuntu-24.04", "macos-15"],
   "versions": {
     "cua-driver": "0.38.0",
