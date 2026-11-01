@@ -246,6 +246,8 @@ async function main(): Promise<void> {
       localStorage.setItem("kiko:schema", "1")
     }, auth)
     const page = await context.newPage()
+    page.on("console", (message) => process.stderr.write(`[viewer] ${message.type()}: ${message.text()}\n`))
+    page.on("pageerror", (error) => process.stderr.write(`[viewer] pageerror: ${error.message}\n`))
     await page.goto(`http://localhost:${WEB_PORT}/`)
     await page.waitForSelector('[data-action="computer-watch"], [data-action="skip-first-run"]', { timeout: 60_000 })
     await until(
@@ -263,13 +265,33 @@ async function main(): Promise<void> {
     )
     await page.click('[data-action="computer-watch"]')
     await page.waitForSelector('[data-component="computer-screen"]', { timeout: 30_000 })
-    await page.waitForFunction(
-      () => {
-        const mode = document.querySelector('[data-component="computer-screen"]')?.getAttribute("data-mode")
-        return mode === "rtc" || mode === "relay"
-      },
-      { timeout: 30_000 },
-    )
+    let ticks = 0
+    let streaming = true
+    try {
+      await until(
+        "the screen to stream",
+        async () => {
+          const state = await page.evaluate(() => {
+            const root = document.querySelector('[data-component="computer-screen"]')
+            const video = root?.querySelector("video") as HTMLVideoElement | null
+            const canvas = root?.querySelector("canvas") as HTMLCanvasElement | null
+            return {
+              mode: root?.getAttribute("data-mode") ?? null,
+              width: video?.videoWidth ?? 0,
+              canvas: canvas?.width ?? 0,
+              ready: video?.readyState ?? 0,
+            }
+          })
+          if (ticks % 8 === 0) process.stderr.write(`[viewer] screen ${JSON.stringify(state)}\n`)
+          ticks += 1
+          return state.mode === "rtc" || state.mode === "relay"
+        },
+        60_000,
+      )
+    } catch {
+      streaming = false
+    }
+    result.streaming = streaming
 
     const takeover = page.locator('[data-action="computer-takeover"]')
     if ((await takeover.count()) > 0) await takeover.click()
@@ -299,16 +321,23 @@ async function main(): Promise<void> {
       }, label)
       if (!value) throw new Error(`no display called ${label}`)
       await picker.selectOption(value)
-      await page.waitForFunction(
-        (wanted) => {
-          const canvas = document.querySelector('[data-component="computer-screen"] canvas') as HTMLCanvasElement | null
-          const video = document.querySelector('[data-component="computer-screen"] video') as HTMLVideoElement | null
-          const source = video && video.videoWidth > 0 ? video.videoWidth : canvas?.width
-          return typeof source === "number" && source > 0 && Math.abs(source - wanted) < 200
-        },
-        width,
-        { timeout: 30_000 },
-      )
+      if (streaming)
+        await page
+          .waitForFunction(
+            (wanted) => {
+              const canvas = document.querySelector(
+                '[data-component="computer-screen"] canvas',
+              ) as HTMLCanvasElement | null
+              const video = document.querySelector(
+                '[data-component="computer-screen"] video',
+              ) as HTMLVideoElement | null
+              const source = video && video.videoWidth > 0 ? video.videoWidth : canvas?.width
+              return typeof source === "number" && source > 0 && Math.abs(source - wanted) < 200
+            },
+            width,
+            { timeout: 30_000 },
+          )
+          .catch(() => {})
       await wait(800)
     }
 
