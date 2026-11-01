@@ -1,44 +1,16 @@
-import { randomBytes } from "node:crypto"
 import { mkdtemp, rm, writeFile } from "node:fs/promises"
 import { createServer } from "node:net"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { chromium, type Browser, type Page } from "playwright"
 import { mintPairCode } from "../src/computer/pairing"
+import { signIn, start, startWeb, startWorker, until, wait, WEB_PORT, SERVER_PORT, type Child } from "./measure-harness"
 
-const SERVER_PORT = 8899
-const WEB_PORT = 5174
 const LEFT_PORT = 5198
 const RIGHT_PORT = 5197
 const ROOT = join(import.meta.dirname, "..", "..", "..")
-const SERVER = join(ROOT, "apps", "server")
 const COMPUTER = join(ROOT, "apps", "computer")
-const WEB = join(ROOT, "apps", "web-solid")
 const TEXT = "Grüße, 世界 — deux lignes\nligne deux\n🎉 end"
-
-const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
-
-async function until(what: string, check: () => Promise<boolean> | boolean, ms = 60_000): Promise<void> {
-  const end = Date.now() + ms
-  while (Date.now() < end) {
-    if (await check().catch(() => false)) return
-    await wait(250)
-  }
-  throw new Error(`timed out waiting for ${what}`)
-}
-
-type Child = ReturnType<typeof Bun.spawn>
-
-function start(name: string, cmd: string[], cwd: string, env: Record<string, string> = {}): Child {
-  const proc = Bun.spawn(cmd, { cwd, env: { ...process.env, ...env }, stdout: "pipe", stderr: "pipe" })
-  void (async () => {
-    for await (const chunk of proc.stdout) process.stderr.write(`[${name}] ${new TextDecoder().decode(chunk)}`)
-  })()
-  void (async () => {
-    for await (const chunk of proc.stderr) process.stderr.write(`[${name}] ${new TextDecoder().decode(chunk)}`)
-  })()
-  return proc
-}
 
 const PAGE = (name: string) => `<!doctype html><meta charset="utf-8">
 <style>
@@ -125,8 +97,6 @@ function status() {
 async function main(): Promise<void> {
   const dir = await mkdtemp(join(tmpdir(), "kiko-input-"))
   const children: Child[] = []
-  const kek = randomBytes(32).toString("base64")
-  const secret = randomBytes(32).toString("hex")
   const display = process.env.DISPLAY ?? ":99"
   let driver: ReturnType<typeof fakeDriver> | null = null
   const browsers: Browser[] = []
@@ -137,44 +107,8 @@ async function main(): Promise<void> {
     driver = fakeDriver(driverPath)
     await driver.ready
 
-    children.push(
-      start(
-        "worker",
-        [
-          "bunx",
-          "wrangler",
-          "dev",
-          "--port",
-          String(SERVER_PORT),
-          "--ip",
-          "127.0.0.1",
-          "--var",
-          `CREDENTIALS_KEK:${kek}`,
-          "--var",
-          `SESSION_SECRET:${secret}`,
-        ],
-        SERVER,
-        { NODE_ENV: "development" },
-      ),
-    )
-    await until("the worker", async () => (await fetch(`http://127.0.0.1:${SERVER_PORT}/api/health`)).ok)
-
-    children.push(
-      start("web", ["bunx", "vite", "--port", String(WEB_PORT), "--strictPort"], WEB, {
-        KIKO_SERVER_PORT: String(SERVER_PORT),
-      }),
-    )
-    await until("the web app", async () => {
-      for (const host of ["localhost", "127.0.0.1"]) {
-        if (
-          await fetch(`http://${host}:${WEB_PORT}/`)
-            .then((answer) => answer.ok)
-            .catch(() => false)
-        )
-          return true
-      }
-      return false
-    })
+    const { kek } = await startWorker(children, dir)
+    await startWeb(children)
 
     const left = Bun.serve({
       port: LEFT_PORT,
@@ -211,31 +145,7 @@ async function main(): Promise<void> {
     const rightPage = single ? leftPage : await openRemote(RIGHT_PORT, 0, 1280, 800)
     await wait(1_500)
 
-    const signIn: { token?: string } = {}
-    await until(
-      "the owner's session",
-      async () => {
-        const answer = await fetch(`http://127.0.0.1:${SERVER_PORT}/api/auth/dev/session`, {
-          method: "POST",
-          headers: { "content-type": "application/json", origin: `http://127.0.0.1:${SERVER_PORT}` },
-          body: JSON.stringify({ name: "owner" }),
-        })
-        const body = await answer.text()
-        if (!answer.ok) {
-          process.stderr.write(`[session] ${answer.status} ${body.slice(0, 200)}\n`)
-          return false
-        }
-        try {
-          const parsed = JSON.parse(body) as { token?: unknown }
-          if (typeof parsed.token === "string") signIn.token = parsed.token
-        } catch {
-          process.stderr.write(`[session] ${answer.status} not json: ${body.slice(0, 200)}\n`)
-        }
-        return signIn.token !== undefined
-      },
-      30_000,
-    )
-    const session = { token: signIn.token ?? "" }
+    const session = { token: await signIn() }
 
     const minted = await mintPairCode(kek, "owner")
     const computerDir = join(dir, "pc")
