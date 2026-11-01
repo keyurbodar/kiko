@@ -59,16 +59,24 @@ async function postPair(origin: string, body: unknown): Promise<Answer> {
   return parsed
 }
 
+function describe(fields: { code: string; publicKey: string; name: string; hello: unknown }): string {
+  const size = (value: unknown) => (typeof value === "string" ? value.length : JSON.stringify(value ?? null).length)
+  return `pair fields: code=${size(fields.code)} publicKey=${size(fields.publicKey)} name=${size(fields.name)} hello=${size(fields.hello)}`
+}
+
 export async function pair(dir: string, detection: Detection, target: string, name: string | null): Promise<Config> {
   const { origin, code } = parsePairTarget(target)
   const keys = await generateKeys()
   const label = name ?? hostName()
   const previous = await loadConfig(dir)
+  const hello = helloPayload(detection, null)
+  if (process.env.KIKO_PAIR_DEBUG === "1")
+    process.stderr.write(`${describe({ code, publicKey: keys.publicKey, name: label, hello })}\n`)
   const answer = await postPair(origin, {
     code,
     publicKey: keys.publicKey,
     name: label,
-    hello: helloPayload(detection, null),
+    hello,
     ...(previous ? { replaces: previous.pcId } : {}),
   })
   await ensurePolicy(dir)
