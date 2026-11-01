@@ -128,6 +128,8 @@ in
   programs.nix-ld.enable = true;
   programs.nix-ld.libraries = benchLibs;
 
+  environment.etc."kiko-bench/girepository".text = girepositoryPath;
+
   environment.sessionVariables = {
     NO_AT_BRIDGE = "0";
     GTK_A11Y = "atspi";
