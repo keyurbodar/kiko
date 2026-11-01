@@ -26,6 +26,8 @@ HostKey ${at(m, "hostkey")}
 AuthorizedKeysFile ${at(m, "authorized_keys")}
 StrictModes no
 UsePAM no
+PermitRootLogin prohibit-password
+PubkeyAuthentication yes
 PasswordAuthentication no
 KbdInteractiveAuthentication no
 PidFile ${at(m, "sshd.pid")}
@@ -94,15 +96,21 @@ export const sshLocalhost: Task = {
     const port = field(host, "port")
     const user = field(host, "user")
     if (!port || !user) throw new Error("host.txt is missing the port or user")
-    await run(m, [
+    const result = await run(m, [
       "bash",
       "-c",
-      `ssh -p ${port} -i clientkey -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ${user}@127.0.0.1 "cat secret.txt" > answer.txt`,
+      `ssh -p ${port} -i clientkey -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o BatchMode=yes -o IdentitiesOnly=yes -o ConnectTimeout=10 ${user}@127.0.0.1 "cat secret.txt" > answer.txt 2> ssh.err`,
     ])
+    if (result.code !== 0) {
+      const said = (await readText(m, "ssh.err"))?.trim() ?? ""
+      throw new Error(`the ssh client exited ${result.code}: ${said}`)
+    }
   },
   check: async (m, seed) => {
     const token = tokenFor(seed)
     const answer = await readText(m, "answer.txt")
-    return verdict([check("answer matches", answer?.trim() === token, `answer.txt was ${JSON.stringify(answer)}`)])
+    const said = (await readText(m, "ssh.err"))?.trim() ?? ""
+    const detail = `answer.txt was ${JSON.stringify(answer)}${said ? `; ssh said ${JSON.stringify(said)}` : ""}`
+    return verdict([check("answer matches", answer?.trim() === token, detail)])
   },
 }
