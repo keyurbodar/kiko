@@ -70,8 +70,9 @@ in
   };
 
   virtualisation = {
-    memorySize = 4096;
-    cores = 2;
+    memorySize = 8192;
+    cores = 4;
+    diskSize = 20480;
     graphics = false;
     forwardPorts = [
       {
@@ -109,6 +110,7 @@ in
   security.sudo.wheelNeedsPassword = false;
 
   services.gnome.at-spi2-core.enable = true;
+  programs.dconf.enable = true;
   services.gnome.gnome-keyring.enable = true;
   services.udisks2.enable = true;
   security.polkit.enable = true;

@@ -77,7 +77,7 @@ def drain(fd, output):
 pid, fd = pty.fork()
 if pid == 0:
     os.environ["TERM"] = "xterm-256color"
-    os.execvp("python3", ["python3", "menu.py"])
+    os.execv(sys.executable, [sys.executable, "menu.py"])
 os.set_blocking(fd, False)
 output = []
 deadline = time.time() + 20
@@ -85,6 +85,8 @@ while time.time() < deadline and not os.path.exists("menu-ready.txt"):
     drain(fd, output)
     time.sleep(0.05)
 if not os.path.exists("menu-ready.txt"):
+    _, status = os.waitpid(pid, os.WNOHANG)
+    sys.stderr.write(f"menu.py never became ready, child status {status}\n")
     sys.stderr.write(b"".join(output).decode("utf-8", "replace"))
     os.kill(pid, 9)
     sys.exit(1)

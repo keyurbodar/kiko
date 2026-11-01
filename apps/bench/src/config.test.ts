@@ -33,7 +33,14 @@ const BASELINE = {
   maxTrialsPerJob: 2,
   validate: { runs: 5 },
   envs: [
-    { id: "ubuntu", os: "linux", runner: "ubuntu-24.04", machine: "gha-ubuntu-24.04-x11", kind: "host", display: "x11" },
+    {
+      id: "ubuntu",
+      os: "linux",
+      runner: "ubuntu-24.04",
+      machine: "gha-ubuntu-24.04-x11",
+      kind: "host",
+      display: "x11",
+    },
     {
       id: "debian",
       os: "linux",
@@ -153,6 +160,26 @@ describe("planJobs", () => {
     })
     const jobs = planJobs(readConfig(path), [task("terminal-001", "terminal", ["linux"])])
     expect(jobs.map((job) => job.env)).toEqual(["debian", "debian"])
+  })
+
+  it("runs a track's own conditions and skips background where no sentinel can run", async () => {
+    const path = await configFile({
+      ...BASELINE,
+      tracks: [
+        {
+          track: "browser",
+          os: ["linux", "macos"],
+          conditions: ["foreground", "background"],
+          contenders: ["kiko"],
+        },
+      ],
+    })
+    const jobs = planJobs(readConfig(path), [task("browser-001", "browser", ["linux", "macos"])])
+    const conditions = (env: string): string[] => [
+      ...new Set(jobs.filter((job) => job.env === env).map((job) => job.condition)),
+    ]
+    expect(conditions("ubuntu")).toEqual(["foreground", "background"])
+    expect(conditions("macos")).toEqual(["foreground"])
   })
 })
 

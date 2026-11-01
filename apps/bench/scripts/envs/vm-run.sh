@@ -34,7 +34,7 @@ rsync -a --exclude .git --exclude node_modules --exclude results --exclude .nix-
   printf '#!/usr/bin/env bash\nset -euo pipefail\n'
   printf 'export BENCH_ENV_ID=%q\n' "$env_id"
   printf 'cd "$HOME/repo"\n'
-  if [ "$track" = "desktop" ]; then
+  if [ "$track" = "desktop" ] || [ "${BENCH_SESSION:-}" = "true" ]; then
     printf 'exec bash apps/bench/envs/%q/session.sh bash apps/bench/scripts/envs/run-bench.sh %q' "$env_id" "$contender"
   else
     printf 'exec bash apps/bench/scripts/envs/run-bench.sh %q' "$contender"

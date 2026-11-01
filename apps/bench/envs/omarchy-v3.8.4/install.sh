@@ -14,9 +14,10 @@ sudo pacman -S --noconfirm --needed git base-devel gum openssh xdotool limine
 rm -rf "$OMARCHY_PATH"
 git clone --depth 1 --branch "$tag" https://github.com/omacom/omarchy.git "$OMARCHY_PATH"
 
-sudo cp -f "$OMARCHY_PATH/default/pacman/pacman-stable.conf" /etc/pacman.conf
-sudo cp -f "$OMARCHY_PATH/default/pacman/mirrorlist-stable" /etc/pacman.d/mirrorlist
-sudo pacman -Sy --noconfirm
+if ! grep -q "^\[omarchy\]" /etc/pacman.conf; then
+  printf '\n[omarchy]\nSigLevel = Optional TrustAll\nServer = https://pkgs.omarchy.org/stable/$arch\n' | sudo tee -a /etc/pacman.conf >/dev/null
+fi
+sudo pacman -Syu --noconfirm --disable-download-timeout
 
 run() {
   local script="$1"

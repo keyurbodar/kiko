@@ -76,7 +76,8 @@
           "name": "agent-browser",
           "models": ["beam-free"]
         }
-      ]
+      ],
+      "conditions": ["foreground", "background"]
     },
     {
       "track": "desktop",
@@ -91,7 +92,8 @@
           "name": "cua-driver",
           "models": ["beam-free"]
         }
-      ]
+      ],
+      "conditions": ["foreground", "background"]
     }
   ]
 }

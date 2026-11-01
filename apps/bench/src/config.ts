@@ -10,6 +10,7 @@ interface TrackConfig {
   readonly track: Track
   readonly os: readonly Os[]
   readonly envs?: readonly string[]
+  readonly conditions?: readonly Condition[]
   readonly maxTrialsPerJob?: number
   readonly contenders: readonly ContenderConfig[]
 }
@@ -54,6 +55,7 @@ export interface Job {
   readonly image?: string
   readonly contender: string
   readonly model: string
+  readonly condition: Condition
   readonly shard: string
   readonly label: string
   readonly trials: number
@@ -134,6 +136,9 @@ function trackOf(value: unknown, flat: { contenders: readonly string[]; models: 
     os: oneOf(value.os === undefined ? [...OSES] : strings(value.os, `the machines of ${track}`), OSES, "a machine"),
     ...(Array.isArray(value.envs) && value.envs.length > 0
       ? { envs: strings(value.envs, `the environments of ${track}`) }
+      : {}),
+    ...(Array.isArray(value.conditions) && value.conditions.length > 0
+      ? { conditions: oneOf(strings(value.conditions, `the conditions of ${track}`), CONDITIONS, "a condition") }
       : {}),
     ...(value.maxTrialsPerJob === undefined
       ? {}
@@ -243,24 +248,30 @@ export function planJobs(config: BenchConfig, tasks: readonly Task[]): Job[] {
       const count = tasksFor(tasks, track.track, env.os).length * config.reps
       const perJob = track.maxTrialsPerJob ?? env.maxTrialsPerJob ?? config.maxTrialsPerJob
       const shards = Math.max(1, Math.ceil(count / perJob))
-      for (const contender of track.contenders) {
-        for (const model of contender.models) {
-          for (let shard = 1; shard <= shards; shard += 1)
-            jobs.push({
-              track: track.track,
-              os: env.os,
-              env: env.id,
-              kind: env.kind,
-              display: env.display,
-              ...(env.image ? { image: env.image } : {}),
-              contender: contender.name,
-              model,
-              shard: `${shard}/${shards}`,
-              label: `${shard}of${shards}`,
-              trials: Math.ceil(count / shards),
-              runner: env.runner,
-              machine: env.machine,
-            })
+      const conditions = (track.conditions ?? config.conditions).filter(
+        (condition) => condition === "foreground" || env.display !== "aqua",
+      )
+      for (const condition of conditions) {
+        for (const contender of track.contenders) {
+          for (const model of contender.models) {
+            for (let shard = 1; shard <= shards; shard += 1)
+              jobs.push({
+                track: track.track,
+                os: env.os,
+                env: env.id,
+                kind: env.kind,
+                display: env.display,
+                ...(env.image ? { image: env.image } : {}),
+                contender: contender.name,
+                model,
+                condition,
+                shard: `${shard}/${shards}`,
+                label: `${shard}of${shards}`,
+                trials: Math.ceil(count / shards),
+                runner: env.runner,
+                machine: env.machine,
+              })
+          }
         }
       }
     }
