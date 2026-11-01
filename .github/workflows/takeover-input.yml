@@ -91,9 +91,10 @@ jobs:
           now=$(date +%s)
           for service in kTCCServiceAccessibility kTCCServiceScreenCapture; do
             for client in "$(which bun)" "$(which ffmpeg)"; do
+              csreq -r- -b "/tmp/$(basename "$client").req" "$client" || true
               sudo sqlite3 "$database" \
                 "INSERT OR REPLACE INTO access(service,client,client_type,auth_value,auth_reason,auth_version,csreq,policy_id,indirect_object_identifier_type,indirect_object_identifier,indirect_object_code_identity,flags,last_modified) \
-                 VALUES('${service}','${client}',1,2,4,1,NULL,NULL,0,'UNUSED',NULL,0,${now});"
+                 VALUES('${service}','${client}',1,2,4,1,readfile('/tmp/$(basename "$client").req'),NULL,0,'UNUSED',NULL,0,${now});"
             done
           done
           sudo killall tccd 2>/dev/null || true
@@ -119,32 +120,23 @@ jobs:
           cat > /tmp/try.ts <<'TS'
           const ffmpeg = "/opt/homebrew/bin/ffmpeg"
           const args = [ffmpeg, "-hide_banner", "-loglevel", "error", "-nostdin", "-f", "avfoundation", "-capture_cursor", "1", "-framerate", "15", "-i", "Capture screen 0", "-r", "15", "-an", "-vf", "scale=1024:768:flags=fast_bilinear", "-c:v", "mjpeg", "-q:v", "18", "-f", "mjpeg", "pipe:1"]
-          const wait = (work: Promise<number>) => Promise.race([work.catch(() => -1), Bun.sleep(6_000).then(() => -1)])
-          async function report(name: string, child: { exitCode: number | null; kill(): void }, bytes: Promise<number>) {
-            console.log(`${name}: ${await wait(bytes)} bytes, exit ${child.exitCode}`)
+          const wait = <T>(work: Promise<T>) => Promise.race([work.catch(() => -1 as T), Bun.sleep(6_000).then(() => -1 as T)])
+          async function first(name: string, child: { stdout: ReadableStream<Uint8Array>; exitCode: number | null; kill(): void }) {
+            const reader = child.stdout.getReader()
+            const bytes = await wait(reader.read().then((part) => part.value?.byteLength ?? 0))
+            console.log(`${name}: first chunk ${bytes} bytes, exit ${child.exitCode}`)
             child.kill()
           }
-          const piped = Bun.spawn(args, { stdout: "pipe", stderr: "pipe" })
-          await report("stdout pipe", piped, new Response(piped.stdout).arrayBuffer().then((out) => out.byteLength))
-          const quiet = Bun.spawn(args, { stdout: "pipe", stderr: "ignore" })
-          await report("stdout pipe, stderr ignored", quiet, new Response(quiet.stdout).arrayBuffer().then((out) => out.byteLength))
-          const file = Bun.spawn(args, { stdout: Bun.file("/tmp/one.mjpeg"), stderr: "ignore" })
-          await report(
-            "stdout file",
-            file,
-            Bun.sleep(6_000).then(() => Bun.file("/tmp/one.mjpeg").arrayBuffer()).then((out) => out.byteLength),
-          )
-          const line = args.map((arg) => JSON.stringify(arg)).join(" ")
-          const shell = Bun.spawn(["bash", "-c", `${line} > /tmp/two.mjpeg 2>/tmp/two.log`], {
-            stdout: "ignore",
-            stderr: "ignore",
-          })
-          await report(
-            "through bash",
-            shell,
-            Bun.sleep(6_000).then(() => Bun.file("/tmp/two.mjpeg").arrayBuffer()).then((out) => out.byteLength),
-          )
-          console.log("bash stderr:", (await Bun.file("/tmp/two.log").text()).slice(0, 300))
+          await first("from bun", Bun.spawn(args, { stdout: "pipe", stderr: "pipe" }))
+          {
+            const line = args.map((arg) => JSON.stringify(arg)).join(" ")
+            await first("from bun through bash", Bun.spawn(["bash", "-c", line], { stdout: "pipe", stderr: "pipe" }))
+          }
+          {
+            const shot = Bun.spawn(["/usr/sbin/screencapture", "-x", "/tmp/shot.png"], { stdout: "ignore", stderr: "pipe" })
+            console.log(`screencapture from bun: exit ${await wait(shot.exited)}`)
+            console.log(`shot bytes: ${(await Bun.file("/tmp/shot.png").arrayBuffer().then((out) => out.byteLength).catch(() => 0))}`)
+          }
           TS
           bun /tmp/try.ts
       - name: Paste a Unicode string and click the display
