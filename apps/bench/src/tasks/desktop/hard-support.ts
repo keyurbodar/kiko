@@ -34,7 +34,11 @@ const waylandDisplay = async (m: Machine): Promise<string | undefined> => {
   const [sessionType = "", current = "", runtimeDir = ""] = probe.stdout.split("\n")
   if (current) return current
   if (sessionType !== "wayland" || !runtimeDir) return undefined
-  const listed = await run(m, ["sh", "-c", `ls -1 "${runtimeDir}"/wayland-* 2>/dev/null | head -n 1`])
+  const listed = await run(m, [
+    "sh",
+    "-c",
+    `for candidate in "${runtimeDir}"/wayland-*; do if [ -S "$candidate" ]; then printf '%s\\n' "$candidate"; break; fi; done`,
+  ])
   const found = listed.stdout.trim()
   return found ? basename(found) : undefined
 }

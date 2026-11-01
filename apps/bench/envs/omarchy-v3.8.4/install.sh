@@ -17,6 +17,12 @@ git clone --depth 1 --branch "$tag" https://github.com/omacom/omarchy.git "$OMAR
 sudo cp -f "$OMARCHY_PATH/default/pacman/pacman-stable.conf" /etc/pacman.conf
 sudo cp -f "$OMARCHY_PATH/default/pacman/mirrorlist-stable" /etc/pacman.d/mirrorlist
 sudo pacman -Sy --noconfirm
+probe="$(pacman -Sp --print-format '%l' bash 2>/dev/null | head -n 1)"
+if [ -z "$probe" ] || ! curl -fsSL --max-time 30 -o /dev/null "$probe"; then
+  echo "== the omarchy stable mirror serves databases but not packages; using Arch's official mirrors"
+  printf 'Server = https://geo.mirror.pkgbuild.com/$repo/os/$arch\n' | sudo tee /etc/pacman.d/mirrorlist >/dev/null
+  sudo pacman -Syy --noconfirm
+fi
 
 run() {
   local script="$1"

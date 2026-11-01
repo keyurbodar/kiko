@@ -72,6 +72,7 @@ in
   virtualisation = {
     memorySize = 4096;
     cores = 2;
+    diskSize = 16384;
     graphics = false;
     forwardPorts = [
       {
