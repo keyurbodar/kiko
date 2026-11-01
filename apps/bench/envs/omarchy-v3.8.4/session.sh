@@ -55,11 +55,24 @@ exec dbus-run-session -- bash -c '
     exit 1
   fi
   export HYPRLAND_INSTANCE_SIGNATURE="$signature"
-  export WAYLAND_DISPLAY="hypr/$signature/.wayland.sock"
-  if [ ! -S "$XDG_RUNTIME_DIR/$WAYLAND_DISPLAY" ]; then
-    echo "warning: Hyprland did not publish $XDG_RUNTIME_DIR/$WAYLAND_DISPLAY" >&2
+  socket=""
+  for candidate in "$XDG_RUNTIME_DIR"/wayland-* "$XDG_RUNTIME_DIR/hypr/$signature/.wayland.sock"; do
+    if [ -S "$candidate" ]; then socket="$candidate"; break; fi
+  done
+  if [ -z "$socket" ]; then
+    echo "Hyprland published no Wayland socket in $XDG_RUNTIME_DIR" >&2
+    ls -l "$XDG_RUNTIME_DIR" >&2 || true
+    exit 1
   fi
-  hyprctl keyword monitor HEADLESS-1,1920x1080@60,0x0,1 >/dev/null 2>&1 || true
+  if [ "$socket" = "$XDG_RUNTIME_DIR/hypr/$signature/.wayland.sock" ]; then
+    export WAYLAND_DISPLAY="hypr/$signature/.wayland.sock"
+  else
+    export WAYLAND_DISPLAY="$(basename "$socket")"
+  fi
+  output=$(hyprctl monitors -j 2>/dev/null | jq -r '.[0].name // empty' || true)
+  if [ -n "$output" ]; then
+    hyprctl keyword monitor "$output,1920x1080@60,0x0,1" >/dev/null 2>&1 || true
+  fi
   hyprctl monitors || true
   for _ in $(seq 1 120); do
     if DISPLAY=:0 xdotool getdisplaygeometry >/dev/null 2>&1; then break; fi
