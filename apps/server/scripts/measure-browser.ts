@@ -403,7 +403,8 @@ async function main(): Promise<void> {
     await page.click('[data-action="computer-watch"]')
     await page.waitForSelector('[data-action="computer-tab-browser"]', { timeout: 60_000 })
 
-    const before = await meter(session.token)
+    await wait(3_000)
+    const idle = await meter(session.token)
     const opened = Date.now()
     await page.click(`[data-action="computer-tab-browser"][data-browser-id="${tab.id}"]`)
     await page.waitForSelector('[data-component="computer-browser"]', { timeout: 30_000 })
@@ -483,11 +484,11 @@ async function main(): Promise<void> {
       typing: { typed, ok: typed === "hi" },
       focus: { before: frontBefore, after: frontAfter, chrome, raised: frontBefore !== frontAfter || chrome > 0 },
       writes: {
-        before,
+        idle,
         streamed,
         taken,
         after,
-        attachAndFrames: wrote(before, streamed),
+        attachAndFrames: wrote(idle, streamed),
         takeover: wrote(streamed, taken),
         inputAndFrames: wrote(taken, after),
       },
