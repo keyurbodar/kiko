@@ -134,7 +134,8 @@ jobs:
             file,
             Bun.sleep(6_000).then(() => Bun.file("/tmp/one.mjpeg").arrayBuffer()).then((out) => out.byteLength),
           )
-          const shell = Bun.spawn(["bash", "-c", `${args.join(" ")} > /tmp/two.mjpeg 2>/dev/null`], {
+          const line = args.map((arg) => JSON.stringify(arg)).join(" ")
+          const shell = Bun.spawn(["bash", "-c", `${line} > /tmp/two.mjpeg 2>/tmp/two.log`], {
             stdout: "ignore",
             stderr: "ignore",
           })
@@ -143,6 +144,7 @@ jobs:
             shell,
             Bun.sleep(6_000).then(() => Bun.file("/tmp/two.mjpeg").arrayBuffer()).then((out) => out.byteLength),
           )
+          console.log("bash stderr:", (await Bun.file("/tmp/two.log").text()).slice(0, 300))
           TS
           bun /tmp/try.ts
       - name: Paste a Unicode string and click the display
