@@ -162,7 +162,7 @@ describe("planJobs", () => {
     expect(jobs.map((job) => job.env)).toEqual(["debian", "debian"])
   })
 
-  it("runs a track's own conditions and skips background where no sentinel can run", async () => {
+  it("runs a track's own conditions on every environment", async () => {
     const path = await configFile({
       ...BASELINE,
       tracks: [
@@ -179,7 +179,7 @@ describe("planJobs", () => {
       ...new Set(jobs.filter((job) => job.env === env).map((job) => job.condition)),
     ]
     expect(conditions("ubuntu")).toEqual(["foreground", "background"])
-    expect(conditions("macos")).toEqual(["foreground"])
+    expect(conditions("macos")).toEqual(["foreground", "background"])
   })
 })
 

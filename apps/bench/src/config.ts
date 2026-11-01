@@ -248,10 +248,7 @@ export function planJobs(config: BenchConfig, tasks: readonly Task[]): Job[] {
       const count = tasksFor(tasks, track.track, env.os).length * config.reps
       const perJob = track.maxTrialsPerJob ?? env.maxTrialsPerJob ?? config.maxTrialsPerJob
       const shards = Math.max(1, Math.ceil(count / perJob))
-      const conditions = (track.conditions ?? config.conditions).filter(
-        (condition) => condition === "foreground" || env.display !== "aqua",
-      )
-      for (const condition of conditions) {
+      for (const condition of track.conditions ?? config.conditions) {
         for (const contender of track.contenders) {
           for (const model of contender.models) {
             for (let shard = 1; shard <= shards; shard += 1)
