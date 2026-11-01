@@ -40,8 +40,8 @@ function readOpen(): Record<string, boolean> {
 const [openByChat, setOpenByChat] = createSignal<Readonly<Record<string, boolean>>>(readOpen())
 const [choice, setChoice] = createSignal<ThreadDetailsChoice>(readThreadDetailsChoice(read(ITEMS_KEY)))
 
-export function threadDetailsOpen(chatId: string, fallback: boolean): boolean {
-  return openByChat()[chatId] ?? fallback
+export function threadDetailsOpen(chatId: string, fallback: () => boolean): boolean {
+  return openByChat()[chatId] ?? fallback()
 }
 
 export function setThreadDetailsOpen(chatId: string, value: boolean) {

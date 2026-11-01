@@ -290,15 +290,6 @@
   gap: 2px;
   margin-left: auto;
 }
-.palette-keys .palette-kbd {
-  padding: 0;
-  background: transparent;
-  color: var(--text-quaternary);
-  letter-spacing: 0.04em;
-}
-.palette-row[data-selected="true"] .palette-keys .palette-kbd {
-  color: var(--text-tertiary);
-}
 .palette-trail {
   flex-shrink: 0;
   color: var(--icon-tertiary);

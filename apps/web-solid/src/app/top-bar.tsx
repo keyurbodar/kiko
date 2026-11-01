@@ -69,9 +69,9 @@ export function TopBar(props: { chatId: string | null; sidebarOpen: boolean; onT
     return `You, ${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`
   }
   return (
-    <header class="flex shrink-0 items-center gap-px pr-2.5 pl-4" data-component="top-bar">
+    <header class="flex shrink-0 items-center gap-1 pr-2.5 pl-4" data-component="top-bar">
       <Show when={!props.sidebarOpen}>
-        <SidebarToggle open={false} onToggle={props.onToggleSidebar} class="top-bar-button" />
+        <SidebarToggle open={false} onToggle={props.onToggleSidebar} class="top-bar-button" size={15} />
       </Show>
       <div class="flex min-w-0 flex-1 items-center gap-2.5">
         <Show when={chatId()} keyed>
@@ -117,7 +117,7 @@ export function TopBar(props: { chatId: string | null; sidebarOpen: boolean; onT
               if (id) toggleThreadDetails(id)
             }}
           >
-            <RemixIcon icon={InfoIcon} size={14} />
+            <RemixIcon icon={InfoIcon} size={15} />
           </button>
         </TooltipV2>
       </Show>
@@ -130,7 +130,7 @@ export function TopBar(props: { chatId: string | null; sidebarOpen: boolean; onT
             data-action="computer-watch"
             onClick={() => openViewer(watchTarget(chatId()))}
           >
-            <RemixIcon icon={MonitorIcon} size={16} />
+            <RemixIcon icon={MonitorIcon} size={15} />
           </button>
         </TooltipV2>
       </Show>
@@ -152,7 +152,7 @@ export function TopBar(props: { chatId: string | null; sidebarOpen: boolean; onT
               else openSurface(id, fixedSurface("files"))
             }}
           >
-            <RemixIcon icon={FolderIcon} size={16} />
+            <RemixIcon icon={FolderIcon} size={15} />
           </button>
         </TooltipV2>
       </Show>

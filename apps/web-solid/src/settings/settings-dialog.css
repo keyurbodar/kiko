@@ -10,6 +10,10 @@
     var(--box-shadow-dialog);
 }
 
+.settings-dialog:focus-visible {
+  outline: none;
+}
+
 [data-component="settings"] {
   position: relative;
   display: flex;

@@ -1,6 +1,6 @@
 import type { JSX } from "solid-js"
 
-export type IllustrationName = "envelope" | "plug" | "pot" | "chat"
+export type IllustrationName = "plug" | "pot" | "chat"
 
 const LINE = {
   stroke: "var(--text-primary)",
@@ -26,19 +26,6 @@ function Drawing(props: { id: string; seed: number; children: JSX.Element }) {
 const FILL = "var(--bg-secondary)"
 const FILL_DEEP = "var(--bg-tertiary)"
 const ACCENT = "var(--text-accent)"
-
-function Envelope() {
-  return (
-    <Drawing id="ob-envelope" seed={6}>
-      <rect class="ob-draw" pathLength="1" x="24" y="44" width="102" height="70" rx="8" fill={FILL} {...LINE} />
-      <path class="ob-draw" pathLength="1" d="M26 48 l49 36 l49 -36" fill="none" {...LINE} />
-      <g class="ob-pop">
-        <circle cx="112" cy="44" r="16" fill={ACCENT} {...LINE} />
-        <path d="M105 44 l5 5 l9 -10" fill="none" {...LINE} stroke="var(--text-on-accent)" />
-      </g>
-    </Drawing>
-  )
-}
 
 function Plug() {
   return (
@@ -104,7 +91,6 @@ function Chat() {
 export function Illustration(props: { name: IllustrationName }) {
   return (
     <>
-      {props.name === "envelope" ? <Envelope /> : null}
       {props.name === "plug" ? <Plug /> : null}
       {props.name === "pot" ? <Pot /> : null}
       {props.name === "chat" ? <Chat /> : null}

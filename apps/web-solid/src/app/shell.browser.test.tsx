@@ -137,7 +137,7 @@ describe("shell", () => {
     const add = box('[data-component="sidebar-add"]')
     const search = box('[data-component="sidebar-search"]')
     expect([add.left, add.width, add.height, search.top - add.top]).toEqual([8, 264, 32, 33])
-    expect(box('[data-component="sidebar-header-search"]').height).toBe(24)
+    expect(screen.container.querySelector('[data-component="sidebar-header-search"]')).toBeNull()
 
     screen.container.querySelector<HTMLElement>('[data-component="sidebar-toggle"]')!.click()
     await expect.poll(() => width(screen.container, "sidebar-panel")).toBe(RAIL)

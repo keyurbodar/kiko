@@ -5,19 +5,33 @@ import { cn } from "../lib/cn"
 import { pageIn } from "../lib/motion"
 import "./page-ui.css"
 
-export function PageFrame(props: { title: string; children: JSX.Element }) {
+export function PageFrame(props: {
+  title: string
+  crumbs?: JSX.Element
+  actions?: JSX.Element
+  children: JSX.Element
+}) {
   return (
     <div
       class="@container/page flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto bg-chrome"
       data-component="page-frame"
     >
-      <div
-        ref={pageIn}
-        class="mx-auto flex w-full max-w-[960px] flex-col px-6 pt-4 pb-16 max-[767px]:pt-12 @min-[768px]/page:px-12 @min-[768px]/page:pt-6"
-      >
-        <header class="flex shrink-0 items-end pt-4 pb-1">
-          <h1 class="type-display min-w-0 truncate text-primary">{props.title}</h1>
-        </header>
+      <header class="sticky top-0 z-20 shrink-0 bg-chrome pt-12 @min-[768px]/page:pt-5" data-component="page-header">
+        <div class="mx-auto flex h-11 w-full max-w-[960px] items-center justify-between gap-3 px-6 @min-[768px]/page:px-12">
+          <div class="flex min-w-0 items-center gap-3">
+            <h1 class="type-display shrink-0 truncate text-primary">{props.title}</h1>
+            <Show when={props.crumbs}>
+              <div class="hidden min-w-0 items-center gap-3 @min-[640px]/page:flex">{props.crumbs}</div>
+            </Show>
+          </div>
+          <Show when={props.actions}>
+            <div class="flex shrink-0 items-center gap-1" data-component="page-actions">
+              {props.actions}
+            </div>
+          </Show>
+        </div>
+      </header>
+      <div ref={pageIn} class="mx-auto flex w-full max-w-[960px] flex-col px-6 pb-16 @min-[768px]/page:px-12">
         {props.children}
       </div>
     </div>

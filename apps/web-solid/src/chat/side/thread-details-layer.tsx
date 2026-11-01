@@ -1,7 +1,11 @@
 import { createEffect, createSignal, on, onCleanup, onMount, Show } from "solid-js"
 import { room } from "../../state/room"
+import { stepWindows } from "../run/run-log"
 import ThreadDetails from "./thread-details"
-import { setThreadDetailsOpen, threadDetailsOpen } from "./thread-details-state"
+import { threadDetailsDefaultOpen, type ThreadDetailsPresence } from "./thread-details-default"
+import { type ThreadDetailsItemId } from "./thread-details-items"
+import { agentFiles, progressView, usedRows } from "./thread-details-model"
+import { setThreadDetailsOpen, threadDetailsOpen, threadDetailsVisibility } from "./thread-details-state"
 import "./thread-details.css"
 
 const isDesktop = () => typeof matchMedia !== "function" || matchMedia("(width >= 960px)").matches
@@ -11,7 +15,29 @@ const hasHistory = (chatId: string): boolean => {
   return row !== undefined && (row.lastFrom !== undefined || row.preview !== "")
 }
 
-const defaultOpen = (chatId: string): boolean => isDesktop() && hasHistory(chatId)
+const threadDetailsPresence = (chatId: string): ThreadDetailsPresence => {
+  const running = room.chatById(chatId)?.presence !== "idle"
+  const progress = progressView(room.tasks(), running)
+  const messages = room.messages()
+  const steps = [...stepWindows(messages).keys()].flatMap((key) => room.runSteps(key))
+  return {
+    now: room.typingSlugs().length > 0,
+    waiting: (room.active()?.asks() ?? []).length > 0,
+    progress: progress.total > 0 && (!progress.allDone || running),
+    helpers: room.helpers().length > 0,
+    outputs: agentFiles(room.files()).length > 0,
+    used: usedRows(messages, steps).length > 0,
+    memory: false,
+  } satisfies Record<ThreadDetailsItemId, boolean>
+}
+
+const defaultOpen = (chatId: string): boolean =>
+  threadDetailsDefaultOpen({
+    desktop: isDesktop(),
+    hasHistory: hasHistory(chatId),
+    visibility: threadDetailsVisibility(),
+    presence: threadDetailsPresence(chatId),
+  })
 
 const [floating, setFloating] = createSignal(false)
 const [popped, setPopped] = createSignal<string | null>(null)
@@ -24,7 +50,7 @@ export function setThreadDetailsFloating(value: boolean) {
 
 export function threadDetailsOpenFor(chatId: string | null): boolean {
   if (chatId === null) return false
-  return floating() ? popped() === chatId : threadDetailsOpen(chatId, defaultOpen(chatId))
+  return floating() ? popped() === chatId : threadDetailsOpen(chatId, () => defaultOpen(chatId))
 }
 
 export function toggleThreadDetails(chatId: string) {

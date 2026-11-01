@@ -1412,6 +1412,17 @@ html[data-input="pointer"] :focus-visible {
   }
 }
 
+@media (max-width: 640px) {
+  [data-component="main-column"] > [data-component="top-bar"]::before {
+    inset: 0 0 -16px;
+    background: linear-gradient(to bottom, var(--bg-chrome) 0 calc(100% - 16px), transparent 100%);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
+}
+
 [data-component="chat-scroll"] {
   scroll-padding-top: var(--top-bar-h, 0px);
 }

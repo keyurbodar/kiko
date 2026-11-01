@@ -747,14 +747,16 @@ export function VirtualThread(props: {
       )
     }
     if (item.kind === "unread-divider") {
-      const count = unreadSenders().count
       return (
-        <SystemRow
-          label={count > 0 ? `${count} new` : "New messages"}
-          tone="accent"
-          stitch
+        <div
+          class="mx-auto flex w-full max-w-(--chat-content-max-width) items-center gap-2 px-4 py-3"
+          role="separator"
+          aria-label="New messages"
           data-component="chat-unread-rule"
-        />
+        >
+          <span class="shrink-0 text-[11px] leading-4 font-medium text-accent">New</span>
+          <span class="h-px flex-1 bg-[var(--stroke-accent)]" aria-hidden="true" />
+        </div>
       )
     }
     return untrack(() => renderMessage(item))

@@ -9,7 +9,7 @@ export function BrandTile(props: { children: JSX.Element; size?: "row" | "head" 
   return (
     <span
       class={cn(
-        "grid shrink-0 place-items-center overflow-hidden bg-tertiary icon-secondary",
+        "grid shrink-0 place-items-center overflow-hidden bg-tertiary icon-secondary shadow-[inset_0_0_0_1px_var(--stroke-tertiary)]",
         props.size === "head" ? "size-10 rounded-xl" : "size-7 rounded-lg",
       )}
       aria-hidden="true"
@@ -59,6 +59,7 @@ export function SecretInput(props: {
   placeholder?: string
   ref?: (el: HTMLInputElement) => void
   error?: string | null
+  errorStatus?: number
   autofocus?: boolean
   name?: string
   "data-component"?: string
@@ -102,6 +103,13 @@ export function SecretInput(props: {
             data-component="connect-error"
           >
             {error()}
+            <Show when={props.errorStatus}>
+              {(status) => (
+                <span class="ml-1.5 text-[var(--text-tertiary)] tabular-nums" data-field="error-status">
+                  · {status()}
+                </span>
+              )}
+            </Show>
           </p>
         )}
       </Show>

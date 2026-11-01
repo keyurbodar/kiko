@@ -14,6 +14,7 @@ import { hasModelProvider, isJudgeOnly, JUDGE_NOTE, modelProviders } from "./pro
 import { connectedProviders, connectedReady } from "./connected"
 import { checkProvider, connectProvider, disconnectProvider } from "./credentials"
 import { clearReconnect, FIX_LABEL, PROBLEM_LINE, PROBLEM_SHORT, reconnectTarget } from "./provider-problem"
+import { splitKeyProblemText } from "./key-problem"
 import { startSignIn, type SignIn, type SignInHandle } from "./provider-login"
 import {
   Button,
@@ -684,6 +685,10 @@ export function ConnectDialog(props: {
     setError(null)
     props.onClose()
   }
+  const keyProblem = () => {
+    const message = error()
+    return message ? splitKeyProblemText(message) : null
+  }
   const methods = () => connectMethods(props.provider, props.only)
   const signIns = () => methods().filter((m) => m !== "api_key")
   const [signingIn, setSigningIn] = createSignal(false)
@@ -759,7 +764,8 @@ export function ConnectDialog(props: {
               name="kiko-provider-secret"
               ref={(el) => (input = el)}
               autofocus
-              error={error()}
+              error={keyProblem()?.sentence}
+              errorStatus={keyProblem()?.status}
               data-component="provider-key"
             />
             <Show when={props.provider && KEY_PAGE[props.provider.id]}>{(href) => <KeyLink href={href()} />}</Show>

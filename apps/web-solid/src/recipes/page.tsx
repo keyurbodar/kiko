@@ -5,8 +5,8 @@ import { openChat } from "../app/history"
 import { createMemo, createSignal, For, type JSX, Show } from "solid-js"
 import { pageIn } from "../lib/motion"
 import { room } from "../state/room"
-import { PageFrame, PageSearch, PageTabs, SectionHead, SkeletonRows } from "../customize/page-ui"
-import { byChatOrder, filterRecipes, openingSection, recipeTags, type Section, type TagFilter, tagLabel } from "./model"
+import { PageFrame, PageSearch, SectionHead, SkeletonRows } from "../customize/page-ui"
+import { byChatOrder, chipLabel, filterRecipes, openingView, recipeTags, type RecipeView } from "./model"
 import { InstallCard } from "./row"
 import { ConnectSheet } from "./connect"
 import { NewRecipe } from "./new-recipe"
@@ -24,7 +24,7 @@ import {
 } from "./state"
 import { RecipeTile } from "./tile"
 
-const tagTab =
+const chip =
   "type-sm h-control-md shrink-0 cursor-pointer rounded-base px-2 text-tertiary transition-colors duration-(--duration-fast) hover:bg-quinary hover:text-primary aria-selected:bg-quaternary aria-selected:text-primary"
 const grid = "grid grid-cols-1 gap-3 @min-[640px]/page:grid-cols-2"
 
@@ -46,7 +46,7 @@ const route = getRouteApi("/_chat/recipes")
 export default function RecipesPage() {
   const roomId = route.useSearch({ select: (search) => search.room })
   const [query, setQuery] = createSignal("")
-  const [tag, setTag] = createSignal<TagFilter>("all")
+  const [picked, setView] = createSignal<RecipeView | null>(null)
   const [open, setOpen] = createSignal<{ card: RecipeCard; mode?: "add" } | null>(null)
   const bySlug = createMemo(() => new Map(cards().map((c) => [c.slug, c])))
   const matching = createMemo(() => new Set(filterRecipes(cards(), query(), "all").map((c) => c.slug)))
@@ -56,11 +56,14 @@ export default function RecipesPage() {
       room.bots().map((b) => b.id),
     ),
   )
-  const tags = createMemo(() => ["all", ...recipeTags(cards())])
+  const opening = createMemo<RecipeView | undefined>((settled) => settled ?? openingView(knownInstalls(), !!roomId()))
+  const view = () => picked() ?? opening()
+  const nav = createMemo<RecipeView[]>(() => ["yours", "all", ...recipeTags(cards())])
+  const tag = () => {
+    const now = view()
+    return now === undefined || now === "yours" ? "all" : now
+  }
   const shown = createMemo(() => filterRecipes(cards(), query(), tag()))
-  const [picked, setSection] = createSignal<Section | null>(null)
-  const opening = createMemo<Section | undefined>((settled) => settled ?? openingSection(knownInstalls(), !!roomId()))
-  const section = () => picked() ?? opening()
   const add = (card: RecipeCard) => {
     const id = roomId()
     const targets = id ? targetsForChat(id) : []
@@ -74,26 +77,40 @@ export default function RecipesPage() {
   })
 
   return (
-    <PageFrame title="Recipes">
-      <div class="flex flex-col gap-6 pt-4" data-component="recipes-page">
-        <Show when={section()} fallback={<SkeletonRows count={3} />}>
+    <PageFrame
+      title="Recipes"
+      actions={
+        <>
+          <PageSearch label="Search recipes" query={query()} onQuery={setQuery} />
+          <NewRecipe />
+        </>
+      }
+    >
+      <div class="flex flex-col gap-4 pt-4" data-component="recipes-page">
+        <Show when={view()} fallback={<SkeletonRows count={3} />}>
           {(current) => (
             <>
-              <div class="flex items-center justify-between gap-3">
-                <PageTabs
-                  label="Recipes"
-                  value={current()}
-                  onChange={(next) => setSection(next as Section)}
-                  options={[
-                    { value: "yours", label: "Yours", "data-section": "yours" },
-                    { value: "discover", label: "Templates", "data-section": "discover" },
-                  ]}
-                  data-component="recipes-sections"
-                />
-                <div class="flex items-center gap-1">
-                  <PageSearch label="Search recipes" query={query()} onQuery={setQuery} />
-                  <NewRecipe />
-                </div>
+              <div
+                class="-mx-1 flex items-center gap-1 overflow-x-auto px-1 [scrollbar-width:none]"
+                role="tablist"
+                aria-label="Recipes"
+                data-component="recipes-nav"
+              >
+                <For each={nav()}>
+                  {(item) => (
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={current() === item}
+                      class={chip}
+                      data-section={item === "yours" ? "yours" : undefined}
+                      data-tag={item === "yours" ? undefined : item}
+                      onClick={() => setView(item)}
+                    >
+                      {chipLabel(item)}
+                    </button>
+                  )}
+                </For>
               </div>
 
               <Show when={current() === "yours"}>
@@ -128,7 +145,7 @@ export default function RecipesPage() {
                     <section class="flex flex-col gap-2">
                       <SectionHead
                         title={yours().length ? "More from templates" : "Start from a template"}
-                        onAll={() => setSection("discover")}
+                        onAll={() => setView("all")}
                         allLabel={yours().length ? "See all" : "Show all"}
                       />
                       <div class={grid}>
@@ -143,30 +160,8 @@ export default function RecipesPage() {
                 </div>
               </Show>
 
-              <Show when={current() === "discover"}>
+              <Show when={current() !== "yours"}>
                 <div ref={pageIn} class="flex flex-col gap-4" data-component="recipes">
-                  <div
-                    class="-mx-1 flex items-center gap-1 overflow-x-auto px-1 [scrollbar-width:none]"
-                    role="tablist"
-                    aria-label="Categories"
-                    data-component="recipes-tags"
-                  >
-                    <For each={tags()}>
-                      {(t) => (
-                        <button
-                          type="button"
-                          role="tab"
-                          aria-selected={tag() === t}
-                          class={tagTab}
-                          data-tag={t}
-                          onClick={() => setTag(t)}
-                        >
-                          {t === "all" ? "All" : tagLabel(t)}
-                        </button>
-                      )}
-                    </For>
-                  </div>
-
                   <Show when={broken().length}>
                     <div
                       class="flex flex-col gap-1 type-sm rounded-xl bg-editor px-3 py-2.5 text-tertiary shadow-[inset_0_0_0_1px_var(--stroke-tertiary)]"

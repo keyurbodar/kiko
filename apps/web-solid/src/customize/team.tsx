@@ -1,8 +1,6 @@
 import { type Agent, KIKO, type RecipeApp } from "@kiko/protocol"
-import { ProviderIcon } from "@kiko/ui/provider-icon"
-import "@kiko/ui/provider-icon.css"
 import { RemixIcon } from "@kiko/ui/remix-icon"
-import { PlayIcon } from "@kiko/ui/icons"
+import { PlayIcon, TrashIcon } from "@kiko/ui/icons"
 import { createMemo, createSignal, For, onCleanup, Show } from "solid-js"
 import { openChat } from "../app/history"
 import { agentList } from "../lib/chats"
@@ -14,8 +12,9 @@ import { AppLogo } from "../recipes/icon"
 import { cards, followRecipes, installs } from "../recipes/state"
 import { Button } from "../settings/kit"
 import { openSettings } from "../settings/open"
-import { attempt, owner } from "../state/runtime"
+import { attempt, createQuery, owner } from "../state/runtime"
 import { user } from "../state/user"
+import { agentMetaLine } from "./agent-meta"
 import "./page-ui.css"
 import { SkeletonRows } from "./page-ui"
 
@@ -24,7 +23,7 @@ const resolvedModel = (agent: Agent) => {
   const pick = user.agentModel(agent.slug) ?? user.agentModel(KIKO)
   const ref = pick?.model || agent.model
   if (!ref) return undefined
-  return { provider: ref.split("/")[0] ?? "", name: pick?.name ?? ref.split("/").slice(1).join("/") ?? ref }
+  return pick?.name ?? ref.split("/").slice(1).join("/") ?? ref
 }
 
 function openAgent(agent: Agent) {
@@ -62,12 +61,11 @@ function DeleteAgentDialog(props: { agent: Agent | null; onClose: () => void }) 
   )
 }
 
-const rowAction =
-  "type-base flex h-control-md cursor-pointer items-center rounded-base px-2 text-secondary transition-colors duration-(--duration-fast) hover:bg-tertiary hover:text-primary"
-
 export function TeamTab() {
   followRecipes()
   const [deleting, setDeleting] = createSignal<Agent | null>(null)
+  const settings = createQuery(() => owner.queries.settings(undefined))
+  const memory = () => (settings() === undefined ? undefined : settings()!.capture !== "off")
   const agents = createMemo(() => agentList(user.agents()))
   const recipesFor = (slug: string) => installs().filter((i) => i.agent === slug)
   const appsFor = (slug: string) => {
@@ -76,80 +74,85 @@ export function TeamTab() {
       for (const app of cards().find((c) => c.slug === install.slug)?.apps ?? []) seen.set(app.slug, app)
     return [...seen.values()]
   }
+  const metaFor = (agent: Agent) => agentMetaLine({ model: resolvedModel(agent), memory: memory() })
   return (
     <Show when={user.synced() || user.agents().length} fallback={<SkeletonRows count={4} />}>
-      <ul class="team-list flex flex-col rounded-xl bg-editor page-card" data-component="team-list">
+      <div class="grid grid-cols-1 gap-3 @min-[640px]/page:grid-cols-2" data-component="team-grid">
         <For each={agents()}>
           {(agent) => (
-            <li
+            <article
               ref={(el) => onCleanup(look(el))}
-              class="team-row group relative flex h-14 min-w-0 items-center gap-3 px-3"
+              class="page-card relative flex min-w-0 flex-col gap-3 rounded-xl bg-editor p-4"
               data-agent={agent.slug}
             >
-              <button
-                type="button"
-                class="flex min-w-0 flex-1 cursor-pointer items-center gap-3 text-left outline-none after:absolute after:inset-0 after:rounded-[inherit]"
-                aria-label={`Open ${agent.name}`}
-                data-action="open-agent"
-                onClick={() => openAgent(agent)}
-              >
-                <IdentityAvatar seed={agent.slug} size={32} />
-                <span class="flex min-w-0 flex-1 flex-col">
-                  <span class="type-base truncate text-primary">{agent.name}</span>
-                  <span class="type-sm truncate text-tertiary">
-                    {agent.id === KIKO ? "Lead, plans and routes" : firstLine(agent.prompt) || `@${agent.slug}`}
-                  </span>
-                </span>
-              </button>
-              <span class="type-sm flex shrink-0 items-center gap-4 text-tertiary max-[639px]:hidden">
-                <Show when={appsFor(agent.slug).length}>
-                  <span class="flex items-center gap-1" aria-label="Can use">
-                    <For each={appsFor(agent.slug).slice(0, 5)}>{(app) => <AppLogo app={app} size={16} />}</For>
-                  </span>
-                </Show>
-                <Show when={recipesFor(agent.slug).length}>
-                  <span class="flex items-center gap-1.5">
-                    <RemixIcon icon={PlayIcon} size={12} />
-                    {recipesFor(agent.slug).length === 1 ? "1 recipe" : `${recipesFor(agent.slug).length} recipes`}
-                  </span>
-                </Show>
-                <Show when={resolvedModel(agent)}>
-                  {(model) => (
-                    <span class="flex min-w-0 items-center gap-1.5">
-                      <ProviderIcon id={model().provider} width="14" height="14" />
-                      <span class="max-w-40 truncate" data-field="model">
-                        {model().name}
-                      </span>
-                    </span>
-                  )}
-                </Show>
-              </span>
-              <span class="team-row-actions relative z-[1] flex shrink-0 items-center gap-px">
+              <div class="flex min-w-0 items-start gap-3">
                 <button
                   type="button"
-                  class={rowAction}
-                  aria-label={`Edit ${agent.name}`}
-                  data-action="edit-agent"
-                  onClick={() => openSettings("models")}
+                  class="flex min-w-0 flex-1 cursor-pointer items-center gap-3 text-left outline-none after:absolute after:inset-0 after:rounded-[inherit]"
+                  aria-label={`Open ${agent.name}`}
+                  data-action="open-agent"
+                  onClick={() => openAgent(agent)}
                 >
-                  Edit
+                  <IdentityAvatar seed={agent.slug} size={32} />
+                  <span class="flex min-w-0 flex-1 flex-col">
+                    <span class="type-base truncate text-primary">{agent.name}</span>
+                    <span class="type-sm truncate text-tertiary">
+                      {agent.id === KIKO ? "Lead, plans and routes" : firstLine(agent.prompt) || `@${agent.slug}`}
+                    </span>
+                  </span>
                 </button>
-                <Show when={agent.id !== KIKO}>
-                  <button
-                    type="button"
-                    class={`${rowAction} hover:text-danger`}
-                    aria-label={`Delete ${agent.name}`}
-                    data-action="delete-agent"
-                    onClick={() => setDeleting(agent)}
+                <span class="relative z-[1] flex shrink-0 items-center gap-1">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    aria-label={`Edit ${agent.name}`}
+                    data-action="edit-agent"
+                    onClick={() => openSettings("models")}
                   >
-                    Delete
-                  </button>
+                    Edit
+                  </Button>
+                  <Show when={agent.id !== KIKO}>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      tone="danger"
+                      aria-label={`Delete ${agent.name}`}
+                      data-action="delete-agent"
+                      onClick={() => setDeleting(agent)}
+                    >
+                      <RemixIcon icon={TrashIcon} size={14} />
+                    </Button>
+                  </Show>
+                </span>
+              </div>
+              <div class="flex min-w-0 flex-col gap-2 pl-11">
+                <Show when={metaFor(agent)}>
+                  {(line) => (
+                    <p class="type-sm min-w-0 truncate text-secondary" data-component="agent-meta">
+                      {line()}
+                    </p>
+                  )}
                 </Show>
-              </span>
-            </li>
+                <Show when={appsFor(agent.slug).length || recipesFor(agent.slug).length}>
+                  <span class="type-sm flex min-w-0 items-center gap-3 text-tertiary">
+                    <Show when={appsFor(agent.slug).length}>
+                      <span class="flex min-w-0 items-center gap-1" aria-label="Can use">
+                        <For each={appsFor(agent.slug).slice(0, 5)}>{(app) => <AppLogo app={app} size={16} />}</For>
+                      </span>
+                    </Show>
+                    <Show when={recipesFor(agent.slug).length}>
+                      <span class="flex shrink-0 items-center gap-1.5">
+                        <RemixIcon icon={PlayIcon} size={12} />
+                        {recipesFor(agent.slug).length === 1 ? "1 recipe" : `${recipesFor(agent.slug).length} recipes`}
+                      </span>
+                    </Show>
+                  </span>
+                </Show>
+              </div>
+            </article>
           )}
         </For>
-      </ul>
+      </div>
       <DeleteAgentDialog agent={deleting()} onClose={() => setDeleting(null)} />
     </Show>
   )

@@ -3,7 +3,8 @@ import { describe, expect, it, vi } from "vitest"
 import { page, userEvent } from "vitest/browser"
 import { render } from "../../test/render"
 import type { Choice } from "../commands/registry"
-import type { Item } from "./model"
+import { displayShortcut } from "../commands/hotkeys"
+import { keyChips, type Item } from "./model"
 import type { FileEntry } from "./sources"
 import { closePalette, filesFolder, openFolder, openPalette, paletteTab } from "./state"
 import { PaletteSurface } from "./surface"
@@ -222,6 +223,18 @@ describe("command palette", () => {
     expect(backdrop.animationDuration).toBe("0.12s")
     expect(getComputedStyle(panel().element()).animationName).toBe("none")
     expect(getComputedStyle(panel().element()).opacity).toBe("1")
+  })
+
+  it("draws a row shortcut as one key chip per key, styled like the footer's", async () => {
+    await using _screen = await open({
+      doCommands: [{ ...command("shortcut", "Shortcut row"), shortcut: "Mod+Shift+O" }],
+    })
+    const row = page.getByRole("option", { name: /Shortcut row/ })
+    await expect.element(row).toBeVisible()
+    const chips = [...row.element().querySelectorAll(".palette-keys .palette-kbd")]
+    expect(chips.map((chip) => chip.textContent)).toEqual(keyChips(displayShortcut("Mod+Shift+O")))
+    const footer = document.querySelector(".palette-footer .palette-kbd")!
+    expect(getComputedStyle(chips[0]!).backgroundColor).toBe(getComputedStyle(footer).backgroundColor)
   })
 
   it("hides the panel instantly on Escape while the backdrop fades out over 80 ms", async () => {

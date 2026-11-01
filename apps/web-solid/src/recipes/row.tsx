@@ -1,6 +1,6 @@
 import type { RecipeCard, RecipeInstall } from "@kiko/protocol"
 import { RemixIcon } from "@kiko/ui/remix-icon"
-import { ClockIcon, MoreIcon, PauseIcon } from "@kiko/ui/icons"
+import { MoreIcon, PauseIcon } from "@kiko/ui/icons"
 import { MenuV2 } from "@kiko/ui/v2/menu-v2"
 import { openChat } from "../app/history"
 import { Show } from "solid-js"
@@ -8,7 +8,8 @@ import { cn } from "../lib/cn"
 import { ChatAvatar, IdentityAvatar } from "../lib/IdentityAvatar"
 import { room } from "../state/room"
 import { iconButtonClass, Spinner } from "../settings/kit"
-import { type InstallStatus, installStatus, localizeWhen, nextRunLabel } from "./model"
+import { categoryTone, type InstallStatus, installStatus, localizeWhen, nextRunLabel } from "./model"
+import { RecipeChip } from "./chip"
 import {
   agentName,
   editRecipe,
@@ -106,19 +107,24 @@ export function InstallCard(props: { install: RecipeInstall; card: RecipeCard })
   const status = () => installStatus(props.install, props.card)
   const on = () => status().kind === "next"
   const sinceFresh = freshElapsed(props.install.slug)
+  const tone = () => categoryTone(props.card.tags)
+  const tileStyle = () => {
+    const found = tone()
+    return found ? { "--tile-tone": `var(${found})` } : undefined
+  }
   const note = () => {
     const s = status()
     return s.kind === "next" ? nextRunLabel(s.at, Date.now()) : s.kind === "paused" ? "Paused" : undefined
   }
   return (
     <article
-      class="tpl group flex min-w-0 items-center gap-3 p-3"
+      class="tpl page-card group flex min-w-0 items-center gap-3 p-3"
       data-install={props.install.installId}
       data-status={status().kind}
       data-fresh={sinceFresh === undefined ? undefined : ""}
       style={sinceFresh === undefined ? undefined : { "--fresh-skip": `-${sinceFresh}ms` }}
     >
-      <span class="tpl-tile">
+      <span class="tpl-tile mt-0.5" style={tileStyle()} data-tone={tone() ? "" : undefined}>
         <svg
           class="tpl-glyph"
           viewBox="0 0 256 256"
@@ -135,12 +141,15 @@ export function InstallCard(props: { install: RecipeInstall; card: RecipeCard })
         onClick={() => openChat(props.install.roomId)}
       >
         <span class="truncate type-base text-primary">{props.card.title}</span>
-        <span class="type-sm truncate text-tertiary">{props.card.description}</span>
-        <span class="type-sm mt-0.5 flex min-w-0 items-center gap-1.5 text-tertiary">
-          <RemixIcon icon={ClockIcon} size={12} class="shrink-0 icon-tertiary" />
-          <span class="truncate">{localizeWhen(props.card.when)}</span>
-          <ChatAvatar faces={room.chatFaces(props.install.roomId)} size={16} />
-          <span class="truncate">{chatName()}</span>
+        <span class="type-sm line-clamp-2 text-tertiary">{props.card.description}</span>
+        <span class="mt-1.5 flex min-w-0 items-center gap-1.5 overflow-hidden" data-component="recipe-card-foot">
+          <RecipeChip>
+            <span class="truncate">{localizeWhen(props.card.when)}</span>
+          </RecipeChip>
+          <RecipeChip class="shrink-0">
+            <ChatAvatar faces={room.chatFaces(props.install.roomId)} size={14} />
+            <span class="truncate">{chatName()}</span>
+          </RecipeChip>
         </span>
       </button>
       <span class="relative z-[1] flex shrink-0 items-center gap-3">
