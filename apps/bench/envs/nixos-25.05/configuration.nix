@@ -46,9 +46,8 @@ let
     harfbuzz
     gobject-introspection
   ];
-  girepositoryPath = lib.concatStringsSep ":" (
-    lib.makeSearchPath "lib/girepository-1.0" girepositoryPackages
-    ++ lib.makeSearchPathOutput "out" "lib/girepository-1.0" girepositoryPackages
+  girepositoryPath = lib.makeSearchPath "lib/girepository-1.0" (
+    lib.concatMap (package: [ package package.out ]) girepositoryPackages
   );
 in
 {
