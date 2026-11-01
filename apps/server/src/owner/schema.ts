@@ -311,6 +311,7 @@ const OWNER_STEPS: readonly Step[] = [
   `UPDATE agent_sends SET delivered = 1`,
   ...UPLOAD_STEPS,
   `ALTER TABLE apps ADD COLUMN inspect_public INTEGER NOT NULL DEFAULT 0`,
+  `ALTER TABLE messages ADD COLUMN run_steps_log TEXT`,
 ]
 
 export function initializeSchema(storage: DurableObjectStorage): void {

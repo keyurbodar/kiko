@@ -51,6 +51,7 @@ import { learnedNote } from "../integrations/composio/tools"
 import { integrationNote } from "./prompt"
 
 import { buildAgent, openAgentHarness, userModels } from "./factory"
+import { resumedSteps } from "./step-log"
 import { isKnownModel, parseModelRef } from "./thinking"
 import { setCustomProvider, setOverlay } from "../models/catalog"
 import { projectRecovery } from "../owner/clock"
@@ -61,7 +62,7 @@ import {
   scheduledDeadline,
   type ScheduledRoutine,
 } from "../owner/schedules"
-import { AgentHost, type AgentSetup, type HostOptions, type HostStatus } from "@kiko/agent/host"
+import { AgentHost, type AgentSetup, type HostOptions, type HostStatus, type Opened } from "@kiko/agent/host"
 import type { Batch } from "@kiko/agent/input"
 import type { Work } from "@kiko/agent/workers"
 import { BROWSER_IDLE_WAKEUP, BrowserConnection } from "./browser/connection"
@@ -221,6 +222,7 @@ export class Agent {
           }
         }
         await this.outbox.attach(opened.harness, opened.root.id, opened.storage)
+        await this.restoreSteps(opened)
         this.ctx.waitUntil(this.services.trimAgents())
       },
       onError: async (error, requestId) => {
@@ -506,6 +508,23 @@ export class Agent {
           : null
       },
     }
+  }
+
+  private async restoreSteps(opened: Opened): Promise<void> {
+    const live = this.outbox.liveRun()
+    const home = this.home()
+    if (!live || !home) return
+    const port = this.stepsPort()
+    const room = this.services.room(home.roomId)
+    for (const item of await resumedSteps(
+      opened.harness,
+      opened.root,
+      live,
+      this.host.workers.live(),
+      port.scope,
+      port.describe,
+    ))
+      await room.reportSteps(home.slug, [item])
   }
 
   private groupsPort(): GroupsPort | undefined {

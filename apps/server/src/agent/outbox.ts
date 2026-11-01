@@ -13,7 +13,7 @@ import type { AgentState, RunErrorKind, WorkerRow } from "@kiko/protocol"
 import type { JournalStorage } from "@kiko/agent/journal"
 import { classifyRunError, runErrorDetail } from "./run-error"
 import { retrying } from "./retry"
-import { type Assistant, ackOf, hasToolCall, noteOf, postOf } from "./pacing"
+import { type Assistant, hasToolCall, noteOf, postOf } from "./pacing"
 import { scrubToolMarkup } from "./tool-markup"
 import { createSplitter, type Reaction, type Splitter } from "./split-bubbles"
 
@@ -97,6 +97,7 @@ const newGeneration = (startedAt: number): Generation => ({
 
 type Run = {
   id: string
+  input: number
   attempt: number
   cursor: number
   blocks: string[]
@@ -227,6 +228,10 @@ export class Outbox {
 
   runId(): string | null {
     return this.run?.id ?? null
+  }
+
+  liveRun(): { id: string; input: number } | null {
+    return this.run ? { id: this.run.id, input: this.run.input } : null
   }
 
   async fail(requestId: string, error: unknown, provider = ""): Promise<void> {
@@ -440,11 +445,10 @@ export class Outbox {
     run.generation = null
     if (message.stopReason === "aborted") return true
     if (message.stopReason === "error") return false
-    const post = postOf(message, { posted: run.blocks.length > 0, quiet: run.quiet })
+    const post = postOf(message)
     const text = textOf(message)
-    if (post === "none" && !run.quiet && hasToolCall(message) && text.trim())
-      run.notes.push({ id: noteId(entry.id), text: noteOf(text) })
-    const { blocks: final, reactions } = partsOf(post === "ack" ? ackOf(text) : post === "answer" ? text : "")
+    if (!run.quiet && hasToolCall(message) && text.trim()) run.notes.push({ id: noteId(entry.id), text: noteOf(text) })
+    const { blocks: final, reactions } = partsOf(post === "answer" ? text : "")
     run.blocks.push(...final)
     this.queueReactions(run, reactions, generationIndex)
     return streamed.some((block, i) => block !== final[i])
@@ -572,6 +576,7 @@ export class Outbox {
   private load(row: Row): Run {
     return {
       id: row.run_id,
+      input: row.cursor,
       attempt: row.attempt,
       cursor: row.cursor,
       blocks: [],

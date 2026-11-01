@@ -8,27 +8,14 @@ export type Assistant = {
   content?: readonly Part[]
 }
 
-type Post = "ack" | "answer" | "none"
+type Post = "answer" | "none"
 
 export const hasToolCall = (message: Assistant | undefined): boolean =>
   (message?.content ?? []).some((part) => part.type === "toolCall")
 
-export function postOf(message: Assistant, seen: { posted: boolean; quiet: boolean }): Post {
+export function postOf(message: Assistant): Post {
   if (message.stopReason === "aborted" || message.stopReason === "error") return "none"
-  if (!hasToolCall(message)) return "answer"
-  if (seen.quiet) return "none"
-  return seen.posted ? "none" : "ack"
-}
-
-const ACK_CHARS = 200
-
-export function ackOf(text: string): string {
-  const line =
-    text
-      .split("\n")
-      .find((part) => part.trim() !== "")
-      ?.trim() ?? ""
-  return line.length > ACK_CHARS ? `${line.slice(0, ACK_CHARS - 1)}…` : line
+  return hasToolCall(message) ? "none" : "answer"
 }
 
 const NOTE_CHARS = 2_000
