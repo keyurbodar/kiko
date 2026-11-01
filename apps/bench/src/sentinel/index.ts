@@ -65,8 +65,12 @@ function macBinary(m: Machine): Promise<string> {
   return building
 }
 
+export function sentinelLog(m: Machine): string {
+  return join(m.workdir, "sentinel.jsonl")
+}
+
 export async function startSentinel(m: Machine): Promise<Sentinel> {
-  const log = join(m.workdir, "sentinel.jsonl")
+  const log = sentinelLog(m)
   const stop = join(m.workdir, "sentinel.stop")
   const binary = m.os === "macos" ? await macBinary(m) : undefined
   const child = await m.spawn(sentinelCommand({ os: m.os, dir: SOURCE_DIR, log, stop, binary }), {

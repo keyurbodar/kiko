@@ -12,7 +12,8 @@ import { clearGitHookEnv, createMachine, localOs, removeMachine } from "./machin
 import { ModelClient } from "./model"
 import { appendIndex, harvestArtifacts } from "./pull"
 import { renderReport } from "./report/render"
-import { startSentinel, type Sentinel } from "./sentinel"
+import { sentinelLog, startSentinel, type Sentinel } from "./sentinel"
+import { missingKeys, parseEvents } from "./sentinel/witness"
 import { TASKS } from "./tasks"
 import type { Background, Condition, Contender, ModelSpec, Os, Task, Track, Verdict } from "./types"
 
@@ -632,8 +633,11 @@ async function idleGate(id: string, seconds: number): Promise<string> {
     await delay(seconds * 1000)
     const measured = await witness.stop()
     if (measured.keysSent === 0 || measured.keysReceived !== measured.keysSent) {
+      const log = (await machine.readText(sentinelLog(machine))) ?? ""
+      const lost = missingKeys(parseEvents(log))
+      const which = lost.length > 0 ? ` (tick ${lost.join(", ")} of ${measured.keysSent})` : ""
       throw new Error(
-        `the sentinel received ${measured.keysReceived} of ${measured.keysSent} keys in ${seconds}s of idle, so it cannot judge the background condition`,
+        `the sentinel received ${measured.keysReceived} of ${measured.keysSent} keys in ${seconds}s of idle${which}, so it cannot judge the background condition`,
       )
     }
     return `${measured.keysReceived}/${measured.keysSent} keys received while idle for ${seconds}s`
@@ -763,15 +767,18 @@ function groupByKind<T extends { kind: string }>(items: readonly T[]): Record<st
 function plan(flags: Parsed["flags"]): void {
   const config = readConfig(configPath(flags))
   if (flags.validate) {
-    const envs = config.envs.map((env) => ({
-      env: env.id,
-      os: env.os,
-      machine: env.machine,
-      runner: env.runner,
-      kind: env.kind,
-      display: env.display,
-      ...(env.image ? { image: env.image } : {}),
-    }))
+    const wantedEnvs = splitFlag(flags, "env", "")
+    const envs = config.envs
+      .filter((env) => wantedEnvs.length === 0 || wantedEnvs.includes(env.id))
+      .map((env) => ({
+        env: env.id,
+        os: env.os,
+        machine: env.machine,
+        runner: env.runner,
+        kind: env.kind,
+        display: env.display,
+        ...(env.image ? { image: env.image } : {}),
+      }))
     console.log(JSON.stringify(groupByKind(envs)))
     return
   }
