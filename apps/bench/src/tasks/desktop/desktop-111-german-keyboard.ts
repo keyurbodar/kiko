@@ -10,7 +10,7 @@ export const desktopGermanKeyboard: Task = {
   id: "desktop-111-german-keyboard",
   track: "desktop",
   kind: "edge",
-  os: ["linux"],
+  os: ["linux", "macos"],
   needs: ["display"],
   heldOut: false,
   prompt:

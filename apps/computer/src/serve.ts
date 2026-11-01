@@ -1,12 +1,16 @@
 import { stat } from "node:fs/promises"
-import { PROTOCOL, type Holder } from "@kiko/computer/wire"
+import { PROTOCOL, type Display, type Holder } from "@kiko/computer/wire"
 import { createBrowserLink } from "./browser/link"
+import { macTrusted } from "./live/native/macos"
+import { platform } from "./live/capture"
 import { detect, type Detection } from "./caps"
 import { configDir, loadConfig, loadKey, loadPolicy, paths, pausedCache, policyCache } from "./config"
 import { runLink, type Host } from "./connection"
 import { startDriver, type Driver } from "./driver"
 import { helloPayload } from "./hello"
 import { emptyLive, startLive, type Live, type LiveCaps } from "./live"
+import { listDisplays, orderDisplays, parseWindows, type Window } from "./live/displays"
+import { driverTools, toolValue, type Tools } from "./live/tools"
 import { createFeed } from "./feed"
 import { createLogger, type Logger } from "./log"
 import { VERSION } from "./platform"
@@ -18,6 +22,10 @@ import { createUpdater, updateTarget, type Updater } from "./update"
 const REPAIR_POLL_MS = 30_000
 const DOCTOR_WAIT_MS = 3_000
 const WELCOMED = "the worker calls this machine"
+
+function mayInput(): boolean {
+  return platform() !== "macos" || macTrusted()
+}
 
 export async function serve(dir = configDir()): Promise<number> {
   const log = createLogger("kiko-computer", paths(dir).log)
@@ -45,7 +53,7 @@ export async function serve(dir = configDir()): Promise<number> {
   let link: ReturnType<typeof runLink> | null = null
   let live: Live = emptyLive({ logger: log, setHolder, send: (frame) => link?.frame(frame) })
   let driver: Driver | null = null
-  let detection = detect(log, policy, null, dir)
+  let detection = detect(log, policy, null, dir, mayInput())
   let liveCaps: LiveCaps = policy
   let liveStarting = false
   let update: Updater | null = null
@@ -55,6 +63,9 @@ export async function serve(dir = configDir()): Promise<number> {
     holder: () => holder,
     send: (frame) => link?.frame(frame),
   })
+  const tools: Tools = driverTools(() => driver)
+  let displays: Display[] = []
+  let listing = false
   const browserLink = createBrowserLink({
     driver: () => driver,
     holder: () => holder,
@@ -63,8 +74,20 @@ export async function serve(dir = configDir()): Promise<number> {
     warn: (message) => log.warn(message),
   })
   const refresh = () => {
-    detection = detect(log, liveCaps, driver?.state() ?? null, dir)
+    detection = withDisplays(detect(log, liveCaps, driver?.state() ?? null, dir, mayInput()), displays)
     link?.reconnect()
+  }
+  const refreshDisplays = async () => {
+    if (listing) return
+    listing = true
+    try {
+      const found = await listDisplays()
+      if (found.length === 0) return
+      displays = orderDisplays(found, await windows(tools))
+      refresh()
+    } finally {
+      listing = false
+    }
   }
   const startLiveWhenReady = () => {
     if (liveStarting || !detection.caps.live) return
@@ -75,7 +98,8 @@ export async function serve(dir = configDir()): Promise<number> {
       send: (frame) => link?.frame(frame),
       sendBinary: (bytes) => link?.binary(bytes),
       policy: () => policies.current(),
-      display: () => detection.displays[0],
+      displays: () => displays,
+      tools: () => tools,
       configDir: dir,
     }).then((started) => {
       live = started
@@ -85,6 +109,7 @@ export async function serve(dir = configDir()): Promise<number> {
   }
   const updated = () => {
     refresh()
+    void refreshDisplays()
     startLiveWhenReady()
   }
   const host: Host = {
@@ -102,6 +127,7 @@ export async function serve(dir = configDir()): Promise<number> {
       live: (frame) => live.frames.live(frame),
       input: (frame) => live.frames.input(frame),
       control: (frame) => live.frames.control(frame),
+      screen: (frame) => live.frames.screen(frame),
       ack: (frame) => live.frames.ack(frame),
     },
     holder: () => holder,
@@ -119,6 +145,7 @@ export async function serve(dir = configDir()): Promise<number> {
   }
   const driverPath = process.env.KIKO_DRIVER
   if (driverPath) driver = startDriver({ path: driverPath, log, onChange: updated })
+  await refreshDisplays()
   updated()
   link = runLink(host)
   const shutdown = () => {
@@ -154,6 +181,19 @@ export async function serve(dir = configDir()): Promise<number> {
   await repaired(dir, config.pcId)
   log.info("paired again; restarting")
   return 0
+}
+
+function withDisplays(detection: Detection, displays: readonly Display[]): Detection {
+  return displays.length > 0 ? { ...detection, displays: [...displays] } : detection
+}
+
+async function windows(tools: Tools): Promise<Window[]> {
+  if (!tools.has("list_windows")) return []
+  try {
+    return parseWindows(toolValue(await tools.call("list_windows", {})))
+  } catch {
+    return []
+  }
 }
 
 async function repaired(dir: string, pcId: string): Promise<void> {
@@ -197,7 +237,7 @@ export async function diagnose(dir = configDir()): Promise<{ checks: Check[]; de
     detail: `shell ${policy.shell ? "on" : "off"}, desktop ${policy.desktop ? "on" : "off"}, files ${policy.files.allow.join(", ")}`,
   })
   const driver = await reachDriver(log)
-  const detection = detect(log, { live: false, input: false }, driver?.state() ?? null, dir)
+  const detection = detect(log, { live: false, input: false }, driver?.state() ?? null, dir, mayInput())
   driver?.close()
   checks.push({ name: "desktop", ok: desktopOk(detection), detail: desktopDetail(detection) })
   checks.push({ name: "ffmpeg", ok: true, detail: Bun.which("ffmpeg") ?? "not installed; live video is off" })

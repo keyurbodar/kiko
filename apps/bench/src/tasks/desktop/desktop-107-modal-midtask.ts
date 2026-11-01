@@ -16,7 +16,7 @@ export const desktopModal: Task = {
   id: "desktop-107-modal-midtask",
   track: "desktop",
   kind: "edge",
-  os: ["linux"],
+  os: ["linux", "macos"],
   needs: ["display"],
   heldOut: false,
   prompt:

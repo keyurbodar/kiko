@@ -109,3 +109,27 @@ describe("computer live viewer", () => {
     expect(reached).toBe(false)
   })
 })
+
+describe("computer pairing", () => {
+  const pair = (body: unknown) =>
+    computerRoute(
+      new Request("https://kiko.example/api/pc/pair", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+      }),
+      env(() => {}),
+    )
+
+  it("names the field a pairing request is missing", async () => {
+    const answer = await pair({ publicKey: "key", name: "desk", hello: {} })
+    expect(answer?.status).toBe(400)
+    expect(await answer?.text()).toContain("needs a code")
+  })
+
+  it("names the hello when it does not decode", async () => {
+    const answer = await pair({ code: "code", publicKey: "key", name: "desk", hello: { t: "nope" } })
+    expect(answer?.status).toBe(400)
+    expect(await answer?.text()).toContain("needs a hello")
+  })
+})

@@ -233,6 +233,7 @@ export const InputEvent = Schema.Union([
   Schema.Struct({ k: Schema.Literal("wheel"), x: Unit, y: Unit, dx: Schema.Number, dy: Schema.Number }),
   Schema.Struct({ k: Schema.Literal("key"), code: Text, key: Text, down: Schema.Boolean, mods: Count }),
   Schema.Struct({ k: Schema.Literal("text"), s: Text }),
+  Schema.Struct({ k: Schema.Literal("paste"), s: Text, code: Text, mods: Count }),
   Schema.Struct({ k: Schema.Literal("cursor"), who: Schema.Literals(["agent", "real"]), x: Unit, y: Unit }),
 ])
 export type InputEvent = typeof InputEvent.Type
@@ -308,6 +309,7 @@ export const ToDaemon = Schema.Union([
     session: Schema.optionalKey(Id),
   }),
   Schema.Struct({ t: Schema.Literal("input"), events: Schema.Array(InputEvent) }),
+  Schema.Struct({ t: Schema.Literal("screen"), id: Text }),
   Schema.Struct({ t: Schema.Literal("ack"), seq: Count }),
   Schema.Struct({
     t: Schema.Literal("rtc"),
@@ -359,6 +361,7 @@ export const FromDaemon = Schema.Union([
   Schema.Struct({ t: Schema.Literal("chunk"), id: Id, data: Text }),
   Schema.Struct({ t: Schema.Literal("humanInput") }),
   Schema.Struct({ t: Schema.Literal("held"), holder: Holder, epoch: Schema.optionalKey(Count) }),
+  Schema.Struct({ t: Schema.Literal("clipboard"), text: Text }),
   Schema.Struct({ t: Schema.Literal("rtc"), session: Id, signal: RtcSignal }),
   Schema.Struct({ t: Schema.Literal("terminal"), id: Id, event: TerminalStream }),
   Schema.Struct({ t: Schema.Literal("browser"), id: Id, event: BrowserStream }),

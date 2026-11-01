@@ -32,7 +32,7 @@ const commit = (m: Machine) => git(m, ["commit", "-m", "Start the release"], { e
 export const releaseChecklist: Task = {
   id: "cross-004-release-checklist",
   track: "cross",
-  os: ["linux"],
+  os: ["linux", "macos"],
   needs: ["chrome", "display"],
   heldOut: false,
   kind: "long",

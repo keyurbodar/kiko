@@ -1,5 +1,6 @@
 import json
 import os
+import socket
 import sys
 
 import gi
@@ -15,6 +16,7 @@ state_path = options["--state"]
 data_path = options["--data"]
 request_path = options["--request"]
 work = options["--work"]
+control_path = os.path.join(work, "control.sock")
 
 with open(data_path) as handle:
     data = json.load(handle)
@@ -22,6 +24,7 @@ with open(request_path) as handle:
     request = json.load(handle)
 
 state = {"screen": screen, "ready": True}
+actions = {}
 
 
 def save(**changes):
@@ -73,29 +76,50 @@ def button(parent, text, x, y, width=140, handler=None):
     return widget
 
 
+def text_of(command):
+    value = command.get("text")
+    if not isinstance(value, str):
+        raise ValueError("the command needs a text value")
+    return value
+
+
 def build_saveas():
+    def write_to(path):
+        with open(path, "w") as handle:
+            handle.write(note.get_text())
+        save(saved_path=path)
+
+    def on_response(dialog, response):
+        if response == Gtk.ResponseType.OK:
+            write_to(dialog.get_filename())
+        dialog.destroy()
+
     def open_dialog(_):
         dialog = Gtk.FileChooserDialog(title="Save As", parent=win, action=Gtk.FileChooserAction.SAVE)
         dialog.add_buttons(Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL, Gtk.STOCK_SAVE, Gtk.ResponseType.OK)
         dialog.set_current_folder(work)
+        dialog.set_current_name(request["name"])
         dialog.set_do_overwrite_confirmation(False)
-        response = dialog.run()
-        if response == Gtk.ResponseType.OK:
-            path = dialog.get_filename()
-            with open(path, "w") as handle:
-                handle.write(note.get_text())
-            save(saved_path=path)
-        dialog.destroy()
+        dialog.connect("response", on_response)
+        dialog.show_all()
+
+    def control(command):
+        path = text_of(command)
+        if not os.path.isabs(path):
+            path = os.path.join(work, path)
+        write_to(path)
+        return {"ok": True}
 
     label(fixed, "Draft note", 40, 20)
     note = entry(fixed, 40, 50, 560, data["text"])
     button(fixed, "Save As…", 40, 120, 180, handler=open_dialog)
+    actions["saveas"] = control
 
 
 def build_rename():
-    def rename_all(_):
-        prefix_text = prefix.get_text()
-        first = int(start.get_value())
+    def rename_all(prefix_text, first):
+        prefix.set_text(prefix_text)
+        start.set_value(first)
         renamed = []
         for index, name in enumerate(data["files"]):
             _base, extension = os.path.splitext(name)
@@ -103,6 +127,13 @@ def build_rename():
             os.replace(os.path.join(work, "docs", name), os.path.join(work, "docs", target))
             renamed.append(target)
         save(renamed=renamed)
+
+    def on_click(_button):
+        rename_all(prefix.get_text(), int(start.get_value()))
+
+    def control(command):
+        rename_all(text_of(command), int(command["start"]))
+        return {"ok": True}
 
     label(fixed, "Files in docs/", 40, 20)
     label(fixed, "\n".join(data["files"]), 40, 50)
@@ -113,17 +144,25 @@ def build_rename():
     start.set_value(1)
     start.set_size_request(120, 36)
     fixed.put(start, 420, 150)
-    button(fixed, "Rename all", 420, 220, 180, handler=rename_all)
+    button(fixed, "Rename all", 420, 220, 180, handler=on_click)
+    actions["rename"] = control
 
 
 def build_prefs():
-    def apply(_):
-        save(applied={"dark": dark.get_active(), "font": int(font.get_value())})
-        panel.destroy()
+    def apply(dark_value, font_value):
+        panel.show_all()
+        dark.set_active(dark_value)
+        font.set_value(font_value)
+        save(applied={"dark": bool(dark.get_active()), "font": int(font.get_value())})
+        panel.hide()
 
     def open_preferences(_):
         panel.set_transient_for(win)
         panel.show_all()
+
+    def control(command):
+        apply(bool(command["dark"]), int(command["font"]))
+        return {"ok": True}
 
     label(fixed, "Change how the app looks.", 40, 20)
     button(fixed, "Preferences…", 40, 60, 180, handler=open_preferences)
@@ -137,7 +176,8 @@ def build_prefs():
     font.set_value(11)
     font.set_size_request(120, 36)
     panel_fixed.put(font, 30, 130)
-    button(panel_fixed, "OK", 30, 200, 120, handler=apply)
+    button(panel_fixed, "OK", 30, 200, 120, handler=lambda _: apply(dark.get_active(), int(font.get_value())))
+    actions["prefs"] = control
 
 
 def build_bigform():
@@ -150,52 +190,109 @@ def build_bigform():
         y = 6 + row * 29
         label(fixed, field["label"], x, y, 110)
         entries.append(entry(fixed, x + 115, y, 200, height=26))
-    button(fixed, "Submit", 10, 440, 120, handler=lambda _: save(submitted=[widget.get_text() for widget in entries]))
+
+    def submit(values):
+        for widget, value in zip(entries, values):
+            widget.set_text(str(value))
+        save(submitted=[widget.get_text() for widget in entries])
+
+    def control(command):
+        values = command.get("values")
+        if not isinstance(values, list):
+            raise ValueError("the command needs a values list")
+        submit(values)
+        return {"ok": True}
+
+    button(fixed, "Submit", 10, 440, 120, handler=lambda _: submit([widget.get_text() for widget in entries]))
+    actions["bigform"] = control
 
 
 def build_modal():
-    shown = {"value": False}
+    holder = {}
+
+    def fill(field_name, value):
+        if field_name == "name":
+            name.set_text(value)
+            maybe_show()
+        elif field_name == "email":
+            email.set_text(value)
+        else:
+            raise ValueError(f"there is no {field_name} field")
 
     def show_session():
         dialog = Gtk.Dialog(title="Session", transient_for=win, modal=True)
         dialog.add_button("_Continue", Gtk.ResponseType.OK)
         dialog.set_default_response(Gtk.ResponseType.OK)
         dialog.vbox.add(Gtk.Label(label="Your session is about to expire."))
+        dialog.connect("response", lambda inner, _response: (holder.pop("dialog", None), inner.destroy()))
         dialog.show_all()
+        holder["dialog"] = dialog
         save(modal_shown=True)
-        dialog.run()
-        dialog.destroy()
+
+    def maybe_show():
+        if holder.get("shown") or not name.get_text():
+            return
+        holder["shown"] = True
+        show_session()
+
+    def on_focus_out(_widget, _event):
+        maybe_show()
         return False
 
-    def maybe_show(_widget, _event):
-        if shown["value"] or not name.get_text():
-            return False
-        shown["value"] = True
-        GLib.idle_add(show_session)
-        return False
+    def control(command):
+        action = command.get("action")
+        if action == "type":
+            fill(command.get("field"), text_of(command))
+        elif action == "continue":
+            dialog = holder.get("dialog")
+            if dialog is None:
+                raise ValueError("the session message is not showing")
+            dialog.response(Gtk.ResponseType.OK)
+        elif action == "save":
+            save(name=name.get_text(), email=email.get_text())
+        else:
+            raise ValueError(f"unknown action {action}")
+        return {"ok": True}
 
     label(fixed, "Name", 40, 20)
     name = entry(fixed, 40, 50, 400)
     label(fixed, "Email", 40, 100)
     email = entry(fixed, 40, 130, 400)
-    name.connect("focus-out-event", maybe_show)
+    name.connect("focus-out-event", on_focus_out)
     button(fixed, "Save", 40, 190, 140, handler=lambda _: save(name=name.get_text(), email=email.get_text()))
+    actions["modal"] = control
+
+
+def build_single_field(key, title):
+    def save_value(_button=None):
+        save(**{key: widget.get_text()})
+
+    def control(command):
+        action = command.get("action")
+        if action == "type":
+            widget.set_text(text_of(command))
+        elif action == "save":
+            save_value()
+        else:
+            raise ValueError(f"unknown action {action}")
+        return {"ok": True}
+
+    label(fixed, title, 40, 20)
+    widget = entry(fixed, 40, 50, 320)
+    button(fixed, "Save", 40, 120, 140, handler=save_value)
+    actions[screen] = control
 
 
 def build_code():
-    label(fixed, "Reference code", 40, 20)
-    code = entry(fixed, 40, 50, 300)
-    button(fixed, "Save", 40, 120, 140, handler=lambda _: save(code=code.get_text()))
+    build_single_field("code", "Reference code")
 
 
 def build_text():
-    label(fixed, "Gruß", 40, 20)
-    text = entry(fixed, 40, 50, 320)
-    button(fixed, "Save", 40, 120, 140, handler=lambda _: save(text=text.get_text()))
+    build_single_field("text", "Gruß")
 
 
 def build_minimized():
-    build_code()
+    build_single_field("code", "Reference code")
     GLib.timeout_add(700, lambda: win.iconify() or False)
 
 
@@ -208,47 +305,85 @@ def build_same_title():
     target, target_fixed = make_window("Bench Fixture", 340, 300, 380, 0)
     label(target_fixed, "Reference code", 20, 20)
     code = entry(target_fixed, 20, 50, 280)
-    button(target_fixed, "Save", 20, 120, 120, handler=lambda _: save(target_code=code.get_text()))
+
+    def save_target(_button=None):
+        save(target_code=code.get_text())
+
+    def control(command):
+        action = command.get("action")
+        if action == "type":
+            code.set_text(text_of(command))
+        elif action == "save":
+            save_target()
+        else:
+            raise ValueError(f"unknown action {action}")
+        return {"ok": True}
+
+    button(target_fixed, "Save", 20, 120, 120, handler=save_target)
     save(decoy_text="", target_code=None)
     decoy.show_all()
     target.show_all()
     target.present()
+    actions["same_title"] = control
 
 
 def build_notification():
-    shown = {"value": False}
-    notice = {"window": None}
+    holder = {}
+    owner = {"window": None}
 
-    def dismiss(_):
+    def fill(field_name, value):
+        if field_name == "name":
+            name.set_text(value)
+            maybe_show()
+        elif field_name == "email":
+            email.set_text(value)
+        else:
+            raise ValueError(f"there is no {field_name} field")
+
+    def dismiss():
         save(dismissed=True)
-        if notice["window"] is not None:
-            notice["window"].destroy()
+        panel = owner["window"]
+        if panel is not None:
+            panel.destroy()
+            owner["window"] = None
 
     def show_notice():
-        if shown["value"]:
-            return False
-        shown["value"] = True
-        panel, panel_fixed = make_window("New message", 520, 120, 100, 110)
-        panel.set_keep_above(True)
-        label(panel_fixed, "New message from Ops", 20, 10, 460)
-        button(panel_fixed, "Dismiss", 20, 60, 140, handler=dismiss)
-        panel.show_all()
-        notice["window"] = panel
-        save(notification=True)
-        return False
-
-    def maybe_show(_widget):
-        if shown["value"] or not name.get_text():
+        if holder.get("shown"):
             return
-        GLib.idle_add(show_notice)
+        holder["shown"] = True
+        panel, panel_fixed = make_window("New message", 520, 120, 100, 110)
+        panel.set_transient_for(win)
+        label(panel_fixed, "New message from Ops", 20, 10, 460)
+        button(panel_fixed, "Dismiss", 20, 60, 140, handler=lambda _: dismiss())
+        panel.show_all()
+        owner["window"] = panel
+        save(notification=True)
+
+    def maybe_show():
+        if holder.get("shown") or not name.get_text():
+            return
+        show_notice()
+
+    def control(command):
+        action = command.get("action")
+        if action == "type":
+            fill(command.get("field"), text_of(command))
+        elif action == "dismiss":
+            dismiss()
+        elif action == "save":
+            save(name=name.get_text(), email=email.get_text())
+        else:
+            raise ValueError(f"unknown action {action}")
+        return {"ok": True}
 
     label(fixed, "Name", 40, 20)
     name = entry(fixed, 40, 50, 400)
     label(fixed, "Email", 40, 100)
     email = entry(fixed, 40, 130, 400)
-    name.connect("changed", maybe_show)
+    name.connect("changed", lambda _widget: maybe_show())
     button(fixed, "Save", 40, 190, 140, handler=lambda _: save(name=name.get_text(), email=email.get_text()))
-    GLib.timeout_add(1200, show_notice)
+    GLib.timeout_add(1200, lambda: (show_notice(), False)[1])
+    actions["notification"] = control
 
 
 def build_owner():
@@ -267,10 +402,54 @@ def build_owner():
         save(owner_text=owner.get_text())
         return True
 
+    def save_code(_button=None):
+        save(code=code.get_text())
+
+    def control(command):
+        action = command.get("action")
+        if action == "type":
+            code.set_text(text_of(command))
+        elif action == "save":
+            save_code()
+        else:
+            raise ValueError(f"unknown action {action}")
+        return {"ok": True}
+
     GLib.timeout_add(15, type_owner)
     label(fixed, "Reference code", 20, 20)
     code = entry(fixed, 20, 50, 280)
-    button(fixed, "Save", 20, 120, 120, handler=lambda _: save(code=code.get_text()))
+    button(fixed, "Save", 20, 120, 120, handler=save_code)
+    actions["owner"] = control
+
+
+def build_second_window():
+    notes = {}
+
+    def show_notes(_button=None):
+        if notes.get("window") is not None:
+            notes["window"].present()
+            return
+        panel, panel_fixed = make_window("Notes", 480, 240, 100, 100)
+        notes["window"] = panel
+        notes["entry"] = entry(panel_fixed, 30, 50, 300)
+        button(panel_fixed, "Save note", 30, 110, 160, handler=lambda _button: save(note=notes["entry"].get_text()))
+        panel.show_all()
+
+    def control(command):
+        name = command.get("action")
+        if name == "open_notes":
+            show_notes()
+        elif name == "type":
+            notes["entry"].set_text(text_of(command))
+        elif name == "save":
+            save(note=notes["entry"].get_text())
+        else:
+            raise ValueError(f"there is no {name} action")
+        return {"ok": True}
+
+    label(fixed, "Open the notes window and save a note.", 40, 20)
+    button(fixed, "Open notes", 40, 60, 180, handler=show_notes)
+    actions["second_window"] = control
 
 
 builders = {
@@ -285,6 +464,7 @@ builders = {
     "same_title": build_same_title,
     "notification": build_notification,
     "owner": build_owner,
+    "second_window": build_second_window,
 }
 
 if screen in ("code", "text", "owner"):
@@ -296,4 +476,44 @@ builders[screen]()
 if screen != "same_title":
     win.show_all()
 save()
+
+
+def dispatch(command):
+    handler = actions.get(screen)
+    if handler is None:
+        raise ValueError(f"the {screen} screen has no control actions")
+    return handler(command)
+
+
+def serve_connection(server):
+    connection, _address = server.accept()
+    connection.settimeout(10)
+    try:
+        chunks = b""
+        while b"\n" not in chunks:
+            chunk = connection.recv(65536)
+            if not chunk:
+                break
+            chunks += chunk
+        reply = dispatch(json.loads(chunks.decode() or "{}"))
+    except Exception as error:
+        reply = {"ok": False, "error": str(error)}
+    try:
+        connection.sendall((json.dumps(reply) + "\n").encode())
+    except OSError:
+        pass
+    connection.close()
+    return True
+
+
+def start_control():
+    if os.path.exists(control_path):
+        os.unlink(control_path)
+    server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    server.bind(control_path)
+    server.listen(8)
+    GLib.io_add_watch(server.fileno(), GLib.IO_IN, lambda _fd, _condition: serve_connection(server))
+
+
+start_control()
 Gtk.main()

@@ -5,8 +5,10 @@ import { findBinary, probeEncoders } from "./binary"
 import type { AccessUnit } from "./annexb"
 import { captureSize, workingEncoders, type Screen } from "./capture"
 import { startH264, startMjpeg, type H264Capture, type MjpegCapture } from "./captures"
+import { type Clipboard } from "./clipboard"
 import type { Injected } from "./input"
 import { createSession, type Session } from "./session"
+import type { Tools } from "./tools"
 import type { Control, Live, LiveDeps, LiveFrame } from "./types"
 
 const RELAY_MAX_IN_FLIGHT = 1
@@ -17,6 +19,7 @@ const RELAY_QUALITY = 65
 const H264_FPS = 30
 const H264_WIDTH = 2560
 const GOP_LIMIT = 90
+const CLIPBOARD_MS = 1_000
 
 const decodeEvents = Schema.decodeUnknownOption(Schema.Array(InputEvent))
 
@@ -24,7 +27,7 @@ class Daemon implements Live {
   private readonly deps: LiveDeps
   private readonly input: Injected | null
   private readonly sessions = new Map<string, Session>()
-  private readonly screen: Screen
+  private screen: Screen
   private holder: Holder = "agent"
   private holderSession: string | undefined
   private closed = false
@@ -33,11 +36,18 @@ class Daemon implements Live {
   private relay: Relay | null = null
   private gop: { unit: AccessUnit; timestamp: number }[] = []
   private encoders: readonly string[] = []
+  private queue: Promise<void> = Promise.resolve()
+  private clipboard: Clipboard | null = null
+  private stopClipboard: (() => void) | null = null
+  private watchingClipboard = false
+  private lastClipboard: string | null = null
 
   constructor(deps: LiveDeps) {
     this.deps = deps
-    const area = screenOf(deps.display)
-    this.input = deps.openInput?.(area, { holder: () => this.holder, allowed: () => this.deps.policy().input }) ?? null
+    const area = screenOf(deps.displays?.()[0] ?? deps.display)
+    this.input =
+      deps.openInput?.(() => this.screen, { holder: () => this.holder, allowed: () => this.deps.policy().input }) ??
+      null
     this.screen = area ?? this.input?.screen() ?? { width: 1920, height: 1080 }
     this.probe()
   }
@@ -60,7 +70,6 @@ class Daemon implements Live {
       return
     }
     if (signal.type === "offer" && signal.sdp) {
-      this.startCapture()
       this.session(session).answer(signal.sdp, iceServers ?? [])
     } else if (signal.type === "ice") this.session(session).candidate(signal)
   }
@@ -81,10 +90,23 @@ class Daemon implements Live {
     this.deliver(decoded.value as readonly InputEvent[])
   }
 
+  onScreen(id: string): void {
+    if (this.closed) return
+    const displays = this.deps.displays?.() ?? []
+    const next = displays.find((display) => display.id === id)
+    if (!next) return
+    const area = screenOf(next)
+    if (!area) return
+    if (sameScreen(this.screen, area)) return
+    this.screen = area
+    this.restartCapture()
+  }
+
   onControl(control: Control): void {
     this.holder = control.holder
     this.holderSession = control.holder === "human" ? control.session : undefined
     if (control.holder === "agent") this.input?.release()
+    this.watchClipboard(control.holder === "human")
     this.deps.send({
       t: "held",
       holder: control.holder,
@@ -104,9 +126,14 @@ class Daemon implements Live {
     this.broadcast([{ k: "cursor", who: "agent", x, y }])
   }
 
+  idle(): Promise<void> {
+    return this.queue
+  }
+
   close(): void {
     if (this.closed) return
     this.closed = true
+    this.watchClipboard(false)
     for (const id of this.sessions.keys()) this.drop(id)
     this.stopWatching()
     this.input?.release()
@@ -157,13 +184,115 @@ class Daemon implements Live {
   private deliver(events: readonly InputEvent[], from?: string): void {
     if (events.length === 0) return
     if (this.holder !== "human" || !this.deps.policy().input) return
-    if (from !== undefined && this.holderSession !== undefined && from !== this.holderSession) return
-    const input = events.filter((event) => event.k !== "cursor") as InputEvent[]
-    if (input.length > 0) this.input?.apply(input)
+    if (from !== undefined && this.holderSession !== undefined && from !== this.holderSession) {
+      return
+    }
+    const input = events.filter((event) => event.k !== "cursor")
+    if (input.length === 0) return
+    this.queue = this.queue
+      .then(() => this.apply(input))
+      .catch((error: unknown) =>
+        this.deps.warn(`input stopped at ${error instanceof Error ? error.message : String(error)}`),
+      )
+  }
+
+  private async apply(events: readonly InputEvent[]): Promise<void> {
+    for (const event of events) {
+      if (event.k === "text") await this.type(event.s)
+      else if (event.k === "paste") await this.paste(event.s, event.code, event.mods)
+      else this.input?.apply([event])
+    }
+  }
+
+  private async type(text: string): Promise<void> {
+    if (text.length === 0) return
+    const tools = this.tools()
+    if (tools?.has("type_text")) {
+      try {
+        await tools.call("type_text", { text })
+        return
+      } catch (error) {
+        this.deps.warn(`type_text did not run: ${error instanceof Error ? error.message : String(error)}`)
+      }
+    }
+    this.input?.apply([{ k: "text", s: text }])
+  }
+
+  private async paste(text: string, code: string, mods: number): Promise<void> {
+    const clipboard = this.clipboardType()
+    if (!clipboard) return
+    const wrote = await clipboard.write(text)
+    if (!wrote) {
+      this.deps.warn("the clipboard could not be set, so the paste did not run")
+      return
+    }
+    this.input?.chord(code, mods)
+  }
+
+  private tools(): Tools | null {
+    return this.deps.tools?.() ?? null
+  }
+
+  private clipboardType(): Clipboard | null {
+    if (this.clipboard) return this.clipboard
+    if (!this.deps.clipboard) return null
+    this.clipboard = this.deps.clipboard
+    return this.clipboard
+  }
+
+  private watchClipboard(on: boolean): void {
+    if (on === this.watchingClipboard) return
+    if (!on) {
+      this.stopClipboard?.()
+      this.stopClipboard = null
+      this.watchingClipboard = false
+      this.lastClipboard = null
+      return
+    }
+    if (!this.deps.clipboard || !this.deps.policy().live) return
+    this.watchingClipboard = true
+    void this.checkClipboard()
+    const every =
+      this.deps.every ??
+      ((ms, run) => {
+        const timer = setInterval(run, ms)
+        return () => clearInterval(timer)
+      })
+    this.stopClipboard = every(CLIPBOARD_MS, () => void this.checkClipboard())
+  }
+
+  private async checkClipboard(): Promise<void> {
+    if (this.closed || this.holder !== "human" || !this.watchingClipboard) return
+    const clipboard = this.clipboardType()
+    if (!clipboard) return
+    const text = await clipboard.read()
+    if (this.closed || this.holder !== "human" || text === null) return
+    if (this.lastClipboard === null) {
+      this.lastClipboard = text
+      return
+    }
+    if (text === this.lastClipboard) return
+    this.lastClipboard = text
+    if (text.length === 0) return
+    this.deps.send({ t: "clipboard", text })
   }
 
   private broadcast(events: readonly InputEvent[]): void {
     for (const peer of this.sessions.values()) peer.sendEvents(events)
+  }
+
+  private restartCapture(): void {
+    this.gop = []
+    this.h264?.stop()
+    this.h264 = null
+    this.mjpeg?.stop()
+    this.mjpeg = null
+    if (this.relay) {
+      this.relay.latest = null
+      this.relay.inFlight.clear()
+      this.restartMjpeg(this.relay.profile)
+    }
+    if (this.sessions.size > 0) this.startCapture()
   }
 
   private startCapture(): void {
@@ -210,8 +339,7 @@ class Daemon implements Live {
 
   private restartMjpeg(profile: RelayProfile): void {
     const ffmpeg = this.ffmpeg()
-    if (!ffmpeg) return
-    this.mjpeg?.stop()
+    if (!ffmpeg) return this.mjpeg?.stop()
     if (this.relay) this.relay.latest = null
     this.mjpeg = startMjpeg({
       ffmpeg,
@@ -307,7 +435,25 @@ function clamp(value: number | undefined, min: number, max: number, fallback: nu
   return Math.min(max, Math.max(min, Math.round(value)))
 }
 
-function screenOf(display: Display | undefined): Screen | null {
+function screenOf(display: Display | undefined, fallback = 0): Screen | null {
   if (!display || display.width <= 0 || display.height <= 0) return null
-  return { width: display.width, height: display.height, scale: display.scale }
+  return {
+    width: display.width,
+    height: display.height,
+    scale: display.scale,
+    index: display.index ?? fallback,
+    ...(display.originX === undefined ? {} : { originX: display.originX }),
+    ...(display.originY === undefined ? {} : { originY: display.originY }),
+  }
+}
+
+function sameScreen(a: Screen, b: Screen): boolean {
+  return (
+    a.width === b.width &&
+    a.height === b.height &&
+    (a.scale ?? 1) === (b.scale ?? 1) &&
+    (a.originX ?? 0) === (b.originX ?? 0) &&
+    (a.originY ?? 0) === (b.originY ?? 0) &&
+    (a.index ?? 0) === (b.index ?? 0)
+  )
 }

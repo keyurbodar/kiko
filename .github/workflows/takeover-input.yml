@@ -1,0 +1,122 @@
+name: takeover-input
+
+on:
+  push:
+    branches: ["t3/cu-*"]
+    paths:
+      - "apps/computer/src/live/**"
+      - "apps/computer/src/caps.ts"
+      - "apps/computer/src/serve.ts"
+      - "apps/server/scripts/measure-input.ts"
+      - "apps/server/src/computer/**"
+      - "apps/web-solid/src/chat/computer/**"
+      - "core/computer/src/wire.ts"
+      - ".github/workflows/takeover-input.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: takeover-input-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+  BUN_VERSION: "1.3.14"
+
+jobs:
+  linux:
+    name: paste and display pick on Linux
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - name: Install the desktop, clipboard and X tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ffmpeg weston xwayland x11-utils x11-xserver-utils xclip xdotool xvfb
+      - name: Install Chromium
+        run: node apps/server/node_modules/playwright/cli.js install --with-deps chromium
+      - name: Build the web app
+        run: bun run build
+      - name: Paste a Unicode string and pick a display
+        run: |
+          set -euo pipefail
+          export XDG_RUNTIME_DIR="$(mktemp -d)"
+          chmod 700 "$XDG_RUNTIME_DIR"
+          Xvfb :99 -screen 0 2600x900x24 -nolisten tcp >/dev/null 2>&1 &
+          export DISPLAY=:99
+          for _ in $(seq 1 100); do
+            if xdpyinfo >/dev/null 2>&1; then break; fi
+            sleep 0.1
+          done
+          weston --backend=x11 --output-count=2 --width=1280 --height=800 --xwayland --socket=wayland-kiko --log=weston.log &
+          for _ in $(seq 1 200); do
+            if grep -q 'xserver listening on display' weston.log 2>/dev/null; then break; fi
+            sleep 0.1
+          done
+          export DISPLAY="$(sed -n 's/.*xserver listening on display \(:[0-9]*\).*/\1/p' weston.log | tail -1)"
+          echo "capture display $DISPLAY"
+          xrandr --listmonitors
+          bun apps/server/scripts/measure-input.ts --out input-proof.json
+      - name: Upload the proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: takeover-input-linux-${{ github.run_id }}
+          path: |
+            input-proof.json
+            weston.log
+          if-no-files-found: warn
+
+  macos:
+    name: paste and click on macOS
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - name: Install ffmpeg and Chromium
+        run: |
+          command -v ffmpeg >/dev/null || brew install ffmpeg
+          node apps/server/node_modules/playwright/cli.js install chromium
+      - name: Build the web app
+        run: bun run build
+      - name: Grant input and screen capture to the daemon
+        run: |
+          set -euo pipefail
+          database="/Library/Application Support/com.apple.TCC/TCC.db"
+          now=$(date +%s)
+          for service in kTCCServiceAccessibility kTCCServiceScreenCapture; do
+            for client in "$(which bun)" "$(which ffmpeg)"; do
+              csreq -r- -b "/tmp/$(basename "$client").req" "$client" || true
+              sudo sqlite3 "$database" \
+                "INSERT OR REPLACE INTO access(service,client,client_type,auth_value,auth_reason,auth_version,csreq,policy_id,indirect_object_identifier_type,indirect_object_identifier,indirect_object_code_identity,flags,last_modified) \
+                 VALUES('${service}','${client}',1,2,4,1,readfile('/tmp/$(basename "$client").req'),NULL,0,'UNUSED',NULL,0,${now});"
+            done
+          done
+          sudo pmset -a displaysleep 0 sleep 0 || true
+          sudo killall tccd 2>/dev/null || true
+          sleep 2
+          pgrep -lx tccd || sudo launchctl kickstart -k system/com.apple.tccd || true
+          sudo sqlite3 "$database" "SELECT service, client, auth_value FROM access WHERE client LIKE '%bun%';"
+      - name: Show the capture device and who may record the screen
+        run: |
+          set -euo pipefail
+          which ffmpeg
+          ffmpeg -hide_banner -f avfoundation -list_devices true -i "" 2>&1 | head -20 || true
+          sudo sqlite3 "/Library/Application Support/com.apple.TCC/TCC.db" \
+            "SELECT service, client, client_type, auth_value FROM access WHERE service LIKE '%ScreenCapture%' OR service LIKE '%Accessibility%';" || true
+      - name: Paste a Unicode string and click the display
+        run: |
+          caffeinate -u -t 600 &
+          caffeinate -dimsu bun apps/server/scripts/measure-input.ts --single --out input-proof.json
+      - name: Upload the proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: takeover-input-macos-${{ github.run_id }}
+          path: input-proof.json
+          if-no-files-found: warn

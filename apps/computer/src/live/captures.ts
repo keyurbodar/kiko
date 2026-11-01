@@ -73,14 +73,18 @@ class H264 {
     const args = this.plans[this.plan]
     if (this.stopped || !args) return
     this.launchedAt = performance.now()
-    this.child = Bun.spawn(args, { stdin: "ignore", stdout: "pipe", stderr: "pipe" })
-    void this.pump(this.child)
+    const child: Child = Bun.spawn(args, { stdin: "ignore", stdout: "pipe", stderr: "pipe" })
+    this.child = child
+    void this.pump(child)
   }
 
   private async pump(proc: Child): Promise<void> {
-    for await (const chunk of proc.stdout) {
+    const reader = proc.stdout.getReader()
+    for (;;) {
+      const { done, value } = await reader.read()
+      if (done) break
       if (this.stopped || proc !== this.child) return
-      this.emit(chunk)
+      this.emit(value)
     }
     const tail = await new Response(proc.stderr).text().catch(() => "")
     const code = await proc.exited
@@ -181,14 +185,18 @@ class Mjpeg {
     const args = this.plans[this.plan]
     if (this.stopped || !args) return
     this.pending = new Uint8Array(0)
-    this.child = Bun.spawn(args, { stdin: "ignore", stdout: "pipe", stderr: "pipe" })
-    void this.pump(this.child)
+    const child: Child = Bun.spawn(args, { stdin: "ignore", stdout: "pipe", stderr: "pipe" })
+    this.child = child
+    void this.pump(child)
   }
 
   private async pump(proc: Child): Promise<void> {
-    for await (const chunk of proc.stdout) {
+    const reader = proc.stdout.getReader()
+    for (;;) {
+      const { done, value } = await reader.read()
+      if (done) break
       if (this.stopped || proc !== this.child) return
-      this.emit(chunk)
+      this.emit(value)
     }
     const tail = await new Response(proc.stderr).text().catch(() => "")
     const code = await proc.exited

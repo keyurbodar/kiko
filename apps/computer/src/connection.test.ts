@@ -61,7 +61,7 @@ async function host(): Promise<Host> {
     terminals: { open() {}, input() {}, resize() {}, ack() {}, close() {} },
     browser: { open() {}, input() {}, ack() {}, close() {} },
     paused: () => false,
-    live: { rtc() {}, live() {}, input() {}, control() {}, ack() {} },
+    live: { rtc() {}, live() {}, input() {}, control() {}, screen() {}, ack() {} },
     holder: () => "agent",
     log: { info() {}, warn() {}, error() {} },
   }
@@ -456,6 +456,7 @@ describe("driver calls", () => {
         live() {},
         input() {},
         control() {},
+        screen() {},
         ack() {},
       },
     })

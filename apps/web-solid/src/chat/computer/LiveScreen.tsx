@@ -1,5 +1,5 @@
 import type { ComputerInput } from "@kiko/protocol"
-import { createEffect, createMemo, createSignal, on, onCleanup, Show, untrack, type JSX } from "solid-js"
+import { createEffect, createMemo, createSignal, For, on, onCleanup, Show, untrack, type JSX } from "solid-js"
 import { cn } from "../../lib/cn"
 import { connection } from "../../state/connection"
 import { computerById, takePending } from "../computers"
@@ -25,21 +25,30 @@ export default function LiveScreen(props: {
   const [size, setSize] = createSignal<{ w: number; h: number } | null>(null)
   const [agent, setAgent] = createSignal<AgentPoint>(null, { equals: sameCursor })
   const [epoch, setEpoch] = createSignal(0)
+  const [picked, setPicked] = createSignal<string | null>(null)
+  const [waiting, setWaiting] = createSignal<string | null>(null)
+  let copied: string | null = null
   let agentTimer: ReturnType<typeof setTimeout> | undefined
   const streams = createMemo(() => {
     const computer = computerById(props.pcId)
     return computer?.online === true && computer.caps.live
   })
+  const displays = () => computerById(props.pcId)?.displays ?? []
+  const chosen = () => {
+    const all = displays()
+    return all.find((display) => display.id === picked()) ?? all[0]
+  }
   const display = () => {
-    const first = computerById(props.pcId)?.displays[0]
-    return first ? { width: first.width, height: first.height, scale: first.scale } : null
+    const current = chosen()
+    return current ? { width: current.width, height: current.height, scale: current.scale } : null
   }
   const ratio = () => {
     const known = size()
     if (known) return known.w / known.h
-    const first = computerById(props.pcId)?.displays[0]
-    return first?.height ? first.width / first.height : DEFAULT_RATIO
+    const current = chosen()
+    return current?.height ? current.width / current.height : DEFAULT_RATIO
   }
+  const remoteMods = () => (computerById(props.pcId)?.os === "macos" ? 8 : 2)
   let video!: HTMLVideoElement
   let canvas!: HTMLCanvasElement
   let stage!: HTMLDivElement
@@ -51,6 +60,31 @@ export default function LiveScreen(props: {
     setAgent(point)
     clearTimeout(agentTimer)
     if (point) agentTimer = setTimeout(() => setAgent(null), AGENT_IDLE_MS)
+  }
+
+  const writeClipboard = async (text: string) => {
+    if (!navigator.clipboard?.writeText) {
+      setWaiting(text)
+      return
+    }
+    try {
+      await navigator.clipboard.writeText(text)
+      copied = text
+      setWaiting(null)
+    } catch {
+      setWaiting(text)
+    }
+  }
+
+  const offer = (text: string) => {
+    if (!props.interactive || !text || copied === text) return
+    void writeClipboard(text)
+  }
+
+  const pick = (id: string) => {
+    setPicked(id)
+    session?.pick(id)
+    if (props.interactive) sink.focus({ preventScroll: true })
   }
 
   createEffect(
@@ -73,8 +107,11 @@ export default function LiveScreen(props: {
         onMode: setMode,
         onSize: (w, h) => setSize((prev) => (prev?.w === w && prev.h === h ? prev : { w, h })),
         onCursor: showAgent,
+        onClipboard: offer,
       })
       session = next
+      const id = untrack(picked)
+      if (id) next.pick(id)
       onCleanup(() => {
         next.close()
         if (session === next) session = undefined
@@ -85,7 +122,12 @@ export default function LiveScreen(props: {
 
   createEffect(() => {
     if (!props.interactive) return
-    const unbind = bindInput({ stage, sink, send: (events) => gate.send(events) })
+    const unbind = bindInput({
+      stage,
+      sink,
+      pasteMods: remoteMods,
+      send: (events) => gate.send(events),
+    })
     sink.focus({ preventScroll: true })
     onCleanup(() => {
       unbind()
@@ -95,11 +137,26 @@ export default function LiveScreen(props: {
 
   createEffect(() => {
     if (!props.interactive) {
+      setWaiting(null)
       gate.discard()
       return
     }
     if (takePending(props.pcId)) gate.hold()
     else gate.release()
+  })
+
+  createEffect(() => {
+    if (!props.interactive) return
+    const gesture = () => {
+      const text = waiting()
+      if (text) void writeClipboard(text)
+    }
+    stage.addEventListener("pointerdown", gesture)
+    stage.addEventListener("keydown", gesture)
+    onCleanup(() => {
+      stage.removeEventListener("pointerdown", gesture)
+      stage.removeEventListener("keydown", gesture)
+    })
   })
 
   onCleanup(() => clearTimeout(agentTimer))
@@ -188,6 +245,25 @@ export default function LiveScreen(props: {
           </Show>
         </div>
       </div>
+      <Show when={displays().length > 1}>
+        <div class="absolute top-2 right-2 z-10 rounded-base bg-black/60 px-2 py-1">
+          <select
+            aria-label="Display"
+            data-part="display-picker"
+            class="cursor-pointer bg-transparent type-xs text-white/85 outline-none"
+            value={chosen()?.id ?? ""}
+            onChange={(event) => pick(event.currentTarget.value)}
+          >
+            <For each={displays()}>
+              {(entry, index) => (
+                <option value={entry.id} class="text-black">
+                  {`Display ${index() + 1} · ${entry.width}×${entry.height}`}
+                </option>
+              )}
+            </For>
+          </select>
+        </div>
+      </Show>
       <Show when={mode() === "connecting" || mode() === "stalled"}>
         <div
           class="absolute inset-0 grid place-items-center px-6 text-center text-sm text-white/70"

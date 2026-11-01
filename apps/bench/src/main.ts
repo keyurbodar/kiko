@@ -571,7 +571,13 @@ interface Attempt {
   readonly background: Background
 }
 
-async function attempt(task: Task, id: string, kind: "oracle" | "null", condition: Condition): Promise<Attempt> {
+async function attempt(
+  task: Task,
+  id: string,
+  kind: "oracle" | "null",
+  condition: Condition,
+  seed: number,
+): Promise<Attempt> {
   const machine = await createMachine(id)
   let witness: Sentinel | undefined
   let background = condition === "background" ? UNMEASURED_BACKGROUND : ZERO_BACKGROUND
@@ -586,11 +592,11 @@ async function attempt(task: Task, id: string, kind: "oracle" | "null", conditio
     return background
   }
   try {
-    await task.setup(machine, 1)
+    await task.setup(machine, seed)
     if (condition === "background") witness = await startSentinel(machine)
-    if (kind === "oracle") await task.oracle(machine, 1)
+    if (kind === "oracle") await task.oracle(machine, seed)
     background = await release()
-    const verdict = await task.check(machine, 1)
+    const verdict = await task.check(machine, seed)
     return { verdict, background }
   } catch (caught) {
     return { verdict: failed(caught instanceof Error ? caught.message : String(caught)), background: await release() }
@@ -652,6 +658,7 @@ async function validate(flags: Parsed["flags"]): Promise<void> {
   const os = localOs()
   const machineId = flagString(flags, "machine") ?? `local-${os}`
   const condition: Condition = flagString(flags, "condition") === "background" ? "background" : "foreground"
+  const seed = Number(flagString(flags, "seed") ?? 1)
   const tasks = selectTasks(flagString(flags, "task") ?? "*", flagString(flags, "track"), os)
   if (tasks.length === 0) throw new Error("no tasks match this track and machine")
   const runId = newRunId()
@@ -672,8 +679,9 @@ async function validate(flags: Parsed["flags"]): Promise<void> {
   const quarantined: string[] = []
   for (const task of tasks) {
     const oracles: Attempt[] = []
-    for (let run = 0; run < Math.max(runs, 1); run++) oracles.push(await attempt(task, machineId, "oracle", condition))
-    const nothing = await attempt(task, machineId, "null", condition)
+    for (let run = 0; run < Math.max(runs, 1); run++)
+      oracles.push(await attempt(task, machineId, "oracle", condition, seed))
+    const nothing = await attempt(task, machineId, "null", condition, seed)
     const first = oracles[0] ?? { verdict: failed("no oracle run"), background: ZERO_BACKGROUND }
     const seen = oracles.map((entry) => JSON.stringify(entry.verdict.checks.map((check) => [check.name, check.pass])))
     const stable = seen.every((value) => value === seen[0])

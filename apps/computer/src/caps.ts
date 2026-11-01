@@ -15,6 +15,7 @@ export type Detection = {
 }
 
 const NO_DRIVER = "the kiko app is not running on this machine, so desktop tools are off"
+const NO_ACCESSIBILITY = "kiko needs Accessibility permission to pass your clicks to this Mac"
 const STARTING = "the kiko app is still connecting its desktop engine"
 const FFMPEG_NOTE =
   process.platform === "darwin"
@@ -42,14 +43,20 @@ function desktopReady(state: DriverState | null): boolean {
   return (state?.desktop?.tools.length ?? 0) > 0
 }
 
-function capsFor(state: DriverState | null, ffmpeg: boolean, live: LiveCaps, terminal: boolean): Caps {
+function capsFor(
+  state: DriverState | null,
+  ffmpeg: boolean,
+  live: LiveCaps,
+  terminal: boolean,
+  canInput: boolean,
+): Caps {
   const desktop = desktopReady(state)
   return {
     shell: true,
     files: true,
     desktop,
     live: live.live && desktop && ffmpeg,
-    input: live.input && desktop,
+    input: live.input && desktop && canInput,
     terminal,
   }
 }
@@ -65,12 +72,13 @@ export function detect(
   live: LiveCaps = { live: false, input: false },
   state: DriverState | null = null,
   configDir?: string,
+  canInput = true,
 ): Detection {
   const ffmpeg = hasFfmpeg(configDir)
-  const reason = reasonFor(state, ffmpeg)
+  const reason = canInput ? reasonFor(state, ffmpeg) : NO_ACCESSIBILITY
   if (reason && !state) log.warn(`${reason}; desktop tools are off`)
   return {
-    caps: capsFor(state, ffmpeg, live, hasPty()),
+    caps: capsFor(state, ffmpeg, live, hasPty(), canInput),
     displays: displaysOf(state),
     access: accessOf(state),
     reason,

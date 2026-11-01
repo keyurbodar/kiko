@@ -48,7 +48,7 @@ vi.mock("../../state/runtime", () => ({
   owner: { commands: {} },
   run: (_command: unknown, input: unknown) => {
     env.calls.push(input)
-    return Promise.resolve({})
+    return Promise.resolve({ _tag: "Success", value: { session: "tab-1" } })
   },
 }))
 
@@ -87,6 +87,7 @@ function harness() {
     onMode: (mode) => modes.push(mode),
     onSize: (width, height) => sizes.push({ width, height }),
     onCursor: () => {},
+    onClipboard: () => {},
   })
   return { session, canvas, draws, modes, sizes }
 }
@@ -132,6 +133,19 @@ describe("relay pump", () => {
     env.sockets[0]?.open()
     expect(hello()).toEqual({ t: "live", fps: 15, maxWidth: 2560, quality: 70 })
     expect(env.calls).toContainEqual({ pcId: "pc-1", on: true, mode: "rtc" })
+    session.close()
+  })
+
+  it("tells the live socket which tab session it belongs to", async () => {
+    using _stubs = stubbed()
+    const { session } = harness()
+    env.sockets[0]?.open()
+
+    await expect.poll(() => env.sent.some((message) => message.includes('"who"'))).toBe(true)
+    expect(JSON.parse(env.sent.find((message) => message.includes('"who"')) ?? "{}")).toEqual({
+      t: "who",
+      session: "tab-1",
+    })
     session.close()
   })
 

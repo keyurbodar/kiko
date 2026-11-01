@@ -64,11 +64,12 @@ export async function pair(dir: string, detection: Detection, target: string, na
   const keys = await generateKeys()
   const label = name ?? hostName()
   const previous = await loadConfig(dir)
+  const hello = helloPayload(detection, null)
   const answer = await postPair(origin, {
     code,
     publicKey: keys.publicKey,
     name: label,
-    hello: helloPayload(detection, null),
+    hello,
     ...(previous ? { replaces: previous.pcId } : {}),
   })
   await ensurePolicy(dir)

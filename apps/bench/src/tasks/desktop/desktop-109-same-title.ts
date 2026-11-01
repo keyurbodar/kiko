@@ -8,7 +8,7 @@ export const desktopSameTitle: Task = {
   id: "desktop-109-same-title",
   track: "desktop",
   kind: "edge",
-  os: ["linux"],
+  os: ["linux", "macos"],
   needs: ["display"],
   heldOut: false,
   prompt:

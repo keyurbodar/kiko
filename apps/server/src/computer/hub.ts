@@ -179,11 +179,13 @@ export function pcSocketId(ws: WebSocket): string | null {
   return attachmentOf(ws)?.id ?? null
 }
 
-type LiveAttachment = { kind: "live"; pcId: string }
+type LiveAttachment = { kind: "live"; pcId: string; want?: boolean; session?: string }
 
 type LiveMessage =
+  | { t: "who"; session?: string }
   | { t: "ack"; seq?: number }
-  | { t: "live"; fps?: number; maxWidth?: number; quality?: number }
+  | { t: "live"; on?: boolean; fps?: number; maxWidth?: number; quality?: number }
+  | { t: "screen"; id?: string }
   | {
       t: "browser"
       on?: boolean
@@ -550,6 +552,7 @@ export class ComputerHub {
     }
     if (frame.t === "result") return this.result(frame)
     if (frame.t === "held") return this.held(saved.id, frame)
+    if (frame.t === "clipboard") return this.clipboard(saved.id, frame.text)
     if (frame.t === "rtc") return this.daemonRtc(saved.id, frame.session, frame.signal)
     if (frame.t === "terminal") return this.terminalEvent(frame)
     if (frame.t === "browser") return this.browserEvent(frame)
@@ -717,25 +720,41 @@ export class ComputerHub {
     return outcome
   }
 
+  private clipboard(pcId: string, text: string): void {
+    const message = JSON.stringify({ t: "clipboard", text })
+    for (const live of this.d.ctx.getWebSockets(`live:${pcId}`)) {
+      try {
+        live.send(message)
+      } catch {}
+    }
+  }
+
   private relayFrame(pcId: string, bytes: Uint8Array): void {
     if (!decodeFrame(bytes)) return
     for (const live of this.d.ctx.getWebSockets(`live:${pcId}`)) {
+      if (liveOf(live)?.want !== true) continue
       try {
         live.send(bytes)
       } catch {}
     }
   }
 
-  private relayWatchers(pcId: string): number {
-    return this.d.ctx.getWebSockets(`live:${pcId}`).length
+  private relayWatchers(pcId: string, except?: WebSocket): number {
+    return this.d.ctx
+      .getWebSockets(`live:${pcId}`)
+      .filter((socket) => socket !== except && liveOf(socket)?.want === true).length
   }
 
   live(pcId: string): Response {
     if (!this.row(pcId)) return new Response("there is no such computer", { status: 404 })
     const pair = new WebSocketPair()
-    this.d.ctx.acceptWebSocket(pair[1], [`live:${pcId}`])
-    pair[1].serializeAttachment({ kind: "live", pcId } satisfies LiveAttachment)
+    this.admitLive(pair[1], pcId)
     return new Response(null, { status: 101, webSocket: pair[0] })
+  }
+
+  admitLive(ws: WebSocket, pcId: string): void {
+    this.d.ctx.acceptWebSocket(ws, [`live:${pcId}`])
+    ws.serializeAttachment({ kind: "live", pcId, want: false } satisfies LiveAttachment)
   }
 
   liveMessage(ws: WebSocket, raw: string | ArrayBuffer): boolean {
@@ -748,16 +767,18 @@ export class ComputerHub {
     } catch {
       return true
     }
-    if (message.t === "ack" && typeof message.seq === "number") this.ack(live.pcId, message.seq)
+    if (message.t === "who" && typeof message.session === "string") this.identify(ws, live, message.session)
+    else if (message.t === "ack" && typeof message.seq === "number") this.ack(live.pcId, message.seq)
+    else if (message.t === "screen" && typeof message.id === "string" && message.id.length > 0)
+      this.sendTo(live.pcId, { t: "screen", id: message.id })
     else if (message.t === "browser") this.liveBrowser(ws, live.pcId, message)
     else if (message.t === "browserAck" && typeof message.id === "string" && typeof message.bytes === "number")
       this.liveBrowserAck(ws, message.id, message.bytes)
     else if (message.t === "live") {
       const profile = profileOf(message)
       this.profiles.set(live.pcId, { ...RELAY, ...profile })
-      if (!this.socket(live.pcId)) return true
-      this.relaying.add(live.pcId)
-      this.sendTo(live.pcId, { t: "live", on: true, ...profile })
+      ws.serializeAttachment({ ...live, want: message.on !== false } satisfies LiveAttachment)
+      this.syncRelay(live.pcId, true)
     }
     return true
   }
@@ -766,21 +787,27 @@ export class ComputerHub {
     const live = liveOf(ws)
     if (!live) return false
     this.stopBrowser(ws)
-    const others = this.d.ctx.getWebSockets(`live:${live.pcId}`).filter((socket) => socket !== ws)
-    if (others.length > 0) return true
-    this.relaying.delete(live.pcId)
-    this.sendTo(live.pcId, { t: "live", on: false })
+    this.syncRelay(live.pcId, true, ws)
     return true
   }
 
-  syncRelay(pcId: string, force = false): void {
+  syncRelay(pcId: string, force = false, except?: WebSocket): void {
     const ws = this.socket(pcId)
+    const on = this.relayWatchers(pcId, except) > 0
     if (!ws) return
-    const on = this.relayWatchers(pcId) > 0
     if (!force && on === this.relaying.has(pcId)) return
     if (on) this.relaying.add(pcId)
     else this.relaying.delete(pcId)
     this.send(ws, on ? { t: "live", on: true, ...RELAY, ...this.profiles.get(pcId) } : { t: "live", on: false })
+  }
+
+  private identify(ws: WebSocket, live: LiveAttachment, session: string): void {
+    if (session.length > 64 || !this.tabSession(session)) return
+    ws.serializeAttachment({ ...live, session } satisfies LiveAttachment)
+  }
+
+  private tabSession(session: string): boolean {
+    return this.d.ctx.getWebSockets("tab").some((tab) => this.sessionOf(tab) === session)
   }
 
   async watchRtc(pcId: string, tab: WebSocket): Promise<void> {

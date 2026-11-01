@@ -136,6 +136,10 @@ export function applyInput(events: readonly InputEvent[], viewport: Viewport, st
     }
     if (event.k === "text") {
       if (event.s) send({ type: "input_keyboard", eventType: "char", text: event.s })
+      continue
+    }
+    if (event.k === "paste") {
+      if (event.s) send({ type: "input_keyboard", eventType: "char", text: event.s })
     }
   }
 }

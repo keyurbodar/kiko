@@ -8,7 +8,7 @@ export const desktopMinimized: Task = {
   id: "desktop-108-minimized-window",
   track: "desktop",
   kind: "edge",
-  os: ["linux"],
+  os: ["linux", "macos"],
   needs: ["display"],
   heldOut: false,
   prompt: "The app is minimized. Restore it, enter the reference code from request.json and save.",

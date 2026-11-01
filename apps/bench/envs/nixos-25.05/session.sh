@@ -22,6 +22,8 @@ else
   export GI_TYPELIB_PATH="/run/current-system/sw/lib/girepository-1.0${GI_TYPELIB_PATH:+:$GI_TYPELIB_PATH}"
 fi
 export LIBGL_ALWAYS_SOFTWARE=1
+echo "bench gi typelibs: ${GI_TYPELIB_PATH:-unset}" >&2
+echo "bench gi file: $(if [ -r /etc/kiko-bench/girepository ]; then echo present; else echo missing; fi)" >&2
 
 exec dbus-run-session -- bash -c '
   env -u DISPLAY gnome-shell --headless --virtual-monitor 1920x1080 >/tmp/gnome-shell.log 2>&1 &

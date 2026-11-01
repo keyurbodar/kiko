@@ -98,4 +98,21 @@ describe("browser input", () => {
     expect(messages[0]).toMatchObject({ key: "Enter", windowsVirtualKeyCode: 13, text: "\r" })
     expect(messages[1]).toMatchObject({ key: "Tab", windowsVirtualKeyCode: 9, text: "\t" })
   })
+
+  it("inserts a pasted string in one message instead of typing it", () => {
+    const { messages, send } = record()
+    applyInput(
+      [{ k: "paste", s: "Grüße, 世界\nligne deux", code: "KeyV", mods: 2 }],
+      VIEWPORT,
+      createInputState(),
+      send,
+    )
+    expect(messages).toEqual([{ type: "input_keyboard", eventType: "char", text: "Grüße, 世界\nligne deux" }])
+  })
+
+  it("inserts composed text in one message so it reaches the page once", () => {
+    const { messages, send } = record()
+    applyInput([{ k: "text", s: "日本" }], VIEWPORT, createInputState(), send)
+    expect(messages).toEqual([{ type: "input_keyboard", eventType: "char", text: "日本" }])
+  })
 })

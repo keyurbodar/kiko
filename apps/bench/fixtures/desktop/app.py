@@ -216,27 +216,6 @@ def build_tree():
     button("Choose", 460, 40, handler=choose)
 
 
-def build_windows():
-    label("Open the notes window and save a note.", 40, 10)
-
-    def open_notes(_):
-        notes = Gtk.Window(title="Notes")
-        notes.set_default_size(480, 240)
-        notes.move(100, 100)
-        box = Gtk.Fixed()
-        notes.add(box)
-        note = Gtk.Entry()
-        note.set_size_request(300, 36)
-        box.put(note, 30, 50)
-        save_note = Gtk.Button(label="Save note")
-        save_note.set_size_request(140, 36)
-        box.put(save_note, 30, 110)
-        save_note.connect("clicked", lambda _: save(note=note.get_text()))
-        notes.show_all()
-
-    button("Open notes", 40, 50, width=180, handler=open_notes)
-
-
 builders = {
     "form": build_form,
     "settings": build_settings,
@@ -247,7 +226,6 @@ builders = {
     "slider": build_slider,
     "radio": build_radio,
     "tree": build_tree,
-    "windows": build_windows,
 }
 
 builders[screen]()

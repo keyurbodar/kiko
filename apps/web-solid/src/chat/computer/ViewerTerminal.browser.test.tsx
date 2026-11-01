@@ -34,6 +34,7 @@ vi.mock("../../state/runtime", () => ({
   },
   observe: () => () => {},
   valueOf: (value: unknown) => value,
+  liveSocket: () => ({ url: "ws://kiko.test/api/pc/live/pc-1", protocols: ["kiko"] }),
 }))
 
 vi.mock("../../state/user", () => ({
