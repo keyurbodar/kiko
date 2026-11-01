@@ -22,6 +22,9 @@ on:
       envs:
         description: "comma separated environments to run; empty runs every environment in the config"
         default: ""
+      validate:
+        description: "set to false to skip the oracle and null checks"
+        default: "true"
 
 permissions:
   contents: read
@@ -170,7 +173,7 @@ jobs:
             --contender "${{ matrix.contender }}" --model "${{ matrix.model }}"
             --condition "${{ matrix.condition }}" --shard "${{ matrix.shard }}"
             --machine "${{ matrix.machine }}" --results results)
-          if [ "${{ matrix.track }}" = "desktop" ] || [ "${{ matrix.condition }}" = "background" ]; then
+          if [ "${{ matrix.track }}" = "desktop" ] || [ "${{ matrix.track }}" = "cross" ] || [ "${{ matrix.condition }}" = "background" ]; then
             bash apps/bench/scripts/display.sh "${command[@]}"
           else
             "${command[@]}"
@@ -233,7 +236,7 @@ jobs:
             --contender "${{ matrix.contender }}" --model "${{ matrix.model }}"
             --condition "${{ matrix.condition }}" --shard "${{ matrix.shard }}"
             --machine "${{ matrix.machine }}" --results results)
-          if [ "${{ matrix.track }}" = "desktop" ] || [ "${{ matrix.condition }}" = "background" ]; then
+          if [ "${{ matrix.track }}" = "desktop" ] || [ "${{ matrix.track }}" = "cross" ] || [ "${{ matrix.condition }}" = "background" ]; then
             bash apps/bench/envs/debian-13/display.sh "${command[@]}"
           else
             "${command[@]}"
@@ -298,7 +301,7 @@ jobs:
           fi
       - name: Bench
         env:
-          BENCH_SESSION: ${{ matrix.track == 'desktop' || matrix.condition == 'background' }}
+          BENCH_SESSION: ${{ matrix.track == 'desktop' || matrix.track == 'cross' || matrix.condition == 'background' }}
         run: |
           bash apps/bench/scripts/envs/vm-run.sh \
             "${{ matrix.env }}" "${{ steps.image.outputs.path }}" results 2222 \
@@ -317,7 +320,7 @@ jobs:
   validate-host:
     name: Validate ${{ matrix.env }}
     needs: plan
-    if: needs.plan.result == 'success'
+    if: needs.plan.result == 'success' && github.event.inputs.validate != 'false'
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 90
     strategy:
@@ -356,7 +359,7 @@ jobs:
   validate-container:
     name: Validate ${{ matrix.env }}
     needs: plan
-    if: needs.plan.result == 'success'
+    if: needs.plan.result == 'success' && github.event.inputs.validate != 'false'
     runs-on: ${{ matrix.runner }}
     container: ${{ matrix.image }}
     timeout-minutes: 90
@@ -389,7 +392,7 @@ jobs:
   validate-vm:
     name: Validate ${{ matrix.env }}
     needs: [plan, nixos-image, omarchy-image]
-    if: always() && needs.plan.result == 'success'
+    if: always() && needs.plan.result == 'success' && github.event.inputs.validate != 'false'
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 90
     strategy:
@@ -452,7 +455,7 @@ jobs:
   validate-bg-host:
     name: Background validate ${{ matrix.env }}
     needs: plan
-    if: needs.plan.result == 'success'
+    if: needs.plan.result == 'success' && github.event.inputs.validate != 'false'
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 90
     strategy:
@@ -491,7 +494,7 @@ jobs:
   validate-bg-container:
     name: Background validate ${{ matrix.env }}
     needs: plan
-    if: needs.plan.result == 'success'
+    if: needs.plan.result == 'success' && github.event.inputs.validate != 'false'
     runs-on: ${{ matrix.runner }}
     container: ${{ matrix.image }}
     timeout-minutes: 90
@@ -520,7 +523,7 @@ jobs:
   validate-bg-vm:
     name: Background validate ${{ matrix.env }}
     needs: [plan, nixos-image, omarchy-image]
-    if: always() && needs.plan.result == 'success'
+    if: always() && needs.plan.result == 'success' && github.event.inputs.validate != 'false'
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 90
     strategy:
