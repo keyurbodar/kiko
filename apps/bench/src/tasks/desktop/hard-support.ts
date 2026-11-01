@@ -47,6 +47,16 @@ const waylandSession = async (m: Machine): Promise<WaylandSession | undefined> =
   return dir && name ? { dir, name } : undefined
 }
 
+const typelibEnv = async (m: Machine): Promise<Record<string, string>> => {
+  const listed = await run(m, [
+    "sh",
+    "-c",
+    "test -r /etc/kiko-bench/girepository && cat /etc/kiko-bench/girepository || true",
+  ])
+  const value = listed.stdout.trim()
+  return value ? { GI_TYPELIB_PATH: value } : {}
+}
+
 const displayEnv = async (m: Machine): Promise<Record<string, string>> => {
   const session = await waylandSession(m)
   return session ? { GDK_BACKEND: "wayland", WAYLAND_DISPLAY: session.name, XDG_RUNTIME_DIR: session.dir } : {}
@@ -126,7 +136,7 @@ export const launchHard = async (
     if (opts.layout) command.push("--layout", opts.layout)
   } else {
     command = [python(m), fixture("desktop/hard1xx/app.py"), ...common]
-    Object.assign(env, await displayEnv(m))
+    Object.assign(env, await displayEnv(m), await typelibEnv(m))
   }
   const app = await spawnTracked(m, command, Object.keys(env).length > 0 ? { env } : {})
   await writeText(m, "app.pid", `${app.pid}\n`)
