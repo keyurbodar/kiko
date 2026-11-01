@@ -19,6 +19,7 @@ export WLR_BACKENDS=headless
 export WLR_LIBINPUT_NO_DEVICES=1
 export WLR_RENDERER=pixman
 export DISPLAY=:0
+export GDK_BACKEND=x11
 export NO_AT_BRIDGE=0
 
 export YDOTOOL_SOCKET="$XDG_RUNTIME_DIR/.ydotool_socket"
