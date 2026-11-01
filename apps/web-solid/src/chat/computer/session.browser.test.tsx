@@ -87,6 +87,7 @@ function harness() {
     onMode: (mode) => modes.push(mode),
     onSize: (width, height) => sizes.push({ width, height }),
     onCursor: () => {},
+    onClipboard: () => {},
   })
   return { session, canvas, draws, modes, sizes }
 }

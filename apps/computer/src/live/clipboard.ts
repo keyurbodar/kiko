@@ -75,13 +75,13 @@ function launch(command: readonly string[], stdin: string): Spawned {
 function keep(spawn: (cmd: string[], stdin: string) => Spawned, command: readonly string[], text: string) {
   return new Promise<boolean>((resolve) => {
     let settled = false
+    let timer: ReturnType<typeof setTimeout> | undefined
     const finish = (ok: boolean) => {
       if (settled) return
       settled = true
       if (timer) clearTimeout(timer)
       resolve(ok)
     }
-    let timer: ReturnType<typeof setTimeout> | undefined
     try {
       const child = spawn([...command], text)
       timer = setTimeout(() => finish(true), OWNER_MS)

@@ -811,9 +811,9 @@ describe("relay fallback", () => {
       )
 
       computers.liveMessage(viewer, JSON.stringify({ t: "live", maxWidth: 1280 }))
-      assert.strictEqual(pc.sent.filter((frame) => frame.t === "live").at(-1)?.on, true)
+      assert.strictEqual(pc.sent.findLast((frame) => frame.t === "live")?.on, true)
       assert.strictEqual(computers.liveClosed(viewer), true)
-      assert.strictEqual(pc.sent.filter((frame) => frame.t === "live").at(-1)?.on, false)
+      assert.strictEqual(pc.sent.findLast((frame) => frame.t === "live")?.on, false)
     }),
   )
 

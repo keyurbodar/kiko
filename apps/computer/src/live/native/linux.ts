@@ -346,7 +346,7 @@ export function linuxNative(): Native | null {
         symbols.keycodeDown(keycode, true)
         symbols.keycodeDown(keycode, false)
       }
-      for (const keycode of held.reverse()) symbols.keycodeDown(keycode, false)
+      for (const keycode of held.toReversed()) symbols.keycodeDown(keycode, false)
       symbols.flush()
     },
     text(value) {

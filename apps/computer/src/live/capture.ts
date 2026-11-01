@@ -1,4 +1,4 @@
-type Platform = "macos" | "linux"
+export type Platform = "macos" | "linux"
 
 export function platform(): Platform {
   return process.platform === "darwin" ? "macos" : "linux"

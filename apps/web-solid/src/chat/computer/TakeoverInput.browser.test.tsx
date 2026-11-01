@@ -1,13 +1,8 @@
 import type { ComputerSummary } from "@kiko/protocol"
-import { beforeAll, describe, expect, it, vi } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 import { userEvent } from "vitest/browser"
 import { render } from "../../../test/render"
 import LiveScreen from "./LiveScreen"
-
-beforeAll(() => {
-  Element.prototype.setPointerCapture = () => {}
-  Element.prototype.releasePointerCapture = () => {}
-})
 
 type Sent = {
   k?: string
@@ -63,12 +58,23 @@ const mac = (extra: Partial<ComputerSummary> = {}): ComputerSummary =>
     ...extra,
   }) as unknown as ComputerSummary
 
-function mount(interactive: boolean) {
-  return render(() => (
+async function mount(interactive: boolean) {
+  const { setPointerCapture, releasePointerCapture } = Element.prototype
+  Element.prototype.setPointerCapture = () => {}
+  Element.prototype.releasePointerCapture = () => {}
+  const screen = await render(() => (
     <div style={{ width: "800px", height: "600px" }}>
       <LiveScreen pcId="pc-1" interactive={interactive} />
     </div>
   ))
+  const dispose = screen[Symbol.asyncDispose].bind(screen)
+  return Object.assign(screen, {
+    async [Symbol.asyncDispose]() {
+      await dispose()
+      Element.prototype.setPointerCapture = setPointerCapture
+      Element.prototype.releasePointerCapture = releasePointerCapture
+    },
+  })
 }
 
 function sink(screen: { container: HTMLElement }): HTMLTextAreaElement {
