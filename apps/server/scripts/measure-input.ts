@@ -84,18 +84,31 @@ function fakeDriver(path: string) {
   return { server, calls, ready: new Promise<void>((resolve) => server.listen(path, () => resolve())) }
 }
 
-async function mainDisplay(): Promise<{ width: number; height: number } | null> {
-  if (process.platform !== "darwin") return null
-  const script =
-    "ObjC.import('AppKit');const f=$.NSScreen.mainScreen.frame;JSON.stringify({width:f.size.width,height:f.size.height})"
+async function command(args: string[]): Promise<string | null> {
   try {
-    const out = await Bun.$`osascript -l JavaScript -e ${script}`.text()
-    const parsed = JSON.parse(out.trim()) as { width?: number; height?: number }
-    if (typeof parsed.width !== "number" || typeof parsed.height !== "number") return null
-    return { width: Math.round(parsed.width), height: Math.round(parsed.height) }
+    const child = Bun.spawn(args, { stdin: "ignore", stdout: "pipe", stderr: "ignore" })
+    const out = new Response(child.stdout).text()
+    return (await child.exited) === 0 ? await out : null
   } catch {
     return null
   }
+}
+
+const MAC_SCREEN =
+  "ObjC.import('AppKit');const f=$.NSScreen.mainScreen.frame;JSON.stringify({width:f.size.width,height:f.size.height})"
+
+async function screenSize(): Promise<{ width: number; height: number } | null> {
+  if (process.platform === "darwin") {
+    const out = await command(["osascript", "-l", "JavaScript", "-e", MAC_SCREEN])
+    if (!out) return null
+    const parsed = JSON.parse(out.trim()) as { width?: number; height?: number }
+    if (typeof parsed.width !== "number" || typeof parsed.height !== "number") return null
+    return { width: Math.round(parsed.width), height: Math.round(parsed.height) }
+  }
+  const out = await command(["xrandr", "--query"])
+  const match = out ? /current (\d+) x (\d+)/.exec(out) : null
+  if (!match?.[1] || !match[2]) return null
+  return { width: Number(match[1]), height: Number(match[2]) }
 }
 
 function status() {
@@ -192,7 +205,7 @@ async function main(): Promise<void> {
       return page
     }
     const single = process.argv.includes("--single")
-    const area = single ? await mainDisplay() : null
+    const area = single ? await screenSize() : null
     const leftPage = await openRemote(LEFT_PORT, 0, area?.width ?? 1280, area?.height ?? 1024)
     const rightPage = single ? leftPage : await openRemote(RIGHT_PORT, 1280, 1024, 768)
     await wait(1_500)
@@ -249,24 +262,28 @@ async function main(): Promise<void> {
       { timeout: 30_000 },
     )
 
-    const picker = page.locator('[data-part="display-picker"]')
-    await page.waitForFunction(
-      () => document.querySelectorAll('[data-part="display-picker"] option').length >= 1,
-      undefined,
-      { timeout: 30_000 },
-    )
-    const options = await page.evaluate(() =>
-      [...document.querySelectorAll<HTMLOptionElement>('[data-part="display-picker"] option')].map(
-        (option) => option.textContent ?? "",
-      ),
-    )
-    result.displays = options
-
     const takeover = page.locator('[data-action="computer-takeover"]')
     if ((await takeover.count()) > 0) await takeover.click()
     await page.waitForSelector('[data-component="computer-screen"][data-interactive]', { timeout: 15_000 })
 
+    const picker = page.locator('[data-part="display-picker"]')
+    const labels = () =>
+      page.evaluate(() =>
+        [...document.querySelectorAll<HTMLOptionElement>('[data-part="display-picker"] option')].map(
+          (option) => option.textContent ?? "",
+        ),
+      )
+
     const choose = async (label: string) => {
+      await until(`the ${label} display`, async () =>
+        page.evaluate(
+          (wanted) =>
+            [...document.querySelectorAll<HTMLOptionElement>('[data-part="display-picker"] option')].some((option) =>
+              option.textContent?.includes(wanted),
+            ),
+          label,
+        ),
+      )
       const value = await picker.evaluate((element, wanted) => {
         const select = element as HTMLSelectElement
         return [...select.options].find((option) => option.textContent?.includes(wanted))?.value ?? null
@@ -296,6 +313,7 @@ async function main(): Promise<void> {
       remote.evaluate(() => (window as unknown as { __events: unknown[] }).__events.length)
 
     if (single) {
+      result.displays = await labels()
       await stageClick(0.5, 0.5)
       await until("the click on the only display", async () => (await events(leftPage)) > 0, 10_000)
       const landed = (await leftPage.evaluate(() => {
@@ -312,10 +330,12 @@ async function main(): Promise<void> {
         Math.abs(landed.screenX - area.width / 2) < 80 &&
         Math.abs(landed.screenY - area.height / 2) < 80
       const exact = result.pasted === TEXT
-      result.pass = { exact, centred }
-      failed = !exact || !centred
+      const pickerHidden = (await picker.count()) === 0
+      result.pass = { exact, centred, pickerHidden }
+      failed = !exact || !centred || !pickerHidden
     } else {
       await choose("1024×768")
+      result.displays = await labels()
       const before = { left: await events(leftPage), right: await events(rightPage) }
       await stageClick(0.5, 0.5)
       await until("the click on the right display", async () => (await events(rightPage)) > before.right, 10_000)

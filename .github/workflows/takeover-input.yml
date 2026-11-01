@@ -39,20 +39,20 @@ jobs:
           sudo apt-get install -y --no-install-recommends ffmpeg openbox x11-utils x11-xserver-utils xclip xvfb
       - name: Install Chromium
         run: node apps/server/node_modules/playwright/cli.js install --with-deps chromium
-      - name: Paste a Unicode string and pick a display
+      - name: Build the web app
+        run: bun run build
+      - name: Paste a Unicode string and click the display
         run: |
           set -euo pipefail
-          Xvfb :99 -screen 0 2304x1024x24 -nolisten tcp >/dev/null 2>&1 &
+          Xvfb :99 -screen 0 1280x1024x24 -nolisten tcp >/dev/null 2>&1 &
           export DISPLAY=:99
           for _ in $(seq 1 100); do
             if xdpyinfo >/dev/null 2>&1; then break; fi
             sleep 0.1
           done
-          xrandr --setmonitor LEFT 1280/340x1024/271+0+0 none
-          xrandr --setmonitor RIGHT 1024/271x768/203+1280+0 none
           xrandr --listmonitors
           openbox --sm-disable >/dev/null 2>&1 &
-          bun apps/server/scripts/measure-input.ts --out input-proof.json
+          bun apps/server/scripts/measure-input.ts --single --out input-proof.json
       - name: Upload the proof
         if: always()
         uses: actions/upload-artifact@v4
@@ -72,6 +72,8 @@ jobs:
         run: |
           command -v ffmpeg >/dev/null || brew install ffmpeg
           node apps/server/node_modules/playwright/cli.js install chromium
+      - name: Build the web app
+        run: bun run build
       - name: Grant input and screen capture to the daemon
         run: |
           set -euo pipefail
