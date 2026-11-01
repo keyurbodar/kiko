@@ -31,7 +31,7 @@ PubkeyAuthentication yes
 PasswordAuthentication no
 KbdInteractiveAuthentication no
 PidFile ${at(m, "sshd.pid")}
-LogLevel QUIET
+LogLevel ERROR
 SetEnv HOME=${m.workdir}
 ForceCommand cd ${m.workdir} && exec /bin/sh -c "$SSH_ORIGINAL_COMMAND"
 `
@@ -68,6 +68,14 @@ const startSshd = async (m: Machine): Promise<void> => {
 
 const field = (text: string, key: string): string | undefined => new RegExp(`^${key} (\\S+)$`, "m").exec(text)?.[1]
 
+const loginName = async (m: Machine): Promise<string> => {
+  const who = await run(m, ["id", "-un"])
+  const name = who.stdout.trim()
+  return who.code === 0 && name !== "" ? name : userInfo().username
+}
+
+const tail = (text: string | undefined): string => (text ?? "").trim().split("\n").slice(-5).join(" | ")
+
 export const sshLocalhost: Task = {
   id: "terminal-011-ssh-localhost",
   track: "terminal",
@@ -81,12 +89,15 @@ export const sshLocalhost: Task = {
   setup: async (m, seed) => {
     await writeJson(m, "request.json", {})
     const port = await freePort(m)
-    await run(m, ["ssh-keygen", "-q", "-t", "ed25519", "-N", "", "-f", "hostkey"])
-    await run(m, ["ssh-keygen", "-q", "-t", "ed25519", "-N", "", "-f", "clientkey"])
+    const hostKey = await run(m, ["ssh-keygen", "-q", "-t", "ed25519", "-N", "", "-f", "hostkey"])
+    if (hostKey.code !== 0) throw new Error(`ssh-keygen could not make the host key: ${hostKey.stderr}`)
+    const clientKey = await run(m, ["ssh-keygen", "-q", "-t", "ed25519", "-N", "", "-f", "clientkey"])
+    if (clientKey.code !== 0) throw new Error(`ssh-keygen could not make the client key: ${clientKey.stderr}`)
     const publicKey = (await readText(m, "clientkey.pub"))?.trim() ?? ""
+    if (publicKey === "") throw new Error("ssh-keygen wrote no public key for clientkey")
     await writeText(m, "authorized_keys", `${publicKey}\n`)
     await writeText(m, "secret.txt", `${tokenFor(seed)}\n`)
-    await writeText(m, "host.txt", `port ${port}\nuser ${userInfo().username}\n`)
+    await writeText(m, "host.txt", `port ${port}\nuser ${await loginName(m)}\n`)
     await writeText(m, "sshd_config", config(m, port))
     await startSshd(m)
     await waitForFile(m, "sshd.pid")
@@ -103,7 +114,11 @@ export const sshLocalhost: Task = {
     ])
     if (result.code !== 0) {
       const said = (await readText(m, "ssh.err"))?.trim() ?? ""
-      throw new Error(`the ssh client exited ${result.code}: ${said}`)
+      const server = tail(await readText(m, "sshd.log"))
+      const spawn = tail(await readText(m, ".spawn.log"))
+      throw new Error(
+        `the ssh client exited ${result.code}: ${said}${server ? `; sshd said ${server}` : ""}${spawn ? `; spawn said ${spawn}` : ""}`,
+      )
     }
   },
   check: async (m, seed) => {
