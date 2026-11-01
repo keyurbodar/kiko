@@ -56,6 +56,7 @@ case "$env_id" in
     qemu-system-x86_64 \
       -machine q35,accel=kvm -cpu host -smp 2 -m 4096 \
       -drive "file=$overlay,if=virtio,format=qcow2" \
+      -vga std \
       -netdev "user,id=net0,hostfwd=tcp::$port-:22" -device virtio-net-pci,netdev=net0 \
       -virtfs "local,path=$share,mount_tag=repo,security_model=none" \
       -nographic >"$boot_log" 2>&1 &

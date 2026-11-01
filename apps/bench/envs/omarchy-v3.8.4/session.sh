@@ -15,13 +15,21 @@ unset HYPRLAND_INSTANCE_SIGNATURE
 export XDG_SESSION_TYPE=wayland
 export XDG_CURRENT_DESKTOP=Hyprland
 export HYPRLAND_NO_SD_NOTIFY=1
-export WLR_BACKENDS=headless
-export WLR_LIBINPUT_NO_DEVICES=1
-export WLR_RENDERER=pixman
 export DISPLAY=:0
 export NO_AT_BRIDGE=0
-
+export LIBSEAT_BACKEND=seatd
 export YDOTOOL_SOCKET="$XDG_RUNTIME_DIR/.ydotool_socket"
+
+if [ ! -e /dev/dri/card0 ]; then
+  echo "no /dev/dri/card0 in this VM, so Hyprland has no primary allocator to start with" >&2
+  echo "run qemu with -device virtio-vga (or -vga std) so the guest gets a drm card" >&2
+  ls -l /dev/dri 2>/dev/null || echo "/dev/dri does not exist" >&2
+  exit 1
+fi
+
+if command -v seatd >/dev/null 2>&1; then
+  sudo -n seatd -g bench >/tmp/seatd.log 2>&1 &
+fi
 
 exec dbus-run-session -- bash -c '
   if command -v ydotoold >/dev/null 2>&1; then
@@ -36,16 +44,23 @@ exec dbus-run-session -- bash -c '
     if ! kill -0 "$hypr" 2>/dev/null; then
       echo "Hyprland exited before the session came up" >&2
       tail -n 200 /tmp/hyprland.log >&2 || true
+      tail -n 50 /tmp/seatd.log >&2 || true
       exit 1
     fi
     sleep 0.5
   done
+  if [ -z "$signature" ]; then
+    echo "Hyprland never answered hyprctl within 120 s" >&2
+    tail -n 200 /tmp/hyprland.log >&2 || true
+    exit 1
+  fi
   export HYPRLAND_INSTANCE_SIGNATURE="$signature"
   export WAYLAND_DISPLAY="hypr/$signature/.wayland.sock"
   if [ ! -S "$XDG_RUNTIME_DIR/$WAYLAND_DISPLAY" ]; then
     echo "warning: Hyprland did not publish $XDG_RUNTIME_DIR/$WAYLAND_DISPLAY" >&2
   fi
   hyprctl keyword monitor HEADLESS-1,1920x1080@60,0x0,1 >/dev/null 2>&1 || true
+  hyprctl monitors || true
   for _ in $(seq 1 120); do
     if DISPLAY=:0 xdotool getdisplaygeometry >/dev/null 2>&1; then break; fi
     sleep 0.5
