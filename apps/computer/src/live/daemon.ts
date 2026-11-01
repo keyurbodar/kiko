@@ -348,8 +348,7 @@ class Daemon implements Live {
   private restartMjpeg(profile: RelayProfile): void {
     const ffmpeg = this.ffmpeg()
     this.deps.warn(`mjpeg probe: ffmpeg is ${ffmpeg ?? "missing"} for ${JSON.stringify(this.screen)}`)
-    if (!ffmpeg) return
-    this.mjpeg?.stop()
+    if (!ffmpeg) return this.mjpeg?.stop()
     if (this.relay) this.relay.latest = null
     this.mjpeg = startMjpeg({
       ffmpeg,

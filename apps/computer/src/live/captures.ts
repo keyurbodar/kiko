@@ -172,6 +172,7 @@ class Mjpeg {
   }
 
   stop(): void {
+    console.warn("mjpeg probe: stop was called")
     this.stopped = true
     this.child?.kill()
     this.child = null
@@ -183,6 +184,11 @@ class Mjpeg {
     console.warn(`mjpeg probe: ${args.join(" ")}`)
     this.pending = new Uint8Array(0)
     this.child = Bun.spawn(args, { stdin: "ignore", stdout: "pipe", stderr: "pipe" })
+    const child = this.child
+    setTimeout(() => {
+      if (this.child !== child) return
+      console.warn(`mjpeg probe: 6s later pid=${child.pid} exit=${child.exitCode} stopped=${this.stopped}`)
+    }, 6_000)
     void this.pump(this.child)
   }
 
