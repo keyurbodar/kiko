@@ -221,6 +221,9 @@ class Daemon implements Live {
       this.deps.warn("the clipboard could not be set, so the paste did not run")
       return
     }
+    this.deps.warn(
+      `paste probe: the clipboard took ${text.length} characters, input is ${this.input ? "on" : "off"}, the chord is next`,
+    )
     this.input?.chord(code, mods)
   }
 

@@ -308,7 +308,12 @@ async function main(): Promise<void> {
       })) as { x: number; y: number; screenX: number; screenY: number }
       result.click = landed
       await pasteInto(TEXT)
-      await until("the pasted text", async () => (await leftPage.inputValue("#field")) === TEXT, 30_000)
+      await until("the pasted text", async () => (await leftPage.inputValue("#field")) === TEXT, 30_000).catch(
+        async (error) => {
+          result.fields = { left: await leftPage.inputValue("#field") }
+          throw error
+        },
+      )
       result.pasted = await leftPage.inputValue("#field")
       const centred =
         area !== null &&
@@ -343,7 +348,10 @@ async function main(): Promise<void> {
       result.first = await pointer()
 
       await pasteInto(TEXT)
-      await until("the pasted text", pasted, 30_000)
+      await until("the pasted text", async () => (await pasted()) === TEXT, 30_000).catch(async (error) => {
+        result.fields = { left: await leftPage.inputValue("#field"), right: await rightPage.inputValue("#field") }
+        throw error
+      })
 
       const exact = await pasted()
       result.click = (await landed(leftPage)) ?? (await landed(rightPage)) ?? null
@@ -355,6 +363,9 @@ async function main(): Promise<void> {
 
     left.stop(true)
     if (!single) right.stop(true)
+  } catch (error) {
+    result.error = error instanceof Error ? error.message : String(error)
+    failed = true
   } finally {
     for (const browser of browsers) browser.close().catch(() => {})
     driver?.server.close()

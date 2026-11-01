@@ -146,6 +146,7 @@ function keyHandlers(target: InputTarget) {
     paste(event: ClipboardEvent) {
       event.preventDefault()
       const text = event.clipboardData?.getData("text/plain") ?? ""
+      console.info(`kiko paste probe: the sink got ${text.length} characters`)
       if (!text) return
       send([{ k: "paste", s: text, code: "KeyV", mods: target.pasteMods?.() ?? 0 }])
     },
