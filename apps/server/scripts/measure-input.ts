@@ -154,6 +154,7 @@ async function main(): Promise<void> {
           `SESSION_SECRET:${secret}`,
         ],
         SERVER,
+        { NODE_ENV: "development" },
       ),
     )
     await until("the worker", async () => (await fetch(`http://127.0.0.1:${SERVER_PORT}/api/health`)).ok)
@@ -210,13 +211,31 @@ async function main(): Promise<void> {
     const rightPage = single ? leftPage : await openRemote(RIGHT_PORT, 0, 1280, 800)
     await wait(1_500)
 
-    const session = (await (
-      await fetch(`http://127.0.0.1:${SERVER_PORT}/api/auth/dev/session`, {
-        method: "POST",
-        headers: { "content-type": "application/json", origin: `http://127.0.0.1:${SERVER_PORT}` },
-        body: JSON.stringify({ name: "owner" }),
-      })
-    ).json()) as { token: string }
+    const signIn: { token?: string } = {}
+    await until(
+      "the owner's session",
+      async () => {
+        const answer = await fetch(`http://127.0.0.1:${SERVER_PORT}/api/auth/dev/session`, {
+          method: "POST",
+          headers: { "content-type": "application/json", origin: `http://127.0.0.1:${SERVER_PORT}` },
+          body: JSON.stringify({ name: "owner" }),
+        })
+        const body = await answer.text()
+        if (!answer.ok) {
+          process.stderr.write(`[session] ${answer.status} ${body.slice(0, 200)}\n`)
+          return false
+        }
+        try {
+          const parsed = JSON.parse(body) as { token?: unknown }
+          if (typeof parsed.token === "string") signIn.token = parsed.token
+        } catch {
+          process.stderr.write(`[session] ${answer.status} not json: ${body.slice(0, 200)}\n`)
+        }
+        return signIn.token !== undefined
+      },
+      30_000,
+    )
+    const session = { token: signIn.token ?? "" }
 
     const minted = await mintPairCode(kek, "owner")
     const computerDir = join(dir, "pc")
