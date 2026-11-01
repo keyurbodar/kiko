@@ -33,9 +33,7 @@ export const codeTransfer: Task = {
     await launchCrossApp(m, "transfer", { code })
   },
   oracle: async (m, seed) => {
-    const { value } = plan(seed)
-    const state = await crossAppState(m)
-    const code = String(state?.code ?? "")
+    const { code, value } = plan(seed)
     const fromVault = (await readText(m, `vault/${code}.txt`))?.trim()
     if (fromVault !== value) throw new Error(`vault held ${JSON.stringify(fromVault)}`)
     await bun(m, `await Bun.write("oracle-value.txt", ${JSON.stringify(value)})`)

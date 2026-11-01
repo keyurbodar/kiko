@@ -44,10 +44,24 @@ const freePort = async (m: Machine): Promise<number> => {
   return port
 }
 
+const SSHD_PATHS = ["/usr/sbin/sshd", "/usr/bin/sshd", "/sbin/sshd", "/run/current-system/sw/bin/sshd"]
+
+const sshdPath = async (m: Machine): Promise<string> => {
+  const found = await run(m, ["bash", "-c", "command -v sshd 2>/dev/null || true"])
+  const fromPath = found.stdout.trim()
+  if (fromPath) return fromPath
+  for (const candidate of SSHD_PATHS) {
+    const check = await run(m, ["bash", "-c", `test -x ${candidate}`])
+    if (check.code === 0) return candidate
+  }
+  throw new Error("sshd is not installed")
+}
+
 const startSshd = async (m: Machine): Promise<void> => {
   const args = ["-f", at(m, "sshd_config"), "-D", "-E", at(m, "sshd.log")]
-  if (m.os === "macos") await spawnTracked(m, ["sudo", "-n", "/usr/sbin/sshd", ...args])
-  else await spawnTracked(m, ["/usr/sbin/sshd", ...args])
+  const sshd = await sshdPath(m)
+  if (m.os === "macos") await spawnTracked(m, ["sudo", "-n", sshd, ...args])
+  else await spawnTracked(m, [sshd, ...args])
 }
 
 const field = (text: string, key: string): string | undefined => new RegExp(`^${key} (\\S+)$`, "m").exec(text)?.[1]

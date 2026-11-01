@@ -10,7 +10,12 @@ window_named() {
     sleep 0.1
     tries=$((tries + 1))
   done
+  echo "no visible window titled $want for pid $pid" >&2
   return 1
+}
+
+window_origin() {
+  eval "$(xdotool getwindowgeometry --shell "$1")"
 }
 
 wait_state() {

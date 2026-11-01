@@ -31,7 +31,7 @@
       "entry": ["scripts/*.ts"]
     },
     "apps/bench": {
-      "entry": ["src/main.ts", "src/sentinel/ci.ts"]
+      "entry": ["src/sentinel/ci.ts"]
     },
     "apps/builder": {
       "entry": ["scripts/*.ts"]
