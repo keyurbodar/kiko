@@ -111,7 +111,7 @@ def main(argv):
         raise SystemExit("usage: control.py <screen> <workdir>")
     screen, workdir = argv[1], argv[2]
     request = read(workdir, "request.json")
-    scenario(screen, workdir, request, time.monotonic() + 120)
+    scenario(screen, workdir, request, time.monotonic() + 20)
 
 
 if __name__ == "__main__":
