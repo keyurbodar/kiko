@@ -289,8 +289,10 @@ func selectGermanLayout() {
         guard let identifier = TISGetInputSourceProperty(source, kTISPropertyInputSourceID) else { continue }
         let string = Unmanaged<CFString>.fromOpaque(identifier).takeUnretainedValue() as String
         if string == "com.apple.keylayout.German" {
-            TISSetInputSourceEnabled(source, true)
-            TISSelectInputSource(source)
+            if TISSelectInputSource(source) != noErr {
+                TISEnableInputSource(source)
+                TISSelectInputSource(source)
+            }
             return
         }
     }
