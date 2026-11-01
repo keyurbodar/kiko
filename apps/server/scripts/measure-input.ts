@@ -365,7 +365,7 @@ async function main(): Promise<void> {
       result.first = await pointer()
 
       await pasteInto(TEXT)
-      await until("the pasted text", async () => (await pasted()) === TEXT, 30_000).catch(async (error) => {
+      await until("the pasted text", pasted, 30_000).catch(async (error) => {
         result.fields = { left: await inspect(leftPage), right: await inspect(rightPage) }
         throw error
       })
