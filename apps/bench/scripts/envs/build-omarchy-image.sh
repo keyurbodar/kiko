@@ -36,7 +36,7 @@ growpart:
 resize_rootfs: true
 users:
   - name: bench
-    groups: wheel, input
+    groups: wheel, input, video, render
     sudo: ALL=(ALL) NOPASSWD:ALL
     shell: /bin/bash
     lock_passwd: false
@@ -57,6 +57,7 @@ qemu-system-x86_64 \
   -machine q35,accel=kvm -cpu host -smp 4 -m 8192 \
   -drive "file=$overlay,if=virtio,format=qcow2" \
   -drive "file=$work/seed.iso,media=cdrom,readonly=on" \
+  -vga std \
   -netdev "user,id=net0,hostfwd=tcp::2222-:22" -device virtio-net-pci,netdev=net0 \
   -nographic >"$log" 2>&1 &
 boot_pid=$!
