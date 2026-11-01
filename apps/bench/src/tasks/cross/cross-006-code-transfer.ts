@@ -19,7 +19,7 @@ const plan = (seed: number): { code: string; value: string; vault: Record<string
 export const codeTransfer: Task = {
   id: "cross-006-code-transfer",
   track: "cross",
-  os: ["linux"],
+  os: ["linux", "macos"],
   needs: ["display"],
   heldOut: false,
   kind: "edge",

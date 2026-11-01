@@ -23,7 +23,7 @@ const plan = (seed: number): { code: string; key: string; log: string } => {
 export const dialogSearch: Task = {
   id: "cross-003-dialog-search",
   track: "cross",
-  os: ["linux"],
+  os: ["linux", "macos"],
   needs: ["display"],
   heldOut: false,
   kind: "real",

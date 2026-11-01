@@ -600,6 +600,84 @@ func buildSameTitle() {
     }
 }
 
+func buildSyncConsole() {
+    let (window, view) = makeWindow("Sync Console", 720, 480)
+    let code = text(data["code"])
+    let expected = text(data["expectedKey"])
+    addLabel(view, "Sync failed: code " + code, 40, 20)
+    addLabel(view, "The matching line in logs/sync.log says what to change.", 40, 60)
+    addLabel(view, "Fix config.json, then retry.", 40, 100)
+
+    func retry() {
+        let path = (work as NSString).appendingPathComponent("config.json")
+        let config = (try? JSONSerialization.jsonObject(with: Data(contentsOf: URL(fileURLWithPath: path))))
+            as? [String: Any] ?? [:]
+        save(["fixed": config["sync_key"] as? String == expected])
+    }
+
+    addButton(view, "Retry", 40, 150, 140) { retry() }
+    save(["code": code])
+    show(window)
+    actions["sync_console"] = { command in
+        switch text(command["action"]) {
+        case "retry": retry()
+        default: return ["ok": false, "error": "unknown action"]
+        }
+        return ["ok": true]
+    }
+}
+
+func buildReleaseChecklist() {
+    let (window, view) = makeWindow("Release Checklist", 720, 480)
+    addLabel(view, "Tick every check, then approve the release.", 40, 10)
+    let items = (data["checks"] as? [String]) ?? []
+    var switches: [NSSwitch] = []
+    for (index, item) in items.enumerated() {
+        let toggle = NSSwitch(frame: NSRect(x: 40, y: 50 + CGFloat(index) * 40, width: 60, height: 30))
+        let label = NSTextField(labelWithString: item)
+        label.frame = NSRect(x: 110, y: 55 + CGFloat(index) * 40, width: 520, height: 20)
+        view.addSubview(toggle)
+        view.addSubview(label)
+        switches.append(toggle)
+    }
+
+    func approve() {
+        let checked = switches.filter { $0.state == .on }.count == switches.count
+        save(["approved": checked, "checks": items])
+    }
+
+    addButton(view, "Approve", 40, 200, 140) { approve() }
+    save(["checks": [String]()])
+    show(window)
+    actions["release_checklist"] = { command in
+        switch text(command["action"]) {
+        case "check_all": for toggle in switches { toggle.state = .on }
+        case "approve": approve()
+        default: return ["ok": false, "error": "unknown action"]
+        }
+        return ["ok": true]
+    }
+}
+
+func buildTransferConsole() {
+    let (window, view) = makeWindow("Transfer Console", 720, 480)
+    let code = text(data["code"])
+    addLabel(view, "One-time code: " + code, 40, 20)
+    addLabel(view, "Enter the matching vault value and save.", 40, 60)
+    let field = addEntry(view, 40, 100, 320)
+    addButton(view, "Save", 40, 160, 140) { save(["value": field.stringValue]) }
+    save(["code": code])
+    show(window)
+    actions["transfer_console"] = { command in
+        switch text(command["action"]) {
+        case "type": field.stringValue = text(command["text"])
+        case "save": save(["value": field.stringValue])
+        default: return ["ok": false, "error": "unknown action"]
+        }
+        return ["ok": true]
+    }
+}
+
 func buildSecondWindow() {
     let (window, view) = makeWindow("Bench Fixture", 520, 300)
     addLabel(view, "Open the notes window and save a note.", 40, 20)
@@ -701,6 +779,9 @@ func build() {
     case "notification": buildNotification()
     case "owner": buildOwner()
     case "second_window": buildSecondWindow()
+    case "sync_console": buildSyncConsole()
+    case "release_checklist": buildReleaseChecklist()
+    case "transfer_console": buildTransferConsole()
     default: buildSingleField("Reference code")
     }
 }

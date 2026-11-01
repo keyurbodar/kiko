@@ -47,7 +47,7 @@ const waylandSession = async (m: Machine): Promise<WaylandSession | undefined> =
   return dir && name ? { dir, name } : undefined
 }
 
-const typelibEnv = async (m: Machine): Promise<Record<string, string>> => {
+export const typelibEnv = async (m: Machine): Promise<Record<string, string>> => {
   const listed = await run(m, [
     "sh",
     "-c",
@@ -57,7 +57,7 @@ const typelibEnv = async (m: Machine): Promise<Record<string, string>> => {
   return value ? { GI_TYPELIB_PATH: value } : {}
 }
 
-const displayEnv = async (m: Machine): Promise<Record<string, string>> => {
+export const displayEnv = async (m: Machine): Promise<Record<string, string>> => {
   const session = await waylandSession(m)
   return session ? { GDK_BACKEND: "wayland", WAYLAND_DISPLAY: session.name, XDG_RUNTIME_DIR: session.dir } : {}
 }
@@ -90,7 +90,8 @@ const macosBuild = async (m: Machine, source: string, name: string): Promise<str
   return binary
 }
 
-const macosApp = (m: Machine): Promise<string> => macosBuild(m, fixture("desktop/macos/app.swift"), "desktop-app")
+export const macosApp = (m: Machine): Promise<string> =>
+  macosBuild(m, fixture("desktop/macos/app.swift"), "desktop-app")
 
 const macosWindowList = (m: Machine): Promise<string> =>
   macosBuild(m, fixture("desktop/macos/windows.swift"), "desktop-windows")

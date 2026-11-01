@@ -3,6 +3,7 @@ import type { Machine } from "../../types"
 import { browserDownload, browserSubmit, browserValue } from "../../../fixtures/cross/oracle"
 import { registry } from "../../../fixtures/cross/registry"
 import { at, fixture, python, readJson, run, spawnTracked, waitForSpawn, writeJson, writeText } from "../helpers"
+import { displayEnv, macosApp, typelibEnv } from "../desktop/hard-support"
 
 const SERVER = String.raw`
 const fs = require("node:fs")
@@ -64,24 +65,41 @@ export const openCross = async (m: Machine, task: string, data: unknown, path: s
 export const crossState = async (m: Machine): Promise<Record<string, any> | undefined> =>
   readJson<Record<string, any>>(m, "state.json")
 
+const MACOS_SCREENS: Readonly<Record<string, string>> = {
+  error: "sync_console",
+  checklist: "release_checklist",
+  transfer: "transfer_console",
+}
+
 export const launchCrossApp = async (m: Machine, screen: string, data: unknown): Promise<void> => {
   await writeJson(m, "app-data.json", data)
-  const app = await spawnTracked(m, [
-    python(m),
-    fixture("cross/app.py"),
-    "--screen",
-    screen,
+  const common = [
     "--state",
     at(m, "app-state.json"),
     "--data",
     at(m, "app-data.json"),
-  ])
+    "--request",
+    at(m, "app-data.json"),
+    "--work",
+    m.workdir,
+  ]
+  const env: Record<string, string> = {}
+  let command: string[]
+  if (m.os === "macos") {
+    command = [await macosApp(m), "--screen", MACOS_SCREENS[screen] ?? screen, ...common]
+  } else {
+    command = [python(m), fixture("cross/app.py"), "--screen", screen, ...common]
+    Object.assign(env, await displayEnv(m), await typelibEnv(m))
+  }
+  const app = await spawnTracked(m, command, Object.keys(env).length > 0 ? { env } : {})
   await writeText(m, "app.pid", `${app.pid}\n`)
   await waitForSpawn(m, "app-state.json")
 }
 
 export const runCrossAppOracle = async (m: Machine, screen: string): Promise<void> => {
-  const result = await run(m, ["bash", fixture(`cross/oracle/${screen}.sh`), m.workdir], { timeoutMs: 60_000 })
+  const result = await run(m, [python(m), fixture("cross/oracle/control.py"), screen, m.workdir], {
+    timeoutMs: 120_000,
+  })
   if (result.code !== 0) throw new Error(`cross app oracle failed: ${result.stderr || result.stdout}`)
 }
 
