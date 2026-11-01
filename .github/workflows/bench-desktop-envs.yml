@@ -19,6 +19,7 @@ concurrency:
 env:
   CONFIG: apps/bench/desktop-everywhere.json
   TASK: "desktop-1*"
+  WINDOW_TASK: "desktop-010-*"
   OPENCODE_GO_KEY: ${{ secrets.OPENCODE_GO_KEY }}
 
 jobs:
@@ -114,10 +115,16 @@ jobs:
         if: runner.os == 'macOS'
       - name: Validate in the background condition
         if: runner.os == 'Linux'
-        run: bash apps/bench/scripts/display.sh bun run bench validate --config "$CONFIG" --task "$TASK" --track desktop --condition background --runs 1 --results results --machine ${{ matrix.machine }}
+        run: |
+          for pattern in "$TASK" "$WINDOW_TASK"; do
+            bash apps/bench/scripts/display.sh bun run bench validate --config "$CONFIG" --task "$pattern" --track desktop --condition background --runs 1 --results results --machine ${{ matrix.machine }}
+          done
       - name: Validate in the background condition
         if: runner.os == 'macOS'
-        run: bun run bench validate --config "$CONFIG" --task "$TASK" --track desktop --condition background --runs 1 --results results --machine ${{ matrix.machine }}
+        run: |
+          for pattern in "$TASK" "$WINDOW_TASK"; do
+            bun run bench validate --config "$CONFIG" --task "$pattern" --track desktop --condition background --runs 1 --results results --machine ${{ matrix.machine }}
+          done
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -149,10 +156,16 @@ jobs:
         run: bash apps/bench/envs/macos-15/setup.sh
       - name: Validate
         if: runner.os == 'Linux'
-        run: bash apps/bench/scripts/display.sh bun run bench validate --config "$CONFIG" --task "$TASK" --track desktop --seed ${{ matrix.seed }} --results results/seed-${{ matrix.seed }} --machine ${{ matrix.machine }}
+        run: |
+          for pattern in "$TASK" "$WINDOW_TASK"; do
+            bash apps/bench/scripts/display.sh bun run bench validate --config "$CONFIG" --task "$pattern" --track desktop --seed ${{ matrix.seed }} --results results/seed-${{ matrix.seed }} --machine ${{ matrix.machine }}
+          done
       - name: Validate
         if: runner.os == 'macOS'
-        run: bun run bench validate --config "$CONFIG" --task "$TASK" --track desktop --seed ${{ matrix.seed }} --results results/seed-${{ matrix.seed }} --machine ${{ matrix.machine }}
+        run: |
+          for pattern in "$TASK" "$WINDOW_TASK"; do
+            bun run bench validate --config "$CONFIG" --task "$pattern" --track desktop --seed ${{ matrix.seed }} --results results/seed-${{ matrix.seed }} --machine ${{ matrix.machine }}
+          done
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -178,7 +191,10 @@ jobs:
       - name: Environment packages
         run: bash apps/bench/envs/debian-13/setup.sh
       - name: Validate
-        run: bash apps/bench/envs/debian-13/display.sh bun run bench validate --config "$CONFIG" --task "$TASK" --track desktop --seed ${{ matrix.seed }} --results results/seed-${{ matrix.seed }} --machine ${{ matrix.machine }}
+        run: |
+          for pattern in "$TASK" "$WINDOW_TASK"; do
+            bash apps/bench/envs/debian-13/display.sh bun run bench validate --config "$CONFIG" --task "$pattern" --track desktop --seed ${{ matrix.seed }} --results results/seed-${{ matrix.seed }} --machine ${{ matrix.machine }}
+          done
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -228,10 +244,12 @@ jobs:
           fi
       - name: Validate
         run: |
-          bash apps/bench/scripts/envs/vm-run.sh \
-            "${{ matrix.env }}" "${{ steps.image.outputs.path }}" results 2222 \
-            desktop kiko -- \
-            validate --config "$CONFIG" --task "$TASK" --track desktop --seed ${{ matrix.seed }} --results results/seed-${{ matrix.seed }} --machine "${{ matrix.machine }}"
+          for pattern in "$TASK" "$WINDOW_TASK"; do
+            bash apps/bench/scripts/envs/vm-run.sh \
+              "${{ matrix.env }}" "${{ steps.image.outputs.path }}" results 2222 \
+              desktop kiko -- \
+              validate --config "$CONFIG" --task "$pattern" --track desktop --seed ${{ matrix.seed }} --results results/seed-${{ matrix.seed }} --machine "${{ matrix.machine }}"
+          done
       - uses: actions/upload-artifact@v4
         if: always()
         with:

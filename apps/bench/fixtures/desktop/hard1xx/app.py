@@ -422,6 +422,36 @@ def build_owner():
     actions["owner"] = control
 
 
+def build_second_window():
+    notes = {}
+
+    def show_notes(_button=None):
+        if notes.get("window") is not None:
+            notes["window"].present()
+            return
+        panel, panel_fixed = make_window("Notes", 480, 240, 100, 100)
+        notes["window"] = panel
+        notes["entry"] = entry(panel_fixed, 30, 50, 300)
+        button(panel_fixed, "Save note", 30, 110, 160, handler=lambda _button: save(note=notes["entry"].get_text()))
+        panel.show_all()
+
+    def control(command):
+        name = command.get("action")
+        if name == "open_notes":
+            show_notes()
+        elif name == "type":
+            notes["entry"].set_text(text_of(command))
+        elif name == "save":
+            save(note=notes["entry"].get_text())
+        else:
+            raise ValueError(f"there is no {name} action")
+        return {"ok": True}
+
+    label(fixed, "Open the notes window and save a note.", 40, 20)
+    button(fixed, "Open notes", 40, 60, 180, handler=show_notes)
+    actions["second_window"] = control
+
+
 builders = {
     "saveas": build_saveas,
     "rename": build_rename,
@@ -434,6 +464,7 @@ builders = {
     "same_title": build_same_title,
     "notification": build_notification,
     "owner": build_owner,
+    "second_window": build_second_window,
 }
 
 if screen in ("code", "text", "owner"):

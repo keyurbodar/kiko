@@ -93,6 +93,11 @@ def scenario(screen, workdir, request, deadline):
         send(workdir, {"action": "type", "text": request["code"]}, deadline)
         send(workdir, {"action": "save"}, deadline)
         wait_state(workdir, lambda state: state.get("target_code") is not None, deadline)
+    elif screen == "second_window":
+        send(workdir, {"action": "open_notes"}, deadline)
+        send(workdir, {"action": "type", "text": request["note"]}, deadline)
+        send(workdir, {"action": "save"}, deadline)
+        wait_state(workdir, lambda state: state.get("note") is not None, deadline)
     elif screen == "owner":
         data = read(workdir, "data.json")
         send(workdir, {"action": "type", "text": request["code"]}, deadline)

@@ -600,6 +600,42 @@ func buildSameTitle() {
     }
 }
 
+func buildSecondWindow() {
+    let (window, view) = makeWindow("Bench Fixture", 520, 300)
+    addLabel(view, "Open the notes window and save a note.", 40, 20)
+    var notes: NSWindow?
+    var notesField: NSTextField?
+
+    func showNotes() {
+        if let existing = notes {
+            existing.makeKeyAndOrderFront(nil)
+            return
+        }
+        let (panel, panelView) = makeWindow("Notes", 480, 240, x: 100, y: 100)
+        notes = panel
+        let field = addEntry(panelView, 30, 50, 300)
+        notesField = field
+        addButton(panelView, "Save note", 30, 110, 160) { save(["note": field.stringValue]) }
+        show(panel)
+    }
+
+    addButton(view, "Open notes", 40, 60, 180) { showNotes() }
+    show(window)
+    actions["second_window"] = { command in
+        switch text(command["action"]) {
+        case "open_notes": showNotes()
+        case "type":
+            guard let field = notesField else { return ["ok": false, "error": "the notes window is not open"] }
+            field.stringValue = text(command["text"])
+        case "save":
+            guard let field = notesField else { return ["ok": false, "error": "the notes window is not open"] }
+            save(["note": field.stringValue])
+        default: return ["ok": false, "error": "unknown action"]
+        }
+        return ["ok": true]
+    }
+}
+
 func buildOwner() {
     let (window, view) = makeWindow("Bench Fixture", 400, 300)
     let (ownerWindow, ownerView) = makeWindow("Owner Scratchpad", 380, 300, x: 460, y: 80)
@@ -664,6 +700,7 @@ func build() {
     case "same_title": buildSameTitle()
     case "notification": buildNotification()
     case "owner": buildOwner()
+    case "second_window": buildSecondWindow()
     default: buildSingleField("Reference code")
     }
 }
