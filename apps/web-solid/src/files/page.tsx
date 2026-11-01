@@ -16,6 +16,7 @@ import {
   toolButton,
 } from "../customize/page-ui"
 import { formatBytes } from "../chat/info/format"
+import { Mochi } from "../chat/ui/Mochi"
 import { IdentityAvatar } from "../lib/IdentityAvatar"
 import { agentDisplayName } from "../lib/names"
 import { room } from "../state/room"
@@ -139,13 +140,13 @@ function Upload(props: { onFiles: (files: File[]) => void; primary?: boolean }) 
 
 function Empty(props: { onFiles: (files: File[]) => void }) {
   return (
-    <EmptyState
-      art="folder"
-      title="No files yet"
-      line="Files from chats and uploads land here. Drop some anywhere on this page."
-      action={<Upload onFiles={props.onFiles} primary />}
-      data-component="files-empty"
-    />
+    <div class="mx-auto flex max-w-sm flex-col items-center gap-4 px-6 py-12 text-center" data-component="files-empty">
+      <span class="grid size-16 place-items-center rounded-full bg-quaternary">
+        <Mochi size={32} />
+      </span>
+      <p class="type-base text-secondary">No files yet. Drop some anywhere, or upload.</p>
+      <Upload onFiles={props.onFiles} primary />
+    </div>
   )
 }
 
@@ -319,32 +320,48 @@ export default function FilesPage() {
 
   return (
     <DropZone folder={HOME} onFiles={(files) => void saveFiles(files)}>
-      <PageFrame title="Files">
+      <PageFrame
+        title="Files"
+        crumbs={
+          <Show when={facets().agents.length || facets().chats.length}>
+            <span class="text-quaternary" aria-hidden="true">
+              /
+            </span>
+            <AuthorMenu
+              value={knownAuthor(author(), facets())}
+              facets={facets()}
+              total={entries().length}
+              onChange={setAuthor}
+            />
+          </Show>
+        }
+        actions={
+          <>
+            <PageSearch label="Search files" query={query()} onQuery={setQuery} />
+            <SortMenu sort={sort()} onSort={setSort} kind={kind()} kinds={kinds()} onKind={setKind} />
+            <ToolButton
+              label={view() === "grid" ? "Show as list" : "Show as grid"}
+              icon={view() === "grid" ? MenuIcon : GridIcon}
+              onClick={() => setView(view() === "grid" ? "list" : "grid")}
+            />
+            <Show when={entries().length}>
+              <Upload onFiles={(files) => void saveFiles(files)} />
+            </Show>
+            <NewMenu onNew={(blank) => void createBlank(blank)} />
+          </>
+        }
+      >
         <div class="flex flex-col gap-6 pt-4" data-component="files-page">
-          <div class="flex flex-wrap items-center justify-between gap-3">
-            <Show when={facets().agents.length || facets().chats.length} fallback={<span />}>
+          <Show when={facets().agents.length || facets().chats.length}>
+            <div class="@min-[640px]/page:hidden">
               <AuthorMenu
                 value={knownAuthor(author(), facets())}
                 facets={facets()}
                 total={entries().length}
                 onChange={setAuthor}
               />
-            </Show>
-            <div class="flex items-center gap-1">
-              <PageSearch label="Search files" query={query()} onQuery={setQuery} />
-              <SortMenu sort={sort()} onSort={setSort} kind={kind()} kinds={kinds()} onKind={setKind} />
-              <ToolButton
-                label={view() === "grid" ? "Show as list" : "Show as grid"}
-                icon={view() === "grid" ? MenuIcon : GridIcon}
-                onClick={() => setView(view() === "grid" ? "list" : "grid")}
-              />
-              <span class="ml-1 flex items-center gap-1.5">
-                <Upload onFiles={(files) => void saveFiles(files)} />
-                <NewMenu onNew={(blank) => void createBlank(blank)} />
-              </span>
             </div>
-          </div>
-
+          </Show>
           <Show
             when={entries().length || (user.synced() && !library.loading())}
             fallback={<SkeletonRows count={4} grid />}

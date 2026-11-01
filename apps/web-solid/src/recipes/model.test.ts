@@ -1,6 +1,6 @@
 import type { RecipeInstall, RoomId } from "@kiko/protocol"
 import { describe, expect, it } from "vitest"
-import { freeSlug, localizeWhen, openingSection, recipeTemplate } from "./model"
+import { chipLabel, freeSlug, localizeWhen, openingView, recipeTemplate } from "./model"
 
 const install: RecipeInstall = {
   installId: "install-1",
@@ -11,18 +11,26 @@ const install: RecipeInstall = {
   routines: [],
 }
 
-describe("openingSection", () => {
-  it("picks no tab while the owner's installs are still unknown", () => {
-    expect(openingSection(undefined, false)).toBeUndefined()
+describe("openingView", () => {
+  it("picks no chip while the owner's installs are still unknown", () => {
+    expect(openingView(undefined, false)).toBeUndefined()
   })
 
   it("opens on the owner's recipes once they are known to have some", () => {
-    expect(openingSection([install], false)).toBe("yours")
+    expect(openingView([install], false)).toBe("yours")
   })
 
-  it("opens on discover when the owner has none or is adding to a chat", () => {
-    expect(openingSection([], false)).toBe("discover")
-    expect(openingSection([install], true)).toBe("discover")
+  it("opens on all templates when the owner has none or is adding to a chat", () => {
+    expect(openingView([], false)).toBe("all")
+    expect(openingView([install], true)).toBe("all")
+  })
+})
+
+describe("chipLabel", () => {
+  it("names the two fixed chips and title-cases a category", () => {
+    expect(chipLabel("yours")).toBe("Yours")
+    expect(chipLabel("all")).toBe("All")
+    expect(chipLabel("mornings")).toBe("Mornings")
   })
 })
 

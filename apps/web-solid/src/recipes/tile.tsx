@@ -1,10 +1,11 @@
 import type { RecipeCard } from "@kiko/protocol"
 import { RemixIcon } from "@kiko/ui/remix-icon"
-import { ClockIcon, PlusIcon } from "@kiko/ui/icons"
-import { For, Show } from "solid-js"
+import { PlusIcon } from "@kiko/ui/icons"
+import { Show } from "solid-js"
 import { IdentityAvatar } from "../lib/IdentityAvatar"
+import { RecipeChip } from "./chip"
 import { AppLogo } from "./icon"
-import { installStatus, localizeWhen, nextRunLabel } from "./model"
+import { categoryTone, installStatus, localizeWhen, nextRunLabel } from "./model"
 import { installsFor } from "./state"
 
 export function RecipeTile(props: { recipe: RecipeCard; onOpen: () => void; onAdd: () => void }) {
@@ -17,13 +18,18 @@ export function RecipeTile(props: { recipe: RecipeCard; onOpen: () => void; onAd
     return times.length ? nextRunLabel(Math.min(...times), Date.now()) : "Paused"
   }
   const on = () => installs().length > 0
+  const tone = () => categoryTone(props.recipe.tags)
+  const tileStyle = () => {
+    const found = tone()
+    return found ? { "--tile-tone": `var(${found})` } : undefined
+  }
   return (
     <article
-      class="tpl flex min-w-0 cursor-pointer gap-3 p-3 transition-transform active:scale-(--press-scale)"
+      class="tpl page-card flex min-w-0 cursor-pointer gap-3 p-3 transition-transform active:scale-(--press-scale)"
       data-recipe={props.recipe.slug}
       data-on={on() ? "" : undefined}
     >
-      <span class="tpl-tile mt-0.5">
+      <span class="tpl-tile mt-0.5" style={tileStyle()} data-tone={tone() ? "" : undefined}>
         <svg
           class="tpl-glyph"
           viewBox="0 0 256 256"
@@ -43,16 +49,22 @@ export function RecipeTile(props: { recipe: RecipeCard; onOpen: () => void; onAd
           <span class="type-base block truncate text-primary">{props.recipe.title}</span>
         </button>
         <span class="type-sm line-clamp-2 text-tertiary">{props.recipe.description}</span>
-        <span class="type-sm mt-1 flex min-w-0 items-center gap-1.5 text-tertiary">
-          <RemixIcon icon={ClockIcon} size={12} class="shrink-0 icon-tertiary" />
-          <span class="truncate">
-            <Show when={on()} fallback={localizeWhen(props.recipe.when)}>
-              {soonest()}
-            </Show>
-          </span>
-          <span class="flex shrink-0 items-center gap-1">
-            <For each={props.recipe.apps.slice(0, 3)}>{(app) => <AppLogo app={app} size={16} />}</For>
-          </span>
+        <span class="mt-1.5 flex min-w-0 items-center gap-1.5 overflow-hidden" data-component="recipe-card-foot">
+          <RecipeChip>
+            <span class="truncate">
+              <Show when={on()} fallback={localizeWhen(props.recipe.when)}>
+                {soonest()}
+              </Show>
+            </span>
+          </RecipeChip>
+          <Show when={props.recipe.apps[0]}>
+            {(app) => (
+              <RecipeChip class="shrink-0">
+                <AppLogo app={app()} size={14} />
+                <span class="truncate">{app().name}</span>
+              </RecipeChip>
+            )}
+          </Show>
         </span>
       </span>
       <button

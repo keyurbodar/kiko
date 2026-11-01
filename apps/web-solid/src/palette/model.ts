@@ -104,6 +104,8 @@ const ICONS: Record<string, Glyph> = {
   close: glyphs.CloseIcon,
   trash: glyphs.TrashIcon,
   chat: glyphs.ChatIcon,
+  group: glyphs.GroupIcon,
+  agent: glyphs.UserIcon,
   chevron: glyphs.ChevronRightIcon,
   copy: glyphs.CopyIcon,
   leaf: glyphs.LeafIcon,
