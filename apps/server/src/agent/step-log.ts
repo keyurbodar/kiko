@@ -60,6 +60,37 @@ function result(entry: Entry, message: Message, call: Opened, parts: readonly Pa
   }
 }
 
+const startsWindow = (entry: Entry) => entry.kind === "kiko.input" || entry.kind === "pi.user"
+
+type Calls = Map<string, Opened>
+
+function opened(
+  entry: Entry,
+  message: Message,
+  conversationId: ConversationId,
+  scoped: StepScope,
+  calls: Calls,
+  describe?: Describe,
+): StepItem[] {
+  const parts = partsOf(message)
+  const toolCalls = parts.filter((part) => part.type === "toolCall" && typeof part.id === "string")
+  if (!toolCalls.length) return []
+  for (const part of toolCalls) {
+    if (typeof part.name !== "string" || part.id === undefined) continue
+    const shown = stepOf(part.name, (part.arguments ?? {}) as Record<string, unknown>, describe)
+    if (shown) calls.set(`${conversationId}:${part.id}`, { id: part.id, name: part.name, scope: scoped, shown })
+  }
+  const started = note(entry, message, scoped, parts)
+  return started ? [started] : []
+}
+
+function closed(entry: Entry, message: Message, conversationId: ConversationId, calls: Calls): StepItem[] {
+  if (message.toolCallId === undefined) return []
+  const call = calls.get(`${conversationId}:${message.toolCallId}`)
+  const item = call ? result(entry, message, call, partsOf(message)) : null
+  return item ? [item] : []
+}
+
 export function stepsFromEntries(
   entries: readonly Entry[],
   after: number,
@@ -67,33 +98,17 @@ export function stepsFromEntries(
   describe?: Describe,
 ): StepItem[] {
   const items: StepItem[] = []
-  const calls = new Map<string, Opened>()
+  const calls: Calls = new Map()
   for (const entry of entries) {
     if (entry.id <= after) continue
-    if (entry.kind === "kiko.input" || entry.kind === "pi.user") break
+    if (startsWindow(entry)) break
     const conversationId = entry.conversationId
     const message = entry.model?.[0] as Message | undefined
     if (conversationId === undefined || !message) continue
     const scoped = scope(conversationId)
     if (!scoped) continue
-    const parts = partsOf(message)
-    if (message.role === "assistant") {
-      const toolCalls = parts.filter((part) => part.type === "toolCall" && typeof part.id === "string")
-      if (!toolCalls.length) continue
-      const item = note(entry, message, scoped, parts)
-      if (item) items.push(item)
-      for (const part of toolCalls) {
-        if (typeof part.name !== "string" || part.id === undefined) continue
-        const shown = stepOf(part.name, (part.arguments ?? {}) as Record<string, unknown>, describe)
-        if (!shown) continue
-        calls.set(`${conversationId}:${part.id}`, { id: part.id, name: part.name, scope: scoped, shown })
-      }
-    } else if (message.role === "toolResult" && message.toolCallId !== undefined) {
-      const call = calls.get(`${conversationId}:${message.toolCallId}`)
-      if (!call) continue
-      const item = result(entry, message, call, parts)
-      if (item) items.push(item)
-    }
+    if (message.role === "assistant") items.push(...opened(entry, message, conversationId, scoped, calls, describe))
+    else if (message.role === "toolResult") items.push(...closed(entry, message, conversationId, calls))
   }
   return items
 }
