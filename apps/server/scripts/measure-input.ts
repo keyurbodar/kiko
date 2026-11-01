@@ -149,7 +149,7 @@ async function main(): Promise<void> {
 
     const minted = await mintPairCode(kek, "owner")
     const computerDir = join(dir, "pc")
-    const env = { KIKO_COMPUTER_DIR: computerDir, KIKO_DRIVER: driverPath, DISPLAY: display, KIKO_PAIR_DEBUG: "1" }
+    const env = { KIKO_COMPUTER_DIR: computerDir, KIKO_DRIVER: driverPath, DISPLAY: display }
     const paired = start(
       "pair",
       ["bun", "src/index.ts", "pair", `http://127.0.0.1:${SERVER_PORT}#${minted.code}`, "--name", "kiko-ci"],
@@ -270,6 +270,15 @@ async function main(): Promise<void> {
       await wait(800)
     }
 
+    const pasteInto = async (text: string) => {
+      await page.evaluate((value) => {
+        const sink = document.querySelector('[data-part="sink"]')
+        const data = new DataTransfer()
+        data.setData("text/plain", value)
+        sink?.dispatchEvent(new ClipboardEvent("paste", { clipboardData: data, bubbles: true, cancelable: true }))
+      }, text)
+    }
+
     const pointer = async () => {
       const out = await command(["xdotool", "getmouselocation"])
       const match = out ? /x:(-?\d+) y:(-?\d+)/.exec(out) : null
@@ -295,8 +304,7 @@ async function main(): Promise<void> {
         return log.__events.at(-1)
       })) as { x: number; y: number; screenX: number; screenY: number }
       result.click = landed
-      await page.evaluate((text) => navigator.clipboard.writeText(text), TEXT)
-      await page.keyboard.press(process.platform === "darwin" ? "Meta+v" : "Control+v")
+      await pasteInto(TEXT)
       await until("the pasted text", async () => (await leftPage.inputValue("#field")) === TEXT, 30_000)
       result.pasted = await leftPage.inputValue("#field")
       const centred =
@@ -331,8 +339,7 @@ async function main(): Promise<void> {
       await until("the click on the first display", () => at(640, 400), 10_000)
       result.first = await pointer()
 
-      await page.evaluate((text) => navigator.clipboard.writeText(text), TEXT)
-      await page.keyboard.press("Control+v")
+      await pasteInto(TEXT)
       await until("the pasted text", pasted, 30_000)
 
       const exact = await pasted()
