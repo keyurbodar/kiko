@@ -190,11 +190,6 @@ export function Composer(props: ComposerProps) {
     },
   })
   const modelBlock = () => (props.editing || question.ask() ? null : (props.sendBlock ?? null))
-  const noticeBlock = () => (modelBlock()?.kind === "no_provider" ? modelBlock() : null)
-  const fieldBlock = () => {
-    const block = modelBlock()
-    return block && block.kind !== "no_provider" ? block : null
-  }
   const failed = () => boxed().filter((part) => uploadState(part.id)?.status === "failed")
   const blocked = () => modelBlock()?.reason ?? (preparingAttachments() ? "Still preparing the attachment" : null)
   const [nudged, setNudged] = createSignal(false)
@@ -385,8 +380,14 @@ export function Composer(props: ComposerProps) {
       ]
     if (props.editing) return ["Edit your message"]
     const name = recipient()?.title || props.title || botById(props.threadId)?.name
-    if (!name) return ["Message"]
-    return [props.empty ? `Message ${name}. @ to mention, / for skills` : `Message ${name}`]
+    const base = name ? `Message ${name}. @ to mention, / for skills` : "Message"
+    if (!name) return [base]
+    return [
+      base,
+      ...data()
+        .apps()
+        .map((app) => `Ask ${name} about your ${app.title}`),
+    ]
   })
 
   const controller = createPromptInputV2Controller({
@@ -584,7 +585,7 @@ export function Composer(props: ComposerProps) {
           />
         )}
       </Show>
-      <Show when={fieldBlock()}>
+      <Show when={modelBlock()}>
         {(block) => (
           <div class="no-key-hint" data-component="composer-send-block" role="status">
             <span>{block().reason}</span>
@@ -609,19 +610,6 @@ export function Composer(props: ComposerProps) {
     </>
   )
 
-  const notice = (
-    <Show when={noticeBlock()}>
-      {(block) => (
-        <div class="composer-notice" data-component="composer-send-block" role="status">
-          <span class="composer-notice-text">Connect a model provider to start chatting.</span>
-          <button type="button" data-action={block().actions[0]} onClick={() => openSettings()}>
-            Connect
-          </button>
-        </div>
-      )}
-    </Show>
-  )
-
   return (
     <>
       <Show when={props.room}>
@@ -636,8 +624,6 @@ export function Composer(props: ComposerProps) {
         readOnly={!!question.ask() && question.progress().activeQuestion?.allowCustomAnswer === false}
         controller={controller}
         disabled={!!props.disabled}
-        empty={!!props.empty}
-        notice={notice}
         reply={question.ask() ? undefined : above}
         below={question.ask() ? undefined : below}
         tray={props.tray}

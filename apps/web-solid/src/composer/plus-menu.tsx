@@ -349,7 +349,7 @@ export function PlusMenu(props: PlusMenuProps) {
           setOpen(true)
         }}
       >
-        <RemixIcon icon={PlusIcon} size={16} />
+        <RemixIcon icon={PlusIcon} size={18} />
       </button>
       <Show when={open()}>
         <Portal>
