@@ -305,6 +305,7 @@ async function main(): Promise<void> {
         return {
           active: document.activeElement?.id || document.activeElement?.tagName || null,
           clicks: log.__events.length,
+          last: log.__events.at(-1) ?? null,
           value: field?.value ?? null,
         }
       })
@@ -358,6 +359,10 @@ async function main(): Promise<void> {
       await until("the click on the first display", () => at(640, 400), 10_000)
       result.first = await pointer()
 
+      await page.keyboard.press("KeyA")
+      await wait(500)
+      result.typed = await leftPage.evaluate(() => (document.getElementById("field") as HTMLTextAreaElement).value)
+      process.stderr.write(`[type probe] the field holds ${JSON.stringify(result.typed)}\n`)
       await pasteInto(TEXT)
       await until("the pasted text", async () => (await pasted()) === TEXT, 30_000).catch(async (error) => {
         result.fields = { left: await inspect(leftPage), right: await inspect(rightPage) }

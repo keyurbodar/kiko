@@ -60,6 +60,7 @@ function pointerHandlers(target: InputTarget) {
     },
     down(event: PointerEvent) {
       event.preventDefault()
+      console.info(`kiko stage probe: down at ${event.clientX},${event.clientY}`)
       stage.setPointerCapture(event.pointerId)
       sink.focus({ preventScroll: true })
       last = pointOf(stage, event)
