@@ -3,13 +3,17 @@ import { toolValue, type Tools } from "./tools"
 
 const TOOL_MS = 5_000
 const OS_MS = 3_000
+const OWNER_MS = 1_500
 
 export type Command = { code: number; out: string }
+
+export type Spawned = { exited: Promise<number> }
 
 export type ClipboardDeps = {
   platform?: Platform
   tools?: () => Tools | null
   run?: (cmd: string[], stdin?: string) => Promise<Command>
+  spawn?: (cmd: string[], stdin: string) => Spawned
 }
 
 export type Clipboard = {
@@ -60,8 +64,37 @@ function withTimeout<T>(work: Promise<T>, fallback: T): Promise<T> {
   })
 }
 
+function launch(command: readonly string[], stdin: string): Spawned {
+  return Bun.spawn([...command], {
+    stdin: new TextEncoder().encode(stdin),
+    stdout: "ignore",
+    stderr: "ignore",
+  })
+}
+
+function keep(spawn: (cmd: string[], stdin: string) => Spawned, command: readonly string[], text: string) {
+  return new Promise<boolean>((resolve) => {
+    let settled = false
+    const finish = (ok: boolean) => {
+      if (settled) return
+      settled = true
+      if (timer) clearTimeout(timer)
+      resolve(ok)
+    }
+    let timer: ReturnType<typeof setTimeout> | undefined
+    try {
+      const child = spawn([...command], text)
+      timer = setTimeout(() => finish(true), OWNER_MS)
+      void child.exited.then((code) => finish(code === 0)).catch(() => finish(false))
+    } catch {
+      finish(false)
+    }
+  })
+}
+
 export function createClipboard(deps: ClipboardDeps = {}): Clipboard {
   const run = deps.run ?? system
+  const spawn = deps.spawn ?? launch
   const name = deps.platform ?? platform()
   const tools = () => deps.tools?.() ?? null
 
@@ -93,6 +126,10 @@ export function createClipboard(deps: ClipboardDeps = {}): Clipboard {
   const writeOs = async (text: string): Promise<boolean> => {
     if (name === "windows") return false
     for (const command of OS_WRITE[name]) {
+      if (name === "linux") {
+        if (await keep(spawn, command, text)) return true
+        continue
+      }
       const result = await run([...command], text)
       if (result.code === 0) return true
     }

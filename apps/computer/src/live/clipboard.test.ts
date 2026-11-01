@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest"
-import { createClipboard, type Command } from "./clipboard"
+import { describe, expect, it, vi } from "vitest"
+import { createClipboard, type Command, type Spawned } from "./clipboard"
 import type { Tools } from "./tools"
 
 function driver(tools: Record<string, (args: Record<string, unknown>) => unknown>): Tools {
@@ -18,6 +18,15 @@ const system = () => {
   const ran: { cmd: string[]; stdin?: string }[] = []
   const answer = (code: number, out = "") => Promise.resolve<Command>({ code, out })
   return { ran, answer }
+}
+
+const starters = (codes: readonly number[]) => {
+  const started: { cmd: string[]; stdin: string }[] = []
+  const spawn = (cmd: string[], stdin: string): Spawned => {
+    started.push({ cmd, stdin })
+    return { exited: Promise.resolve(codes[started.length - 1] ?? 1) }
+  }
+  return { started, spawn }
 }
 
 describe("the remote clipboard", () => {
@@ -77,25 +86,40 @@ describe("the remote clipboard", () => {
   })
 
   it("tries wl-copy before xclip on Linux and reports what worked", async () => {
-    const { ran, answer } = system()
-    const clipboard = createClipboard({
-      platform: "linux",
-      run: (cmd, stdin) => {
-        ran.push({ cmd, stdin })
-        return cmd[0] === "wl-copy" ? answer(1) : answer(0)
-      },
-    })
+    const { started, spawn } = starters([1, 0])
+    const clipboard = createClipboard({ platform: "linux", spawn })
 
     expect(await clipboard.write("text")).toBe(true)
-    expect(ran.map((entry) => entry.cmd[0])).toEqual(["wl-copy", "xclip"])
-    expect(ran[1]?.cmd).toEqual(["xclip", "-selection", "clipboard", "-i"])
-    expect(ran[1]?.stdin).toBe("text")
+    expect(started.map((entry) => entry.cmd[0])).toEqual(["wl-copy", "xclip"])
+    expect(started[1]?.cmd).toEqual(["xclip", "-selection", "clipboard", "-i"])
+    expect(started[1]?.stdin).toBe("text")
+  })
+
+  it("keeps the Linux selection owner running instead of waiting for it to exit", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] })
+    try {
+      const started: string[][] = []
+      const spawn = (cmd: string[]): Spawned => {
+        started.push(cmd)
+        return { exited: new Promise(() => {}) }
+      }
+      const clipboard = createClipboard({ platform: "linux", spawn, tools: () => driver({}) })
+
+      const writing = clipboard.write("held by the daemon")
+      await vi.advanceTimersByTimeAsync(2_000)
+
+      expect(await writing).toBe(true)
+      expect(started).toEqual([["wl-copy"]])
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it("fails quietly when no clipboard exists at all", async () => {
     const clipboard = createClipboard({
       platform: "linux",
       run: () => Promise.resolve({ code: 127, out: "" }),
+      spawn: () => ({ exited: Promise.resolve(1) }),
     })
 
     expect(await clipboard.read()).toBeNull()
@@ -103,17 +127,17 @@ describe("the remote clipboard", () => {
   })
 
   it("uses the OS clipboard when the driver clipboard errors", async () => {
-    const { ran, answer } = system()
+    const started: string[] = []
     const clipboard = createClipboard({
       platform: "linux",
       tools: () => driver({ clipboard_write: () => Promise.reject(new Error("not supported here")) }),
-      run: (cmd, stdin) => {
-        ran.push({ cmd, stdin })
-        return answer(cmd[0] === "wl-copy" ? 0 : 1)
+      spawn: (cmd) => {
+        started.push(cmd[0] ?? "")
+        return { exited: Promise.resolve(0) }
       },
     })
 
     expect(await clipboard.write("fallback")).toBe(true)
-    expect(ran[0]?.cmd).toEqual(["wl-copy"])
+    expect(started).toEqual(["wl-copy"])
   })
 })
