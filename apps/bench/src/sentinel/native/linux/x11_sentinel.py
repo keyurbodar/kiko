@@ -191,6 +191,20 @@ class Sentinel:
         xtest.fake_input(self.display, X.KeyRelease, self.keycode)
         self.display.sync()
 
+    def handshake(self):
+        deadline = time.time() + 5
+        while time.time() < deadline:
+            self.activate()
+            before = self.keys_received
+            self.send_key()
+            until = time.time() + 1.0
+            while time.time() < until:
+                self.wait(0.02)
+                if self.keys_received > before:
+                    self.keys_received = 0
+                    return True
+        return False
+
     def resolve_pending(self):
         if self.pending is None:
             return
@@ -229,6 +243,9 @@ class Sentinel:
             return self.loop(sends_keys=False)
         self.sample()
         if self.partial:
+            if not self.handshake():
+                self.log.emit("error", message="the witness window did not receive a key")
+                return 3
             self.log.emit("ready", pid=os.getpid(), keycode=self.keycode, unmeasured=sorted(PARTIAL_UNMEASURED))
         else:
             self.log.emit("ready", pid=os.getpid(), keycode=self.keycode)
