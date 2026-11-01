@@ -37,17 +37,18 @@ let
     ps.pygobject3
     ps.xlib
   ]);
-  girepositoryPath = lib.makeSearchPath "lib/girepository-1.0" (
-    with pkgs;
-    [
-      glib
-      gtk3
-      pango
-      gdk-pixbuf
-      at-spi2-core
-      harfbuzz
-      gobject-introspection
-    ]
+  girepositoryPackages = with pkgs; [
+    glib
+    gtk3
+    pango
+    gdk-pixbuf
+    at-spi2-core
+    harfbuzz
+    gobject-introspection
+  ];
+  girepositoryPath = lib.concatStringsSep ":" (
+    lib.makeSearchPath "lib/girepository-1.0" girepositoryPackages
+    ++ lib.makeSearchPathOutput "out" "lib/girepository-1.0" girepositoryPackages
   );
 in
 {
