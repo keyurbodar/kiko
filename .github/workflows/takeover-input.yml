@@ -118,17 +118,31 @@ jobs:
           set -euo pipefail
           cat > /tmp/try.ts <<'TS'
           const ffmpeg = "/opt/homebrew/bin/ffmpeg"
-          async function attempt(input: string) {
-            const args = [ffmpeg, "-hide_banner", "-loglevel", "error", "-nostdin", "-f", "avfoundation", "-capture_cursor", "1", "-framerate", "15", "-i", input, "-r", "15", "-an", "-vf", "scale=1024:768:flags=fast_bilinear", "-c:v", "mjpeg", "-q:v", "18", "-f", "mjpeg", "pipe:1"]
-            const child = Bun.spawn(args, { stdout: "pipe", stderr: "pipe", timeout: 5_000 })
-            const bytes = await Promise.race([
-              new Response(child.stdout).arrayBuffer().then((out) => out.byteLength),
-              Bun.sleep(5_000).then(() => -1),
-            ])
-            console.log(`${input}: ${bytes} bytes, exit ${child.exitCode}`)
+          const args = [ffmpeg, "-hide_banner", "-loglevel", "error", "-nostdin", "-f", "avfoundation", "-capture_cursor", "1", "-framerate", "15", "-i", "Capture screen 0", "-r", "15", "-an", "-vf", "scale=1024:768:flags=fast_bilinear", "-c:v", "mjpeg", "-q:v", "18", "-f", "mjpeg", "pipe:1"]
+          const wait = (work: Promise<number>) => Promise.race([work.catch(() => -1), Bun.sleep(6_000).then(() => -1)])
+          async function report(name: string, child: { exitCode: number | null; kill(): void }, bytes: Promise<number>) {
+            console.log(`${name}: ${await wait(bytes)} bytes, exit ${child.exitCode}`)
+            child.kill()
           }
-          await attempt("Capture screen 0:none")
-          await attempt("Capture screen 0")
+          const piped = Bun.spawn(args, { stdout: "pipe", stderr: "pipe" })
+          await report("stdout pipe", piped, new Response(piped.stdout).arrayBuffer().then((out) => out.byteLength))
+          const quiet = Bun.spawn(args, { stdout: "pipe", stderr: "ignore" })
+          await report("stdout pipe, stderr ignored", quiet, new Response(quiet.stdout).arrayBuffer().then((out) => out.byteLength))
+          const file = Bun.spawn(args, { stdout: Bun.file("/tmp/one.mjpeg"), stderr: "ignore" })
+          await report(
+            "stdout file",
+            file,
+            Bun.sleep(6_000).then(() => Bun.file("/tmp/one.mjpeg").arrayBuffer()).then((out) => out.byteLength),
+          )
+          const shell = Bun.spawn(["bash", "-c", `${args.join(" ")} > /tmp/two.mjpeg 2>/dev/null`], {
+            stdout: "ignore",
+            stderr: "ignore",
+          })
+          await report(
+            "through bash",
+            shell,
+            Bun.sleep(6_000).then(() => Bun.file("/tmp/two.mjpeg").arrayBuffer()).then((out) => out.byteLength),
+          )
           TS
           bun /tmp/try.ts
       - name: Paste a Unicode string and click the display
