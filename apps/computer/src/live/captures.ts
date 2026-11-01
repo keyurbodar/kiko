@@ -22,6 +22,8 @@ export type H264Options = {
 }
 
 const CLOCK = 90_000
+const FIRST_FRAME_MS = 5_000
+const FIRST_FRAME_TRIES = 4
 const STARTUP_GRACE_MS = 4_000
 const RESTART_LIMIT = 5
 const RESTART_DELAY_MS = 500
@@ -38,6 +40,8 @@ class H264 {
   private launchedAt = 0
   private child: Child | null = null
   private stopped = false
+  private frames = 0
+  private firstFrame: ReturnType<typeof setTimeout> | null = null
   private pending: ReturnType<typeof setTimeout> | null = null
 
   constructor(options: H264Options) {
@@ -57,6 +61,7 @@ class H264 {
   stop(): void {
     this.stopped = true
     this.clearPending()
+    this.clearFirstFrame()
     this.kill()
   }
 
@@ -65,6 +70,8 @@ class H264 {
   }
 
   private emit(chunk: Uint8Array): void {
+    this.frames += 1
+    this.clearFirstFrame()
     const timestamp = Math.round((performance.now() - this.epoch) * (CLOCK / 1000)) >>> 0
     for (const unit of this.parser.push(chunk)) this.options.handlers.unit(unit, timestamp)
   }
@@ -73,8 +80,10 @@ class H264 {
     const args = this.plans[this.plan]
     if (this.stopped || !args) return
     this.launchedAt = performance.now()
+    this.frames = 0
     const child: Child = Bun.spawn(args, { stdin: "ignore", stdout: "pipe", stderr: "pipe" })
     this.child = child
+    this.watchFirstFrame(child)
     void this.pump(child)
   }
 
@@ -91,6 +100,28 @@ class H264 {
     if (this.stopped || proc !== this.child) return
     this.child = null
     this.retry(code, tail)
+  }
+
+  private watchFirstFrame(child: Child): void {
+    this.clearFirstFrame()
+    this.firstFrame = setTimeout(() => {
+      this.firstFrame = null
+      if (this.stopped || this.child !== child || this.frames > 0) return
+      this.child = null
+      child.kill()
+      if (this.plan + 1 < this.plans.length) {
+        this.plan++
+        this.launch()
+        return
+      }
+      this.options.handlers.failed("ffmpeg sent no frames")
+      this.stop()
+    }, FIRST_FRAME_MS)
+  }
+
+  private clearFirstFrame(): void {
+    if (this.firstFrame) clearTimeout(this.firstFrame)
+    this.firstFrame = null
   }
 
   private retry(code: number, tail: string): void {
@@ -159,6 +190,9 @@ class Mjpeg {
   private plan = 0
   private child: Child | null = null
   private stopped = false
+  private frames = 0
+  private tries = 0
+  private firstFrame: ReturnType<typeof setTimeout> | null = null
   private pending: Uint8Array = new Uint8Array(0)
 
   constructor(options: MjpegOptions) {
@@ -177,6 +211,7 @@ class Mjpeg {
 
   stop(): void {
     this.stopped = true
+    this.clearFirstFrame()
     this.child?.kill()
     this.child = null
   }
@@ -185,8 +220,10 @@ class Mjpeg {
     const args = this.plans[this.plan]
     if (this.stopped || !args) return
     this.pending = new Uint8Array(0)
+    this.frames = 0
     const child: Child = Bun.spawn(args, { stdin: "ignore", stdout: "pipe", stderr: "pipe" })
     this.child = child
+    this.watchFirstFrame(child)
     void this.pump(child)
   }
 
@@ -211,7 +248,31 @@ class Mjpeg {
     this.stopped = true
   }
 
+  private watchFirstFrame(child: Child): void {
+    this.clearFirstFrame()
+    this.firstFrame = setTimeout(() => {
+      this.firstFrame = null
+      if (this.stopped || this.child !== child || this.frames > 0) return
+      this.child = null
+      child.kill()
+      if (this.tries >= FIRST_FRAME_TRIES) {
+        this.options.handlers.failed("ffmpeg sent no frames")
+        this.stop()
+        return
+      }
+      this.tries += 1
+      this.launch()
+    }, FIRST_FRAME_MS)
+  }
+
+  private clearFirstFrame(): void {
+    if (this.firstFrame) clearTimeout(this.firstFrame)
+    this.firstFrame = null
+  }
+
   private emit(chunk: Uint8Array): void {
+    this.frames += 1
+    this.clearFirstFrame()
     this.pending = join(this.pending, chunk)
     let scan = 0
     while (scan + 3 < this.pending.byteLength) {
