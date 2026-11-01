@@ -2,7 +2,7 @@ import { useLocation, useNavigate } from "@tanstack/solid-router"
 import { For, Match, Show, Switch, createEffect, onCleanup } from "solid-js"
 import "./first-run.css"
 import { RemixIcon } from "@kiko/ui/remix-icon"
-import { ChevronLeftIcon } from "@kiko/ui/icons"
+import { ChevronLeftIcon, KeyIcon } from "@kiko/ui/icons"
 import { hosted } from "../hosted"
 import { phase, signOut } from "../session"
 import { Backdrop } from "./backdrop"
@@ -19,8 +19,8 @@ import { AccessCode } from "./welcome"
 
 const STEPS = stepsFor(hosted)
 
-const ART: Record<Exclude<Step, "done">, { name: IllustrationName; caption: string }> = {
-  "sign-in": { name: "envelope", caption: hosted ? "Just your name and email" : "Your code stays on your server" },
+const ART: Record<Exclude<Step, "done">, { name: IllustrationName | null; caption: string }> = {
+  "sign-in": { name: null, caption: hosted ? "Just your name and email" : "Your code stays on your server" },
   cloudflare: { name: "plug", caption: "Plugs into your Cloudflare" },
   connect: { name: "pot", caption: "Cooking up some brains" },
   model: { name: "chat", caption: "You can change it any time" },
@@ -149,7 +149,20 @@ export default function FirstRun() {
           <Show when={!finished() ? art() : null} keyed>
             {(current) => (
               <div class="ob-right" aria-hidden="true">
-                <Illustration name={current.name} />
+                <Show
+                  when={current.name}
+                  fallback={
+                    <RemixIcon
+                      icon={KeyIcon}
+                      width={32}
+                      height={32}
+                      class="icon-secondary"
+                      data-component="first-run-art"
+                    />
+                  }
+                >
+                  {(name) => <Illustration name={name()} />}
+                </Show>
                 <span class="ob-caption">{current.caption}</span>
               </div>
             )}

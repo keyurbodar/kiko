@@ -1,18 +1,30 @@
 import type { Models } from "@earendil-works/pi-ai"
-import { runErrorDetail } from "../agent/run-error"
 
 const CHECK_TIMEOUT_MS = 10_000
 const REJECTED =
   /\b(401|403)\b|unauthori[sz]ed|forbidden|authentication|invalid[\w\s-]{0,24}key|incorrect api key|api key[\w\s-]{0,24}(?:invalid|not valid|rejected|revoked)/i
 
-const KEY_REFUSED = "The provider refused that key"
+export type KeyProblem = { readonly sentence: string; readonly status?: number }
+
+const STATUS = /\b([45]\d{2})\b/
+
+export function keyProblem(provider: string, said: string): KeyProblem {
+  const status = STATUS.exec(said)?.[1]
+  if (status === undefined) return { sentence: `Couldn't reach ${provider}. Check your connection.` }
+  const code = Number(status)
+  if (code === 401 || code === 403)
+    return { sentence: `${provider} didn't recognize that key. Check that you copied all of it.`, status: code }
+  if (code === 429) return { sentence: `${provider} is rate limiting this key. Try again in a minute.`, status: code }
+  if (code >= 500) return { sentence: `${provider} is having trouble right now. Try again in a minute.`, status: code }
+  return { sentence: `${provider} rejected that key.`, status: code }
+}
+
+export const keyProblemText = (provider: string, said: string): string => {
+  const { sentence, status } = keyProblem(provider, said)
+  return status === undefined ? sentence : `${sentence} · ${status}`
+}
 
 export type ProbeReply = { ran: true; said: string | null } | { ran: false }
-
-export const keyRefusedText = (said: string): string => {
-  const detail = runErrorDetail(said)
-  return detail ? `${KEY_REFUSED}. It said: ${detail}` : `${KEY_REFUSED}.`
-}
 
 export async function keyRefused(
   models: Models,

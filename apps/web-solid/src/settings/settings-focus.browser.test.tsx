@@ -71,14 +71,23 @@ describe("settings focus", () => {
     closed.count = 0
     const router = routerAt("/settings/tools", () => <p>Tools body</p>)
     await using _screen = await render(() => <RouterProvider router={router} />)
-    const tools = page.getByRole("dialog").getByRole("button", { name: "Tools", exact: true })
-    await expect.element(tools).toHaveFocus()
+    await expect.element(page.getByRole("dialog")).toHaveFocus()
     document.querySelector("textarea")!.focus()
-    await expect.element(tools).toHaveFocus()
+    await expect.element(page.getByRole("dialog")).toHaveFocus()
     await userEvent.keyboard("zz")
     expect(document.querySelector("textarea")?.value).toBe("")
     await userEvent.keyboard("{Escape}")
     expect(closed.count).toBe(1)
+  })
+
+  it("does not draw a focus ring on the selected section when settings opens", async () => {
+    await page.viewport(1280, 720)
+    const router = routerAt("/settings/models", () => <p>Models body</p>)
+    await using _screen = await render(() => <RouterProvider router={router} />)
+    const models = page.getByRole("dialog").getByRole("button", { name: "Models", exact: true })
+    await expect.element(models).toHaveAttribute("aria-current", "page")
+    await expect.element(models).not.toHaveFocus()
+    expect(models.element().matches(":focus-visible")).toBe(false)
   })
 
   it("lets a nested dialog keep focus while you type in it", async () => {

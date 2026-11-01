@@ -86,6 +86,7 @@ export function SettingsDialog(props: ParentProps) {
       : SETTINGS_GROUPS.map((name) => ({ name, rows: rows().filter((s) => s.group === name) }))
   let body: HTMLDivElement | undefined
   let page: HTMLDivElement | undefined
+  let shell: HTMLElement | undefined
   let nav!: HTMLElement
   let mark!: HTMLSpanElement
   const current = () => {
@@ -114,7 +115,7 @@ export function SettingsDialog(props: ParentProps) {
   const holdFocus = (event: FocusEvent) => {
     const target = event.target
     if (!(target instanceof Element) || target.closest(LAYERS)) return
-    current()?.focus({ preventScroll: true })
+    shell?.focus({ preventScroll: true })
   }
   onMount(() => {
     document.addEventListener("focusin", holdFocus)
@@ -147,9 +148,11 @@ export function SettingsDialog(props: ParentProps) {
         <ModalV2.Content
           class="settings-dialog"
           role="dialog"
+          tabIndex={-1}
           onOpenAutoFocus={(e: Event) => {
             e.preventDefault()
-            ;(current() ?? (e.currentTarget as HTMLElement)).focus({ preventScroll: true })
+            shell = e.currentTarget as HTMLElement
+            shell.focus({ preventScroll: true })
             reveal()
           }}
           onCloseAutoFocus={(e: Event) => {

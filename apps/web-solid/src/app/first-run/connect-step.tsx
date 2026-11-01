@@ -33,7 +33,7 @@ export function ConnectStep() {
         Where should they think?
       </h1>
       <p class="welcome-lede" style={{ "--i": 1 }}>
-        Use a plan you already pay for, or an API key. Either stays on your server.
+        Kiko runs on your own model account.
       </p>
       <div class="ob-body" data-component="first-run-providers" style={{ "--i": 2 }}>
         <Show

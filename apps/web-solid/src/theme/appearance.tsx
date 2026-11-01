@@ -38,16 +38,23 @@ function Preview(props: { palette: Palette }) {
         <span class="h-[5px] w-3/5 rounded-sm" style={{ background: tint(36) }} />
         <span class="h-[5px] w-[70%] rounded-sm" style={{ background: tint(20) }} />
       </div>
-      <div class="flex flex-1 flex-col items-end gap-1.5 p-3.5">
-        <span class="h-[18px] w-1/2 rounded-base" style={{ background: tint(6) }} />
-        <span class="h-[5px] w-[70%] self-start rounded-sm" style={{ background: tint(60) }} />
-        <span class="h-[5px] w-[45%] self-start rounded-sm" style={{ background: tint(36) }} />
-        <span
-          class="mt-auto h-[14px] w-full rounded-base"
-          style={{ background: p().editor, "box-shadow": `inset 0 0 0 1px ${tint(12)}` }}
-        >
-          <span class="mt-[3px] mr-[3px] ml-auto block size-2 rounded-full" style={{ background: p().accent }} />
-        </span>
+      <div class="flex flex-1 flex-col items-end gap-1.5 p-3.5" style={{ background: p().editor }}>
+        <span class="h-[18px] w-1/2 rounded-base" style={{ background: tint(8) }} />
+        <span class="h-[5px] w-[70%] self-start rounded-sm" style={{ background: tint(72) }} />
+        <span class="h-[5px] w-[45%] self-start rounded-sm" style={{ background: tint(44) }} />
+        <div class="mt-auto flex w-full items-end gap-1.5">
+          <span class="flex shrink-0 gap-0.5 pb-1">
+            <span class="size-1.5 rounded-full" style={{ background: p().success }} />
+            <span class="size-1.5 rounded-full" style={{ background: p().warn }} />
+            <span class="size-1.5 rounded-full" style={{ background: p().danger }} />
+          </span>
+          <span
+            class="h-[14px] flex-1 rounded-base"
+            style={{ background: p().editor, "box-shadow": `inset 0 0 0 1px ${tint(12)}` }}
+          >
+            <span class="mt-[3px] mr-[3px] ml-auto block size-2 rounded-full" style={{ background: p().accent }} />
+          </span>
+        </div>
       </div>
     </div>
   )
@@ -181,7 +188,14 @@ function ThemeSection(props: { onMore: () => void }) {
       </div>
       <Show
         when={mode() === "system"}
-        fallback={<ThemeGrid appearance={mode() === "light" ? "light" : "dark"} more={props.onMore} />}
+        fallback={
+          <div class="flex flex-col gap-2">
+            <h3 class="flex items-center gap-2 px-1 type-sm text-tertiary">
+              {mode() === "light" ? "Light themes" : "Dark themes"}
+            </h3>
+            <ThemeGrid appearance={mode() === "light" ? "light" : "dark"} more={props.onMore} />
+          </div>
+        }
       >
         <div class="flex flex-col gap-2">
           <h3 class="flex items-center gap-2 px-1 type-sm text-tertiary">

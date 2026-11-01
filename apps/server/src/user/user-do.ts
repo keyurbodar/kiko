@@ -77,7 +77,7 @@ import { runDue } from "../owner/clock"
 import { kikoChatOps, kikoChatRoom, markKikoChat, movesKikoChat } from "./kiko-chat"
 import { keyringFromEnv } from "@kiko/durable/crypto"
 import { checkApiKey, CredentialVault, isProviderId } from "./credentials"
-import { keyRefused, keyRefusedText } from "./credentials-check"
+import { keyProblemText, keyRefused } from "./credentials-check"
 import { problemOfRun } from "./provider-health"
 import { ProviderCheck } from "./provider-check"
 import { userModels } from "../agent/factory"
@@ -1696,7 +1696,10 @@ export class User {
           new RefusedError({ reason: "credentials", message: e instanceof Error ? e.message : "bad request" }),
       })
       const why = yield* Effect.promise(() => this.providerKeyRefused(provider, key))
-      if (why !== null) return yield* new RefusedError({ reason: "credentials", message: keyRefusedText(why) })
+      if (why !== null) {
+        const name = this.models.current().providers.find((p) => p.id === provider)?.name ?? provider
+        return yield* new RefusedError({ reason: "credentials", message: keyProblemText(name, why) })
+      }
       return yield* Effect.promise(() => this.connectProvider(provider, key))
     },
   )
