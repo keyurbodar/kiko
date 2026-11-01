@@ -59,7 +59,7 @@ jobs:
         id: cache
         with:
           path: .nix-vm
-          key: nixos-vm-${{ hashFiles('apps/bench/envs/nixos-25.05/flake.nix', 'apps/bench/envs/nixos-25.05/configuration.nix') }}
+          key: nixos-vm-${{ hashFiles('apps/bench/envs/nixos-25.05/flake.nix', 'apps/bench/envs/nixos-25.05/configuration.nix', 'apps/bench/envs/nixos-25.05/session.sh', 'apps/bench/scripts/envs/nixos-image.sh') }}
       - if: steps.cache.outputs.cache-hit != 'true'
         run: bash apps/bench/scripts/envs/nixos-image.sh build .nix-vm
 
@@ -73,7 +73,7 @@ jobs:
         id: cache
         with:
           path: .omarchy-image
-          key: omarchy-image-v3.8.4-08754e28d91b-2
+          key: omarchy-image-v3.8.4-${{ hashFiles('apps/bench/envs/omarchy-v3.8.4/install.sh', 'apps/bench/envs/omarchy-v3.8.4/image.env', 'apps/bench/envs/omarchy-v3.8.4/session.sh', 'apps/bench/scripts/envs/build-omarchy-image.sh') }}
       - if: steps.cache.outputs.cache-hit != 'true'
         run: |
           sudo apt-get update
@@ -209,12 +209,12 @@ jobs:
         if: startsWith(matrix.env, 'nixos')
         with:
           path: .nix-vm
-          key: nixos-vm-${{ hashFiles('apps/bench/envs/nixos-25.05/flake.nix', 'apps/bench/envs/nixos-25.05/configuration.nix') }}
+          key: nixos-vm-${{ hashFiles('apps/bench/envs/nixos-25.05/flake.nix', 'apps/bench/envs/nixos-25.05/configuration.nix', 'apps/bench/envs/nixos-25.05/session.sh', 'apps/bench/scripts/envs/nixos-image.sh') }}
       - uses: actions/cache/restore@v4
         if: startsWith(matrix.env, 'omarchy')
         with:
           path: .omarchy-image
-          key: omarchy-image-v3.8.4-08754e28d91b-2
+          key: omarchy-image-v3.8.4-${{ hashFiles('apps/bench/envs/omarchy-v3.8.4/install.sh', 'apps/bench/envs/omarchy-v3.8.4/image.env', 'apps/bench/envs/omarchy-v3.8.4/session.sh', 'apps/bench/scripts/envs/build-omarchy-image.sh') }}
       - name: Resolve the image
         id: image
         run: |
