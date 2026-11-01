@@ -405,6 +405,23 @@ impl Engine {
         let data = self.tool("agent_browser_eval", json!({ "script": params.expression }))?;
         Ok(data.get("result").cloned().unwrap_or(Value::Null))
     }
+
+    fn stream(&mut self, params: &TabParams) -> Outcome<String> {
+        self.bind(&params.tab)?;
+        let status = self.tool("agent_browser_stream_status", json!({}))?;
+        let enabled = status.get("enabled").and_then(Value::as_bool).unwrap_or(false);
+        let data = if enabled {
+            status
+        } else {
+            self.tool("agent_browser_stream_enable", json!({}))?
+        };
+        let port = data
+            .get("port")
+            .and_then(Value::as_u64)
+            .filter(|port| *port > 0 && *port < 65_536)
+            .ok_or_else(|| Error::Failed("the browser engine named no stream port".into()))?;
+        Ok(format!("ws://127.0.0.1:{port}"))
+    }
 }
 
 impl Drop for Engine {
@@ -451,6 +468,10 @@ impl Browser for Engine {
 
     fn eval(&mut self, params: &BrowserEvalParams) -> kiko_driver::Result<Value> {
         Engine::eval(self, params).map_err(Into::into)
+    }
+
+    fn stream(&mut self, params: &TabParams) -> kiko_driver::Result<String> {
+        Engine::stream(self, params).map_err(Into::into)
     }
 }
 

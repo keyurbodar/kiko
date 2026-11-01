@@ -16,6 +16,7 @@ import {
   type Value,
 } from "@kiko/computer/wire"
 import type { DriverCall, Page } from "@kiko/computer/driver"
+import type { BrowserLink } from "./browser/link"
 import type { Policy } from "./config"
 import type { Driver } from "./driver"
 import type { LiveFrames } from "./live"
@@ -52,6 +53,7 @@ export type Host = {
   driver(): Driver | null
   terminal(): TerminalManager | null
   terminals: TerminalLink
+  browser: BrowserLink
   paused(): boolean
   live: LiveFrames
   holder(): Holder
@@ -354,6 +356,12 @@ class Link {
         return this.terminalFrame(() => this.host.terminals.resize(frame))
       case "terminalAck":
         return this.terminalFrame(() => this.host.terminals.ack(frame))
+      case "browser":
+        return this.terminalFrame(() => this.host.browser.open(frame))
+      case "browserInput":
+        return this.terminalFrame(() => this.host.browser.input(frame))
+      case "browserAck":
+        return this.terminalFrame(() => this.host.browser.ack(frame))
       case "welcome":
         this.welcomed = true
         this.host.onWelcome?.(frame.name, frame.version)
@@ -430,9 +438,19 @@ class Link {
     if (op === "read") return read(args as Parameters<typeof read>[0], await this.host.policy(), context)
     if (op === "write") return write(args as Parameters<typeof write>[0], await this.host.policy(), context)
     if (op === "driver") return this.driver(args as DriverCall, context)
+    if (op === "browser_tabs") return this.browserTabs(context)
     if (op === "browser_steps") return this.browserSteps(args as Args<"browser_steps">, context)
     if (TERMINAL_OPS.has(op)) return this.terminal(op, args, context)
     throw new Fail({ code: "unsupported", message: `${op} is not a call this machine makes` })
+  }
+
+  private async browserTabs(context: Deadline): Promise<unknown> {
+    const policy = await this.host.policy()
+    if (!policy.desktop)
+      throw new Fail({ code: "denied", message: "policy.json turns desktop control off on this machine" })
+    const driver = this.host.driver()
+    if (!driver) throw new Fail({ code: "unsupported", message: "the kiko app is not running on this machine" })
+    return { tabs: await driver.call({ method: "browser.tabs" }, context) }
   }
 
   private async terminal(op: Op, args: unknown, context: Deadline): Promise<unknown> {

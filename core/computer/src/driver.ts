@@ -164,6 +164,7 @@ export const DriverCall = Schema.Union([
   Schema.Struct({ method: Schema.Literal("desktop.tools") }),
   Schema.Struct({ method: Schema.Literal("desktop.call"), params: DesktopCallParams }),
   Schema.Struct({ method: Schema.Literal("browser.tabs") }),
+  Schema.Struct({ method: Schema.Literal("browser.stream"), params: TabParams }),
   Schema.Struct({ method: Schema.Literal("browser.open"), params: BrowserOpenParams }),
   Schema.Struct({ method: Schema.Literal("browser.close"), params: TabParams }),
   Schema.Struct({ method: Schema.Literal("browser.show"), params: TabParams }),

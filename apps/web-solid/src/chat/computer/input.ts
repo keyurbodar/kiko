@@ -5,7 +5,7 @@ type Point = { x: number; y: number }
 export type InputTarget = {
   stage: HTMLElement
   sink: HTMLTextAreaElement
-  pasteMods(): number
+  pasteMods?(): number
   send(events: readonly ComputerInput[]): void
 }
 
@@ -147,7 +147,7 @@ function keyHandlers(target: InputTarget) {
       event.preventDefault()
       const text = event.clipboardData?.getData("text/plain") ?? ""
       if (!text) return
-      send([{ k: "paste", s: text, code: "KeyV", mods: target.pasteMods() }])
+      send([{ k: "paste", s: text, code: "KeyV", mods: target.pasteMods?.() ?? 0 }])
     },
     releaseAll() {
       for (const [code, held] of down) send([{ k: "key", code, key: held.key, down: false, mods: 0 }])

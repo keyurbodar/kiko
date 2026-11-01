@@ -259,6 +259,19 @@ fn an_engine_that_dies_on_its_first_start_is_retried() {
 }
 
 #[test]
+fn names_the_stream_of_the_tab_the_owner_watches() {
+    let (_dir, mut engine) = start(vec![]);
+    assert!(engine.wait_ready(READY));
+    assert_eq!(
+        engine
+            .stream(&TabParams { tab: "T1".into() })
+            .expect("a stream"),
+        "ws://127.0.0.1:9223"
+    );
+    engine.stop();
+}
+
+#[test]
 fn a_missing_engine_reports_no_browser() {
     let dir = tempfile::tempdir().expect("temp dir");
     let log = Arc::new(|line: String| println!("{line}"));
@@ -277,5 +290,6 @@ fn a_missing_engine_reports_no_browser() {
         })
         .unwrap_err();
     assert!(error.message.contains("not running"), "got {error}");
+    assert!(engine.stream(&TabParams { tab: "T1".into() }).is_err());
     engine.stop();
 }
