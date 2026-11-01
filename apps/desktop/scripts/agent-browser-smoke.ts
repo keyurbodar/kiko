@@ -240,6 +240,8 @@ async function main(): Promise<void> {
     fetch(request) {
       const path = new URL(request.url).pathname
       if (path === "/") return new Response(Bun.file(join(import.meta.dir, "fixtures", "browser-page.html")))
+      if (path === "/next")
+        return new Response('<!doctype html><html lang="en"><title>kiko next</title><h1>next page</h1></html>')
       return new Response("not found", { status: 404 })
     },
   })
@@ -278,6 +280,22 @@ async function main(): Promise<void> {
     if (written?.value !== typed)
       throw new Error(`the field does not hold ${typed}: ${JSON.stringify(written)} ${afterType.outline.slice(0, 400)}`)
 
+    const next = nodeNamed(afterType, "link", "Next page")
+    await driver.call("browser.act", { tab: opened.id, ref: next.ref, action: "click", mode: "background" })
+    let stale = false
+    try {
+      await driver.call("browser.act", {
+        tab: opened.id,
+        ref: field.ref,
+        action: "type",
+        text: typed,
+        mode: "background",
+      })
+    } catch (error) {
+      stale = String(error).includes("stale")
+    }
+    if (!stale) throw new Error("a ref from before the navigation was not stale")
+
     await driver.call("browser.show", { tab: opened.id })
     const framed = pageOf(await driver.call("browser.read", { tab: opened.id, image: true }))
     const image = framed.image
@@ -296,6 +314,7 @@ async function main(): Promise<void> {
         read: first.outline.trim().split("\n").slice(0, 6),
         clicked: true,
         typed,
+        stale,
         show: true,
         frame: { mime: image.mime, width: image.width, height: image.height, bytes: image.data.length },
         frontBefore: before,

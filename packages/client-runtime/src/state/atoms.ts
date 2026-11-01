@@ -447,6 +447,8 @@ export function createOwnerAtoms<E>(runtime: Atom.AtomRuntime<OwnerRuntimeServic
     terminalInput: rpc("terminal.input"),
     terminalResize: rpc("terminal.resize"),
     terminalAck: rpc("terminal.ack"),
+    browserTabs: rpc("browser.tabs"),
+    browserInput: rpc("browser.input"),
     recipesInstall: rpc("recipes.install"),
     recipesUninstall: rpc("recipes.uninstall"),
     recipesEdit: rpc("recipes.edit"),

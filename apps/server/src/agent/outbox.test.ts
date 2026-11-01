@@ -3,6 +3,7 @@ import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context"
 import { Harness } from "@earendil-works/pi-durable"
 import { JOURNAL_STEPS, JournalStorage } from "@kiko/agent/journal"
 import { describe, expect, it } from "vitest"
+import { Workers } from "@kiko/agent/workers"
 import { fakeSetup } from "./dev-fake"
 import { Outbox, type RoomPort } from "./outbox"
 
@@ -42,11 +43,34 @@ function recordingRoom() {
   return { room, errors }
 }
 
+function talkingRoom() {
+  const posts: string[] = []
+  const notes: { id: string; text: string }[] = []
+  const room: RoomPort = {
+    post: async (_runId, _attempt, _index, block) => {
+      posts.push(block)
+    },
+    draft: async () => {},
+    thinking: async () => {},
+    note: async (_runId, id, text) => {
+      notes.push({ id, text })
+    },
+    status: async () => {},
+    workers: async () => {},
+    endRun: async () => {},
+    react: async () => undefined,
+    runError: async () => {},
+  }
+  return { room, posts, notes }
+}
+
 describe("Outbox", () => {
   it("reports one error row for a turn whose model is gone", async () => {
     const storage = durable()
     const journal = JournalStorage.open(storage, "room:kiko")
-    const setup = fakeSetup()
+    const setup = fakeSetup(undefined, undefined, undefined, {
+      work: new Workers(storage, { agentKey: "kiko", deliver: async () => {} }),
+    })
     const harness = await Harness.open(
       journal,
       { models: setup.models, registry: setup.registry, settings: setup.settings },
@@ -69,6 +93,42 @@ describe("Outbox", () => {
     await outbox.settle(root)
 
     expect(errors).toEqual([{ runId: `room:kiko:${submission.id}`, kind: "model_not_found" }])
+    await harness.close(context)
+  })
+
+  it("sends the text of a tool round as the run's note instead of a bubble", async () => {
+    const storage = durable()
+    const journal = JournalStorage.open(storage, "room:kiko")
+    const setup = fakeSetup(undefined, undefined, undefined, {
+      work: new Workers(storage, { agentKey: "kiko", deliver: async () => {} }),
+    })
+    const harness = await Harness.open(
+      journal,
+      { models: setup.models, registry: setup.registry, settings: setup.settings },
+      context,
+    )
+    const root = await harness.root(context, { agent: setup.agent })
+    await root.configure(
+      { model: { provider: "faux", modelId: "faux-1" }, thinkingLevel: setup.agent.thinkingLevel },
+      context,
+    )
+    const { room, posts, notes } = talkingRoom()
+    const outbox = new Outbox(
+      storage,
+      () => room,
+      () => "room:kiko",
+      Date.now,
+      "room:kiko",
+    )
+    await outbox.attach(harness, root.id, journal)
+
+    const submission = await root.submit({ type: "input", content: "[two-part] hello" }, context)
+    await submission.wait(context)
+    await outbox.settle(root)
+
+    expect(notes.map((note) => note.text)).toEqual(["part one."])
+    expect(posts.join("\n")).not.toContain("part one.")
+    expect(posts.join("\n")).toContain("slow words")
     await harness.close(context)
   })
 })
