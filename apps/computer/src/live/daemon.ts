@@ -86,6 +86,7 @@ class Daemon implements Live {
 
   onInput(events: readonly InputEvent[]): void {
     if (this.closed || !this.deps.policy().live) return
+    this.deps.warn(`input probe: relay input with ${events.length} events`)
     const decoded = decodeEvents(events)
     if (decoded._tag !== "Some") return
     this.deliver(decoded.value as readonly InputEvent[])
@@ -185,7 +186,10 @@ class Daemon implements Live {
   private deliver(events: readonly InputEvent[], from?: string): void {
     if (events.length === 0) return
     if (this.holder !== "human" || !this.deps.policy().input) return
-    if (from !== undefined && this.holderSession !== undefined && from !== this.holderSession) return
+    if (from !== undefined && this.holderSession !== undefined && from !== this.holderSession) {
+      this.deps.warn(`input probe: ${from} is not the holder ${this.holderSession}`)
+      return
+    }
     const input = events.filter((event) => event.k !== "cursor")
     if (input.length === 0) return
     this.queue = this.queue.then(() => this.apply(input))
@@ -317,6 +321,7 @@ class Daemon implements Live {
   }
 
   private startRelay(frame: LiveFrame): void {
+    this.deps.warn(`relay probe: asked for ${frame.fps} fps on ${JSON.stringify(this.screen)}`)
     const profile = relayProfile(frame)
     if (this.relay) {
       if (sameProfile(this.relay.profile, profile)) return
@@ -337,6 +342,7 @@ class Daemon implements Live {
 
   private restartMjpeg(profile: RelayProfile): void {
     const ffmpeg = this.ffmpeg()
+    this.deps.warn(`mjpeg probe: ffmpeg is ${ffmpeg ?? "missing"} for ${JSON.stringify(this.screen)}`)
     if (!ffmpeg) return
     this.mjpeg?.stop()
     if (this.relay) this.relay.latest = null
@@ -358,6 +364,7 @@ class Daemon implements Live {
 
   private pushRelay(jpeg: Uint8Array): void {
     if (!this.relay) return
+    if (this.relay.seq === 0) this.deps.warn(`relay probe: the first frame is ${jpeg.byteLength} bytes`)
     this.relay.latest = jpeg
     this.flushRelay()
   }
