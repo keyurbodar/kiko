@@ -38,6 +38,7 @@ class H264 {
   private launchedAt = 0
   private child: Child | null = null
   private stopped = false
+  private logged = false
   private pending: ReturnType<typeof setTimeout> | null = null
 
   constructor(options: H264Options) {
@@ -65,6 +66,10 @@ class H264 {
   }
 
   private emit(chunk: Uint8Array): void {
+    if (!this.logged) {
+      this.logged = true
+      console.warn(`h264 probe: a chunk of ${chunk.byteLength} bytes`)
+    }
     const timestamp = Math.round((performance.now() - this.epoch) * (CLOCK / 1000)) >>> 0
     for (const unit of this.parser.push(chunk)) this.options.handlers.unit(unit, timestamp)
   }
@@ -72,6 +77,7 @@ class H264 {
   private launch(): void {
     const args = this.plans[this.plan]
     if (this.stopped || !args) return
+    console.warn(`h264 probe: ${args.join(" ")}`)
     this.launchedAt = performance.now()
     this.child = Bun.spawn(args, { stdin: "ignore", stdout: "pipe", stderr: "pipe" })
     void this.pump(this.child)

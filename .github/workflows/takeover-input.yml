@@ -114,21 +114,36 @@ jobs:
           ffmpeg -hide_banner -loglevel error -nostdin -f avfoundation -capture_cursor 1 -framerate 15 -i "Capture screen 0" -r 15 -an -vf scale=1024:768:flags=fast_bilinear -c:v mjpeg -q:v 19 -f mjpeg -t 2 pipe:1 > /tmp/daemon.mjpeg 2>/tmp/daemon.log || true
           echo "the daemon's command captured $(wc -c < /tmp/daemon.mjpeg) bytes"
           cat /tmp/daemon.log || true
-      - name: Try the daemon's capture from bun
+      - name: Run two captures at once like the daemon
         run: |
           set -euo pipefail
-          cat > /tmp/inner.ts <<'TS'
-          const args = ["/opt/homebrew/bin/ffmpeg", "-hide_banner", "-loglevel", "error", "-nostdin", "-f", "avfoundation", "-capture_cursor", "1", "-framerate", "15", "-i", "Capture screen 0:none", "-r", "15", "-an", "-vf", "scale=1024:768:flags=fast_bilinear", "-c:v", "mjpeg", "-q:v", "18", "-f", "mjpeg", "pipe:1"]
-          const child = Bun.spawn(args, { stdin: "ignore", stdout: "pipe", stderr: "pipe" })
-          const reader = child.stdout.getReader()
-          const bytes = await Promise.race([
-            reader.read().then((part) => part.value?.byteLength ?? 0),
-            Bun.sleep(6_000).then(() => -1),
-          ])
-          console.log(`like the daemon: ${bytes} bytes, exit ${child.exitCode}`)
-          child.kill()
+          cat > /tmp/pair.ts <<'TS'
+          const FFMPEG = "/opt/homebrew/bin/ffmpeg"
+          const head = [FFMPEG, "-hide_banner", "-loglevel", "error", "-nostdin"]
+          const source = ["-f", "avfoundation", "-capture_cursor", "1", "-i", "Capture screen 0:none"]
+          const scale = ["-vf", "scale=1024:768:flags=fast_bilinear"]
+          const h264 = [...head, "-framerate", "30", ...source, "-r", "30", "-an", ...scale, "-c:v", "h264_videotoolbox", "-realtime", "true", "-allow_sw", "1", "-g", "30", "-force_key_frames", "expr:gte(t,n_forced*1)", "-f", "h264", "pipe:1"]
+          const mjpeg = [...head, "-framerate", "15", ...source, "-r", "15", "-an", ...scale, "-c:v", "mjpeg", "-q:v", "18", "-f", "mjpeg", "pipe:1"]
+
+          const firstChunk = async (args: string[], ms: number) => {
+            const child = Bun.spawn(args, { stdin: "ignore", stdout: "pipe", stderr: "pipe" })
+            const reader = child.stdout.getReader()
+            const bytes = await Promise.race([
+              reader.read().then((part) => part.value?.byteLength ?? 0),
+              Bun.sleep(ms).then(() => -1),
+            ])
+            child.kill()
+            return bytes
+          }
+
+          const [h264Bytes, mjpegBytes] = await Promise.all([firstChunk(h264, 8_000), firstChunk(mjpeg, 8_000)])
+          console.log(`together: h264 ${h264Bytes} bytes, mjpeg ${mjpegBytes} bytes`)
+          await Bun.sleep(1_000)
+          console.log(`mjpeg alone: ${await firstChunk(mjpeg, 8_000)} bytes`)
+          await Bun.sleep(1_000)
+          console.log(`h264 alone: ${await firstChunk(h264, 8_000)} bytes`)
           TS
-          bun /tmp/inner.ts
+          bun /tmp/pair.ts
           DISPLAY=:99 bun /tmp/inner.ts
           DISPLAY=:99 KIKO_DRIVER=/tmp/none.sock KIKO_COMPUTER_DIR=/tmp/pc bun /tmp/inner.ts
       - name: Paste a Unicode string and click the display
