@@ -18,9 +18,10 @@ phases, so it can run unattended on a cloud image. The package source is Omarchy
 `[omarchy]` pacman repository at the pinned stable mirror.
 
 The desktop session is Hyprland on Wayland with the wlroots headless backend
-(`WLR_BACKENDS=headless`), started by `session.sh`. XWayland is available for X11 clients, and the
-desktop fixture runs as an X11 client (`GDK_BACKEND=x11`) so the X11-based oracle can drive it. The
-session itself is native Wayland; nothing falls back to an X11 session.
+(`WLR_BACKENDS=headless`), started by `session.sh`. XWayland is available for X11 clients. Desktop
+fixtures are launched as native Wayland clients (`GDK_BACKEND=wayland`, pointed at the session's
+Wayland socket), and their oracles drive them through a control socket rather than synthesised
+input. The session itself is native Wayland; nothing falls back to an X11 session.
 
 CI writes the exact versions to `results/env-versions-omarchy-v3.8.4.txt` with `pacman -Q`, and
 uploads them with the run artifact.

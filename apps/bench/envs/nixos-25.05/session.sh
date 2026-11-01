@@ -14,7 +14,6 @@ chmod 700 "$XDG_RUNTIME_DIR"
 export XDG_SESSION_TYPE=wayland
 export XDG_CURRENT_DESKTOP=GNOME
 export DISPLAY=:0
-export GDK_BACKEND=x11
 export NO_AT_BRIDGE=0
 export GTK_A11Y=atspi
 export GI_TYPELIB_PATH="/run/current-system/sw/lib/girepository-1.0:${GI_TYPELIB_PATH:-}"

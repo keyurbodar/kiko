@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto"
 import { readFileSync } from "node:fs"
 import { homedir } from "node:os"
-import { basename, join } from "node:path"
+import { join } from "node:path"
 import type { Machine } from "../../types"
 import { at, fixture, python, readJson, run, spawnTracked, waitForSpawn, writeJson, writeText } from "../helpers"
 
@@ -25,27 +25,31 @@ export interface Ods {
   readonly charts: number
 }
 
-const waylandDisplay = async (m: Machine): Promise<string | undefined> => {
+interface WaylandSession {
+  readonly dir: string
+  readonly name: string
+}
+
+const waylandSession = async (m: Machine): Promise<WaylandSession | undefined> => {
   const probe = await run(m, [
     "sh",
     "-c",
-    'printf "%s\\n%s\\n%s" "${XDG_SESSION_TYPE:-}" "${WAYLAND_DISPLAY:-}" "${XDG_RUNTIME_DIR:-}"',
+    [
+      'for dir in "${XDG_RUNTIME_DIR:-}" "/run/user/$(id -u)"; do',
+      '  [ -n "$dir" ] || continue',
+      '  for candidate in "$dir"/wayland-*; do',
+      '    if [ -S "$candidate" ]; then printf "%s\\n%s\\n" "$dir" "$(basename "$candidate")"; exit 0; fi',
+      "  done",
+      "done",
+    ].join("\n"),
   ])
-  const [sessionType = "", current = "", runtimeDir = ""] = probe.stdout.split("\n")
-  if (current) return current
-  if (sessionType !== "wayland" || !runtimeDir) return undefined
-  const listed = await run(m, [
-    "sh",
-    "-c",
-    `for candidate in "${runtimeDir}"/wayland-*; do if [ -S "$candidate" ]; then printf '%s\\n' "$candidate"; break; fi; done`,
-  ])
-  const found = listed.stdout.trim()
-  return found ? basename(found) : undefined
+  const [dir = "", name = ""] = probe.stdout.split("\n")
+  return dir && name ? { dir, name } : undefined
 }
 
 const displayEnv = async (m: Machine): Promise<Record<string, string>> => {
-  const display = await waylandDisplay(m)
-  return display ? { GDK_BACKEND: "wayland", WAYLAND_DISPLAY: display } : {}
+  const session = await waylandSession(m)
+  return session ? { GDK_BACKEND: "wayland", WAYLAND_DISPLAY: session.name, XDG_RUNTIME_DIR: session.dir } : {}
 }
 
 const setLayout = async (m: Machine, layout: string): Promise<void> => {

@@ -7,9 +7,10 @@ and `configuration.nix`, so the VM is not built per job. The machine label carri
 revision: `nixos-25.05@ac62194c3917`.
 
 The desktop session is GNOME on Wayland: `gnome-shell --headless --virtual-monitor 1920x1080`,
-started by `session.sh`. XWayland is available for X11 clients, and the desktop fixture runs as an
-X11 client (`GDK_BACKEND=x11`) so the X11-based oracle can drive it. The session itself is native
-Wayland; nothing falls back to an X11 session.
+started by `session.sh`. XWayland is available for X11 clients. Desktop fixtures are launched as
+native Wayland clients (`GDK_BACKEND=wayland`, pointed at the session's Wayland socket), and their
+oracles drive them through a control socket rather than synthesised input. The session itself is
+native Wayland; nothing falls back to an X11 session.
 
 The repo is shared into the VM over 9p (`/tmp/kiko-bench-repo` on the host, `/mnt/repo` in the VM),
 then copied to `~/repo`. SSH is forwarded on host port 2222 with the disposable `bench` user.
