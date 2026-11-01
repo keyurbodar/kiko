@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=kiko
+Comment=The kiko agent on this computer
+Exec=kiko
+Icon=kiko
+Terminal=false
+Categories=Utility;
+StartupWMClass=kiko

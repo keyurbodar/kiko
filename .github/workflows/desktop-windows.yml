@@ -1,0 +1,54 @@
+name: desktop-windows
+
+on:
+  push:
+    branches:
+      - "t3/bg-*"
+  pull_request:
+    paths:
+      - "apps/desktop/**"
+      - ".github/workflows/desktop-windows.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-windows-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows:
+    name: Windows driver
+    runs-on: windows-2025
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: apps/desktop
+    steps:
+      - uses: actions/checkout@v4
+      - name: Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop -> target
+      - name: Format
+        run: cargo fmt -p kiko-native-windows --check
+      - name: Clippy
+        run: cargo clippy -p kiko-native-windows --all-targets --features testapp -- -D warnings
+      - name: Unit tests
+        run: cargo test -p kiko-native-windows --lib
+      - name: Build the fixture app
+        run: cargo build -p kiko-native-windows --bin kiko-native-testapp --features testapp
+      - name: End to end on the interactive desktop
+        env:
+          KIKO_ARTIFACT_DIR: ${{ github.workspace }}\artifacts
+        run: cargo test -p kiko-native-windows --test e2e --features testapp -- --ignored --test-threads=1 --nocapture
+      - name: Upload the look image
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-look
+          path: artifacts
+          if-no-files-found: warn

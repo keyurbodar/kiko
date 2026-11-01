@@ -94,6 +94,13 @@ function attachmentOf(ws: WebSocket): PcAttachment | null {
   return saved?.kind === "pc" && typeof saved.id === "string" ? saved : null
 }
 
+function claimsDesk(op: Op, args: unknown): boolean {
+  if (op === "act") return true
+  if (op !== "driver") return false
+  const call = args as { params?: { mode?: unknown } }
+  return call.params?.mode === "foreground"
+}
+
 export function pcSocketId(ws: WebSocket): string | null {
   return attachmentOf(ws)?.id ?? null
 }
@@ -212,6 +219,8 @@ export class ComputerHub {
         ...(hold.agent ? { agent: hold.agent } : {}),
         displays: hello?.displays ?? [],
         ...(hello?.access ? { access: hello.access } : {}),
+        background: hello?.caps.background ?? false,
+        browsers: hello?.driver?.browsers ?? [],
         ...(hello?.note ? { note: hello.note } : {}),
       }
     })
@@ -403,10 +412,15 @@ export class ComputerHub {
     const hello = saved?.hello
     if (!saved || !hello) return { ok: false, code: "unsupported", message: `${row.name} is not ready yet` }
     const cap = op === "shell" ? "shell" : op === "read" || op === "write" ? "files" : "desktop"
-    if (!hello.caps[cap]) return { ok: false, code: "unsupported", message: `${row.name} does not allow ${cap}` }
+    if (op === "driver") {
+      if (!hello.caps.background)
+        return { ok: false, code: "unsupported", message: `${row.name} does not allow background work` }
+    } else if (!hello.caps[cap]) {
+      return { ok: false, code: "unsupported", message: `${row.name} does not allow ${cap}` }
+    }
     if (op === "act" && !hello.caps.input)
       return { ok: false, code: "unsupported", message: `${row.name} has input off` }
-    if ((op === "look" || op === "act") && saved.holder === "human")
+    if ((op === "look" || op === "act" || op === "driver") && saved.holder === "human")
       return { ok: false, code: "busy", message: `the human has control of ${row.name} right now` }
     let parsed: unknown
     try {
@@ -415,7 +429,9 @@ export class ComputerHub {
       return { ok: false, code: "failed", message: `bad ${op} arguments` }
     }
     const deadlineMs = Math.min(Math.max(1_000, Number(options.deadlineMs ?? DEFAULT_DEADLINE_MS)), MAX_DEADLINE_MS)
-    const taken = op === "act" && options.user ? this.claimDesk(pcId, options.user, deadlineMs) : null
+    const user = options.user
+    const claims = user !== undefined && claimsDesk(op, parsed)
+    const taken = claims && user ? this.claimDesk(pcId, user, deadlineMs) : null
     if (taken)
       return {
         ok: false,
@@ -428,7 +444,7 @@ export class ComputerHub {
     const outcome = new Promise<CallOutcome>((resolve) => {
       const done = (out: CallOutcome) => {
         if (busy) this.track(pcId, false)
-        if (taken === null && op === "act" && options.user) this.claimDesk(pcId, options.user, 0)
+        if (taken === null && claims && user) this.claimDesk(pcId, user, 0)
         resolve(out)
       }
       const timer = setTimeout(() => {

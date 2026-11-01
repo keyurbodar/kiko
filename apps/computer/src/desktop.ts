@@ -339,12 +339,12 @@ function targetOf(step: Step): { x: number; y: number } | null {
 
 function screenDenied(): string {
   if (process.platform === "darwin")
-    return "macOS has not allowed kiko-computer-host to record the screen. On the Mac, open System Settings > Privacy & Security > Screen Recording and turn on kiko-computer-host. If an entry is already on, remove it with the minus button and add ~/.kiko-computer/bin/kiko-computer-host again."
-  return "this machine has not allowed kiko-computer-host to record the screen."
+    return "macOS has not allowed kiko to record the screen. On the Mac, open System Settings > Privacy & Security > Screen Recording and turn on kiko. If an entry is already on, remove it with the minus button and add kiko.app again."
+  return "this machine has not allowed kiko to record the screen."
 }
 
 function inputDenied(): string {
   if (process.platform === "darwin")
-    return "macOS has not allowed kiko-computer-host to control this Mac. On the Mac, open System Settings > Privacy & Security > Accessibility and turn on kiko-computer-host. If an entry is already on, remove it with the minus button and add ~/.kiko-computer/bin/kiko-computer-host again."
-  return "this machine has not allowed kiko-computer-host to control it."
+    return "macOS has not allowed kiko to control this Mac. On the Mac, open System Settings > Privacy & Security > Accessibility and turn on kiko. If an entry is already on, remove it with the minus button and add kiko.app again."
+  return "this machine has not allowed kiko to control it."
 }

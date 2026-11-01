@@ -1,0 +1,26 @@
+name: desktop
+
+on:
+  pull_request:
+    paths:
+      - "apps/desktop/**"
+      - "apps/computer/**"
+      - "core/computer/**"
+      - "apps/server/src/computer/**"
+      - "scripts/installer-e2e*"
+      - ".github/workflows/desktop*.yml"
+  push:
+    branches:
+      - "t3/bg-*"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    uses: ./.github/workflows/desktop-build.yml
+    secrets: inherit

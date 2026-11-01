@@ -3,6 +3,7 @@ import { existsSync } from "node:fs"
 import { join } from "node:path"
 
 const DATACHANNEL_VERSION = "0.33.4"
+const ADDON_TIMEOUT_MS = 300_000
 
 type Target = { name: string; bun: Bun.Build.CompileTarget; addon: string }
 
@@ -26,7 +27,7 @@ async function addonFor(target: Target): Promise<string> {
   if (existsSync(file)) return file
   await mkdir(dir, { recursive: true })
   const url = `https://registry.npmjs.org/@node-datachannel/${target.addon}/-/${target.addon}-${DATACHANNEL_VERSION}.tgz`
-  const response = await fetch(url)
+  const response = await fetch(url, { signal: AbortSignal.timeout(ADDON_TIMEOUT_MS) })
   if (!response.ok) throw new Error(`${url} answered ${response.status}`)
   const tarball = join(dir, "addon.tgz")
   await Bun.write(tarball, response)
@@ -41,7 +42,12 @@ function embedAddon(file: string): Bun.BunPlugin {
     setup(build) {
       build.onLoad({ filter: /node-datachannel[\\/]dist[\\/]esm[\\/]lib[\\/]node-datachannel\.mjs$/ }, () => ({
         loader: "js",
-        contents: `import addon from ${JSON.stringify(file)}\nexport default addon\n`,
+        contents: [
+          `import { createRequire } from "node:module"`,
+          `import addonPath from ${JSON.stringify(file)} with { type: "file" }`,
+          `const require = createRequire(import.meta.url)`,
+          `export default require(addonPath)`,
+        ].join("\n"),
       }))
     },
   }

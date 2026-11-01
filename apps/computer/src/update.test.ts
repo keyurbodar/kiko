@@ -2,7 +2,7 @@ import { describe, expect, it } from "@effect/vitest"
 import * as Option from "effect/Option"
 import * as Schema from "effect/Schema"
 import { ToDaemon } from "@kiko/computer/wire"
-import { failed, installed, NO_ATTEMPTS, nextStep, started, type Attempts } from "./update"
+import { failed, installed, NO_ATTEMPTS, nextStep, started, updateTarget, type Attempts } from "./update"
 
 const NOW = 1_000_000
 
@@ -53,5 +53,18 @@ describe("welcome frame", () => {
       later: { anything: true },
     })
     expect(Option.getOrUndefined(decoded)).toEqual({ t: "welcome", id: "pc-1", name: "box", version: "0.9.0" })
+  })
+})
+
+describe("update target", () => {
+  it("asks the installer to replace the whole app when the kiko app started this daemon", () => {
+    expect(updateTarget({ KIKO_DRIVER: "/Users/owner/Library/Application Support/kiko/driver.sock" })).toEqual({
+      mode: "app",
+    })
+  })
+
+  it("skips a daemon started by hand, because nothing would replace it and restart it", () => {
+    const target = updateTarget({})
+    expect("skip" in target && target.skip).toContain("the kiko app did not start this daemon")
   })
 })

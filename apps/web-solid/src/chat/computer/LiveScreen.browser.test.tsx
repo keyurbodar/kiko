@@ -32,7 +32,7 @@ describe("live screen", () => {
   it("says which permission is missing instead of waiting to connect", async () => {
     fakes.computer = mac({ screen: false, input: true })
     await using screen = await render(() => <LiveScreen pcId="pc-1" interactive={false} />)
-    await expect.element(screen.getByText(/Allow Screen Recording for kiko-computer-host/)).toBeVisible()
+    await expect.element(screen.getByText(/Allow Screen Recording for kiko/)).toBeVisible()
   })
 
   it("connects when every permission is allowed", async () => {

@@ -243,8 +243,16 @@ export const ComputerCaps = Schema.Struct({
   desktop: Schema.Boolean,
   live: Schema.Boolean,
   input: Schema.Boolean,
+  background: Schema.optionalKey(Schema.Boolean),
+  browser: Schema.optionalKey(Schema.Boolean),
 })
 export type ComputerCaps = typeof ComputerCaps.Type
+
+export const ComputerBrowser = Schema.Struct({
+  name: Schema.String,
+  state: Schema.Literals(["connected", "needs_consent", "not_running", "unsupported"]),
+})
+export type ComputerBrowser = typeof ComputerBrowser.Type
 
 export const ComputerDisplay = Schema.Struct({ id: Id, width: Count, height: Count, scale: Schema.Number })
 export type ComputerDisplay = typeof ComputerDisplay.Type
@@ -300,6 +308,8 @@ export const ComputerSummary = Schema.Struct({
   agent: Schema.optionalKey(ComputerAgent),
   displays: Schema.Array(ComputerDisplay),
   access: Schema.optionalKey(Schema.Struct({ screen: Schema.Boolean, input: Schema.Boolean })),
+  background: Schema.Boolean,
+  browsers: Schema.Array(ComputerBrowser),
   note: Schema.optionalKey(Schema.String),
 })
 export type ComputerSummary = typeof ComputerSummary.Type

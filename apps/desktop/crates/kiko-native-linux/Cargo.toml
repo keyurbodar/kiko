@@ -1,0 +1,25 @@
+[package]
+name = "kiko-native-linux"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+atspi.workspace = true
+atspi-connection.workspace = true
+base64.workspace = true
+image.workspace = true
+kiko-driver.workspace = true
+tokio.workspace = true
+x11rb.workspace = true
+zbus.workspace = true
+
+[target.'cfg(target_os = "linux")'.dependencies]
+ashpd.workspace = true
+libloading.workspace = true
+libspa.workspace = true
+
+[dev-dependencies]
+futures-util.workspace = true
+tempfile.workspace = true

@@ -68,7 +68,7 @@ export async function pair(dir: string, detection: Detection, target: string, na
     code,
     publicKey: keys.publicKey,
     name: label,
-    hello: helloPayload(detection),
+    hello: helloPayload(detection, null),
     ...(previous ? { replaces: previous.pcId } : {}),
   })
   await ensurePolicy(dir)
