@@ -242,6 +242,7 @@ function startRelay(pcId: string, hooks: Hooks, on: { frame(): void; fail(): voi
   let closed = false
   let wants = true
   let picked: string | null = null
+  let told = false
   let painted = -1
   let bytes = 0
   let changedAt = 0
@@ -407,7 +408,12 @@ export function startSession(pcId: string, hooks: Hooks): Session {
 
   return {
     send(events) {
-      if (rtc?.send(events)) return
+      const overRtc = rtc?.send(events) === true
+      if (!told) {
+        told = true
+        console.info(`kiko computer input goes over ${overRtc ? "webrtc" : "the live socket"}`)
+      }
+      if (overRtc) return
       void run(owner.commands.pcInput, { pcId, events })
     },
     pick(id) {
