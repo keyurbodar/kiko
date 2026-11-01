@@ -14,7 +14,7 @@ import { appendIndex, harvestArtifacts } from "./pull"
 import { renderReport } from "./report/render"
 import { startSentinel, type Sentinel } from "./sentinel"
 import { TASKS } from "./tasks"
-import type { Background, Condition, Contender, ModelSpec, Os, Task, Track, Verdict } from "./types"
+import type { Background, Condition, Contender, Machine, ModelSpec, Os, Task, Track, Verdict } from "./types"
 
 const PLANS = join(homedir(), "kiko-plans", "computer-use-2026-10-31", "results")
 const VALIDATE_HEADER = ["task", "os", "machine", "kind", "pass", "detail"].join("\t")
@@ -364,16 +364,6 @@ function rowFor(
 const configPath = (flags: Parsed["flags"]): string =>
   resolve(flagString(flags, "config") ?? join(import.meta.dirname, "..", "ci.json"))
 
-interface Pair {
-  readonly contender: Contender
-  readonly model: ModelSpec
-}
-
-interface TrackRun {
-  readonly track: Track
-  readonly pairs: readonly Pair[]
-}
-
 interface CiConfig {
   readonly tracks?: readonly string[]
   readonly contenders?: readonly string[]
@@ -390,7 +380,7 @@ const stringList = (value: unknown): string[] | undefined =>
   Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : undefined
 
 function readCi(flags: Parsed["flags"]): CiConfig {
-  const path = resolve(flagString(flags, "config") ?? join(import.meta.dirname, "..", "ci.json"))
+  const path = configPath(flags)
   if (!existsSync(path)) throw new Error(`no CI config at ${path}`)
   const raw = JSON.parse(readFileSync(path, "utf8")) as Record<string, unknown>
   const conditions = stringList(raw.conditions)?.filter(
@@ -411,6 +401,16 @@ function readCi(flags: Parsed["flags"]): CiConfig {
     ...(typeof validate.runs === "number" ? { validateRuns: validate.runs } : {}),
     ...(typeof sentinel.idleSeconds === "number" ? { sentinelIdleSeconds: sentinel.idleSeconds } : {}),
   }
+}
+
+interface Pair {
+  readonly contender: Contender
+  readonly model: ModelSpec
+}
+
+interface TrackRun {
+  readonly track: Track
+  readonly pairs: readonly Pair[]
 }
 
 interface RunPlan {

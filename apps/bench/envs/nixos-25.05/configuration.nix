@@ -33,7 +33,10 @@ let
     nspr
     nss
   ];
-  benchPython = pkgs.python3.withPackages (ps: [ ps.pygobject3 ]);
+  benchPython = pkgs.python3.withPackages (ps: [
+    ps.pygobject3
+    ps.python-xlib
+  ]);
   girepositoryPath = lib.makeSearchPath "lib/girepository-1.0" (
     with pkgs;
     [
@@ -70,9 +73,9 @@ in
   };
 
   virtualisation = {
-    memorySize = 4096;
-    cores = 2;
-    diskSize = 16384;
+    memorySize = 8192;
+    cores = 4;
+    diskSize = 20480;
     graphics = false;
     forwardPorts = [
       {
@@ -110,6 +113,7 @@ in
   security.sudo.wheelNeedsPassword = false;
 
   services.gnome.at-spi2-core.enable = true;
+  programs.dconf.enable = true;
   services.gnome.gnome-keyring.enable = true;
   services.udisks2.enable = true;
   security.polkit.enable = true;

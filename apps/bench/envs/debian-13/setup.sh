@@ -20,6 +20,7 @@ apt-get install -y --no-install-recommends \
   make \
   mousepad \
   nodejs \
+  openssh-client \
   openssh-server \
   python3 \
   python3-gi \

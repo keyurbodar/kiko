@@ -20,7 +20,8 @@ export const launch = async (m: Machine, screen: string, data: unknown, request:
 
 export const runDesktopOracle = async (m: Machine, screen: string): Promise<void> => {
   const result = await run(m, ["bash", fixture(`desktop/oracle/${screen}.sh`), m.workdir], { timeoutMs: 60_000 })
-  if (result.code !== 0) throw new Error(`desktop oracle failed: ${result.stderr || result.stdout}`)
+  if (result.code !== 0)
+    throw new Error(`desktop oracle failed (exit ${result.code}): ${result.stderr || result.stdout}`)
 }
 
 export const desktopState = async (m: Machine): Promise<Record<string, any> | undefined> =>

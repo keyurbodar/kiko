@@ -36,7 +36,7 @@ growpart:
 resize_rootfs: true
 users:
   - name: bench
-    groups: wheel
+    groups: wheel, input
     sudo: ALL=(ALL) NOPASSWD:ALL
     shell: /bin/bash
     lock_passwd: false

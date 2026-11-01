@@ -21,7 +21,12 @@ export WLR_RENDERER=pixman
 export DISPLAY=:0
 export NO_AT_BRIDGE=0
 
+export YDOTOOL_SOCKET="$XDG_RUNTIME_DIR/.ydotool_socket"
+
 exec dbus-run-session -- bash -c '
+  if command -v ydotoold >/dev/null 2>&1; then
+    sudo -n ydotoold --socket-path "$YDOTOOL_SOCKET" --socket-perm 0600 >/tmp/ydotoold.log 2>&1 &
+  fi
   env -u DISPLAY Hyprland >/tmp/hyprland.log 2>&1 &
   hypr=$!
   signature=""

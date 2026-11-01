@@ -86,7 +86,7 @@ jobs:
         id: cache
         with:
           path: .nix-vm
-          key: nixos-vm-${{ hashFiles('apps/bench/envs/nixos-25.05/flake.nix', 'apps/bench/envs/nixos-25.05/configuration.nix') }}
+          key: nixos-vm-${{ hashFiles('apps/bench/envs/nixos-25.05/flake.nix', 'apps/bench/envs/nixos-25.05/configuration.nix', 'apps/bench/envs/nixos-25.05/session.sh', 'apps/bench/scripts/envs/nixos-image.sh') }}
       - if: steps.cache.outputs.cache-hit != 'true'
         run: bash apps/bench/scripts/envs/nixos-image.sh build .nix-vm
 
@@ -100,7 +100,7 @@ jobs:
         id: cache
         with:
           path: .omarchy-image
-          key: omarchy-image-v3.8.4-08754e28d91b-2
+          key: omarchy-image-v3.8.4-${{ hashFiles('apps/bench/envs/omarchy-v3.8.4/install.sh', 'apps/bench/envs/omarchy-v3.8.4/image.env', 'apps/bench/envs/omarchy-v3.8.4/session.sh', 'apps/bench/scripts/envs/build-omarchy-image.sh') }}
       - if: steps.cache.outputs.cache-hit != 'true'
         run: |
           sudo apt-get update
@@ -109,7 +109,7 @@ jobs:
           bash apps/bench/scripts/envs/build-omarchy-image.sh .omarchy-image/omarchy.qcow2
 
   bench-host:
-    name: ${{ matrix.track }} ${{ matrix.env }} ${{ matrix.contender }} ${{ matrix.model }} ${{ matrix.shard }}
+    name: ${{ matrix.track }} ${{ matrix.condition }} ${{ matrix.env }} ${{ matrix.contender }} ${{ matrix.model }} ${{ matrix.shard }}
     needs: plan
     if: needs.plan.result == 'success'
     runs-on: ${{ matrix.runner }}
@@ -155,8 +155,9 @@ jobs:
           set -euo pipefail
           command=(bun run bench run --ci --config "$CONFIG" --track "${{ matrix.track }}"
             --contender "${{ matrix.contender }}" --model "${{ matrix.model }}"
-            --shard "${{ matrix.shard }}" --machine "${{ matrix.machine }}" --results results)
-          if [ "${{ matrix.track }}" = "desktop" ]; then
+            --condition "${{ matrix.condition }}" --shard "${{ matrix.shard }}"
+            --machine "${{ matrix.machine }}" --results results)
+          if [ "${{ matrix.track }}" = "desktop" ] || [ "${{ matrix.condition }}" = "background" ]; then
             bash apps/bench/scripts/display.sh "${command[@]}"
           else
             "${command[@]}"
@@ -165,17 +166,17 @@ jobs:
       - name: Bench
         if: runner.os == 'macOS'
         run: |
-          bun run bench run --ci --config "$CONFIG" --track ${{ matrix.track }} --contender ${{ matrix.contender }} --model ${{ matrix.model }} --shard ${{ matrix.shard }} --machine ${{ matrix.machine }} --results results
+          bun run bench run --ci --config "$CONFIG" --track ${{ matrix.track }} --contender ${{ matrix.contender }} --model ${{ matrix.model }} --condition ${{ matrix.condition }} --shard ${{ matrix.shard }} --machine ${{ matrix.machine }} --results results
 
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: bench-${{ matrix.track }}-${{ matrix.env }}-${{ matrix.contender }}-${{ matrix.model }}-${{ matrix.label }}
+          name: bench-${{ matrix.track }}-${{ matrix.condition }}-${{ matrix.env }}-${{ matrix.contender }}-${{ matrix.model }}-${{ matrix.label }}
           path: results/
           if-no-files-found: warn
 
   bench-container:
-    name: ${{ matrix.track }} ${{ matrix.env }} ${{ matrix.contender }} ${{ matrix.model }} ${{ matrix.shard }}
+    name: ${{ matrix.track }} ${{ matrix.condition }} ${{ matrix.env }} ${{ matrix.contender }} ${{ matrix.model }} ${{ matrix.shard }}
     needs: plan
     if: needs.plan.result == 'success'
     runs-on: ${{ matrix.runner }}
@@ -214,8 +215,9 @@ jobs:
           set -euo pipefail
           command=(bun run bench run --ci --config "$CONFIG" --track "${{ matrix.track }}"
             --contender "${{ matrix.contender }}" --model "${{ matrix.model }}"
-            --shard "${{ matrix.shard }}" --machine "${{ matrix.machine }}" --results results)
-          if [ "${{ matrix.track }}" = "desktop" ]; then
+            --condition "${{ matrix.condition }}" --shard "${{ matrix.shard }}"
+            --machine "${{ matrix.machine }}" --results results)
+          if [ "${{ matrix.track }}" = "desktop" ] || [ "${{ matrix.condition }}" = "background" ]; then
             bash apps/bench/envs/debian-13/display.sh "${command[@]}"
           else
             "${command[@]}"
@@ -223,12 +225,12 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: bench-${{ matrix.track }}-${{ matrix.env }}-${{ matrix.contender }}-${{ matrix.model }}-${{ matrix.label }}
+          name: bench-${{ matrix.track }}-${{ matrix.condition }}-${{ matrix.env }}-${{ matrix.contender }}-${{ matrix.model }}-${{ matrix.label }}
           path: results/
           if-no-files-found: warn
 
   bench-vm:
-    name: ${{ matrix.track }} ${{ matrix.env }} ${{ matrix.contender }} ${{ matrix.model }} ${{ matrix.shard }}
+    name: ${{ matrix.track }} ${{ matrix.condition }} ${{ matrix.env }} ${{ matrix.contender }} ${{ matrix.model }} ${{ matrix.shard }}
     needs: [plan, nixos-image, omarchy-image]
     if: always() && needs.plan.result == 'success'
     runs-on: ${{ matrix.runner }}
@@ -251,12 +253,12 @@ jobs:
         if: startsWith(matrix.env, 'nixos')
         with:
           path: .nix-vm
-          key: nixos-vm-${{ hashFiles('apps/bench/envs/nixos-25.05/flake.nix', 'apps/bench/envs/nixos-25.05/configuration.nix') }}
+          key: nixos-vm-${{ hashFiles('apps/bench/envs/nixos-25.05/flake.nix', 'apps/bench/envs/nixos-25.05/configuration.nix', 'apps/bench/envs/nixos-25.05/session.sh', 'apps/bench/scripts/envs/nixos-image.sh') }}
       - uses: actions/cache/restore@v4
         if: startsWith(matrix.env, 'omarchy')
         with:
           path: .omarchy-image
-          key: omarchy-image-v3.8.4-08754e28d91b-2
+          key: omarchy-image-v3.8.4-${{ hashFiles('apps/bench/envs/omarchy-v3.8.4/install.sh', 'apps/bench/envs/omarchy-v3.8.4/image.env', 'apps/bench/envs/omarchy-v3.8.4/session.sh', 'apps/bench/scripts/envs/build-omarchy-image.sh') }}
       - name: Resolve the image
         id: image
         run: |
@@ -268,17 +270,20 @@ jobs:
             echo "path=.omarchy-image/omarchy.qcow2" >> "$GITHUB_OUTPUT"
           fi
       - name: Bench
+        env:
+          BENCH_SESSION: ${{ matrix.track == 'desktop' || matrix.condition == 'background' }}
         run: |
           bash apps/bench/scripts/envs/vm-run.sh \
             "${{ matrix.env }}" "${{ steps.image.outputs.path }}" results 2222 \
             "${{ matrix.track }}" "${{ matrix.contender }}" -- \
             run --ci --config "$CONFIG" --track "${{ matrix.track }}" \
             --contender "${{ matrix.contender }}" --model "${{ matrix.model }}" \
-            --shard "${{ matrix.shard }}" --machine "${{ matrix.machine }}" --results results
+            --condition "${{ matrix.condition }}" --shard "${{ matrix.shard }}" \
+            --machine "${{ matrix.machine }}" --results results
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: bench-${{ matrix.track }}-${{ matrix.env }}-${{ matrix.contender }}-${{ matrix.model }}-${{ matrix.label }}
+          name: bench-${{ matrix.track }}-${{ matrix.condition }}-${{ matrix.env }}-${{ matrix.contender }}-${{ matrix.model }}-${{ matrix.label }}
           path: results/
           if-no-files-found: warn
 
@@ -374,12 +379,12 @@ jobs:
         if: startsWith(matrix.env, 'nixos')
         with:
           path: .nix-vm
-          key: nixos-vm-${{ hashFiles('apps/bench/envs/nixos-25.05/flake.nix', 'apps/bench/envs/nixos-25.05/configuration.nix') }}
+          key: nixos-vm-${{ hashFiles('apps/bench/envs/nixos-25.05/flake.nix', 'apps/bench/envs/nixos-25.05/configuration.nix', 'apps/bench/envs/nixos-25.05/session.sh', 'apps/bench/scripts/envs/nixos-image.sh') }}
       - uses: actions/cache/restore@v4
         if: startsWith(matrix.env, 'omarchy')
         with:
           path: .omarchy-image
-          key: omarchy-image-v3.8.4-08754e28d91b-2
+          key: omarchy-image-v3.8.4-${{ hashFiles('apps/bench/envs/omarchy-v3.8.4/install.sh', 'apps/bench/envs/omarchy-v3.8.4/image.env', 'apps/bench/envs/omarchy-v3.8.4/session.sh', 'apps/bench/scripts/envs/build-omarchy-image.sh') }}
       - name: Resolve the image
         id: image
         run: |
@@ -403,9 +408,140 @@ jobs:
           path: results/
           if-no-files-found: warn
 
+  validate-bg-host:
+    name: Background validate ${{ matrix.env }}
+    needs: plan
+    if: needs.plan.result == 'success'
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.plan.outputs.vhost) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - name: Install the desktop test bed
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            xvfb xauth openbox xdotool dbus-x11 at-spi2-core python3-gi gir1.2-gtk-3.0 x11-utils jq \
+            libreoffice-calc libreoffice-writer
+      - name: Environment packages
+        if: runner.os == 'macOS'
+        run: bash apps/bench/envs/macos-15/setup.sh
+      - name: Record the environment versions
+        run: |
+          mkdir -p results
+          bash apps/bench/scripts/envs/versions.sh > "results/env-versions-${{ matrix.env }}.txt" 2>&1 || true
+      - name: Validate
+        if: runner.os == 'Linux'
+        run: bash apps/bench/scripts/display.sh bun run bench validate --config "$CONFIG" --condition background --runs 1 --task "browser-1*" --results results --machine ${{ matrix.machine }}
+      - name: Validate
+        if: runner.os == 'macOS'
+        run: bun run bench validate --config "$CONFIG" --condition background --runs 1 --task "browser-1*" --results results --machine ${{ matrix.machine }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bench-validate-bg-${{ matrix.env }}
+          path: results/
+          if-no-files-found: warn
+
+  validate-bg-container:
+    name: Background validate ${{ matrix.env }}
+    needs: plan
+    if: needs.plan.result == 'success'
+    runs-on: ${{ matrix.runner }}
+    container: ${{ matrix.image }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.plan.outputs.vcontainer) }}
+    steps:
+      - name: Base packages
+        run: apt-get update && apt-get install -y --no-install-recommends git ca-certificates curl nodejs unzip
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - name: Environment packages
+        run: bash apps/bench/envs/debian-13/setup.sh
+      - name: Validate
+        run: bash apps/bench/envs/debian-13/display.sh bun run bench validate --config "$CONFIG" --condition background --runs 1 --task "browser-1*" --results results --machine ${{ matrix.machine }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bench-validate-bg-${{ matrix.env }}
+          path: results/
+          if-no-files-found: warn
+
+  validate-bg-vm:
+    name: Background validate ${{ matrix.env }}
+    needs: [plan, nixos-image, omarchy-image]
+    if: always() && needs.plan.result == 'success'
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.plan.outputs.vvm) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - name: Host tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends qemu-system-x86 qemu-utils sshpass rsync
+          if [ -e /dev/kvm ]; then sudo chmod 666 /dev/kvm; fi
+      - uses: cachix/install-nix-action@v31
+        if: startsWith(matrix.env, 'nixos')
+      - uses: actions/cache/restore@v4
+        if: startsWith(matrix.env, 'nixos')
+        with:
+          path: .nix-vm
+          key: nixos-vm-${{ hashFiles('apps/bench/envs/nixos-25.05/flake.nix', 'apps/bench/envs/nixos-25.05/configuration.nix', 'apps/bench/envs/nixos-25.05/session.sh', 'apps/bench/scripts/envs/nixos-image.sh') }}
+      - uses: actions/cache/restore@v4
+        if: startsWith(matrix.env, 'omarchy')
+        with:
+          path: .omarchy-image
+          key: omarchy-image-v3.8.4-${{ hashFiles('apps/bench/envs/omarchy-v3.8.4/install.sh', 'apps/bench/envs/omarchy-v3.8.4/image.env', 'apps/bench/envs/omarchy-v3.8.4/session.sh', 'apps/bench/scripts/envs/build-omarchy-image.sh') }}
+      - name: Resolve the image
+        id: image
+        run: |
+          set -euo pipefail
+          if [ "${{ matrix.env }}" = "nixos-25.05" ]; then
+            echo "path=$(bash apps/bench/scripts/envs/nixos-image.sh restore .nix-vm)" >> "$GITHUB_OUTPUT"
+          else
+            test -f .omarchy-image/omarchy.qcow2
+            echo "path=.omarchy-image/omarchy.qcow2" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Validate in the background condition
+        env:
+          BENCH_SESSION: "true"
+        run: |
+          bash apps/bench/scripts/envs/vm-run.sh \
+            "${{ matrix.env }}" "${{ steps.image.outputs.path }}" results 2222 \
+            desktop kiko -- \
+            validate --config "$CONFIG" --condition background --runs 1 --task "browser-1*" \
+            --results results --machine "${{ matrix.machine }}"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bench-validate-bg-${{ matrix.env }}
+          path: results/
+          if-no-files-found: warn
+
   report:
     name: Report
-    needs: [bench-host, bench-container, bench-vm, validate-host, validate-container, validate-vm]
+    needs:
+      [
+        bench-host,
+        bench-container,
+        bench-vm,
+        validate-host,
+        validate-container,
+        validate-vm,
+        validate-bg-host,
+        validate-bg-container,
+        validate-bg-vm,
+      ]
     if: always()
     runs-on: ubuntu-24.04
     timeout-minutes: 15

@@ -161,6 +161,26 @@ describe("planJobs", () => {
     const jobs = planJobs(readConfig(path), [task("terminal-001", "terminal", ["linux"])])
     expect(jobs.map((job) => job.env)).toEqual(["debian", "debian"])
   })
+
+  it("runs a track's own conditions on every environment", async () => {
+    const path = await configFile({
+      ...BASELINE,
+      tracks: [
+        {
+          track: "browser",
+          os: ["linux", "macos"],
+          conditions: ["foreground", "background"],
+          contenders: ["kiko"],
+        },
+      ],
+    })
+    const jobs = planJobs(readConfig(path), [task("browser-001", "browser", ["linux", "macos"])])
+    const conditions = (env: string): string[] => [
+      ...new Set(jobs.filter((job) => job.env === env).map((job) => job.condition)),
+    ]
+    expect(conditions("ubuntu")).toEqual(["foreground", "background"])
+    expect(conditions("macos")).toEqual(["foreground", "background"])
+  })
 })
 
 describe("inShard", () => {
