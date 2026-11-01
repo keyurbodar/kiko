@@ -1,6 +1,8 @@
 import { stat } from "node:fs/promises"
 import { PROTOCOL, type Display, type Holder } from "@kiko/computer/wire"
 import { createBrowserLink } from "./browser/link"
+import { macTrusted } from "./live/native/macos"
+import { platform } from "./live/capture"
 import { detect, type Detection } from "./caps"
 import { configDir, loadConfig, loadKey, loadPolicy, paths, pausedCache, policyCache } from "./config"
 import { runLink, type Host } from "./connection"
@@ -20,6 +22,10 @@ import { createUpdater, updateTarget, type Updater } from "./update"
 const REPAIR_POLL_MS = 30_000
 const DOCTOR_WAIT_MS = 3_000
 const WELCOMED = "the worker calls this machine"
+
+function mayInput(): boolean {
+  return platform() !== "macos" || macTrusted()
+}
 
 export async function serve(dir = configDir()): Promise<number> {
   const log = createLogger("kiko-computer", paths(dir).log)
@@ -47,7 +53,7 @@ export async function serve(dir = configDir()): Promise<number> {
   let link: ReturnType<typeof runLink> | null = null
   let live: Live = emptyLive({ logger: log, setHolder, send: (frame) => link?.frame(frame) })
   let driver: Driver | null = null
-  let detection = detect(log, policy, null, dir)
+  let detection = detect(log, policy, null, dir, mayInput())
   let liveCaps: LiveCaps = policy
   let liveStarting = false
   let update: Updater | null = null
@@ -68,7 +74,7 @@ export async function serve(dir = configDir()): Promise<number> {
     warn: (message) => log.warn(message),
   })
   const refresh = () => {
-    detection = withDisplays(detect(log, liveCaps, driver?.state() ?? null, dir), displays)
+    detection = withDisplays(detect(log, liveCaps, driver?.state() ?? null, dir, mayInput()), displays)
     link?.reconnect()
   }
   const refreshDisplays = async () => {
@@ -231,7 +237,7 @@ export async function diagnose(dir = configDir()): Promise<{ checks: Check[]; de
     detail: `shell ${policy.shell ? "on" : "off"}, desktop ${policy.desktop ? "on" : "off"}, files ${policy.files.allow.join(", ")}`,
   })
   const driver = await reachDriver(log)
-  const detection = detect(log, { live: false, input: false }, driver?.state() ?? null, dir)
+  const detection = detect(log, { live: false, input: false }, driver?.state() ?? null, dir, mayInput())
   driver?.close()
   checks.push({ name: "desktop", ok: desktopOk(detection), detail: desktopDetail(detection) })
   checks.push({ name: "ffmpeg", ok: true, detail: Bun.which("ffmpeg") ?? "not installed; live video is off" })

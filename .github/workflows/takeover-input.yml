@@ -105,7 +105,7 @@ jobs:
           which ffmpeg
           ffmpeg -hide_banner -f avfoundation -list_devices true -i "" 2>&1 | head -20 || true
           sudo sqlite3 "/Library/Application Support/com.apple.TCC/TCC.db" \
-            "SELECT service, client, auth_value FROM access WHERE service LIKE '%ScreenCapture%' OR service LIKE '%Accessibility%';" || true
+            "SELECT service, client, client_type, auth_value FROM access WHERE service LIKE '%ScreenCapture%' OR service LIKE '%Accessibility%';" || true
       - name: Paste a Unicode string and click the display
         run: bun apps/server/scripts/measure-input.ts --single --out input-proof.json
       - name: Upload the proof

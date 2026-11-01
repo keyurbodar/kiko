@@ -149,7 +149,7 @@ async function main(): Promise<void> {
 
     const minted = await mintPairCode(kek, "owner")
     const computerDir = join(dir, "pc")
-    const env = { KIKO_COMPUTER_DIR: computerDir, KIKO_DRIVER: driverPath, DISPLAY: display }
+    const env = { KIKO_COMPUTER_DIR: computerDir, KIKO_DRIVER: driverPath, DISPLAY: display, KIKO_INPUT_DEBUG: "1" }
     const paired = start(
       "pair",
       ["bun", "src/index.ts", "pair", `http://127.0.0.1:${SERVER_PORT}#${minted.code}`, "--name", "kiko-ci"],
@@ -179,14 +179,15 @@ async function main(): Promise<void> {
     page.on("pageerror", (error) => process.stderr.write(`[viewer] pageerror: ${error.message}\n`))
     await page.goto(`http://localhost:${WEB_PORT}/`)
     await page.waitForSelector('[data-action="computer-watch"], [data-action="skip-first-run"]', { timeout: 60_000 })
+    const tap = async (locator: ReturnType<typeof page.locator>) => {
+      if ((await locator.count()) === 0 || !(await locator.isVisible())) return
+      await locator.click({ timeout: 2_000 }).catch(() => {})
+    }
     const opened = { at: false }
     for (let attempt = 0; attempt < 8 && !opened.at; attempt += 1) {
-      const skip = page.locator('[data-action="skip-first-run"]')
-      if ((await skip.count()) > 0 && (await skip.isVisible())) await skip.click()
-      const done = page.locator('[data-action="open-kiko"]')
-      if ((await done.count()) > 0 && (await done.isVisible())) await done.click()
-      const watch = page.locator('[data-action="computer-watch"]')
-      if ((await watch.count()) > 0 && (await watch.isVisible())) await watch.click()
+      await tap(page.locator('[data-action="skip-first-run"]'))
+      await tap(page.locator('[data-action="open-kiko"]'))
+      await tap(page.locator('[data-action="computer-watch"]'))
       opened.at = await page
         .waitForSelector('[data-component="computer-viewer"]', { timeout: 8_000 })
         .then(() => true)

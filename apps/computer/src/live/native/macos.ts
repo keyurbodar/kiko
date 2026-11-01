@@ -160,6 +160,14 @@ function optional<T extends Record<string, { args: FFIType[]; returns: FFIType |
   }
 }
 
+export function macTrusted(): boolean {
+  const app = optional(`${FRAMEWORKS}/ApplicationServices.framework/ApplicationServices`, {
+    AXIsProcessTrusted: { args: [], returns: FFIType.int },
+  })
+  if (!app) return false
+  return (app.AXIsProcessTrusted() as unknown as number) !== 0
+}
+
 const DRAGGED = [EVENT.leftDragged, EVENT.rightDragged, EVENT.otherDragged] as const
 
 function buttonEvent(slot: number, down: boolean): number {
