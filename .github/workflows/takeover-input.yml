@@ -97,6 +97,7 @@ jobs:
                  VALUES('${service}','${client}',1,2,4,1,readfile('/tmp/$(basename "$client").req'),NULL,0,'UNUSED',NULL,0,${now});"
             done
           done
+          sudo pmset -a displaysleep 0 sleep 0 || true
           sudo killall tccd 2>/dev/null || true
           sleep 2
           pgrep -lx tccd || sudo launchctl kickstart -k system/com.apple.tccd || true
