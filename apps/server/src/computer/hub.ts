@@ -179,7 +179,7 @@ export function pcSocketId(ws: WebSocket): string | null {
   return attachmentOf(ws)?.id ?? null
 }
 
-type LiveAttachment = { kind: "live"; pcId: string; want?: boolean }
+type LiveAttachment = { kind: "live"; pcId: string; want?: boolean; session?: string }
 
 type LiveMessage =
   | { t: "ack"; seq?: number }
@@ -748,7 +748,13 @@ export class ComputerHub {
     if (!this.row(pcId)) return new Response("there is no such computer", { status: 404 })
     const pair = new WebSocketPair()
     this.d.ctx.acceptWebSocket(pair[1], [`live:${pcId}`])
-    pair[1].serializeAttachment({ kind: "live", pcId, want: false } satisfies LiveAttachment)
+    const held = this.hold(pcId).heldBy
+    pair[1].serializeAttachment({
+      kind: "live",
+      pcId,
+      want: false,
+      ...(held ? { session: held } : {}),
+    } satisfies LiveAttachment)
     return new Response(null, { status: 101, webSocket: pair[0] })
   }
 
@@ -833,10 +839,15 @@ export class ComputerHub {
     return id
   }
 
+  private liveSession(tab: WebSocket): string {
+    const saved = tab.deserializeAttachment() as LiveAttachment | null
+    return saved?.kind === "live" && saved.session ? saved.session : this.session(tab)
+  }
+
   async rtcFromTab(tab: WebSocket, pcId: string, signal: RtcSignal): Promise<void> {
     const ws = this.socket(pcId)
     if (!ws) return
-    this.send(ws, { t: "rtc", session: this.session(tab), signal, iceServers: await this.iceServers() })
+    this.send(ws, { t: "rtc", session: this.liveSession(tab), signal, iceServers: await this.iceServers() })
   }
 
   private daemonRtc(pcId: string, session: string, signal: RtcSignal): void {
