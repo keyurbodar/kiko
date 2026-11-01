@@ -127,7 +127,11 @@ jobs:
             console.log(`${name}: first chunk ${bytes} bytes, exit ${child.exitCode}`)
             child.kill()
           }
-          await first("from bun", Bun.spawn(args, { stdout: "pipe", stderr: "pipe" }))
+          await first("device name", Bun.spawn(args, { stdout: "pipe", stderr: "pipe" }))
+          {
+            const withNone = args.map((arg) => (arg === "Capture screen 0" ? "Capture screen 0:none" : arg))
+            await first("device name with :none", Bun.spawn(withNone, { stdout: "pipe", stderr: "pipe" }))
+          }
           {
             const line = args.map((arg) => JSON.stringify(arg)).join(" ")
             await first("from bun through bash", Bun.spawn(["bash", "-c", line], { stdout: "pipe", stderr: "pipe" }))
