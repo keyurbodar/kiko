@@ -11,7 +11,7 @@ export const desktopPreference: Task = {
   id: "desktop-104-app-preference",
   track: "desktop",
   kind: "real",
-  os: ["linux"],
+  os: ["linux", "macos"],
   needs: ["display"],
   heldOut: false,
   prompt:

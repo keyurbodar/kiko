@@ -8,7 +8,7 @@ export const desktopHidpi: Task = {
   id: "desktop-110-hidpi",
   track: "desktop",
   kind: "edge",
-  os: ["linux"],
+  os: ["linux", "macos"],
   needs: ["display"],
   heldOut: false,
   prompt: "The app is running on a 200% scaled display. Enter the reference code from request.json and save.",

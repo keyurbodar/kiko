@@ -1,0 +1,64 @@
+{
+  "reps": 1,
+  "seed": 1,
+  "conditions": ["foreground"],
+  "pattern": "desktop-1*",
+  "validate": {
+    "runs": 10
+  },
+  "envs": [
+    {
+      "id": "ubuntu-24.04",
+      "os": "linux",
+      "runner": "ubuntu-24.04",
+      "machine": "gha-ubuntu-24.04-x11",
+      "kind": "host",
+      "display": "x11"
+    },
+    {
+      "id": "debian-13",
+      "os": "linux",
+      "runner": "ubuntu-24.04",
+      "machine": "debian-13",
+      "kind": "container",
+      "display": "x11",
+      "image": "debian:trixie"
+    },
+    {
+      "id": "nixos-25.05",
+      "os": "linux",
+      "runner": "ubuntu-24.04",
+      "machine": "nixos-25.05",
+      "kind": "vm",
+      "display": "wayland"
+    },
+    {
+      "id": "omarchy-v3.8.4",
+      "os": "linux",
+      "runner": "ubuntu-24.04",
+      "machine": "omarchy-v3.8.4",
+      "kind": "vm",
+      "display": "wayland"
+    },
+    {
+      "id": "macos-15",
+      "os": "macos",
+      "runner": "macos-15",
+      "machine": "macos-15",
+      "kind": "host",
+      "display": "aqua"
+    }
+  ],
+  "tracks": [
+    {
+      "track": "desktop",
+      "os": ["linux", "macos"],
+      "contenders": [
+        {
+          "name": "kiko",
+          "models": ["beam-free"]
+        }
+      ]
+    }
+  ]
+}

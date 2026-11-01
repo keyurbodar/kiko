@@ -24,7 +24,7 @@ export const desktopBatchRename: Task = {
   id: "desktop-103-batch-rename",
   track: "desktop",
   kind: "real",
-  os: ["linux"],
+  os: ["linux", "macos"],
   needs: ["display"],
   heldOut: false,
   prompt:

@@ -14,8 +14,8 @@ export const desktopCalcColumn: Task = {
   id: "desktop-101-calc-column",
   track: "desktop",
   kind: "real",
-  os: ["linux"],
-  needs: ["display"],
+  os: ["linux", "macos"],
+  needs: ["display", "libreoffice"],
   heldOut: false,
   prompt:
     "budget.ods is open in LibreOffice Calc. The Cost column is before tax. In column C, put each item's cost plus 15% tax, and in the row after the last item put the total of column C.",

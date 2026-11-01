@@ -28,8 +28,8 @@ export const desktopReport: Task = {
   id: "desktop-105-report-chart",
   track: "desktop",
   kind: "long",
-  os: ["linux"],
-  needs: ["display"],
+  os: ["linux", "macos"],
+  needs: ["display", "libreoffice"],
   heldOut: false,
   prompt:
     "sales.csv and stock.csv are in the work folder. Build report.ods with three sheets named Sales, Stock and Summary. Put each CSV into its own sheet. In Summary show the total revenue and the total units, and add a chart of revenue by month.",

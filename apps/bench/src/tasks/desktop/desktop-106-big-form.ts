@@ -46,7 +46,7 @@ export const desktopBigForm: Task = {
   id: "desktop-106-big-form",
   track: "desktop",
   kind: "long",
-  os: ["linux"],
+  os: ["linux", "macos"],
   needs: ["display"],
   heldOut: false,
   prompt:
