@@ -24,9 +24,9 @@ describe("provider key problems", () => {
     })
   })
 
-  it("blames the connection when the provider never answered", () => {
-    expect(keyProblem("OpenRouter", "fetch failed")).toEqual({
-      sentence: "Couldn't reach OpenRouter. Check your connection.",
+  it("treats a refusal without a status code as an unrecognized key", () => {
+    expect(keyProblem("OpenRouter", "invalid api key")).toEqual({
+      sentence: "OpenRouter didn't recognize that key. Check that you copied all of it.",
     })
   })
 
@@ -41,6 +41,8 @@ describe("provider key problems", () => {
     expect(keyProblemText("OpenRouter", "401 unauthorized")).toBe(
       "OpenRouter didn't recognize that key. Check that you copied all of it. · 401",
     )
-    expect(keyProblemText("OpenRouter", "connection reset")).toBe("Couldn't reach OpenRouter. Check your connection.")
+    expect(keyProblemText("OpenRouter", "unauthorized")).toBe(
+      "OpenRouter didn't recognize that key. Check that you copied all of it.",
+    )
   })
 })

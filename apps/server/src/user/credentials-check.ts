@@ -9,11 +9,11 @@ export type KeyProblem = { readonly sentence: string; readonly status?: number }
 const STATUS = /\b([45]\d{2})\b/
 
 export function keyProblem(provider: string, said: string): KeyProblem {
+  const unrecognized = `${provider} didn't recognize that key. Check that you copied all of it.`
   const status = STATUS.exec(said)?.[1]
-  if (status === undefined) return { sentence: `Couldn't reach ${provider}. Check your connection.` }
+  if (status === undefined) return { sentence: unrecognized }
   const code = Number(status)
-  if (code === 401 || code === 403)
-    return { sentence: `${provider} didn't recognize that key. Check that you copied all of it.`, status: code }
+  if (code === 401 || code === 403) return { sentence: unrecognized, status: code }
   if (code === 429) return { sentence: `${provider} is rate limiting this key. Try again in a minute.`, status: code }
   if (code >= 500) return { sentence: `${provider} is having trouble right now. Try again in a minute.`, status: code }
   return { sentence: `${provider} rejected that key.`, status: code }
