@@ -6,6 +6,9 @@ with Homebrew. The machine label is `macos-15`.
 The desktop track does not run here: every desktop task lists `os: ["linux"]`, and the GTK fixture
 and its `xdotool` oracle are X11-only. Terminal and browser tasks that list macOS do run.
 
+Display stack: `aqua`, the runner's own login session. Nothing is started by the bench, and the
+sentinel's background condition runs here too.
+
 CI writes the exact versions to `results/env-versions-macos-15.txt` with `sw_vers` and the Homebrew
 package versions, and uploads them with the run artifact.
 
