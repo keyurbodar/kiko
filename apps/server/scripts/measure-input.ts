@@ -28,7 +28,7 @@ const PAGE = (name: string) => `<!doctype html><meta charset="utf-8">
 html,body{margin:0;height:100%;background:#111;color:#eee;font:16px system-ui}
 #field{position:absolute;left:20%;top:40%;width:60%;height:20%;font-size:20px}
 </style>
-<input id="field" autocomplete="off">
+<textarea id="field" autocomplete="off"></textarea>
 <script>
 window.__name = ${JSON.stringify(name)}
 window.__events = []
