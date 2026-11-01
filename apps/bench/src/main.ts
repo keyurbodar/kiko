@@ -569,8 +569,8 @@ const detailOf = (verdict: Verdict, stable: boolean, background: Background): st
     .map((check) => `${check.name}=${check.pass ? "pass" : "fail"} (${check.detail})`)
     .join("; ")}; ${countersOf(background)}`
 
-const validateRow = (task: Task, os: Os, machineId: string, kind: string, pass: boolean, detail: string): string =>
-  [task.id, os, machineId, kind, pass ? "1" : "0", escape(detail)].join("\t")
+const validateRow = (taskId: string, os: Os, machineId: string, kind: string, pass: boolean, detail: string): string =>
+  [taskId, os, machineId, kind, pass ? "1" : "0", escape(detail)].join("\t")
 
 const runCount = (flags: Parsed["flags"]): number => {
   const fromFlag = flagString(flags, "runs")
@@ -618,7 +618,7 @@ async function validate(flags: Parsed["flags"]): Promise<void> {
       const detail = caught instanceof Error ? caught.message : String(caught)
       const row = validateRow(tasks[0]?.id ?? "*", os, machineId, "idle", false, detail)
       await writeFile(path, [VALIDATE_HEADER, row].join("\n") + "\n", "utf8")
-      throw new Error(`the ${machineId} sentinel failed its idle check: ${detail}`)
+      throw new Error(`the ${machineId} sentinel failed its idle check: ${detail}`, { cause: caught })
     }
   }
   const quarantined: string[] = []
@@ -633,7 +633,7 @@ async function validate(flags: Parsed["flags"]): Promise<void> {
     const good = first.verdict.pass && stable && clean && !nothing.verdict.pass
     lines.push(
       validateRow(
-        task,
+        task.id,
         os,
         machineId,
         "oracle",
@@ -641,7 +641,7 @@ async function validate(flags: Parsed["flags"]): Promise<void> {
         detailOf(first.verdict, stable, first.background),
       ),
       validateRow(
-        task,
+        task.id,
         os,
         machineId,
         "null",
