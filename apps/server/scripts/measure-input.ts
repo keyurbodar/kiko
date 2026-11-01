@@ -179,34 +179,31 @@ async function main(): Promise<void> {
     page.on("pageerror", (error) => process.stderr.write(`[viewer] pageerror: ${error.message}\n`))
     await page.goto(`http://localhost:${WEB_PORT}/`)
     await page.waitForSelector('[data-action="computer-watch"], [data-action="skip-first-run"]', { timeout: 60_000 })
-    await until(
-      "the chat view",
-      async () => {
-        const watch = page.locator('[data-action="computer-watch"]')
-        if ((await watch.count()) > 0 && (await watch.isVisible())) return true
-        const skip = page.locator('[data-action="skip-first-run"]')
-        if ((await skip.count()) > 0 && (await skip.isVisible())) await skip.click()
-        const open = page.locator('[data-action="open-kiko"]')
-        if ((await open.count()) > 0 && (await open.isVisible())) await open.click()
-        return false
-      },
-      90_000,
-    )
-    await page.click('[data-action="computer-watch"]')
-    try {
-      await page.waitForSelector('[data-component="computer-viewer"]', { timeout: 30_000 })
-      await page.waitForSelector('[data-component="computer-screen"]', { timeout: 45_000 })
-    } catch (error) {
+    const opened = { at: false }
+    for (let attempt = 0; attempt < 8 && !opened.at; attempt += 1) {
+      const skip = page.locator('[data-action="skip-first-run"]')
+      if ((await skip.count()) > 0 && (await skip.isVisible())) await skip.click()
+      const done = page.locator('[data-action="open-kiko"]')
+      if ((await done.count()) > 0 && (await done.isVisible())) await done.click()
+      const watch = page.locator('[data-action="computer-watch"]')
+      if ((await watch.count()) > 0 && (await watch.isVisible())) await watch.click()
+      opened.at = await page
+        .waitForSelector('[data-component="computer-viewer"]', { timeout: 8_000 })
+        .then(() => true)
+        .catch(() => false)
+      if (!opened.at) await wait(500)
+    }
+    if (!opened.at) {
       const state = await page.evaluate(() => ({
-        viewer: document.querySelector('[data-component="computer-viewer"]') !== null,
         parts: [...document.querySelectorAll("[data-component]")].map((element) =>
           element.getAttribute("data-component"),
         ),
         text: document.body.innerText.slice(0, 400),
       }))
-      process.stderr.write(`[viewer] no screen ${JSON.stringify(state)}\n`)
-      throw error
+      process.stderr.write(`[viewer] no viewer ${JSON.stringify(state)}\n`)
+      throw new Error("the viewer did not open")
     }
+    await page.waitForSelector('[data-component="computer-screen"]', { timeout: 45_000 })
     let ticks = 0
     let streaming = true
     try {
