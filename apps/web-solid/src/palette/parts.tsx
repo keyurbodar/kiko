@@ -66,7 +66,7 @@ export function Hint(props: { name: KeyName; children: JSX.Element }) {
 function Chips(props: { keys: string[] }) {
   return (
     <span class="palette-keys">
-      <kbd class="palette-kbd">{props.keys.join(isMac ? "" : "+")}</kbd>
+      <For each={props.keys}>{(key) => <kbd class="palette-kbd">{key}</kbd>}</For>
     </span>
   )
 }

@@ -5,6 +5,25 @@ const TAG_ORDER = ["mornings", "inbox", "money", "health", "fun", "thinking", "h
 
 export type TagFilter = "all" | (string & {})
 
+const CATEGORY_TONES = {
+  mornings: "--text-orange",
+  inbox: "--text-blue",
+  money: "--text-green",
+  health: "--text-red",
+  fun: "--text-yellow",
+  thinking: "--text-cyan",
+  home: "--text-orange",
+  work: "--text-blue",
+  travel: "--text-cyan",
+} as const satisfies Record<string, `--${string}`>
+
+type CategoryTone = (typeof CATEGORY_TONES)[keyof typeof CATEGORY_TONES]
+
+export function categoryTone(tags: readonly string[]): CategoryTone | undefined {
+  const tag = tags[0]
+  return tag ? (CATEGORY_TONES as Record<string, CategoryTone | undefined>)[tag] : undefined
+}
+
 export function recipeTags(cards: readonly RecipeCard[]): string[] {
   const present = new Set(cards.flatMap((c) => c.tags))
   const known = TAG_ORDER.filter((t) => present.has(t))
@@ -12,7 +31,7 @@ export function recipeTags(cards: readonly RecipeCard[]): string[] {
   return [...known, ...rest]
 }
 
-export function tagLabel(tag: string): string {
+function tagLabel(tag: string): string {
   return tag.charAt(0).toUpperCase() + tag.slice(1)
 }
 
@@ -29,11 +48,17 @@ export function filterRecipes(cards: readonly RecipeCard[], query: string, tag: 
   )
 }
 
-export type Section = "yours" | "discover"
+export type RecipeView = "yours" | TagFilter
 
-export function openingSection(installs: readonly RecipeInstall[] | undefined, inRoom: boolean): Section | undefined {
+export function openingView(installs: readonly RecipeInstall[] | undefined, inRoom: boolean): RecipeView | undefined {
   if (!installs) return undefined
-  return installs.length && !inRoom ? "yours" : "discover"
+  return installs.length && !inRoom ? "yours" : "all"
+}
+
+export function chipLabel(view: RecipeView): string {
+  if (view === "yours") return "Yours"
+  if (view === "all") return "All"
+  return tagLabel(view)
 }
 
 export function installedSlugs(

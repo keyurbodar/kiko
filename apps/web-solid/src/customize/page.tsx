@@ -15,7 +15,30 @@ export default function CustomizePage() {
   const [scope, setScope] = createSignal<Scope>("discover")
   const [query, setQuery] = createSignal("")
   return (
-    <PageFrame title="Customize">
+    <PageFrame
+      title="Customize"
+      actions={
+        <>
+          <Show when={tab() === "apps"}>
+            <PageSearch label="Search apps" query={query()} onQuery={setQuery} />
+          </Show>
+          <Show
+            when={tab() === "apps"}
+            fallback={
+              <button type="button" class={primaryButton} data-action="new-agent" onClick={openNewAgent}>
+                <RemixIcon icon={PlusIcon} size={14} />
+                New agent
+              </button>
+            }
+          >
+            <button type="button" class={primaryButton} data-action="add-app" onClick={() => setScope("discover")}>
+              <RemixIcon icon={PlusIcon} size={14} />
+              Add
+            </button>
+          </Show>
+        </>
+      }
+    >
       <div class="flex flex-col gap-6 pt-4" data-component="customize-page">
         <div class="flex items-center justify-between gap-3">
           <PageTabs<Tab>
@@ -27,34 +50,17 @@ export default function CustomizePage() {
               { value: "apps", label: "Apps" },
             ]}
           />
-          <div class="flex items-center gap-2">
-            <Show when={tab() === "apps"}>
-              <Segmented<Scope>
-                label="Apps"
-                value={scope()}
-                onChange={setScope}
-                options={[
-                  { value: "yours", label: "Yours" },
-                  { value: "discover", label: "Discover" },
-                ]}
-              />
-              <PageSearch label="Search apps" query={query()} onQuery={setQuery} />
-            </Show>
-            <Show
-              when={tab() === "apps"}
-              fallback={
-                <button type="button" class={primaryButton} data-action="new-agent" onClick={openNewAgent}>
-                  <RemixIcon icon={PlusIcon} size={14} />
-                  New agent
-                </button>
-              }
-            >
-              <button type="button" class={primaryButton} data-action="add-app" onClick={() => setScope("discover")}>
-                <RemixIcon icon={PlusIcon} size={14} />
-                Add
-              </button>
-            </Show>
-          </div>
+          <Show when={tab() === "apps"}>
+            <Segmented<Scope>
+              label="Apps"
+              value={scope()}
+              onChange={setScope}
+              options={[
+                { value: "yours", label: "Yours" },
+                { value: "discover", label: "Discover" },
+              ]}
+            />
+          </Show>
         </div>
         <Show
           when={tab() === "team"}
