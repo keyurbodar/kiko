@@ -19,7 +19,11 @@ import { desktopOwnerTyping } from "./desktop-113-owner-typing"
 
 const currentOs = localOs()
 const hasDisplay = currentOs === "linux" && Boolean(process.env.DISPLAY)
-const hasLibreOffice = spawnSync("sh", ["-c", "command -v soffice || command -v libreoffice"]).status === 0
+const hasLibreOffice =
+  spawnSync("sh", [
+    "-c",
+    "command -v soffice || command -v libreoffice || test -x /Applications/LibreOffice.app/Contents/MacOS/soffice",
+  ]).status === 0
 
 const runsHere = (task: Task): boolean => hasDisplay && task.os.includes(currentOs)
 const runsCalc = (task: Task): boolean => runsHere(task) && hasLibreOffice

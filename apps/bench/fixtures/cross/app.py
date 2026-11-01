@@ -1,4 +1,6 @@
 import json
+import os
+import socket
 import sys
 
 import gi
@@ -17,6 +19,9 @@ with open(data_path) as handle:
     data = json.load(handle)
 
 state = {"screen": screen, "ready": True}
+work = os.path.dirname(os.path.abspath(state_path))
+control_path = os.path.join(work, "control.sock")
+actions = {}
 
 
 def save(**changes):
@@ -88,6 +93,14 @@ def build_error():
 
     button("Retry", 40, 150, handler=retry)
 
+    def control(command):
+        if command.get("action") != "retry":
+            raise ValueError(f"there is no {command.get('action')} action")
+        retry(None)
+        return {"ok": True}
+
+    actions["error"] = control
+
 
 def build_checklist():
     win.set_title("Release Checklist")
@@ -105,6 +118,19 @@ def build_checklist():
 
     button("Approve", 40, 200, handler=approve)
 
+    def control(command):
+        name = command.get("action")
+        if name == "check_all":
+            for box in boxes:
+                box.set_active(True)
+        elif name == "approve":
+            approve(None)
+        else:
+            raise ValueError(f"there is no {name} action")
+        return {"ok": True}
+
+    actions["checklist"] = control
+
 
 def build_transfer():
     win.set_title("Transfer Console")
@@ -118,10 +144,63 @@ def build_transfer():
 
     button("Save", 40, 160, handler=save_value)
 
+    def control(command):
+        name = command.get("action")
+        if name == "type":
+            value = command.get("text")
+            if not isinstance(value, str):
+                raise ValueError("the command needs a text value")
+            field.set_text(value)
+        elif name == "save":
+            save_value(None)
+        else:
+            raise ValueError(f"there is no {name} action")
+        return {"ok": True}
+
+    actions["transfer"] = control
+
 
 builders = {"error": build_error, "checklist": build_checklist, "transfer": build_transfer}
+
+def dispatch(command):
+    handler = actions.get(screen)
+    if handler is None:
+        raise ValueError(f"the {screen} screen has no control actions")
+    return handler(command)
+
+
+def serve_connection(server):
+    connection, _address = server.accept()
+    connection.settimeout(10)
+    try:
+        chunks = b""
+        while b"\n" not in chunks:
+            chunk = connection.recv(65536)
+            if not chunk:
+                break
+            chunks += chunk
+        reply = dispatch(json.loads(chunks.decode() or "{}"))
+    except Exception as error:
+        reply = {"ok": False, "error": str(error)}
+    try:
+        connection.sendall((json.dumps(reply) + "\n").encode())
+    except OSError:
+        pass
+    connection.close()
+    return True
+
+
+def start_control():
+    if os.path.exists(control_path):
+        os.unlink(control_path)
+    server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    server.bind(control_path)
+    server.listen(8)
+    GLib.io_add_watch(server.fileno(), GLib.IO_IN, lambda _fd, _condition: serve_connection(server))
+
 
 builders[screen]()
 win.show_all()
 save()
+start_control()
 Gtk.main()

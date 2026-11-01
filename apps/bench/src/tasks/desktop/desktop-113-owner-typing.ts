@@ -17,7 +17,7 @@ export const desktopOwnerTyping: Task = {
   id: "desktop-113-owner-typing",
   track: "desktop",
   kind: "edge",
-  os: ["linux"],
+  os: ["linux", "macos"],
   needs: ["display"],
   heldOut: false,
   prompt:

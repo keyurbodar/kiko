@@ -15,7 +15,7 @@ export const desktopSaveAs: Task = {
   id: "desktop-102-save-as-folder",
   track: "desktop",
   kind: "real",
-  os: ["linux"],
+  os: ["linux", "macos"],
   needs: ["display"],
   heldOut: false,
   prompt:

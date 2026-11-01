@@ -16,7 +16,7 @@ export const desktopNotification: Task = {
   id: "desktop-112-notification",
   track: "desktop",
   kind: "edge",
-  os: ["linux"],
+  os: ["linux", "macos"],
   needs: ["display"],
   heldOut: false,
   prompt:

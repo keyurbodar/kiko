@@ -11,6 +11,12 @@ import { TerminalManager } from "@kiko/computer-daemon/src/terminal/manager.ts"
 import type { Contender, Image, Machine, ToolResult, ToolSpec } from "../types"
 import { KIKO_TOOLS } from "./kiko-schemas"
 
+const SHELL_TIMEOUT_MS = 60_000
+const CALL_TIMEOUT_MS = 60_000
+const MAX_OUTPUT_CHARS = 12_000
+const MAX_READ_BYTES = 64_000
+const SCREEN_MAX_WIDTH = 960
+const BROWSER_STEPS_MAX = 20
 const TERMINAL_TOOLS = new Set([
   "terminal_open",
   "terminal_send",
@@ -19,12 +25,6 @@ const TERMINAL_TOOLS = new Set([
   "terminal_list",
   "terminal_close",
 ])
-const SHELL_TIMEOUT_MS = 60_000
-const CALL_TIMEOUT_MS = 60_000
-const MAX_OUTPUT_CHARS = 12_000
-const MAX_READ_BYTES = 64_000
-const SCREEN_MAX_WIDTH = 960
-const BROWSER_STEPS_MAX = 20
 
 type Bag = Record<string, unknown>
 
@@ -289,11 +289,6 @@ async function browserCall(driver: Driver, name: string, args: Bag, deadline: De
   return text(`there is no tool called ${name}`, true)
 }
 
-export interface KikoOptions {
-  readonly driver?: Driver
-  readonly terminals?: TerminalManager
-}
-
 const terminalStatus = (value: { status: "running" | "exited"; exitCode: number | null }): string =>
   value.status === "running" ? "running" : `exited with code ${value.exitCode === null ? "unknown" : value.exitCode}`
 
@@ -399,6 +394,11 @@ async function terminalClose(terminals: TerminalManager, machine: Machine, args:
   if (!id) return text("terminal_close needs an id from terminal_open or terminal_list", true)
   await terminals.close({ id })
   return text(`closed ${id} on ${machine.id}.`)
+}
+
+export interface KikoOptions {
+  readonly driver?: Driver
+  readonly terminals?: TerminalManager
 }
 
 export function kikoContender(options: KikoOptions = {}): Contender {
