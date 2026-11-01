@@ -4,6 +4,9 @@ Debian 13 (trixie) in a container on an `ubuntu-24.04` runner. The job's steps r
 `debian:trixie`, and the bench process, its terminal manager, cua-driver and agent-browser all run
 there. The desktop session is Xfce on X11: `Xvfb` plus `xfce4-session`, started by `display.sh`.
 
+Display stack: `x11`, `Xvfb` on `:0` with `xfce4-session` 4.20. There is no Wayland here, so the
+fixture, the oracles and the sentinel's GTK witness all talk X11 directly.
+
 `setup.sh` installs the environment packages with `apt`. CI writes the exact versions it got to
 `results/env-versions-debian-13.txt` and uploads them with the run artifact.
 
@@ -24,3 +27,4 @@ there. The desktop session is Xfce on X11: `Xvfb` plus `xfce4-session`, started 
 | mousepad (text editor) | 0.6.2 |
 | xfce4-session | 4.20.2-2 |
 | xdotool | 1:3.20160805.1-5.1 |
+| python3-xlib | 0.33-1 |

@@ -15,6 +15,10 @@ track="$5"
 contender="$6"
 shift 6
 [ "$1" = "--" ] && shift
+[ -n "$image" ] || {
+  echo "vm-run: $env_id has no image to boot" >&2
+  exit 2
+}
 
 share=/tmp/kiko-bench-repo
 overlay=""

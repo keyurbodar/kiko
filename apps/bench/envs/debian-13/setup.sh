@@ -24,6 +24,7 @@ apt-get install -y --no-install-recommends \
   openssh-server \
   python3 \
   python3-gi \
+  python3-xlib \
   sqlite3 \
   tmux \
   unzip \
@@ -38,3 +39,5 @@ apt-get install -y --no-install-recommends \
   zip
 
 apt-get install -y --no-install-recommends chromium || apt-get install -y --no-install-recommends chromium-browser
+
+mkdir -p /run/sshd

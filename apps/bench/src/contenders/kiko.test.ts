@@ -18,6 +18,10 @@ afterEach(async () => {
 
 const serverToolsPath = join(import.meta.dirname, "../../../server/src/agent/computer/tools.ts")
 
+const COMPUTER_NAMES = ["computer_shell", "computer_read", "computer_write"]
+
+const BROWSER_NAMES = ["browser_tabs", "browser_read", "browser_act", "browser_open", "browser_close", "browser_show"]
+
 const TERMINAL_NAMES = [
   "terminal_open",
   "terminal_send",
@@ -35,6 +39,9 @@ function serverTools(): ToolSpec[] {
   ].join("\n")
   return JSON.parse(execFileSync("bun", ["-e", script], { encoding: "utf8" })) as ToolSpec[]
 }
+
+const byName = (tools: readonly ToolSpec[], names: readonly string[]): ToolSpec[] =>
+  tools.filter((tool) => names.includes(tool.name))
 
 function harness(): { manager: TerminalManager; writes: string[]; emit(text: string): void } {
   const writes: string[] = []
@@ -74,7 +81,14 @@ describe("kiko tool schemas", () => {
     expect(fromServer).toEqual([...KIKO_TOOLS])
   })
 
-  it("offers the shell, file, terminal and browser tools without a driver", async () => {
+  it("carries every computer, browser and terminal tool the server offers", () => {
+    for (const names of [COMPUTER_NAMES, BROWSER_NAMES, TERMINAL_NAMES]) {
+      expect(byName(serverTools(), names).map((tool) => tool.name)).toEqual(names)
+      expect(byName(KIKO_TOOLS, names).map((tool) => tool.name)).toEqual(names)
+    }
+  })
+
+  it("offers the shell, file, browser and terminal tools without a driver", async () => {
     const machine = await createMachine("test-kiko")
     machines.push(machine)
     const contender = kikoContender()
@@ -83,12 +97,7 @@ describe("kiko tool schemas", () => {
       "computer_shell",
       "computer_read",
       "computer_write",
-      "browser_tabs",
-      "browser_read",
-      "browser_act",
-      "browser_open",
-      "browser_close",
-      "browser_show",
+      ...BROWSER_NAMES,
       ...TERMINAL_NAMES,
     ])
     await contender.stop()
@@ -184,12 +193,7 @@ describe("kiko tool schemas", () => {
       "computer_shell",
       "computer_read",
       "computer_write",
-      "browser_tabs",
-      "browser_read",
-      "browser_act",
-      "browser_open",
-      "browser_close",
-      "browser_show",
+      ...BROWSER_NAMES,
       ...TERMINAL_NAMES,
       "desktop_list_windows",
       "desktop_get_window_state",

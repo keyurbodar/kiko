@@ -96,17 +96,30 @@ jobs:
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/cache@v4
+      - uses: actions/cache/restore@v4
         id: cache
         with:
           path: .omarchy-image
           key: omarchy-image-v3.8.4-${{ hashFiles('apps/bench/envs/omarchy-v3.8.4/install.sh', 'apps/bench/envs/omarchy-v3.8.4/image.env', 'apps/bench/envs/omarchy-v3.8.4/session.sh', 'apps/bench/scripts/envs/build-omarchy-image.sh') }}
-      - if: steps.cache.outputs.cache-hit != 'true'
+      - name: Build
+        if: steps.cache.outputs.cache-hit != 'true'
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends qemu-system-x86 qemu-utils genisoimage sshpass openssl
           if [ -e /dev/kvm ]; then sudo chmod 666 /dev/kvm; fi
           bash apps/bench/scripts/envs/build-omarchy-image.sh .omarchy-image/omarchy.qcow2
+      - name: Measure the image against the cache budget
+        id: budget
+        run: |
+          set -euo pipefail
+          size="$(du -sb .omarchy-image | cut -f1)"
+          echo "the omarchy image is $((size / 1048576)) MB"
+          if [ "$size" -le 2147483648 ]; then echo "fits=true" >> "$GITHUB_OUTPUT"; else echo "fits=false" >> "$GITHUB_OUTPUT"; fi
+      - uses: actions/cache@v4
+        if: steps.budget.outputs.fits == 'true'
+        with:
+          path: .omarchy-image
+          key: omarchy-image-v3.8.4-${{ hashFiles('apps/bench/envs/omarchy-v3.8.4/install.sh', 'apps/bench/envs/omarchy-v3.8.4/image.env', 'apps/bench/envs/omarchy-v3.8.4/session.sh', 'apps/bench/scripts/envs/build-omarchy-image.sh') }}
 
   bench-host:
     name: ${{ matrix.track }} ${{ matrix.condition }} ${{ matrix.env }} ${{ matrix.contender }} ${{ matrix.model }} ${{ matrix.shard }}
@@ -123,7 +136,7 @@ jobs:
       - uses: ./.github/actions/setup
 
       - name: Install the contender
-        if: runner.os == 'Linux' && matrix.contender != 'kiko' && matrix.contender != 'baseline-shell'
+        if: matrix.contender != 'kiko' && matrix.contender != 'baseline-shell' && (runner.os == 'Linux' || matrix.contender == 'agent-browser')
         run: |
           set -euo pipefail
           case "${{ matrix.contender }}" in
@@ -137,11 +150,11 @@ jobs:
           echo "$variable=$bin" >> "$GITHUB_ENV"
 
       - name: Install the desktop test bed
-        if: runner.os == 'Linux' && matrix.track == 'desktop'
+        if: runner.os == 'Linux' && (matrix.track == 'desktop' || matrix.condition == 'background')
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            xvfb xauth openbox xdotool dbus-x11 at-spi2-core python3-gi gir1.2-gtk-3.0 x11-utils jq \
+            xvfb xauth openbox xdotool dbus-x11 at-spi2-core python3-gi python3-xlib gir1.2-gtk-3.0 x11-utils jq \
             libreoffice-calc libreoffice-writer
 
       - name: Record the environment versions
@@ -182,6 +195,9 @@ jobs:
     runs-on: ${{ matrix.runner }}
     container: ${{ matrix.image }}
     timeout-minutes: 90
+    defaults:
+      run:
+        shell: bash
     strategy:
       fail-fast: false
       max-parallel: 4
@@ -245,7 +261,7 @@ jobs:
       - name: Host tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends qemu-system-x86 qemu-utils sshpass rsync
+          sudo apt-get install -y --no-install-recommends qemu-system-x86 qemu-utils genisoimage openssl sshpass rsync
           if [ -e /dev/kvm ]; then sudo chmod 666 /dev/kvm; fi
       - uses: cachix/install-nix-action@v31
         if: startsWith(matrix.env, 'nixos')
@@ -264,8 +280,17 @@ jobs:
         run: |
           set -euo pipefail
           if [ "${{ matrix.env }}" = "nixos-25.05" ]; then
+            if [ ! -f .nix-vm/closure.nar ] || [ ! -f .nix-vm/run-script ]; then
+              echo "the nixos closure is not in the cache, so this job builds it" >&2
+              bash apps/bench/scripts/envs/nixos-image.sh build .nix-vm
+            fi
             echo "path=$(bash apps/bench/scripts/envs/nixos-image.sh restore .nix-vm)" >> "$GITHUB_OUTPUT"
           else
+            if [ ! -f .omarchy-image/omarchy.qcow2 ]; then
+              echo "the omarchy image is not in the cache, so this job builds it" >&2
+              if [ -e /dev/kvm ]; then sudo chmod 666 /dev/kvm; fi
+              bash apps/bench/scripts/envs/build-omarchy-image.sh .omarchy-image/omarchy.qcow2
+            fi
             test -f .omarchy-image/omarchy.qcow2
             echo "path=.omarchy-image/omarchy.qcow2" >> "$GITHUB_OUTPUT"
           fi
@@ -304,7 +329,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            xvfb xauth openbox xdotool dbus-x11 at-spi2-core python3-gi gir1.2-gtk-3.0 x11-utils jq \
+            xvfb xauth openbox xdotool dbus-x11 at-spi2-core python3-gi python3-xlib gir1.2-gtk-3.0 x11-utils jq \
             libreoffice-calc libreoffice-writer
       - name: Environment packages
         if: runner.os == 'macOS'
@@ -333,6 +358,9 @@ jobs:
     runs-on: ${{ matrix.runner }}
     container: ${{ matrix.image }}
     timeout-minutes: 90
+    defaults:
+      run:
+        shell: bash
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.plan.outputs.vcontainer) }}
@@ -371,7 +399,7 @@ jobs:
       - name: Host tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends qemu-system-x86 qemu-utils sshpass rsync
+          sudo apt-get install -y --no-install-recommends qemu-system-x86 qemu-utils genisoimage openssl sshpass rsync
           if [ -e /dev/kvm ]; then sudo chmod 666 /dev/kvm; fi
       - uses: cachix/install-nix-action@v31
         if: startsWith(matrix.env, 'nixos')
@@ -390,8 +418,17 @@ jobs:
         run: |
           set -euo pipefail
           if [ "${{ matrix.env }}" = "nixos-25.05" ]; then
+            if [ ! -f .nix-vm/closure.nar ] || [ ! -f .nix-vm/run-script ]; then
+              echo "the nixos closure is not in the cache, so this job builds it" >&2
+              bash apps/bench/scripts/envs/nixos-image.sh build .nix-vm
+            fi
             echo "path=$(bash apps/bench/scripts/envs/nixos-image.sh restore .nix-vm)" >> "$GITHUB_OUTPUT"
           else
+            if [ ! -f .omarchy-image/omarchy.qcow2 ]; then
+              echo "the omarchy image is not in the cache, so this job builds it" >&2
+              if [ -e /dev/kvm ]; then sudo chmod 666 /dev/kvm; fi
+              bash apps/bench/scripts/envs/build-omarchy-image.sh .omarchy-image/omarchy.qcow2
+            fi
             test -f .omarchy-image/omarchy.qcow2
             echo "path=.omarchy-image/omarchy.qcow2" >> "$GITHUB_OUTPUT"
           fi
@@ -425,7 +462,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            xvfb xauth openbox xdotool dbus-x11 at-spi2-core python3-gi gir1.2-gtk-3.0 x11-utils jq \
+            xvfb xauth openbox xdotool dbus-x11 at-spi2-core python3-gi python3-xlib gir1.2-gtk-3.0 x11-utils jq \
             libreoffice-calc libreoffice-writer
       - name: Environment packages
         if: runner.os == 'macOS'
@@ -454,6 +491,9 @@ jobs:
     runs-on: ${{ matrix.runner }}
     container: ${{ matrix.image }}
     timeout-minutes: 90
+    defaults:
+      run:
+        shell: bash
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.plan.outputs.vcontainer) }}
@@ -488,7 +528,7 @@ jobs:
       - name: Host tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends qemu-system-x86 qemu-utils sshpass rsync
+          sudo apt-get install -y --no-install-recommends qemu-system-x86 qemu-utils genisoimage openssl sshpass rsync
           if [ -e /dev/kvm ]; then sudo chmod 666 /dev/kvm; fi
       - uses: cachix/install-nix-action@v31
         if: startsWith(matrix.env, 'nixos')
@@ -507,8 +547,17 @@ jobs:
         run: |
           set -euo pipefail
           if [ "${{ matrix.env }}" = "nixos-25.05" ]; then
+            if [ ! -f .nix-vm/closure.nar ] || [ ! -f .nix-vm/run-script ]; then
+              echo "the nixos closure is not in the cache, so this job builds it" >&2
+              bash apps/bench/scripts/envs/nixos-image.sh build .nix-vm
+            fi
             echo "path=$(bash apps/bench/scripts/envs/nixos-image.sh restore .nix-vm)" >> "$GITHUB_OUTPUT"
           else
+            if [ ! -f .omarchy-image/omarchy.qcow2 ]; then
+              echo "the omarchy image is not in the cache, so this job builds it" >&2
+              if [ -e /dev/kvm ]; then sudo chmod 666 /dev/kvm; fi
+              bash apps/bench/scripts/envs/build-omarchy-image.sh .omarchy-image/omarchy.qcow2
+            fi
             test -f .omarchy-image/omarchy.qcow2
             echo "path=.omarchy-image/omarchy.qcow2" >> "$GITHUB_OUTPUT"
           fi

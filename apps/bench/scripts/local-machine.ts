@@ -4,7 +4,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import type { Exec, Machine, Os } from "../src/types"
 
-export function currentOs(): Os {
+function currentOs(): Os {
   return process.platform === "darwin" ? "macos" : "linux"
 }
 

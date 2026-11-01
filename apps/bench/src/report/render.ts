@@ -1,3 +1,4 @@
+import { HARNESS_TOOLS } from "../contenders/harness"
 import type { Row } from "../ledger"
 
 export interface ReportOptions {
@@ -648,6 +649,15 @@ function costSection(rows: readonly Row[]): string {
   )
 }
 
+function methodSection(): string {
+  const harness = HARNESS_TOOLS.map((tool) => `<code>${escapeHtml(tool.name)}</code>`).join(" and ")
+  const body = [
+    `<p>Harness tools: ${harness}. Every contender whose own surface cannot read a local file (agent-browser, cua-driver, agent-desktop) gets both on top of its tools, scoped to the task's working directory and read-only. kiko and kiko-remote read through <code>computer_read</code>, and baseline-shell through <code>shell</code>.</p>`,
+    "<p>Rows from runs before the harness tools (agent-browser, cua-driver and agent-desktop on the 2026-10-31 baseline) are superseded: those contenders could not read the inputs their prompts named, so their browser and desktop scores measured the missing tool, not the contender.</p>",
+  ].join("")
+  return section("Method", body)
+}
+
 function header(options: ReportOptions): string {
   const sources = options.sources.length === 0 ? "none recorded" : options.sources.join(", ")
   return `<header><h1>Computer-use bench report</h1><p class="muted">Generated ${escapeHtml(options.generatedAt)} from ${escapeHtml(sources)}.</p></header>`
@@ -752,6 +762,7 @@ export function renderReport(rows: readonly Row[], options: ReportOptions): stri
     trendSection(rows),
     failureSection(rows),
     costSection(rows),
+    methodSection(),
   ].join("\n")
   return `<!doctype html>
 <html lang="en">

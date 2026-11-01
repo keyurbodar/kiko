@@ -13,6 +13,10 @@ case "$mode" in
     readlink -f "$dir"/result/bin/run-*-vm >"$dir/run-script"
     ;;
   restore)
+    if [ ! -f "$dir/closure.nar" ] || [ ! -f "$dir/run-script" ]; then
+      echo "nixos-image: $dir holds no closure, so it cannot restore" >&2
+      exit 1
+    fi
     nix-store --import <"$dir/closure.nar" >/dev/null
     cat "$dir/run-script"
     ;;

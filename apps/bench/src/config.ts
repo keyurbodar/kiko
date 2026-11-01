@@ -239,39 +239,52 @@ export function inShard(index: number, shard: string): boolean {
   return index % count === pick - 1
 }
 
-export function planJobs(config: BenchConfig, tasks: readonly Task[]): Job[] {
-  const jobs: Job[] = []
-  for (const track of config.tracks) {
-    for (const env of config.envs) {
-      if (!track.os.includes(env.os)) continue
-      if (track.envs && !track.envs.includes(env.id)) continue
-      const count = tasksFor(tasks, track.track, env.os).length * config.reps
-      const perJob = track.maxTrialsPerJob ?? env.maxTrialsPerJob ?? config.maxTrialsPerJob
-      const shards = Math.max(1, Math.ceil(count / perJob))
-      for (const condition of track.conditions ?? config.conditions) {
-        for (const contender of track.contenders) {
-          for (const model of contender.models) {
-            for (let shard = 1; shard <= shards; shard += 1)
-              jobs.push({
-                track: track.track,
-                os: env.os,
-                env: env.id,
-                kind: env.kind,
-                display: env.display,
-                ...(env.image ? { image: env.image } : {}),
-                contender: contender.name,
-                model,
-                condition,
-                shard: `${shard}/${shards}`,
-                label: `${shard}of${shards}`,
-                trials: Math.ceil(count / shards),
-                runner: env.runner,
-                machine: env.machine,
-              })
-          }
-        }
-      }
-    }
+function trialsOf(
+  config: BenchConfig,
+  track: TrackConfig,
+  env: EnvSpec,
+  tasks: readonly Task[],
+): { shards: number; trials: number } {
+  const count = tasksFor(tasks, track.track, env.os).length * config.reps
+  const perJob = track.maxTrialsPerJob ?? env.maxTrialsPerJob ?? config.maxTrialsPerJob
+  const shards = Math.max(1, Math.ceil(count / perJob))
+  return { shards, trials: Math.ceil(count / shards) }
+}
+
+const runsOn = (track: TrackConfig, env: EnvSpec): boolean =>
+  track.os.includes(env.os) && (!track.envs || track.envs.includes(env.id))
+
+function envJobs(config: BenchConfig, track: TrackConfig, env: EnvSpec, tasks: readonly Task[]): Job[] {
+  const { shards, trials } = trialsOf(config, track, env, tasks)
+  const base = {
+    track: track.track,
+    os: env.os,
+    env: env.id,
+    kind: env.kind,
+    display: env.display,
+    ...(env.image ? { image: env.image } : {}),
+    trials,
+    runner: env.runner,
+    machine: env.machine,
   }
-  return jobs
+  return (track.conditions ?? config.conditions).flatMap((condition) =>
+    track.contenders.flatMap((contender) =>
+      contender.models.flatMap((model) =>
+        Array.from({ length: shards }, (_, index) => ({
+          ...base,
+          contender: contender.name,
+          model,
+          condition,
+          shard: `${index + 1}/${shards}`,
+          label: `${index + 1}of${shards}`,
+        })),
+      ),
+    ),
+  )
+}
+
+export function planJobs(config: BenchConfig, tasks: readonly Task[]): Job[] {
+  return config.tracks.flatMap((track) =>
+    config.envs.filter((env) => runsOn(track, env)).flatMap((env) => envJobs(config, track, env, tasks)),
+  )
 }
