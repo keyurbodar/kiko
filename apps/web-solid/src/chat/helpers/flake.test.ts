@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { flake } from "./snowflake"
+import { flake } from "./flake"
 
 describe("snowflake", () => {
   it("draws the same flake for the same helper every time", () => {
