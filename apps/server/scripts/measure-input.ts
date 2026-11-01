@@ -152,7 +152,7 @@ async function main(): Promise<void> {
     const env = { KIKO_COMPUTER_DIR: computerDir, KIKO_DRIVER: driverPath, DISPLAY: display }
     const paired = start(
       "pair",
-      ["bun", "src/index.ts", "pair", `http://127.0.0.1:${SERVER_PORT}#${minted.code}`],
+      ["bun", "src/index.ts", "pair", `http://127.0.0.1:${SERVER_PORT}#${minted.code}`, "--name", "kiko-ci"],
       COMPUTER,
       env,
     )
@@ -326,14 +326,14 @@ async function main(): Promise<void> {
       await until("the click on the second display", () => at(1280 + 640, 400), 10_000)
       result.second = await pointer()
 
-      await page.evaluate((text) => navigator.clipboard.writeText(text), TEXT)
-      await page.keyboard.press("Control+v")
-      await until("the pasted text", pasted, 30_000)
-
       await choose("Display 1", 1280)
       await stageClick(0.5, 0.5)
       await until("the click on the first display", () => at(640, 400), 10_000)
       result.first = await pointer()
+
+      await page.evaluate((text) => navigator.clipboard.writeText(text), TEXT)
+      await page.keyboard.press("Control+v")
+      await until("the pasted text", pasted, 30_000)
 
       const exact = await pasted()
       result.click = (await landed(leftPage)) ?? (await landed(rightPage)) ?? null
