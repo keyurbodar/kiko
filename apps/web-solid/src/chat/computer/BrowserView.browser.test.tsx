@@ -1,6 +1,6 @@
 import { encodeBrowserFrame } from "@kiko/computer/frame"
 import { createSignal } from "solid-js"
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 import { userEvent } from "vitest/browser"
 import { render, type Screen } from "../../../test/render"
 import BrowserView from "./BrowserView"
@@ -152,15 +152,14 @@ async function mount(interactive: () => boolean) {
   return screen
 }
 
-describe("browser view", () => {
-  beforeEach(() => {
-    vi.stubGlobal("WebSocket", FakeSocket)
-  })
-  afterEach(() => {
-    vi.unstubAllGlobals()
-  })
+function stubbed(): Disposable {
+  vi.stubGlobal("WebSocket", FakeSocket)
+  return { [Symbol.dispose]: () => vi.unstubAllGlobals() }
+}
 
+describe("browser view", () => {
   it("attaches to one tab and paints the first frame the daemon sends", async () => {
+    using _stubs = stubbed()
     await using screen = await mount(() => false)
 
     expect(socket().json()[0]).toMatchObject({ t: "browser", on: true, tab: "T1" })
@@ -175,6 +174,7 @@ describe("browser view", () => {
   })
 
   it("paints each live frame after the first", async () => {
+    using _stubs = stubbed()
     await using screen = await mount(() => false)
 
     socket().pushJson({ t: "browser", event: { type: "start", tab: "T1" } })
@@ -189,6 +189,7 @@ describe("browser view", () => {
   })
 
   it("sends nothing while watching, and a click reaches the page after the owner takes over", async () => {
+    using _stubs = stubbed()
     const [mine, setMine] = createSignal(false)
     await using screen = await mount(mine)
 
@@ -206,6 +207,7 @@ describe("browser view", () => {
   })
 
   it("holds a click in the takeover gap and sends it once control lands", async () => {
+    using _stubs = stubbed()
     const [mine, setMine] = createSignal(false)
     await using screen = await mount(mine)
     fakes.setPending(true)
@@ -219,6 +221,7 @@ describe("browser view", () => {
   })
 
   it("types into the page's focused input once the owner has control", async () => {
+    using _stubs = stubbed()
     await using screen = await mount(() => true)
     sink(screen).focus()
 
@@ -229,6 +232,7 @@ describe("browser view", () => {
   })
 
   it("sends nothing more once the owner hands control back", async () => {
+    using _stubs = stubbed()
     const [mine, setMine] = createSignal(true)
     await using screen = await mount(mine)
 

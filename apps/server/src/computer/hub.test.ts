@@ -1,6 +1,5 @@
 import { assert, describe, it } from "@effect/vitest"
 import { encodeBinary, encodeBrowserFrame, IMAGE_REF } from "@kiko/computer/frame"
-import { encodeBase64 } from "../lib/base64"
 import { OLDEST_PROTOCOL, PROTOCOL } from "@kiko/computer/wire"
 import type { AgentSlug, RoomId } from "@kiko/protocol"
 import * as Clock from "effect/Clock"
@@ -214,6 +213,11 @@ type SentFrame = {
   terminal?: string
   data?: string
   bytes?: number
+  tab?: string
+  maxWidth?: number
+  maxHeight?: number
+  quality?: number
+  events?: readonly unknown[]
 }
 
 function pcSocket(id: string, holder: "agent" | "human" = "agent") {

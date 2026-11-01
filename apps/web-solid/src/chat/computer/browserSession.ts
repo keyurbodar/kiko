@@ -70,7 +70,8 @@ export function startBrowser(pcId: string, tab: string, size: BrowserSize, hooks
       if (!frame || frame.header.seq <= painted) continue
       painted = frame.header.seq
       try {
-        const bitmap = await createImageBitmap(new Blob([frame.image], { type: "image/jpeg" }))
+        const image = new Uint8Array(frame.image).buffer
+        const bitmap = await createImageBitmap(new Blob([image], { type: "image/jpeg" }))
         if (!closed) {
           const { canvas } = hooks
           if (canvas.width !== frame.header.width || canvas.height !== frame.header.height) {

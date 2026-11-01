@@ -4,8 +4,7 @@ import { cn } from "../../lib/cn"
 import { takePending } from "../computers"
 import { startBrowser, type BrowserSession, type BrowserStatus } from "./browserSession"
 import { createInputGate } from "./control"
-import { Cursor } from "./Cursor"
-import { bindInput, type Point } from "./input"
+import { bindInput } from "./input"
 
 const DEFAULT_RATIO = 16 / 10
 const MAX_DPR = 2
@@ -25,7 +24,6 @@ export default function BrowserView(props: {
   let stage!: HTMLDivElement
   let sink!: HTMLTextAreaElement
   let host!: HTMLDivElement
-  let you: HTMLDivElement | undefined
   let session: BrowserSession | undefined
   const gate = createInputGate<ComputerInput>((events) => session?.send(events))
 
@@ -33,14 +31,6 @@ export default function BrowserView(props: {
     const known = viewport()
     return known && known.h > 0 ? known.w / known.h : DEFAULT_RATIO
   }
-  const place = (point: Point | null) => {
-    if (!you) return
-    you.style.display = point ? "" : "none"
-    if (!point) return
-    you.style.left = `${point.x * 100}%`
-    you.style.top = `${point.y * 100}%`
-  }
-
   onMount(() => {
     let last = ""
     const observer = new ResizeObserver(() => {
@@ -82,7 +72,7 @@ export default function BrowserView(props: {
 
   createEffect(() => {
     if (!props.interactive) return
-    const unbind = bindInput({ stage, sink, send: (events) => gate.send(events), onPointer: place })
+    const unbind = bindInput({ stage, sink, send: (events) => gate.send(events) })
     sink.focus({ preventScroll: true })
     onCleanup(() => {
       unbind()
@@ -124,7 +114,6 @@ export default function BrowserView(props: {
         >
           <canvas ref={canvas} class="absolute inset-0 size-full" />
           <Show when={props.interactive}>
-            <Cursor ref={(el) => (you = el)} tone="you" label="You" style={{ display: "none" }} />
             <textarea
               ref={sink}
               class="pointer-events-none absolute top-0 left-0 size-px resize-none opacity-0"

@@ -234,7 +234,7 @@ export function createBrowserLive(deps: BrowserLiveDeps): BrowserLive {
     },
     close() {
       closed = true
-      for (const id of [...attaches.keys()]) detach(id)
+      for (const id of attaches.keys()) detach(id)
     },
   }
 }
