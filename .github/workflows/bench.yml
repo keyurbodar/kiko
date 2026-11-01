@@ -280,6 +280,10 @@ jobs:
         run: |
           set -euo pipefail
           if [ "${{ matrix.env }}" = "nixos-25.05" ]; then
+            if [ ! -f .nix-vm/closure.nar ] || [ ! -f .nix-vm/run-script ]; then
+              echo "the nixos closure is not in the cache, so this job builds it" >&2
+              bash apps/bench/scripts/envs/nixos-image.sh build .nix-vm
+            fi
             echo "path=$(bash apps/bench/scripts/envs/nixos-image.sh restore .nix-vm)" >> "$GITHUB_OUTPUT"
           else
             if [ ! -f .omarchy-image/omarchy.qcow2 ]; then
@@ -414,6 +418,10 @@ jobs:
         run: |
           set -euo pipefail
           if [ "${{ matrix.env }}" = "nixos-25.05" ]; then
+            if [ ! -f .nix-vm/closure.nar ] || [ ! -f .nix-vm/run-script ]; then
+              echo "the nixos closure is not in the cache, so this job builds it" >&2
+              bash apps/bench/scripts/envs/nixos-image.sh build .nix-vm
+            fi
             echo "path=$(bash apps/bench/scripts/envs/nixos-image.sh restore .nix-vm)" >> "$GITHUB_OUTPUT"
           else
             if [ ! -f .omarchy-image/omarchy.qcow2 ]; then
@@ -539,6 +547,10 @@ jobs:
         run: |
           set -euo pipefail
           if [ "${{ matrix.env }}" = "nixos-25.05" ]; then
+            if [ ! -f .nix-vm/closure.nar ] || [ ! -f .nix-vm/run-script ]; then
+              echo "the nixos closure is not in the cache, so this job builds it" >&2
+              bash apps/bench/scripts/envs/nixos-image.sh build .nix-vm
+            fi
             echo "path=$(bash apps/bench/scripts/envs/nixos-image.sh restore .nix-vm)" >> "$GITHUB_OUTPUT"
           else
             if [ ! -f .omarchy-image/omarchy.qcow2 ]; then
