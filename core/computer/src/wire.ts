@@ -1,5 +1,5 @@
 import * as Schema from "effect/Schema"
-import { BrowserStatus, DesktopInfo, Display, DriverCall, Permissions } from "./driver"
+import { BrowserStatus, DesktopInfo, Display, DriverCall, Mode, Page, PageAction, Permissions } from "./driver"
 
 export { Display }
 
@@ -20,6 +20,7 @@ export const Caps = Schema.Struct({
   background: Schema.optionalKey(Schema.Boolean),
   browser: Schema.optionalKey(Schema.Boolean),
   terminal: Schema.optionalKey(Schema.Boolean),
+  steps: Schema.optionalKey(Schema.Boolean),
 })
 export type Caps = typeof Caps.Type
 
@@ -61,11 +62,20 @@ const Cols = Schema.Int.check(Schema.isGreaterThanOrEqualTo(20), Schema.isLessTh
 const Rows = Schema.Int.check(Schema.isGreaterThanOrEqualTo(5), Schema.isLessThanOrEqualTo(200))
 const Lines = Schema.Int.check(Schema.isGreaterThanOrEqualTo(1), Schema.isLessThanOrEqualTo(5_000))
 
+export const MAX_BROWSER_STEPS = 20
+
+const BrowserStep = Schema.Struct({
+  ref: Count,
+  action: PageAction,
+  text: Schema.optionalKey(Text),
+})
+
 const OPS = [
   "shell",
   "read",
   "write",
   "driver",
+  "browser_steps",
   "terminal_open",
   "terminal_send",
   "terminal_read",
@@ -85,6 +95,9 @@ export const TERMINAL_OPS: ReadonlySet<Op> = new Set<Op>([
   "terminal_close",
   "terminal_list",
 ])
+
+export const FailCode = Schema.Literals(["denied", "busy", "stale", "timeout", "unsupported", "cancelled", "failed"])
+export type FailCode = typeof FailCode.Type
 
 export const Calls = {
   shell: {
@@ -117,6 +130,22 @@ export const Calls = {
   driver: {
     args: DriverCall,
     value: Schema.Unknown,
+  },
+  browser_steps: {
+    args: Schema.Struct({
+      tab: Text,
+      steps: Schema.Array(BrowserStep).check(Schema.isMinLength(1), Schema.isMaxLength(MAX_BROWSER_STEPS)),
+      read: Schema.optionalKey(Schema.Boolean),
+      image: Schema.optionalKey(Schema.Boolean),
+      max_width: Schema.optionalKey(Count),
+      mode: Schema.optionalKey(Mode),
+    }),
+    value: Schema.Struct({
+      done: Count,
+      failed: Schema.optionalKey(Schema.Struct({ index: Count, code: FailCode, error: Text })),
+      stoppedBy: Schema.optionalKey(Schema.Literal("owner")),
+      page: Schema.optionalKey(Page),
+    }),
   },
   terminal_open: {
     args: Schema.Struct({
@@ -189,9 +218,6 @@ export const Calls = {
 } as const satisfies Record<Op, { args: Schema.Top; value: Schema.Top }>
 export type Args<O extends Op> = (typeof Calls)[O]["args"]["Type"]
 export type Value<O extends Op> = (typeof Calls)[O]["value"]["Type"]
-
-export const FailCode = Schema.Literals(["denied", "busy", "stale", "timeout", "unsupported", "cancelled", "failed"])
-export type FailCode = typeof FailCode.Type
 
 export const InputEvent = Schema.Union([
   Schema.Struct({ k: Schema.Literal("move"), x: Unit, y: Unit }),

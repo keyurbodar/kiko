@@ -13,8 +13,9 @@ import {
   type Holder,
   type Op,
   type ToDaemon as Frame,
+  type Value,
 } from "@kiko/computer/wire"
-import type { DriverCall } from "@kiko/computer/driver"
+import type { DriverCall, Page } from "@kiko/computer/driver"
 import type { Policy } from "./config"
 import type { Driver } from "./driver"
 import type { LiveFrames } from "./live"
@@ -424,6 +425,7 @@ class Link {
     if (op === "read") return read(args as Parameters<typeof read>[0], await this.host.policy(), context)
     if (op === "write") return write(args as Parameters<typeof write>[0], await this.host.policy(), context)
     if (op === "driver") return this.driver(args as DriverCall, context)
+    if (op === "browser_steps") return this.browserSteps(args as Args<"browser_steps">, context)
     if (TERMINAL_OPS.has(op)) return this.terminal(op, args, context)
     throw new Fail({ code: "unsupported", message: `${op} is not a call this machine makes` })
   }
@@ -446,17 +448,71 @@ class Link {
   }
 
   private async driver(call: DriverCall, context: Deadline): Promise<unknown> {
+    const driver = await this.backgroundDriver(call)
+    if (this.host.holder() === "human")
+      throw new Fail({ code: "busy", message: "the owner has control of this screen right now" })
+    return driver.call(call, context)
+  }
+
+  private async backgroundDriver(call: DriverCall): Promise<Driver> {
     const policy = await this.host.policy()
     if (!policy.desktop)
       throw new Fail({ code: "denied", message: "policy.json turns desktop control off on this machine" })
     if (!policy.input && INPUT_METHODS.has(call.method))
       throw new Fail({ code: "denied", message: "policy.json turns input off on this machine" })
     if (this.host.paused()) throw new Fail({ code: "busy", message: PAUSED })
-    if (this.host.holder() === "human")
-      throw new Fail({ code: "busy", message: "the owner has control of this screen right now" })
     const driver = this.host.driver()
     if (!driver) throw new Fail({ code: "unsupported", message: "the kiko app is not running on this machine" })
-    return driver.call(call, context)
+    return driver
+  }
+
+  private async browserSteps(args: Args<"browser_steps">, context: Deadline): Promise<Value<"browser_steps">> {
+    const driver = await this.backgroundDriver({ method: "browser.act" })
+    const outcome = await this.runSteps(driver, args, context)
+    if (outcome.stoppedBy !== undefined || !args.read) return outcome
+    const page = await driver.call(
+      {
+        method: "browser.read",
+        params: {
+          tab: args.tab,
+          image: args.image ?? false,
+          ...(args.max_width !== undefined ? { max_width: args.max_width } : {}),
+        },
+      },
+      context,
+    )
+    return { ...outcome, page: page as Page }
+  }
+
+  private async runSteps(
+    driver: Driver,
+    args: Args<"browser_steps">,
+    context: Deadline,
+  ): Promise<Value<"browser_steps">> {
+    let done = 0
+    for (const step of args.steps) {
+      if (this.host.paused() || this.host.holder() === "human") return { done, stoppedBy: "owner" }
+      try {
+        await driver.call(
+          {
+            method: "browser.act",
+            params: {
+              tab: args.tab,
+              ref: step.ref,
+              action: step.action,
+              ...(args.mode !== undefined ? { mode: args.mode } : {}),
+              ...(step.text !== undefined ? { text: step.text } : {}),
+            },
+          },
+          context,
+        )
+      } catch (error) {
+        const reason = failure(error)
+        return { done, failed: { index: done, code: reason.code, error: reason.message } }
+      }
+      done += 1
+    }
+    return { done }
   }
 
   private cancel(id: string): void {

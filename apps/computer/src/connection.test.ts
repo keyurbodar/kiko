@@ -4,6 +4,7 @@ import { PROTOCOL } from "@kiko/computer/wire"
 import { type Host, runLink } from "./connection"
 import type { Deadline } from "./deadline"
 import type { Driver } from "./driver"
+import { Fail } from "./log"
 import { TerminalManager } from "./terminal/manager"
 
 type Event = { code?: number; reason?: string; data?: unknown }
@@ -178,6 +179,38 @@ async function openLink(host: Host) {
 
 function sendDriver(socket: FakeSocket, id: string, args: unknown) {
   socket.emit("message", { data: JSON.stringify({ t: "call", id, op: "driver", args, deadlineMs: 5_000 }) })
+}
+
+function sendBrowserSteps(socket: FakeSocket, id: string, args: unknown) {
+  socket.emit("message", { data: JSON.stringify({ t: "call", id, op: "browser_steps", args, deadlineMs: 5_000 }) })
+}
+
+const TAB = {
+  id: "t-1",
+  browser: "chrome",
+  window_id: 1,
+  index: 0,
+  active: true,
+  title: "Inbox",
+  url: "https://mail.example/",
+}
+
+const PAGE = { tab: TAB, nodes: [], outline: '[2] link "Compose"' }
+
+function fakeBrowser(reject?: (call: DriverCall) => void) {
+  const calls: DriverCall[] = []
+  const driver: Driver = {
+    call: async (call: DriverCall) => {
+      calls.push(call)
+      reject?.(call)
+      return call.method === "browser.read" ? PAGE : { route: "trusted" }
+    },
+    state: () => null,
+    background: () => false,
+    browser: () => true,
+    close: () => {},
+  }
+  return { driver, calls }
 }
 
 function sendTerminal(socket: FakeSocket, id: string, op: string, args: unknown) {
@@ -434,6 +467,107 @@ describe("driver calls", () => {
       const result = await resultOf(socket, "c1")
 
       assert.isTrue(result.ok)
+    } finally {
+      link.stop()
+      reset()
+    }
+  })
+})
+
+describe("browser steps", () => {
+  const steps = [
+    { ref: 2, action: "click" },
+    { ref: 3, action: "type", text: "hello" },
+  ]
+
+  it("runs the steps in order and reads the page once at the end", async () => {
+    const { driver, calls } = fakeBrowser()
+    const { link, socket } = await openLink({ ...(await host()), driver: () => driver, policy: desktopOn })
+    try {
+      sendBrowserSteps(socket, "b1", { tab: "t-1", steps, read: true, image: false })
+
+      const result = await resultOf(socket, "b1")
+
+      assert.isTrue(result.ok, JSON.stringify(result))
+      assert.deepStrictEqual(result.value, { done: 2, page: PAGE })
+      assert.deepStrictEqual(calls, [
+        { method: "browser.act", params: { tab: "t-1", ref: 2, action: "click" } },
+        { method: "browser.act", params: { tab: "t-1", ref: 3, action: "type", text: "hello" } },
+        { method: "browser.read", params: { tab: "t-1", image: false } },
+      ])
+    } finally {
+      link.stop()
+      reset()
+    }
+  })
+
+  it("stops at the first step that fails and still reads the page", async () => {
+    const { driver, calls } = fakeBrowser((call) => {
+      if (call.method === "browser.act" && call.params.ref === 3)
+        throw new Fail({ code: "stale", message: "that ref is stale; read the page again" })
+    })
+    const { link, socket } = await openLink({ ...(await host()), driver: () => driver, policy: desktopOn })
+    try {
+      sendBrowserSteps(socket, "b1", { tab: "t-1", steps: [...steps, { ref: 4, action: "click" }], read: true })
+
+      const result = await resultOf(socket, "b1")
+
+      assert.isTrue(result.ok, JSON.stringify(result))
+      assert.deepStrictEqual(result.value, {
+        done: 1,
+        failed: { index: 1, code: "stale", error: "that ref is stale; read the page again" },
+        page: PAGE,
+      })
+      assert.deepStrictEqual(
+        calls.map((call) => call.method),
+        ["browser.act", "browser.act", "browser.read"],
+      )
+    } finally {
+      link.stop()
+      reset()
+    }
+  })
+
+  it("stops before the next step when the owner takes over", async () => {
+    let holder: "agent" | "human" = "agent"
+    const { driver, calls } = fakeBrowser((call) => {
+      if (call.method === "browser.act") holder = "human"
+    })
+    const { link, socket } = await openLink({
+      ...(await host()),
+      driver: () => driver,
+      policy: desktopOn,
+      holder: () => holder,
+    })
+    try {
+      sendBrowserSteps(socket, "b1", { tab: "t-1", steps, read: true })
+
+      const result = await resultOf(socket, "b1")
+
+      assert.isTrue(result.ok, JSON.stringify(result))
+      assert.deepStrictEqual(result.value, { done: 1, stoppedBy: "owner" })
+      assert.strictEqual(calls.length, 1)
+    } finally {
+      link.stop()
+      reset()
+    }
+  })
+
+  it("refuses the batch when the policy turns browser input off", async () => {
+    const { driver, calls } = fakeBrowser()
+    const { link, socket } = await openLink({
+      ...(await host()),
+      driver: () => driver,
+      policy: async () => ({ ...(await desktopOn()), input: false }),
+    })
+    try {
+      sendBrowserSteps(socket, "b1", { tab: "t-1", steps, read: true })
+
+      const result = await resultOf(socket, "b1")
+
+      assert.isFalse(result.ok)
+      assert.strictEqual(result.error?.code, "denied")
+      assert.strictEqual(calls.length, 0)
     } finally {
       link.stop()
       reset()

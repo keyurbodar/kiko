@@ -246,6 +246,7 @@ export const ComputerCaps = Schema.Struct({
   background: Schema.optionalKey(Schema.Boolean),
   browser: Schema.optionalKey(Schema.Boolean),
   terminal: Schema.optionalKey(Schema.Boolean),
+  steps: Schema.optionalKey(Schema.Boolean),
 })
 export type ComputerCaps = typeof ComputerCaps.Type
 

@@ -11,7 +11,6 @@ import type { ComputerCallOutcome, ComputerSummary } from "./types"
 export const CALL_DEADLINE_MS = 60_000
 const DRIVER_DEADLINE_MS = 30_000
 export const MAX_OUTPUT_CHARS = 12_000
-export const MAX_STEPS = 10
 export const SCREEN_MAX_WIDTH = 960
 
 export type ComputerToolDeps = {
@@ -171,8 +170,9 @@ export function imageResult(
   image: ImageData | undefined,
   sees: boolean,
   body: string,
+  isError = false,
 ): Promise<ComputerResult> {
-  return imagesResult(api, image ? [image] : [], sees, body)
+  return imagesResult(api, image ? [image] : [], sees, body, isError)
 }
 
 export function imageOf(value: unknown): ImageData | undefined {

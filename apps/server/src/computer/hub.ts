@@ -148,6 +148,7 @@ function attachmentOf(ws: WebSocket): PcAttachment | null {
 }
 
 function claimsDesk(op: Op, args: unknown): boolean {
+  if (op === "browser_steps") return (args as { mode?: unknown }).mode === "foreground"
   if (op !== "driver") return false
   const call = args as { params?: { mode?: unknown } }
   return call.params?.mode === "foreground"
@@ -596,7 +597,9 @@ export class ComputerHub {
         ? "shell"
         : op === "read" || op === "write"
           ? "files"
-          : "desktop"
+          : op === "browser_steps"
+            ? "browser"
+            : "desktop"
     if (op === "driver") {
       if (!hello.caps.background)
         return { ok: false, code: "unsupported", message: `${row.name} does not allow background work` }
