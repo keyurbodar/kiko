@@ -117,32 +117,19 @@ jobs:
       - name: Try the daemon's capture from bun
         run: |
           set -euo pipefail
-          cat > /tmp/try.ts <<'TS'
-          const ffmpeg = "/opt/homebrew/bin/ffmpeg"
-          const args = [ffmpeg, "-hide_banner", "-loglevel", "error", "-nostdin", "-f", "avfoundation", "-capture_cursor", "1", "-framerate", "15", "-i", "Capture screen 0", "-r", "15", "-an", "-vf", "scale=1024:768:flags=fast_bilinear", "-c:v", "mjpeg", "-q:v", "18", "-f", "mjpeg", "pipe:1"]
-          const wait = <T>(work: Promise<T>) => Promise.race([work.catch(() => -1 as T), Bun.sleep(6_000).then(() => -1 as T)])
-          async function first(name: string, child: { stdout: ReadableStream<Uint8Array>; exitCode: number | null; kill(): void }) {
-            const reader = child.stdout.getReader()
-            const bytes = await wait(reader.read().then((part) => part.value?.byteLength ?? 0))
-            console.log(`${name}: first chunk ${bytes} bytes, exit ${child.exitCode}`)
-            child.kill()
-          }
-          await first("device name", Bun.spawn(args, { stdout: "pipe", stderr: "pipe" }))
-          {
-            const withNone = args.map((arg) => (arg === "Capture screen 0" ? "Capture screen 0:none" : arg))
-            await first("device name with :none", Bun.spawn(withNone, { stdout: "pipe", stderr: "pipe" }))
-          }
-          {
-            const line = args.map((arg) => JSON.stringify(arg)).join(" ")
-            await first("from bun through bash", Bun.spawn(["bash", "-c", line], { stdout: "pipe", stderr: "pipe" }))
-          }
-          {
-            const shot = Bun.spawn(["/usr/sbin/screencapture", "-x", "/tmp/shot.png"], { stdout: "ignore", stderr: "pipe" })
-            console.log(`screencapture from bun: exit ${await wait(shot.exited)}`)
-            console.log(`shot bytes: ${(await Bun.file("/tmp/shot.png").arrayBuffer().then((out) => out.byteLength).catch(() => 0))}`)
-          }
+          cat > /tmp/inner.ts <<'TS'
+          const args = ["/opt/homebrew/bin/ffmpeg", "-hide_banner", "-loglevel", "error", "-nostdin", "-f", "avfoundation", "-capture_cursor", "1", "-framerate", "15", "-i", "Capture screen 0:none", "-r", "15", "-an", "-vf", "scale=1024:768:flags=fast_bilinear", "-c:v", "mjpeg", "-q:v", "18", "-f", "mjpeg", "pipe:1"]
+          const child = Bun.spawn(args, { stdin: "ignore", stdout: "pipe", stderr: "pipe" })
+          const reader = child.stdout.getReader()
+          const bytes = await Promise.race([
+            reader.read().then((part) => part.value?.byteLength ?? 0),
+            Bun.sleep(6_000).then(() => -1),
+          ])
+          console.log(`like the daemon: ${bytes} bytes, exit ${child.exitCode}`)
+          child.kill()
           TS
-          bun /tmp/try.ts
+          bun /tmp/inner.ts
+          bun -e 'const child = Bun.spawn(["bun", "/tmp/inner.ts"], { stdout: "pipe", stderr: "pipe" }); console.log("child of bun:", await new Response(child.stdout).text())'
       - name: Paste a Unicode string and click the display
         run: bun apps/server/scripts/measure-input.ts --single --out input-proof.json
       - name: Upload the proof
