@@ -27,17 +27,32 @@ type PairBody = {
   replaces?: string
 }
 
-function readPair(body: unknown): PairBody | null {
-  if (!body || typeof body !== "object") return null
+const FIELD: Readonly<Record<string, string>> = {
+  code: "a code",
+  publicKey: "a public key",
+  name: "a name",
+  hello: "a hello",
+  replaces: "a computer to replace",
+}
+
+type Read = { ok: true; body: PairBody } | { ok: false; missing: string }
+
+function readPair(body: unknown): Read {
+  if (!body || typeof body !== "object") return { ok: false, missing: "body" }
   const { code, publicKey, name, hello, replaces } = body as Record<string, unknown>
-  if (typeof code !== "string" || code.length > 512) return null
-  if (typeof publicKey !== "string" || publicKey.length > KEY_MAX) return null
-  if (typeof name !== "string" || !name.trim() || name.trim().length > NAME_MAX) return null
-  if (replaces !== undefined && (typeof replaces !== "string" || !replaces || replaces.length > ID_MAX)) return null
+  if (typeof code !== "string" || !code || code.length > 512) return { ok: false, missing: "code" }
+  if (typeof publicKey !== "string" || !publicKey || publicKey.length > KEY_MAX)
+    return { ok: false, missing: "publicKey" }
+  if (typeof name !== "string" || !name.trim() || name.trim().length > NAME_MAX) return { ok: false, missing: "name" }
+  if (replaces !== undefined && (typeof replaces !== "string" || !replaces || replaces.length > ID_MAX))
+    return { ok: false, missing: "replaces" }
   try {
-    return { code, publicKey, name: name.trim(), hello: decodeHello(hello), ...(replaces ? { replaces } : {}) }
+    return {
+      ok: true,
+      body: { code, publicKey, name: name.trim(), hello: decodeHello(hello), ...(replaces ? { replaces } : {}) },
+    }
   } catch {
-    return null
+    return { ok: false, missing: "hello" }
   }
 }
 
@@ -52,8 +67,9 @@ async function pair(request: Request, env: Env): Promise<Response> {
   } catch {
     return error(400, "body is not json")
   }
-  const input = readPair(body)
-  if (!input) return error(400, "need a code, a public key, a name and a hello")
+  const parsed = readPair(body)
+  if (!parsed.ok) return error(400, `a pairing request needs ${FIELD[parsed.missing] ?? parsed.missing}`)
+  const input = parsed.body
   const read = await readPairCode(env.CREDENTIALS_KEK, input.code)
   if (!read) return error(403, "that pairing code is not valid or has expired")
   try {
