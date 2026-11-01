@@ -63,61 +63,16 @@ class Daemon implements Live {
     void workingEncoders(ffmpeg, this.deps.encoders ?? probeEncoders(ffmpeg)).then((found) => {
       this.encoders = found
     })
-    this.shot()
   }
 
-  private shot(): void {
-    if (process.platform !== "darwin") return
-    const file = "/tmp/kiko-daemon-shot.png"
-    const child = Bun.spawn(["screencapture", "-x", file], { stdout: "ignore", stderr: "pipe" })
-    void child.exited.then((code) => {
-      console.warn(`shot probe: screencapture exited ${code}, ${Bun.file(file).size} bytes`)
-      if (code !== 0) void new Response(child.stderr).text().then((text) => console.warn(`shot probe: ${text.trim()}`))
-    })
-  }
-
-  private shellProbe(): void {
-    if (this.shell) return
+  private moment(): void {
+    if (this.shell || process.platform !== "darwin") return
     this.shell = true
-    const ffmpeg = this.ffmpeg()
-    if (!ffmpeg) return
-    const args = [
-      "-hide_banner",
-      "-loglevel",
-      "error",
-      "-nostdin",
-      "-f",
-      "avfoundation",
-      "-capture_cursor",
-      "1",
-      "-framerate",
-      "15",
-      "-i",
-      "Capture screen 0:none",
-      "-r",
-      "15",
-      "-an",
-      "-vf",
-      "scale=1024:768:flags=fast_bilinear",
-      "-c:v",
-      "mjpeg",
-      "-q:v",
-      "18",
-      "-f",
-      "mjpeg",
-      "-t",
-      "3",
-      "pipe:1",
-    ]
-    const line = [ffmpeg, ...args].map((part) => `'${part}'`).join(" ")
-    const child = Bun.spawn(["bash", "-c", `${line} > /tmp/kiko-shell.mjpeg 2> /tmp/kiko-shell.log`], {
-      stdin: "ignore",
-      stdout: "ignore",
-      stderr: "ignore",
-    })
+    const file = "/tmp/kiko-moment.png"
+    const child = Bun.spawn(["screencapture", "-x", file], { stdout: "ignore", stderr: "ignore" })
     void child.exited.then((code) => {
       console.warn(
-        `shell probe: exited ${code}, ${Bun.file("/tmp/kiko-shell.mjpeg").size} bytes, log ${Bun.file("/tmp/kiko-shell.log").size}`,
+        `${new Date().toISOString()} moment probe: screencapture exited ${code}, ${Bun.file(file).size} bytes`,
       )
     })
   }
@@ -128,7 +83,6 @@ class Daemon implements Live {
       return
     }
     if (signal.type === "offer" && signal.sdp) {
-      this.startCapture()
       this.session(session).answer(signal.sdp, iceServers ?? [])
     } else if (signal.type === "ice") this.session(session).candidate(signal)
   }
@@ -385,7 +339,7 @@ class Daemon implements Live {
 
   private startRelay(frame: LiveFrame): void {
     this.deps.warn(`relay probe: asked for ${frame.fps} fps on ${JSON.stringify(this.screen)}`)
-    this.shellProbe()
+    this.moment()
     const profile = relayProfile(frame)
     if (this.relay) {
       if (sameProfile(this.relay.profile, profile)) return

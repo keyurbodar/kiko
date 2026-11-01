@@ -77,7 +77,7 @@ class H264 {
   private launch(): void {
     const args = this.plans[this.plan]
     if (this.stopped || !args) return
-    console.warn(`h264 probe: ${args.join(" ")}`)
+    console.warn(`${new Date().toISOString()} h264 probe: ${args.join(" ")}`)
     this.launchedAt = performance.now()
     const child: Child = Bun.spawn(args, { stdin: "ignore", stdout: "pipe", stderr: "pipe" })
     this.child = child
@@ -86,9 +86,12 @@ class H264 {
   }
 
   private async pump(proc: Child): Promise<void> {
-    for await (const chunk of proc.stdout) {
+    const reader = proc.stdout.getReader()
+    for (;;) {
+      const { done, value } = await reader.read()
+      if (done) break
       if (this.stopped || proc !== this.child) return
-      this.emit(chunk)
+      this.emit(value)
     }
     let tail = ""
     try {
@@ -166,6 +169,7 @@ class Mjpeg {
   private plan = 0
   private child: Child | null = null
   private stopped = false
+  private logged = false
   private pending: Uint8Array = new Uint8Array(0)
 
   constructor(options: MjpegOptions) {
@@ -192,7 +196,7 @@ class Mjpeg {
   private launch(): void {
     const args = this.plans[this.plan]
     if (this.stopped || !args) return
-    console.warn(`mjpeg probe: ${args.join(" ")}`)
+    console.warn(`${new Date().toISOString()} mjpeg probe: ${args.join(" ")}`)
     this.pending = new Uint8Array(0)
     const child: Child = Bun.spawn(args, { stdin: "ignore", stdout: "pipe", stderr: "pipe" })
     this.child = child
@@ -201,9 +205,12 @@ class Mjpeg {
   }
 
   private async pump(proc: Child): Promise<void> {
-    for await (const chunk of proc.stdout) {
+    const reader = proc.stdout.getReader()
+    for (;;) {
+      const { done, value } = await reader.read()
+      if (done) break
       if (this.stopped || proc !== this.child) return
-      this.emit(chunk)
+      this.emit(value)
     }
     let tail = ""
     try {
@@ -223,7 +230,10 @@ class Mjpeg {
   }
 
   private emit(chunk: Uint8Array): void {
-    console.warn(`mjpeg probe: a chunk of ${chunk.byteLength} bytes`)
+    if (!this.logged) {
+      this.logged = true
+      console.warn(`${new Date().toISOString()} mjpeg probe: a chunk of ${chunk.byteLength} bytes`)
+    }
     this.pending = join(this.pending, chunk)
     let scan = 0
     while (scan + 3 < this.pending.byteLength) {
@@ -264,7 +274,7 @@ function describe(name: string, child: Child): void {
   setTimeout(() => {
     void state(child.pid).then((where) => {
       console.warn(
-        `${name} probe: 6s later pid=${child.pid} exit=${child.exitCode} state=${where} stderr=${errors.join("").trim().slice(0, 300) || "none"}`,
+        `${new Date().toISOString()} ${name} probe: 6s later pid=${child.pid} exit=${child.exitCode} state=${where} stderr=${errors.join("").trim().slice(0, 300) || "none"}`,
       )
     })
   }, 6_000)
