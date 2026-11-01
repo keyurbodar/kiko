@@ -17,9 +17,16 @@ git clone --depth 1 --branch "$tag" https://github.com/omacom/omarchy.git "$OMAR
 sudo cp -f "$OMARCHY_PATH/default/pacman/pacman-stable.conf" /etc/pacman.conf
 sudo cp -f "$OMARCHY_PATH/default/pacman/mirrorlist-stable" /etc/pacman.d/mirrorlist
 sudo pacman -Sy --noconfirm
-probe="$(pacman -Sp --print-format '%l' bash 2>/dev/null | head -n 1)"
-if [ -z "$probe" ] || ! curl -fsSL --max-time 30 -o /dev/null "$probe"; then
-  echo "== the omarchy stable mirror serves databases but not packages; using Arch's official mirrors"
+missing=0
+for pkg in bash mesa llvm-libs harfbuzz poppler chromium; do
+  url="$(pacman -Sp --print-format '%l' "$pkg" 2>/dev/null | head -n 1)"
+  if [ -z "$url" ] || ! curl -fsSL --max-time 30 -o /dev/null "$url"; then
+    echo "== the omarchy stable mirror does not serve $pkg"
+    missing=1
+  fi
+done
+if [ "$missing" = 1 ]; then
+  echo "== using Arch's official mirrors for core, extra and multilib"
   printf 'Server = https://geo.mirror.pkgbuild.com/$repo/os/$arch\n' | sudo tee /etc/pacman.d/mirrorlist >/dev/null
   sudo pacman -Syy --noconfirm
 fi
