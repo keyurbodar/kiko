@@ -36,29 +36,39 @@ jobs:
       - name: Install the desktop, clipboard and X tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends ffmpeg openbox x11-utils x11-xserver-utils xclip xvfb
+          sudo apt-get install -y --no-install-recommends ffmpeg weston xwayland x11-utils x11-xserver-utils xclip xdotool xvfb
       - name: Install Chromium
         run: node apps/server/node_modules/playwright/cli.js install --with-deps chromium
       - name: Build the web app
         run: bun run build
-      - name: Paste a Unicode string and click the display
+      - name: Paste a Unicode string and pick a display
         run: |
           set -euo pipefail
-          Xvfb :99 -screen 0 1280x1024x24 -nolisten tcp >/dev/null 2>&1 &
+          export XDG_RUNTIME_DIR="$(mktemp -d)"
+          chmod 700 "$XDG_RUNTIME_DIR"
+          Xvfb :99 -screen 0 2600x900x24 -nolisten tcp >/dev/null 2>&1 &
           export DISPLAY=:99
           for _ in $(seq 1 100); do
             if xdpyinfo >/dev/null 2>&1; then break; fi
             sleep 0.1
           done
+          weston --backend=x11 --output-count=2 --width=1280 --height=800 --xwayland --socket=wayland-kiko --log=weston.log &
+          for _ in $(seq 1 200); do
+            if grep -q 'xserver listening on display' weston.log 2>/dev/null; then break; fi
+            sleep 0.1
+          done
+          export DISPLAY="$(sed -n 's/.*xserver listening on display \(:[0-9]*\).*/\1/p' weston.log | tail -1)"
+          echo "capture display $DISPLAY"
           xrandr --listmonitors
-          openbox --sm-disable >/dev/null 2>&1 &
-          bun apps/server/scripts/measure-input.ts --single --out input-proof.json
+          bun apps/server/scripts/measure-input.ts --out input-proof.json
       - name: Upload the proof
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: takeover-input-linux-${{ github.run_id }}
-          path: input-proof.json
+          path: |
+            input-proof.json
+            weston.log
           if-no-files-found: warn
 
   macos:

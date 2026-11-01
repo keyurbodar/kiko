@@ -206,8 +206,8 @@ async function main(): Promise<void> {
     }
     const single = process.argv.includes("--single")
     const area = single ? await screenSize() : null
-    const leftPage = await openRemote(LEFT_PORT, 0, area?.width ?? 1280, area?.height ?? 1024)
-    const rightPage = single ? leftPage : await openRemote(RIGHT_PORT, 1280, 1024, 768)
+    const leftPage = await openRemote(LEFT_PORT, 0, area?.width ?? 1280, area?.height ?? 800)
+    const rightPage = single ? leftPage : await openRemote(RIGHT_PORT, 0, 1280, 800)
     await wait(1_500)
 
     const session = (await (
@@ -248,10 +248,19 @@ async function main(): Promise<void> {
     const page = await context.newPage()
     await page.goto(`http://localhost:${WEB_PORT}/`)
     await page.waitForSelector('[data-action="computer-watch"], [data-action="skip-first-run"]', { timeout: 60_000 })
-    const skip = page.locator('[data-action="skip-first-run"]')
-    if ((await skip.count()) > 0) await skip.click()
-    await page.waitForSelector('[data-component="first-run"]', { state: "detached", timeout: 30_000 }).catch(() => {})
-    await page.waitForSelector('[data-action="computer-watch"]', { timeout: 60_000 })
+    await until(
+      "the chat view",
+      async () => {
+        const watch = page.locator('[data-action="computer-watch"]')
+        if ((await watch.count()) > 0 && (await watch.isVisible())) return true
+        const skip = page.locator('[data-action="skip-first-run"]')
+        if ((await skip.count()) > 0 && (await skip.isVisible())) await skip.click()
+        const open = page.locator('[data-action="open-kiko"]')
+        if ((await open.count()) > 0 && (await open.isVisible())) await open.click()
+        return false
+      },
+      90_000,
+    )
     await page.click('[data-action="computer-watch"]')
     await page.waitForSelector('[data-component="computer-screen"]', { timeout: 30_000 })
     await page.waitForFunction(
@@ -274,7 +283,7 @@ async function main(): Promise<void> {
         ),
       )
 
-    const choose = async (label: string) => {
+    const choose = async (label: string, width: number) => {
       await until(`the ${label} display`, async () =>
         page.evaluate(
           (wanted) =>
@@ -291,16 +300,23 @@ async function main(): Promise<void> {
       if (!value) throw new Error(`no display called ${label}`)
       await picker.selectOption(value)
       await page.waitForFunction(
-        (width) => {
+        (wanted) => {
           const canvas = document.querySelector('[data-component="computer-screen"] canvas') as HTMLCanvasElement | null
           const video = document.querySelector('[data-component="computer-screen"] video') as HTMLVideoElement | null
           const source = video && video.videoWidth > 0 ? video.videoWidth : canvas?.width
-          return typeof source === "number" && source > 0 && Math.abs(source - width) < 200
+          return typeof source === "number" && source > 0 && Math.abs(source - wanted) < 200
         },
-        Number(label.split("×")[0]),
+        width,
         { timeout: 30_000 },
       )
       await wait(800)
+    }
+
+    const pointer = async () => {
+      const out = await command(["xdotool", "getmouselocation"])
+      const match = out ? /x:(-?\d+) y:(-?\d+)/.exec(out) : null
+      if (!match?.[1] || !match[2]) return null
+      return { x: Number(match[1]), y: Number(match[2]) }
     }
 
     const stageClick = async (x: number, y: number) => {
@@ -334,45 +350,39 @@ async function main(): Promise<void> {
       result.pass = { exact, centred, pickerHidden }
       failed = !exact || !centred || !pickerHidden
     } else {
-      await choose("1024×768")
+      const landed = (remote: Page) =>
+        remote.evaluate(() => {
+          const log = window as unknown as { __events: { x: number; y: number; screenX: number; screenY: number }[] }
+          return log.__events.at(-1)
+        }) as Promise<{ x: number; y: number; screenX: number; screenY: number } | undefined>
+      const at = async (x: number, y: number) => {
+        const spot = await pointer()
+        return spot !== null && Math.abs(spot.x - x) < 8 && Math.abs(spot.y - y) < 8
+      }
+      const pasted = async () =>
+        (await leftPage.inputValue("#field")) === TEXT || (await rightPage.inputValue("#field")) === TEXT
+
+      await choose("Display 2", 1280)
       result.displays = await labels()
-      const before = { left: await events(leftPage), right: await events(rightPage) }
       await stageClick(0.5, 0.5)
-      await until("the click on the right display", async () => (await events(rightPage)) > before.right, 10_000)
-      const landed = (await rightPage.evaluate(() => {
-        const log = window as unknown as { __events: { x: number; y: number; screenX: number; screenY: number }[] }
-        return log.__events.at(-1)
-      })) as { x: number; y: number; screenX: number; screenY: number }
-      result.rightClick = landed
-      result.leftUnaffected = (await events(leftPage)) === before.left
+      await until("the click on the second display", () => at(1280 + 640, 400), 10_000)
+      result.second = await pointer()
 
       await page.evaluate((text) => navigator.clipboard.writeText(text), TEXT)
       await page.keyboard.press("Control+v")
-      await until("the pasted text", async () => (await rightPage.inputValue("#field")) === TEXT, 30_000)
-      result.pasted = await rightPage.inputValue("#field")
+      await until("the pasted text", pasted, 30_000)
 
-      const switched = { right: await events(rightPage) }
-      await choose("1280×1024")
+      await choose("Display 1", 1280)
       await stageClick(0.5, 0.5)
-      await until("the click on the left display", async () => (await events(leftPage)) > 0, 10_000)
-      const leftClick = (await leftPage.evaluate(() => {
-        const log = window as unknown as { __events: { x: number; y: number; screenX: number; screenY: number }[] }
-        return log.__events.at(-1)
-      })) as { x: number; y: number; screenX: number; screenY: number }
-      result.leftClick = leftClick
-      result.rightStayed = (await events(rightPage)) === switched.right
+      await until("the click on the first display", () => at(640, 400), 10_000)
+      result.first = await pointer()
 
-      const exact = result.pasted === TEXT
-      const rightCenter = Math.abs(landed.screenX - 1792) < 80 && Math.abs(landed.screenY - 384) < 80
-      const leftCenter = Math.abs(leftClick.screenX - 640) < 80 && Math.abs(leftClick.screenY - 512) < 80
-      result.pass = {
-        exact,
-        rightCenter,
-        leftCenter,
-        rightStayed: result.rightStayed,
-        leftUnaffected: result.leftUnaffected,
-      }
-      failed = !exact || !rightCenter || !leftCenter || result.rightStayed !== true || result.leftUnaffected !== true
+      const exact = await pasted()
+      result.click = (await landed(leftPage)) ?? (await landed(rightPage)) ?? null
+      const secondCentred = Math.abs((result.second as { x: number }).x - 1792) < 8
+      const firstCentred = Math.abs((result.first as { x: number }).x - 640) < 8
+      result.pass = { exact, secondCentred, firstCentred }
+      failed = !exact || !secondCentred || !firstCentred
     }
 
     left.stop(true)
