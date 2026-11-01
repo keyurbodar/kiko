@@ -1324,7 +1324,7 @@ export class Room implements CommandRoom {
   private working(slug: AgentSlug, paths: readonly string[], doing: string, activity: Activity): void {
     const now = Date.now()
     this.team.take(slug, paths, now)
-    this.memory.did(slug, doing, now)
+    this.memory.did(slug, doing)
     if (this.team.now(slug) === doing) return
     this.team.doing(slug, doing, activity)
     this.broadcastStatus(slug)
@@ -1354,8 +1354,8 @@ export class Room implements CommandRoom {
         over.set(step.runId, done)
         if (done) continue
       }
-      const stored = this.log.hearStep(step)
-      if (stored) this.broadcast({ t: "step", step: stored })
+      const heard = this.log.hearStep(step)
+      if (heard) this.broadcast({ t: "step", step: heard })
       if (item.doing && item.activity) latest = item
     }
     if (latest?.doing && latest.activity) {
@@ -1370,6 +1370,10 @@ export class Room implements CommandRoom {
   }
 
   stepWindow(slug: AgentSlug, after: number): RunStep[] {
+    const live = this.log.steps.live(slug, after)
+    if (live.length) return live
+    const stored = this.log.storedSteps(after)
+    if (stored) return stored
     return this.log.steps.window(slug, after)
   }
 
@@ -1767,8 +1771,8 @@ export class Room implements CommandRoom {
       startedAt: at,
       endedAt: at,
     }
-    const stored = this.log.hearStep(step)
-    if (stored) this.broadcast({ t: "step", step: stored })
+    const heard = this.log.hearStep(step)
+    if (heard) this.broadcast({ t: "step", step: heard })
   }
 
   async setStatus(slug: AgentSlug, state: AgentState, detail?: string | null): Promise<boolean> {
@@ -1840,12 +1844,12 @@ export class Room implements CommandRoom {
   async endRun(slug: AgentSlug, runId: string, heard: readonly string[] = [], working = false): Promise<void> {
     const settled = this.bubbles.settle(slug, runId)
     if (settled) this.publish([settled], { touch: false })
+    for (const step of this.log.steps.abandon(runId)) this.broadcast({ t: "step", step })
     const worked = this.log.closeWindow(slug)
     if (worked) this.publish([worked], { touch: false })
-    for (const step of this.log.steps.abandon(runId)) this.broadcast({ t: "step", step })
     const home = this.home()
     if (home) {
-      this.memory.trace(slug, runId, Date.now())
+      this.memory.trace(slug, runId)
       await this.mailer.answerAsks(slug, runId, heard)
       this.ctx.waitUntil(this.deliverWakes())
     }

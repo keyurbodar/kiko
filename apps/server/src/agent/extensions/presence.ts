@@ -122,9 +122,9 @@ export type Describe = (
   args: Record<string, unknown>,
 ) => { label: string; app?: string; input?: string } | null
 
-type StepShown = Pick<RunStep, "tool" | "name" | "label" | "input" | "app">
+export type StepShown = Pick<RunStep, "tool" | "name" | "label" | "input" | "app">
 
-function stepOf(name: string, args: Record<string, unknown>, describe?: Describe): StepShown | null {
+export function stepOf(name: string, args: Record<string, unknown>, describe?: Describe): StepShown | null {
   const described = describeCall(name, args)
   if (!described) return null
   const tool = described.activity.kind === "tool" ? described.activity.tool : "other"
@@ -140,7 +140,7 @@ function stepOf(name: string, args: Record<string, unknown>, describe?: Describe
   }
 }
 
-function outputOf(content: readonly { type: string; text?: string }[] | undefined): string | undefined {
+export function outputOf(content: readonly { type: string; text?: string }[] | undefined): string | undefined {
   const text = (content ?? []).flatMap((c) => (c.type === "text" && c.text ? [c.text] : [])).join("\n")
   return text ? cut(redact(text), OUTPUT_CHARS) : undefined
 }
@@ -163,7 +163,7 @@ function failedCall(described: Described, content: readonly { type: string; text
 
 export type StepItem = { step: Omit<RunStep, "slug" | "after">; doing?: string; activity?: Activity }
 
-type StepScope = { runId: string; worker?: { id: string; task: string } }
+export type StepScope = { runId: string; worker?: { id: string; task: string } }
 
 export type StepsPort = {
   scope(conversationId: ConversationId): StepScope | null

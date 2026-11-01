@@ -1,4 +1,5 @@
 import { assert, describe, it } from "@effect/vitest"
+import type { RoomSignal } from "@kiko/protocol"
 import { Effect } from "effect"
 import { connect, type Counters, idle, type Owner, type Room, signIn } from "./owner"
 import { localWorker } from "./worker"
@@ -106,6 +107,24 @@ function assertQuiet(phase: Phase): void {
   assert.strictEqual(phase.armedAgent, null, `${phase.name}: ${describeAlarm(phase.armedAgent)}`)
 }
 
+const firstPrompt = (title: string, body: string, ready?: (signal: RoomSignal) => boolean) =>
+  Effect.gen(function* () {
+    const { owner, room } = yield* fakeRoom(title)
+    yield* resetMeter(owner)
+    const mark = yield* room.mark()
+    yield* room.send(body)
+    if (ready) yield* room.untilSignal(ready)
+    yield* room.untilIdleAfter(mark)
+    yield* idle(500)
+    return { owner, room, phase: yield* measure(owner, title, room), messages: yield* room.messages() }
+  })
+
+const rooms = (title: string, body: string, ready?: (signal: RoomSignal) => boolean) =>
+  Effect.all(
+    [1, 2, 3].map((sample) => firstPrompt(`${title} ${sample}`, body, ready)),
+    { concurrency: 2 },
+  )
+
 describe.concurrent("journal overhead", () => {
   it.live("keeps a warm prompt within the write budget and writes nothing in the quiet minute after it", () =>
     Effect.gen(function* () {
@@ -129,6 +148,47 @@ describe.concurrent("journal overhead", () => {
       for (const phase of [...warmPrompts, quiet]) {
         assert.strictEqual(phase.interObjectCalls, 0, `${phase.name}: calls between objects`)
       }
+      assertQuiet(quiet)
+    }).pipe(Effect.scoped),
+  )
+
+  it.live("keeps a tool prompt within the write budget and stays quiet in the minute after it", () =>
+    Effect.gen(function* () {
+      const acked = yield* rooms(
+        "ack prompt",
+        "[two-part] hello",
+        (signal) => signal.t === "step" && signal.step.note === true,
+      )
+      const ackBubbles = acked.flatMap((one) =>
+        one.messages.filter((message) => message.from.kind === "agent" && message.text.includes("part one.")),
+      )
+      const tooled = yield* rooms(
+        "one tool prompt",
+        "[call fake_lookup]",
+        (signal) => signal.t === "step" && signal.step.name === "fake_lookup" && signal.step.status === "done",
+      )
+      const three = yield* firstPrompt("three tool rounds", "[calls 3]")
+      const quiet = yield* quietMinute(
+        three.owner,
+        `quiet minute after the tool prompt (${QUIET_MS / 1000} s)`,
+        three.room,
+      )
+
+      const phases = [...acked, ...tooled].map((one) => one.phase)
+      phases.push(three.phase, quiet)
+      for (const phase of phases) assert.strictEqual(phase.interObjectCalls, 0, `${phase.name}: calls between objects`)
+      assert.strictEqual(ackBubbles.length, 0, "the ack is a note, not a bubble")
+      assert.isAtMost(median(acked.map((one) => one.phase.billableWrites)), ROW_GATE, "an ack prompt's median rows")
+      assert.isAtMost(
+        median(tooled.map((one) => one.phase.billableWrites)),
+        ROW_GATE,
+        "a one-tool prompt's median rows",
+      )
+      assert.isAtMost(
+        three.phase.billableWrites,
+        ROW_GATE + 2 * (3 - 1),
+        `three tool rounds cost ${three.phase.billableWrites} rows`,
+      )
       assertQuiet(quiet)
     }).pipe(Effect.scoped),
   )

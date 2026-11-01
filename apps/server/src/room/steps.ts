@@ -1,7 +1,7 @@
 import type { AgentSlug, RunStep, RunStepStatus, ToolKind, WorkerRow } from "@kiko/protocol"
 
-const KEEP_STEPS = 2_000
-const HIGH_WATER = 2_200
+export const STEP_LOG_BYTES = 128 * 1024
+
 const TAIL_LIMIT = 300
 const TAIL_WINDOW_MS = 24 * 60 * 60 * 1000
 
@@ -45,15 +45,71 @@ const toStep = (r: Row): RunStep => ({
 })
 
 const keyOf = (runId: string, id: string) => `${runId}\u0000${id}`
+const windowKey = (slug: string, after: number) => `${slug}\u0000${after}`
 
 const byStart = (a: RunStep, b: RunStep) => a.startedAt - b.startedAt || (a.id < b.id ? -1 : 1)
+
+const DATA_URI = /data:[^\s"')<>]+/gi
+const BASE64_RUN = /[A-Za-z0-9+/]{512,}={0,2}/g
+const bytesOf = new TextEncoder()
+
+const withoutBytes = (text: string) => text.replace(DATA_URI, "[image]").replace(BASE64_RUN, "[data]")
+
+function storedCard(step: RunStep): RunStep {
+  return {
+    ...step,
+    label: withoutBytes(step.label),
+    ...(step.input !== undefined ? { input: withoutBytes(step.input) } : {}),
+    ...(step.output !== undefined ? { output: withoutBytes(step.output) } : {}),
+  }
+}
+
+function shrink(step: RunStep, budget: number): RunStep {
+  const half = Math.max(0, Math.floor(budget / 4))
+  return {
+    ...step,
+    label: step.label.slice(0, 160),
+    ...(step.input !== undefined ? { input: step.input.slice(0, half) } : {}),
+    ...(step.output !== undefined ? { output: step.output.slice(0, Math.max(0, Math.floor(budget / 2))) } : {}),
+  }
+}
+
+export function stepLog(steps: readonly RunStep[]): string | null {
+  if (!steps.length) return null
+  const kept: RunStep[] = []
+  let bytes = 2
+  for (let i = steps.length - 1; i >= 0; i--) {
+    const separator = kept.length ? 1 : 0
+    let card = storedCard(steps[i]!)
+    let size = bytesOf.encode(JSON.stringify(card)).length
+    if (bytes + separator + size > STEP_LOG_BYTES) {
+      if (kept.length) break
+      card = shrink(card, STEP_LOG_BYTES - bytes - separator - 16)
+      size = bytesOf.encode(JSON.stringify(card)).length
+      if (bytes + separator + size > STEP_LOG_BYTES) continue
+    }
+    kept.push(card)
+    bytes += separator + size
+  }
+  return kept.length ? JSON.stringify(kept.toReversed()) : null
+}
+
+export function parseStepLog(raw: string | null): RunStep[] | null {
+  if (raw === null) return null
+  try {
+    const value: unknown = JSON.parse(raw)
+    return Array.isArray(value) ? (value as RunStep[]) : null
+  } catch {
+    return null
+  }
+}
 
 export type HeardStep = Omit<RunStep, "after">
 
 export class RunSteps {
   private readonly sql: SqlStorage
   private readonly running = new Map<string, RunStep>()
-  private stored: number | null = null
+  private readonly cards = new Map<string, RunStep[]>()
 
   constructor(
     storage: DurableObjectStorage,
@@ -63,17 +119,25 @@ export class RunSteps {
     this.sql = storage.sql
   }
 
-  private isStored(runId: string, id: string): boolean {
-    return (
-      this.sql
-        .exec("SELECT 1 FROM run_steps WHERE room_id = ? AND run_id = ? AND id = ?", this.roomId, runId, id)
-        .toArray().length > 0
-    )
+  private cardList(slug: AgentSlug, after: number): RunStep[] {
+    const key = windowKey(slug, after)
+    let list = this.cards.get(key)
+    if (!list) this.cards.set(key, (list = []))
+    return list
+  }
+
+  cardsOf(slug: AgentSlug, after: number): readonly RunStep[] {
+    return this.cards.get(windowKey(slug, after)) ?? []
+  }
+
+  clearWindow(slug: AgentSlug, after: number): void {
+    this.cards.delete(windowKey(slug, after))
   }
 
   start(heard: HeardStep, after: number): RunStep | null {
     const key = keyOf(heard.runId, heard.id)
-    if (this.running.has(key) || this.isStored(heard.runId, heard.id)) return null
+    if (this.running.has(key)) return null
+    if (this.cardsOf(heard.slug, after).some((s) => s.id === heard.id && s.runId === heard.runId)) return null
     const step = { ...heard, after }
     this.running.set(key, step)
     return step
@@ -84,44 +148,10 @@ export class RunSteps {
     const began = this.running.get(key)
     this.running.delete(key)
     const step: RunStep = { ...heard, endedAt: heard.endedAt ?? this.now(), after: began?.after ?? after }
-    const cursor = this.sql.exec(
-      `INSERT INTO run_steps (room_id, ${COLUMNS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (room_id, run_id, id) DO NOTHING`,
-      this.roomId,
-      step.runId,
-      step.id,
-      step.slug,
-      step.tool,
-      step.name,
-      step.app ?? null,
-      step.worker ? JSON.stringify(step.worker) : null,
-      step.note ? 1 : null,
-      step.label,
-      step.input ?? null,
-      step.status,
-      step.startedAt,
-      step.endedAt,
-      step.output ?? null,
-      step.after,
-    )
-    cursor.toArray()
-    if (cursor.rowsWritten === 0) return null
-    this.prune()
+    const list = this.cardList(step.slug, step.after)
+    if (list.some((s) => s.id === step.id && s.runId === step.runId)) return began ? { step, fresh: false } : null
+    list.push(step)
     return { step, fresh: !began }
-  }
-
-  private prune(): void {
-    this.stored =
-      this.stored === null
-        ? this.sql.exec<{ n: number }>("SELECT count(*) AS n FROM run_steps WHERE room_id = ?", this.roomId).one().n
-        : this.stored + 1
-    if (this.stored <= HIGH_WATER) return
-    this.sql.exec(
-      "DELETE FROM run_steps WHERE room_id = ? AND (started_at, run_id, id) <= (SELECT started_at, run_id, id FROM run_steps WHERE room_id = ? ORDER BY started_at DESC, run_id DESC, id DESC LIMIT 1 OFFSET ?)",
-      this.roomId,
-      this.roomId,
-      KEEP_STEPS,
-    )
-    this.stored = KEEP_STEPS
   }
 
   abandon(runId: string): RunStep[] {
@@ -129,12 +159,17 @@ export class RunSteps {
     return cut.flatMap((s) => this.finish({ ...s, status: "failed", endedAt: this.now() }, s.after)?.step ?? [])
   }
 
-  endWorker(slug: string, workerId: string, status: Exclude<WorkerRow["status"], "pending" | "running">): RunStep[] {
+  endWorker(slug: AgentSlug, workerId: string, status: Exclude<WorkerRow["status"], "pending" | "running">): RunStep[] {
     const cut = [...this.running.values()].filter((s) => s.slug === slug && s.worker?.id === workerId)
     return cut.flatMap(
       (s) =>
         this.finish({ ...s, status: status === "done" ? "done" : "failed", endedAt: this.now() }, s.after)?.step ?? [],
     )
+  }
+
+  live(slug: AgentSlug, after: number): RunStep[] {
+    const running = [...this.running.values()].filter((s) => s.slug === slug && s.after === after)
+    return [...this.cardsOf(slug, after), ...running].sort(byStart)
   }
 
   window(slug: string, after: number): RunStep[] {
@@ -160,7 +195,8 @@ export class RunSteps {
         after,
       )
       .one().n
-    return done + [...this.running.values()].filter((s) => s.slug === slug && s.after === after).length
+    const own = [...this.running.values()].filter((s) => s.slug === slug && s.after === after).length
+    return done + own + (this.cards.get(windowKey(slug, after))?.length ?? 0)
   }
 
   tails(after: ReadonlyMap<string, number>): RunStep[] {
@@ -175,6 +211,7 @@ export class RunSteps {
       )
       .toArray()
       .map(toStep)
-    return [...done, ...this.running.values()].filter((s) => s.after === after.get(s.slug)).sort(byStart)
+    const memoried = [...after].flatMap(([slug, seq]) => this.cards.get(windowKey(slug, seq)) ?? [])
+    return [...done, ...memoried, ...this.running.values()].filter((s) => s.after === after.get(s.slug)).sort(byStart)
   }
 }

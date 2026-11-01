@@ -57,8 +57,8 @@ export class RoomHistoryStore implements HistoryStore {
       const json = (value: unknown) => (value === undefined ? null : JSON.stringify(value))
       const inserted = this.storage.sql
         .exec(
-          `INSERT OR IGNORE INTO messages (room_id, seq, id, at, sender, text, rich, reply_to, files, run_id, run_attempt, run_index, edited_at, goto, quote, addressed, initiative, event, steps, step_after)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+          `INSERT OR IGNORE INTO messages (room_id, seq, id, at, sender, text, rich, reply_to, files, run_id, run_attempt, run_index, edited_at, goto, quote, addressed, initiative, event, steps, step_after, run_steps_log)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
           this.log.roomId,
           message.seq,
           message.id,
@@ -79,6 +79,7 @@ export class RoomHistoryStore implements HistoryStore {
           json(message.event),
           message.steps ?? null,
           message.stepAfter ?? null,
+          row.stepsLog ?? null,
         )
         .toArray()
       if (!inserted.length) return
