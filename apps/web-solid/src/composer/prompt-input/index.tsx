@@ -16,7 +16,7 @@ import {
 } from "solid-js"
 import { Portal } from "solid-js/web"
 import { RemixIcon } from "@kiko/ui/remix-icon"
-import { AttachIcon, ChevronDownIcon, EnterIcon, PlusIcon } from "@kiko/ui/icons"
+import { ArrowUpIcon, AttachIcon, ChevronDownIcon, PlusIcon } from "@kiko/ui/icons"
 import { useI18n } from "@kiko/ui/context/i18n"
 import { MenuV2 } from "@kiko/ui/v2/menu-v2"
 import { TooltipV2 } from "@kiko/ui/v2/tooltip-v2"
@@ -52,7 +52,9 @@ type RecipientPeople = {
 export type PromptInputV2Props = {
   controller: PromptInputV2Interaction
   disabled?: boolean
+  empty?: boolean
   readOnly?: boolean
+  notice?: JSX.Element
   reply?: JSX.Element
   below?: JSX.Element
   tray?: JSX.Element
@@ -295,11 +297,13 @@ export function PromptInputV2(props: PromptInputV2Props) {
           if (!props.disabled) props.controller.submit()
         }}
       >
+        {props.notice}
         <div
           class="composer-box"
           data-editing={props.editing ? "" : undefined}
           data-focused={focused() ? "" : undefined}
           data-dragging={state.drag === "active" ? "" : undefined}
+          data-notice={props.notice ? "" : undefined}
           onPointerDown={focusBare}
           onFocusIn={() => setFocused(true)}
           onFocusOut={(event) => {
@@ -319,6 +323,14 @@ export function PromptInputV2(props: PromptInputV2Props) {
             />
           </Show>
           <div class="composer-main" data-component="prompt-input-box" onPointerDown={focusBare}>
+            <Show when={!props.answering}>
+              <Show
+                when={props.plus}
+                fallback={<AttachButton controller={props.controller} label={i18n.t("ui.promptInput.add")} />}
+              >
+                {props.plus}
+              </Show>
+            </Show>
             <div class="composer-field">
               <div ref={richHost} class="composer-rich" classList={{ "opacity-50": props.disabled }} />
               <Show when={blank()}>
@@ -348,19 +360,13 @@ export function PromptInputV2(props: PromptInputV2Props) {
         </div>
         <div class="composer-footer">
           <div class="composer-tray">
-            <Show when={!props.answering}>
-              <Show
-                when={props.plus}
-                fallback={<AttachButton controller={props.controller} label={i18n.t("ui.promptInput.add")} />}
-              >
-                {props.plus}
-              </Show>
-            </Show>
             <Show when={!props.answering && !props.readOnly && props.recipient}>
               {(recipient) => <Recipient recipient={recipient()} controller={props.controller} people={props.people} />}
             </Show>
           </div>
-          <p class="composer-disclaimer">{props.recipient?.title ?? "Kiko"} is AI and can make mistakes.</p>
+          <Show when={props.empty}>
+            <p class="composer-disclaimer">{props.recipient?.title ?? "Kiko"} is AI and can make mistakes.</p>
+          </Show>
           <div class="composer-actions">
             <Show when={!props.answering}>{props.tray}</Show>
           </div>
@@ -381,7 +387,7 @@ function AttachButton(props: { controller: PromptInputV2Interaction; label: stri
         aria-label={props.label}
         onClick={() => props.controller.attach()}
       >
-        <RemixIcon icon={PlusIcon} size={18} />
+        <RemixIcon icon={PlusIcon} size={16} />
       </button>
     </TooltipV2>
   )
@@ -497,7 +503,7 @@ function SubmitButton(props: {
           props.onSubmit()
         }}
       >
-        <RemixIcon icon={EnterIcon} class="composer-send-arrow size-[18px]" />
+        <RemixIcon icon={ArrowUpIcon} class="composer-send-arrow size-4" />
         <span class="composer-send-square" aria-hidden="true" />
       </button>
     </TooltipV2>

@@ -12,7 +12,7 @@ const hintOf = (id: CommandId): string => {
   return key ? displayShortcut(key) : ""
 }
 
-function NavBody(props: { icon: Glyph; label: string; hint?: string }): JSX.Element {
+function NavBody(props: { icon: Glyph; label: string; hint?: string; chip?: boolean }): JSX.Element {
   return (
     <>
       <span class="nav-icon row-icon">
@@ -20,7 +20,7 @@ function NavBody(props: { icon: Glyph; label: string; hint?: string }): JSX.Elem
       </span>
       <span class="nav-label">{props.label}</span>
       <Show when={props.hint}>
-        <kbd class="nav-kbd" aria-hidden="true">
+        <kbd class="nav-kbd" data-chip={props.chip ? "" : undefined} aria-hidden="true">
           {props.hint}
         </kbd>
       </Show>
@@ -56,7 +56,7 @@ export const SidebarNav: Component = () => {
         data-hint-label="Search"
         onClick={() => runCommand("palette.open")}
       >
-        <NavBody icon={SearchIcon} label="Search" hint={hintOf("palette.open")} />
+        <NavBody icon={SearchIcon} label="Search" hint={hintOf("palette.open")} chip />
       </button>
       <For each={LINKS}>
         {(link) => (

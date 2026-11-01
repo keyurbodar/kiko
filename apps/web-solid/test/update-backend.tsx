@@ -31,7 +31,11 @@ export function fakeBackend(descriptor: unknown): FakeBackend {
 }
 
 const ROOM = "01900000-0000-7000-8000-000000000004"
-const MODEL_BLOCK: SendBlock = { reason: "Connect a model provider to chat.", actions: ["open_settings"] }
+const MODEL_BLOCK: SendBlock = {
+  kind: "no_provider",
+  reason: "Connect a model provider to chat.",
+  actions: ["open_settings"],
+}
 
 function ChatComposer() {
   return (

@@ -34,7 +34,7 @@
   min-height: 48px;
   align-items: flex-end;
   gap: 8px;
-  padding: 12px 8px 12px 16px;
+  padding: 8px;
   cursor: text;
 }
 
@@ -131,11 +131,12 @@
 
 .composer-dock .composer-icon {
   display: grid;
-  width: 32px;
-  height: 32px;
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
   place-items: center;
   padding: 0;
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
   background: transparent;
   border: 0;
   border-radius: var(--radius-full);
@@ -160,16 +161,15 @@
 
 .composer-dock .composer-send {
   display: grid;
-  width: 28px;
-  height: 28px;
-  margin: -2px 0;
+  width: 32px;
+  height: 32px;
   flex-shrink: 0;
   place-items: center;
   padding: 0;
-  color: var(--text-primary);
-  background: transparent;
+  color: var(--text-on-accent);
+  background: var(--bg-accent);
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--radius-full);
   cursor: pointer;
   transition:
     background 120ms,
@@ -185,12 +185,13 @@
 
 @media (hover: hover) and (pointer: fine) {
   .composer-dock .composer-send:hover:not(:disabled) {
-    background: var(--composer-fill-hover);
+    background: var(--bg-accent-hover);
   }
 }
 
 .composer-dock .composer-send:disabled {
-  color: var(--text-quaternary);
+  color: var(--text-tertiary);
+  background: var(--bg-tertiary);
   cursor: default;
 }
 
@@ -411,6 +412,53 @@
     background: color-mix(in oklab, var(--text-primary) 8%, transparent);
     color: var(--text-primary);
   }
+}
+
+.composer-dock .composer-notice {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  color: var(--text-warning);
+  background: var(--bg-warning-tertiary);
+  border-radius: 12px 12px 0 0;
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.composer-dock .composer-notice-text {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.composer-dock .composer-notice button {
+  flex-shrink: 0;
+  height: 22px;
+  padding: 0 6px;
+  color: var(--text-warning);
+  background: none;
+  border: 0;
+  border-radius: 6px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 120ms;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .composer-dock .composer-notice button:hover {
+    background: var(--bg-warning-soft-hover);
+  }
+}
+
+.composer-dock .composer-box[data-notice] {
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
 }
 
 .composer-dock .composer-box > .no-key-hint {
