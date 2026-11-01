@@ -129,7 +129,8 @@ jobs:
           child.kill()
           TS
           bun /tmp/inner.ts
-          bun -e 'const child = Bun.spawn(["bun", "/tmp/inner.ts"], { stdout: "pipe", stderr: "pipe" }); console.log("child of bun:", await new Response(child.stdout).text())'
+          DISPLAY=:99 bun /tmp/inner.ts
+          DISPLAY=:99 KIKO_DRIVER=/tmp/none.sock KIKO_COMPUTER_DIR=/tmp/pc bun /tmp/inner.ts
       - name: Paste a Unicode string and click the display
         run: bun apps/server/scripts/measure-input.ts --single --out input-proof.json
       - name: Upload the proof
