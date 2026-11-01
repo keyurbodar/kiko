@@ -69,18 +69,32 @@ const setLayout = async (m: Machine, layout: string): Promise<void> => {
   ])
 }
 
-const macosSource = (): string => fixture("desktop/macos/app.swift")
-
-const macosApp = async (m: Machine): Promise<string> => {
-  const source = macosSource()
+const macosBuild = async (m: Machine, source: string, name: string): Promise<string> => {
   const digest = createHash("sha256").update(readFileSync(source)).digest("hex").slice(0, 12)
-  const binary = join(homedir(), ".cache", "kiko-bench", `desktop-app-${digest}`)
+  const binary = join(homedir(), ".cache", "kiko-bench", `${name}-${digest}`)
   const exists = await run(m, ["sh", "-c", `test -x '${binary}'`])
   if (exists.code === 0) return binary
   await run(m, ["mkdir", "-p", join(homedir(), ".cache", "kiko-bench")])
   const built = await run(m, ["swiftc", "-O", "-o", binary, source], { timeoutMs: 300_000 })
-  if (built.code !== 0) throw new Error(`building the macOS fixture failed: ${built.stderr || built.stdout}`)
+  if (built.code !== 0) throw new Error(`building the macOS ${name} failed: ${built.stderr || built.stdout}`)
   return binary
+}
+
+const macosApp = (m: Machine): Promise<string> => macosBuild(m, fixture("desktop/macos/app.swift"), "desktop-app")
+
+const macosWindowList = (m: Machine): Promise<string> =>
+  macosBuild(m, fixture("desktop/macos/windows.swift"), "desktop-windows")
+
+const waitForMacosWindow = async (m: Machine, owners: readonly string[], timeoutMs = 30_000): Promise<void> => {
+  const binary = await macosWindowList(m)
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() < deadline) {
+    const listed = await run(m, [binary])
+    const seen = listed.stdout.split("\n").map((line) => line.split("\t")[0] ?? "")
+    if (seen.some((owner) => owners.includes(owner))) return
+    await new Promise((resolve) => setTimeout(resolve, 250))
+  }
+  throw new Error(`no ${owners.join(" or ")} window appeared within ${timeoutMs} ms`)
 }
 
 export const launchHard = async (
@@ -151,6 +165,7 @@ const startLibreOffice = async (m: Machine, args: readonly string[]): Promise<vo
   )
   const app = await spawnTracked(m, [binary, "--norestore", "--nologo", `-env:UserInstallation=${profile}`, ...args])
   await writeText(m, "app.pid", `${app.pid}\n`)
+  if (m.os === "macos") await waitForMacosWindow(m, ["soffice", "LibreOffice"])
 }
 
 export const launchCalc = (m: Machine, rel: string): Promise<void> => startLibreOffice(m, ["--calc", at(m, rel)])
