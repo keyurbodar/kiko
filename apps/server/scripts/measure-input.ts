@@ -193,7 +193,20 @@ async function main(): Promise<void> {
       90_000,
     )
     await page.click('[data-action="computer-watch"]')
-    await page.waitForSelector('[data-component="computer-screen"]', { timeout: 30_000 })
+    try {
+      await page.waitForSelector('[data-component="computer-viewer"]', { timeout: 30_000 })
+      await page.waitForSelector('[data-component="computer-screen"]', { timeout: 45_000 })
+    } catch (error) {
+      const state = await page.evaluate(() => ({
+        viewer: document.querySelector('[data-component="computer-viewer"]') !== null,
+        parts: [...document.querySelectorAll("[data-component]")].map((element) =>
+          element.getAttribute("data-component"),
+        ),
+        text: document.body.innerText.slice(0, 400),
+      }))
+      process.stderr.write(`[viewer] no screen ${JSON.stringify(state)}\n`)
+      throw error
+    }
     let ticks = 0
     let streaming = true
     try {
