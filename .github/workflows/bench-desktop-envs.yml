@@ -43,9 +43,10 @@ jobs:
           bun run bench plan --config "$CONFIG" --validate > validate.json
           for kind in host container vm; do
             jq -c --arg nixos "$nixos_id" --arg omarchy "$omarchy_id" ".$kind |= $label | .$kind" validate.json > "validate-$kind.json"
-            printf '%s={"include":%s}\n' "$kind" "$(cat "validate-$kind.json")" >> "$GITHUB_OUTPUT"
+            jq -c 'map(.seed = 1) + map(.seed = 7)' "validate-$kind.json" > "validate-$kind-seeds.json"
+            printf '%s={"include":%s}\n' "$kind" "$(cat "validate-$kind-seeds.json")" >> "$GITHUB_OUTPUT"
           done
-          echo "::notice::planned $(jq length validate-host.json) host, $(jq length validate-container.json) container, $(jq length validate-vm.json) vm validations"
+          echo "::notice::planned $(jq length validate-host-seeds.json) host, $(jq length validate-container-seeds.json) container, $(jq length validate-vm-seeds.json) vm validations"
 
   nixos-image:
     name: NixOS image
@@ -80,8 +81,52 @@ jobs:
           if [ -e /dev/kvm ]; then sudo chmod 666 /dev/kvm; fi
           bash apps/bench/scripts/envs/build-omarchy-image.sh .omarchy-image/omarchy.qcow2
 
+  background:
+    name: Background ${{ matrix.env }}
+    needs: plan
+    if: needs.plan.result == 'success'
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - env: ubuntu-24.04
+            runner: ubuntu-24.04
+            machine: gha-ubuntu-24.04-x11
+          - env: macos-15
+            runner: macos-15
+            machine: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - name: Install the desktop test bed
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            xvfb xauth openbox dbus-x11 at-spi2-core python3-gi gir1.2-gtk-3.0 x11-utils jq \
+            python3-xlib libreoffice-calc libreoffice-writer
+      - name: Environment packages
+        if: runner.os == 'macOS'
+        run: bash apps/bench/envs/macos-15/setup.sh
+      - uses: ./.github/actions/sentinel-macos
+        if: runner.os == 'macOS'
+      - name: Validate in the background condition
+        if: runner.os == 'Linux'
+        run: bash apps/bench/scripts/display.sh bun run bench validate --config "$CONFIG" --task "$TASK" --track desktop --condition background --runs 1 --results results --machine ${{ matrix.machine }}
+      - name: Validate in the background condition
+        if: runner.os == 'macOS'
+        run: bun run bench validate --config "$CONFIG" --task "$TASK" --track desktop --condition background --runs 1 --results results --machine ${{ matrix.machine }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bench-desktop-background-${{ matrix.env }}
+          path: results/
+          if-no-files-found: warn
+
   validate-host:
-    name: Validate ${{ matrix.env }}
+    name: Validate ${{ matrix.env }} seed ${{ matrix.seed }}
     needs: plan
     if: needs.plan.result == 'success'
     runs-on: ${{ matrix.runner }}
@@ -104,19 +149,19 @@ jobs:
         run: bash apps/bench/envs/macos-15/setup.sh
       - name: Validate
         if: runner.os == 'Linux'
-        run: bash apps/bench/scripts/display.sh bun run bench validate --config "$CONFIG" --task "$TASK" --track desktop --results results --machine ${{ matrix.machine }}
+        run: bash apps/bench/scripts/display.sh bun run bench validate --config "$CONFIG" --task "$TASK" --track desktop --seed ${{ matrix.seed }} --results results/seed-${{ matrix.seed }} --machine ${{ matrix.machine }}
       - name: Validate
         if: runner.os == 'macOS'
-        run: bun run bench validate --config "$CONFIG" --task "$TASK" --track desktop --results results --machine ${{ matrix.machine }}
+        run: bun run bench validate --config "$CONFIG" --task "$TASK" --track desktop --seed ${{ matrix.seed }} --results results/seed-${{ matrix.seed }} --machine ${{ matrix.machine }}
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: bench-desktop-validate-${{ matrix.env }}
+          name: bench-desktop-validate-${{ matrix.env }}-seed${{ matrix.seed }}
           path: results/
           if-no-files-found: warn
 
   validate-container:
-    name: Validate ${{ matrix.env }}
+    name: Validate ${{ matrix.env }} seed ${{ matrix.seed }}
     needs: plan
     if: needs.plan.result == 'success'
     runs-on: ${{ matrix.runner }}
@@ -133,16 +178,16 @@ jobs:
       - name: Environment packages
         run: bash apps/bench/envs/debian-13/setup.sh
       - name: Validate
-        run: bash apps/bench/envs/debian-13/display.sh bun run bench validate --config "$CONFIG" --task "$TASK" --track desktop --results results --machine ${{ matrix.machine }}
+        run: bash apps/bench/envs/debian-13/display.sh bun run bench validate --config "$CONFIG" --task "$TASK" --track desktop --seed ${{ matrix.seed }} --results results/seed-${{ matrix.seed }} --machine ${{ matrix.machine }}
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: bench-desktop-validate-${{ matrix.env }}
+          name: bench-desktop-validate-${{ matrix.env }}-seed${{ matrix.seed }}
           path: results/
           if-no-files-found: warn
 
   validate-vm:
-    name: Validate ${{ matrix.env }}
+    name: Validate ${{ matrix.env }} seed ${{ matrix.seed }}
     needs: [plan, nixos-image, omarchy-image]
     if: always() && needs.plan.result == 'success'
     runs-on: ${{ matrix.runner }}
@@ -185,10 +230,10 @@ jobs:
           bash apps/bench/scripts/envs/vm-run.sh \
             "${{ matrix.env }}" "${{ steps.image.outputs.path }}" results 2222 \
             desktop kiko -- \
-            validate --config "$CONFIG" --task "$TASK" --track desktop --results results --machine "${{ matrix.machine }}"
+            validate --config "$CONFIG" --task "$TASK" --track desktop --seed ${{ matrix.seed }} --results results/seed-${{ matrix.seed }} --machine "${{ matrix.machine }}"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: bench-desktop-validate-${{ matrix.env }}
+          name: bench-desktop-validate-${{ matrix.env }}-seed${{ matrix.seed }}
           path: results/
           if-no-files-found: warn

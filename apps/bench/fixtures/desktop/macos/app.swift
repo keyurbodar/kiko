@@ -215,16 +215,12 @@ final class ControlServer {
         address.sun_family = sa_family_t(AF_UNIX)
         address.sun_len = UInt8(MemoryLayout<sockaddr_un>.size)
         let copied = path.withCString { pointer -> Bool in
-            withUnsafeMutablePointer(to: &address.sun_path) { pathPointer in
-                pathPointer.withMemoryRebound(to: CChar.self, capacity: 104) { raw in
-                    let bytes = Array(String(cString: pointer).utf8)
-                    guard bytes.count < 104 else { return false }
-                    for (index, byte) in bytes.enumerated() {
-                        raw[index] = CChar(bitPattern: byte)
-                    }
-                    raw[bytes.count] = 0
-                    return true
-                }
+            withUnsafeMutableBytes(of: &address.sun_path) { raw in
+                let bytes = Array(String(cString: pointer).utf8)
+                guard bytes.count < raw.count else { return false }
+                raw.copyBytes(from: bytes)
+                raw[bytes.count] = 0
+                return true
             }
         }
         guard copied else { close(descriptor); descriptor = -1; return }
@@ -399,7 +395,7 @@ func buildPreferences() {
     func apply(_ dark: Bool, _ font: Int) {
         darkSwitch.state = dark ? .on : .off
         fontField.stringValue = String(font)
-        save(["applied": ["dark": dark, "font": font]])
+        save(["applied": ["dark": dark, "font": font] as [String: Any]])
         panel.orderOut(nil)
     }
 

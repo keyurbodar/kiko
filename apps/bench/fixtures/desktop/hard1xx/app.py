@@ -457,17 +457,20 @@ def dispatch(command):
 def serve_connection(server):
     connection, _address = server.accept()
     connection.settimeout(10)
-    chunks = b""
-    while b"\n" not in chunks:
-        chunk = connection.recv(65536)
-        if not chunk:
-            break
-        chunks += chunk
     try:
+        chunks = b""
+        while b"\n" not in chunks:
+            chunk = connection.recv(65536)
+            if not chunk:
+                break
+            chunks += chunk
         reply = dispatch(json.loads(chunks.decode() or "{}"))
     except Exception as error:
         reply = {"ok": False, "error": str(error)}
-    connection.sendall((json.dumps(reply) + "\n").encode())
+    try:
+        connection.sendall((json.dumps(reply) + "\n").encode())
+    except OSError:
+        pass
     connection.close()
     return True
 
