@@ -252,6 +252,7 @@ function startRelay(pcId: string, hooks: Hooks, on: { frame(): void; fail(): voi
 
   const announce = () => {
     if (!wants) return
+    console.info("kiko relay probe: asking for frames")
     control({ t: "live", ...profile })
   }
 

@@ -298,6 +298,17 @@ async function main(): Promise<void> {
     const events = (remote: Page) =>
       remote.evaluate(() => (window as unknown as { __events: unknown[] }).__events.length)
 
+    const inspect = (remote: Page) =>
+      remote.evaluate(() => {
+        const log = window as unknown as { __events: unknown[] }
+        const field = document.getElementById("field") as HTMLTextAreaElement | null
+        return {
+          active: document.activeElement?.id || document.activeElement?.tagName || null,
+          clicks: log.__events.length,
+          value: field?.value ?? null,
+        }
+      })
+
     if (single) {
       result.displays = await labels()
       await stageClick(0.5, 0.5)
@@ -310,7 +321,7 @@ async function main(): Promise<void> {
       await pasteInto(TEXT)
       await until("the pasted text", async () => (await leftPage.inputValue("#field")) === TEXT, 30_000).catch(
         async (error) => {
-          result.fields = { left: await leftPage.inputValue("#field") }
+          result.fields = { left: await inspect(leftPage) }
           throw error
         },
       )
@@ -349,7 +360,7 @@ async function main(): Promise<void> {
 
       await pasteInto(TEXT)
       await until("the pasted text", async () => (await pasted()) === TEXT, 30_000).catch(async (error) => {
-        result.fields = { left: await leftPage.inputValue("#field"), right: await rightPage.inputValue("#field") }
+        result.fields = { left: await inspect(leftPage), right: await inspect(rightPage) }
         throw error
       })
 

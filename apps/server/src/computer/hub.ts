@@ -767,6 +767,7 @@ export class ComputerHub {
     } catch {
       return true
     }
+    console.warn(`live probe: ${message.t} for ${live.pcId}`)
     if (message.t === "who" && typeof message.session === "string") this.identify(ws, live, message.session)
     else if (message.t === "ack" && typeof message.seq === "number") this.ack(live.pcId, message.seq)
     else if (message.t === "screen" && typeof message.id === "string" && message.id.length > 0)
@@ -793,8 +794,9 @@ export class ComputerHub {
 
   syncRelay(pcId: string, force = false, except?: WebSocket): void {
     const ws = this.socket(pcId)
-    if (!ws) return
     const on = this.relayWatchers(pcId, except) > 0
+    console.warn(`relay probe: on=${on} daemon=${ws !== null} force=${force}`)
+    if (!ws) return
     if (!force && on === this.relaying.has(pcId)) return
     if (on) this.relaying.add(pcId)
     else this.relaying.delete(pcId)
