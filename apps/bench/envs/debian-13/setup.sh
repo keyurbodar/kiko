@@ -39,3 +39,5 @@ apt-get install -y --no-install-recommends \
   zip
 
 apt-get install -y --no-install-recommends chromium || apt-get install -y --no-install-recommends chromium-browser
+
+mkdir -p /run/sshd

@@ -12,6 +12,7 @@ fi
 
 export NO_AT_BRIDGE=0
 export GDK_BACKEND=x11
+export LANG=C.UTF-8
 
 exec dbus-run-session -- xvfb-run -a -s "-screen 0 1920x1080x24" bash -c '
   xfce4-session >/tmp/xfce4-session.log 2>&1 &
