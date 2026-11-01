@@ -1,0 +1,61 @@
+{
+  "reps": 1,
+  "seed": 1,
+  "conditions": ["foreground", "background"],
+  "pattern": "{*-1*,cross-*}",
+  "maxTrialsPerJob": 22,
+  "validate": { "runs": 1 },
+  "envs": [
+    {
+      "id": "ubuntu-24.04",
+      "os": "linux",
+      "runner": "ubuntu-24.04",
+      "machine": "gha-ubuntu-24.04-x11",
+      "kind": "host",
+      "display": "x11"
+    },
+    {
+      "id": "debian-13",
+      "os": "linux",
+      "runner": "ubuntu-24.04",
+      "machine": "debian-13",
+      "kind": "container",
+      "display": "x11",
+      "image": "debian:trixie"
+    },
+    {
+      "id": "macos-15",
+      "os": "macos",
+      "runner": "macos-15",
+      "machine": "macos-15",
+      "kind": "host",
+      "display": "aqua"
+    }
+  ],
+  "tracks": [
+    {
+      "track": "desktop",
+      "os": ["linux", "macos"],
+      "contenders": [{ "name": "kiko", "models": ["iceman-contributor-free"] }]
+    },
+    {
+      "track": "desktop",
+      "os": ["linux"],
+      "envs": ["ubuntu-24.04", "debian-13"],
+      "contenders": [
+        { "name": "cua-driver", "models": ["iceman-contributor-free"] },
+        { "name": "agent-desktop", "models": ["iceman-contributor-free"] }
+      ]
+    },
+    {
+      "track": "browser",
+      "os": ["linux", "macos"],
+      "envs": ["debian-13", "macos-15"],
+      "conditions": ["background"],
+      "contenders": [
+        { "name": "kiko", "models": ["iceman-contributor-free"] },
+        { "name": "agent-browser", "models": ["iceman-contributor-free"] }
+      ]
+    }
+  ]
+}
