@@ -1,6 +1,6 @@
 import { type Agent, KIKO, type RecipeApp } from "@kiko/protocol"
 import { RemixIcon } from "@kiko/ui/remix-icon"
-import { PlayIcon, PlusIcon, TrashIcon } from "@kiko/ui/icons"
+import { PlayIcon, TrashIcon } from "@kiko/ui/icons"
 import { createMemo, createSignal, For, onCleanup, Show } from "solid-js"
 import { openChat } from "../app/history"
 import { agentList } from "../lib/chats"
@@ -14,7 +14,6 @@ import { Button } from "../settings/kit"
 import { openSettings } from "../settings/open"
 import { attempt, createQuery, owner } from "../state/runtime"
 import { user } from "../state/user"
-import { openNewAgent } from "../newagent/state"
 import { agentMetaLine } from "./agent-meta"
 import "./page-ui.css"
 import { SkeletonRows } from "./page-ui"
@@ -62,9 +61,6 @@ function DeleteAgentDialog(props: { agent: Agent | null; onClose: () => void }) 
   )
 }
 
-const ghostCard =
-  "flex min-h-40 cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-[var(--stroke-secondary)] text-secondary transition-[background-color,color] duration-(--duration-fast) hover:bg-quaternary-opaque hover:text-primary active:scale-(--press-scale) focus-visible:bg-quaternary-opaque"
-
 export function TeamTab() {
   followRecipes()
   const [deleting, setDeleting] = createSignal<Agent | null>(null)
@@ -86,7 +82,7 @@ export function TeamTab() {
           {(agent) => (
             <article
               ref={(el) => onCleanup(look(el))}
-              class="page-card relative flex min-h-40 min-w-0 flex-col justify-between gap-4 rounded-xl bg-editor p-4"
+              class="page-card relative flex min-w-0 flex-col gap-3 rounded-xl bg-editor p-4"
               data-agent={agent.slug}
             >
               <div class="flex min-w-0 items-start gap-3">
@@ -129,7 +125,7 @@ export function TeamTab() {
                   </Show>
                 </span>
               </div>
-              <div class="flex min-w-0 flex-col gap-2">
+              <div class="flex min-w-0 flex-col gap-2 pl-11">
                 <Show when={metaFor(agent)}>
                   {(line) => (
                     <p class="type-sm min-w-0 truncate text-secondary" data-component="agent-meta">
@@ -137,27 +133,25 @@ export function TeamTab() {
                     </p>
                   )}
                 </Show>
-                <span class="type-sm flex min-w-0 items-center gap-3 text-tertiary">
-                  <Show when={appsFor(agent.slug).length}>
-                    <span class="flex min-w-0 items-center gap-1" aria-label="Can use">
-                      <For each={appsFor(agent.slug).slice(0, 5)}>{(app) => <AppLogo app={app} size={16} />}</For>
-                    </span>
-                  </Show>
-                  <Show when={recipesFor(agent.slug).length}>
-                    <span class="flex shrink-0 items-center gap-1.5">
-                      <RemixIcon icon={PlayIcon} size={12} />
-                      {recipesFor(agent.slug).length === 1 ? "1 recipe" : `${recipesFor(agent.slug).length} recipes`}
-                    </span>
-                  </Show>
-                </span>
+                <Show when={appsFor(agent.slug).length || recipesFor(agent.slug).length}>
+                  <span class="type-sm flex min-w-0 items-center gap-3 text-tertiary">
+                    <Show when={appsFor(agent.slug).length}>
+                      <span class="flex min-w-0 items-center gap-1" aria-label="Can use">
+                        <For each={appsFor(agent.slug).slice(0, 5)}>{(app) => <AppLogo app={app} size={16} />}</For>
+                      </span>
+                    </Show>
+                    <Show when={recipesFor(agent.slug).length}>
+                      <span class="flex shrink-0 items-center gap-1.5">
+                        <RemixIcon icon={PlayIcon} size={12} />
+                        {recipesFor(agent.slug).length === 1 ? "1 recipe" : `${recipesFor(agent.slug).length} recipes`}
+                      </span>
+                    </Show>
+                  </span>
+                </Show>
               </div>
             </article>
           )}
         </For>
-        <button type="button" class={ghostCard} data-action="new-agent" onClick={openNewAgent}>
-          <RemixIcon icon={PlusIcon} size={16} />
-          <span class="type-base">New agent</span>
-        </button>
       </div>
       <DeleteAgentDialog agent={deleting()} onClose={() => setDeleting(null)} />
     </Show>
