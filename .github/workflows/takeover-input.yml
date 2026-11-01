@@ -122,26 +122,28 @@ jobs:
           const head = [FFMPEG, "-hide_banner", "-loglevel", "error", "-nostdin"]
           const source = ["-f", "avfoundation", "-capture_cursor", "1", "-i", "Capture screen 0:none"]
           const scale = ["-vf", "scale=1024:768:flags=fast_bilinear"]
-          const h264 = [...head, "-framerate", "30", ...source, "-r", "30", "-an", ...scale, "-c:v", "h264_videotoolbox", "-realtime", "true", "-allow_sw", "1", "-g", "30", "-force_key_frames", "expr:gte(t,n_forced*1)", "-f", "h264", "pipe:1"]
-          const mjpeg = [...head, "-framerate", "15", ...source, "-r", "15", "-an", ...scale, "-c:v", "mjpeg", "-q:v", "18", "-f", "mjpeg", "pipe:1"]
+          const h264 = [...head, "-framerate", "30", ...source, "-r", "30", "-an", ...scale, "-c:v", "h264_videotoolbox", "-realtime", "true", "-allow_sw", "1", "-g", "30", "-force_key_frames", "expr:gte(t,n_forced*1)", "-f", "h264", "-t", "5", "pipe:1"]
+          const mjpeg = [...head, "-framerate", "15", ...source, "-r", "15", "-an", ...scale, "-c:v", "mjpeg", "-q:v", "18", "-f", "mjpeg", "-t", "5", "pipe:1"]
 
-          const firstChunk = async (args: string[], ms: number) => {
+          const firstChunk = async (args: string[]) => {
             const child = Bun.spawn(args, { stdin: "ignore", stdout: "pipe", stderr: "pipe" })
+            const errors = new Response(child.stderr).text().catch(() => "")
             const reader = child.stdout.getReader()
             const bytes = await Promise.race([
               reader.read().then((part) => part.value?.byteLength ?? 0),
-              Bun.sleep(ms).then(() => -1),
+              Bun.sleep(8_000).then(() => -1),
             ])
-            child.kill()
-            return bytes
+            const tail = bytes === -1 ? (await errors).trim().slice(0, 200) : ""
+            return tail ? `${bytes} bytes (${tail})` : `${bytes} bytes`
           }
 
-          const [h264Bytes, mjpegBytes] = await Promise.all([firstChunk(h264, 8_000), firstChunk(mjpeg, 8_000)])
-          console.log(`together: h264 ${h264Bytes} bytes, mjpeg ${mjpegBytes} bytes`)
-          await Bun.sleep(1_000)
-          console.log(`mjpeg alone: ${await firstChunk(mjpeg, 8_000)} bytes`)
-          await Bun.sleep(1_000)
-          console.log(`h264 alone: ${await firstChunk(h264, 8_000)} bytes`)
+          const [h264Bytes, mjpegBytes] = await Promise.all([firstChunk(h264), firstChunk(mjpeg)])
+          console.log(`together: h264 ${h264Bytes}, mjpeg ${mjpegBytes}`)
+          await Bun.sleep(6_000)
+          console.log(`mjpeg alone: ${await firstChunk(mjpeg)}`)
+          await Bun.sleep(6_000)
+          console.log(`h264 alone: ${await firstChunk(h264)}`)
+          process.exit(0)
           TS
           bun /tmp/pair.ts
           DISPLAY=:99 bun /tmp/inner.ts
