@@ -20,7 +20,7 @@ const details = (seed: number): { name: string; email: string; zip: string } => 
 export const formSignup: Task = {
   id: "browser-001-form-signup",
   track: "browser",
-  os: ["linux", "macos", "windows"],
+  os: ["linux", "macos"],
   needs: ["chrome"],
   heldOut: false,
   kind: "real",

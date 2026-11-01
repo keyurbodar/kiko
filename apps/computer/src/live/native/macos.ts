@@ -1,7 +1,7 @@
 import { dlopen, FFIType, ptr } from "bun:ffi"
 import type { Native } from "./contract"
 import { keyOf } from "./contract"
-import { macKeyCode } from "../keymap"
+import { macKeyCode } from "../mac-keys"
 
 const FRAMEWORKS = "/System/Library/Frameworks"
 const HITOOLBOX = `${FRAMEWORKS}/Carbon.framework/Frameworks/HIToolbox.framework/HIToolbox`

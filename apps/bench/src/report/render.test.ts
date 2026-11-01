@@ -218,6 +218,40 @@ describe("renderReport", () => {
     expect(html).toContain("pass@1")
   })
 
+  it("shows latency per track with per-tool percentiles", () => {
+    const rows = [
+      makeRow({
+        trial_id: "lat-1",
+        ts: "2026-10-03T10:00:00Z",
+        commit: "cccc3333",
+        task: "env-001",
+        track: "environment",
+        machine: "m1",
+        contender: "kiko-remote",
+        model: "model-a",
+        condition: "foreground",
+        outcome: "done",
+        pass: true,
+        ttft_ms: 120,
+        model_p50_ms: 900,
+        model_p95_ms: 1500,
+        tool_p50_ms: 40,
+        tool_p95_ms: 80,
+        tool_transport_ms: 12,
+        tool_op_ms: 28,
+        tool_queue_ms: 3,
+        tool_latency_by_name: JSON.stringify({ computer_shell: { calls: 2, p50: 40, p95: 80 } }),
+        images_bytes: 2048,
+      }),
+    ]
+    const latency = renderReport(rows, OPTIONS)
+    expect(latency).toContain("<h2>Latency</h2>")
+    expect(latency).toContain("<h3>environment</h3>")
+    expect(latency).toContain("TTFT p50 / p95 ms")
+    expect(latency).toContain("computer_shell")
+    expect(latency).toContain("n=1")
+  })
+
   it("makes no external requests", () => {
     expect(html).not.toContain("http://")
     expect(html).not.toContain("https://")
@@ -240,5 +274,35 @@ describe("renderReport", () => {
     const empty = renderReport([], { generatedAt: "2026-10-31T12:00:00Z", sources: [] })
     expect(empty.startsWith("<!doctype html>")).toBe(true)
     expect(empty).not.toContain("<svg")
+  })
+
+  it("counts a trial that measured nothing as unmeasured instead of zero", () => {
+    const blind = renderReport(
+      [
+        makeRow({
+          trial_id: "blind",
+          ts: "2026-10-03T10:00:00Z",
+          commit: "cccc3333",
+          task: "open-app",
+          track: "desktop",
+          machine: "m1",
+          contender: "cua",
+          model: "model-a",
+          condition: "background",
+          rep: 1,
+          outcome: "ok",
+          pass: false,
+          focus_steals: "unmeasured",
+          pointer_moves: "unmeasured",
+          keys_swallowed: "unmeasured",
+          windows_raised: "unmeasured",
+        }),
+      ],
+      OPTIONS,
+    )
+    expect(blind).toContain('<th class="num">Unmeasured trials</th>')
+    expect(blind).toContain(
+      '<th>cua</th><td class="num">1</td><td class="num">0</td><td class="num">0</td><td class="num">0</td><td class="num">0</td><td class="num">1</td><td class="num">0.0</td>',
+    )
   })
 })

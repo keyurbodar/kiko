@@ -102,7 +102,9 @@ export type PcAttachment = {
 
 type CallTarget = { ws: WebSocket; saved: PcAttachment; hello: Hello }
 
-export type CallOutcome = { ok: true; value: unknown } | { ok: false; code: FailCode; message: string }
+export type CallOutcome =
+  | { ok: true; value: unknown; opMs?: number }
+  | { ok: false; code: FailCode; message: string; opMs?: number }
 
 export type TerminalAttachOutcome =
   | { ok: true; value: `term:${string}` }
@@ -146,9 +148,18 @@ function attachmentOf(ws: WebSocket): PcAttachment | null {
 }
 
 function claimsDesk(op: Op, args: unknown): boolean {
+  if (op === "browser_steps") return (args as { mode?: unknown }).mode === "foreground"
   if (op !== "driver") return false
   const call = args as { params?: { mode?: unknown } }
   return call.params?.mode === "foreground"
+}
+
+function capFor(op: Op): "terminal" | "shell" | "files" | "browser" | "desktop" {
+  if (TERMINAL_OPS.has(op)) return "terminal"
+  if (op === "shell") return "shell"
+  if (op === "read" || op === "write") return "files"
+  if (op === "browser_steps") return "browser"
+  return "desktop"
 }
 
 export function pcSocketId(ws: WebSocket): string | null {
@@ -558,9 +569,12 @@ export class ComputerHub {
   }
 
   private result(frame: Extract<FromDaemon, { t: "result" }>): void {
+    const opMs = frame.opMs
     this.settle(
       frame.id,
-      frame.ok ? { ok: true, value: frame.value } : { ok: false, code: frame.error.code, message: frame.error.message },
+      frame.ok
+        ? { ok: true, value: frame.value, ...(opMs !== undefined ? { opMs } : {}) }
+        : { ok: false, code: frame.error.code, message: frame.error.message, ...(opMs !== undefined ? { opMs } : {}) },
     )
   }
 
@@ -614,13 +628,7 @@ export class ComputerHub {
     if (!this.online(pcId)) target = await this.wakeAndTarget(pcId, deadlineMs)
     if (!target) return this.offline(row)
     const { ws, saved, hello } = target
-    const cap = TERMINAL_OPS.has(op)
-      ? "terminal"
-      : op === "shell"
-        ? "shell"
-        : op === "read" || op === "write"
-          ? "files"
-          : "desktop"
+    const cap = capFor(op)
     if (op === "driver") {
       if (!hello.caps.background)
         return { ok: false, code: "unsupported", message: `${row.name} does not allow background work` }

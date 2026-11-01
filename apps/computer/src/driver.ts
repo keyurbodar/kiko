@@ -91,11 +91,6 @@ function permitted(grant: Grant): boolean {
   return grant === "granted" || grant === "not_needed"
 }
 
-function endpoint(path: string): string {
-  if (process.platform !== "win32" || path.startsWith("\\\\")) return path
-  return `\\\\.\\pipe\\${path}`
-}
-
 function allGranted(status: Status | null): boolean {
   if (!status) return false
   return (
@@ -166,7 +161,7 @@ class Client implements Driver {
 
   private open(): void {
     if (this.closed || this.socket) return
-    const socket = connect(endpoint(this.options.path))
+    const socket = connect(this.options.path)
     this.socket = socket
     this.buffer = ""
     socket.setEncoding("utf8")

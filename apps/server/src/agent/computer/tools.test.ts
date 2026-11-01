@@ -44,7 +44,16 @@ function summary(extra: Partial<ComputerSummary> = {}): ComputerSummary {
     name: "Mac",
     os: "macos",
     online: true,
-    caps: { shell: true, files: true, desktop: true, live: true, input: true, background: true, browser: true },
+    caps: {
+      shell: true,
+      files: true,
+      desktop: true,
+      live: true,
+      input: true,
+      background: true,
+      browser: true,
+      steps: true,
+    },
     holder: "agent",
     displays: [],
     background: true,
@@ -53,17 +62,29 @@ function summary(extra: Partial<ComputerSummary> = {}): ComputerSummary {
   }
 }
 
-function harness(pc: ComputerSummary, answer: Answer, desktop: readonly DesktopTool[] = DESKTOP, sees = false) {
+function harness(
+  pc: ComputerSummary,
+  answer: Answer,
+  desktop: readonly DesktopTool[] = DESKTOP,
+  sees = false,
+  steps?: (args: { steps: readonly { ref: number; action: string }[] }) => ComputerCallOutcome,
+) {
   const calls: DriverCall[] = []
+  const batches: { steps: readonly { ref: number; action: string }[] }[] = []
   const port: ComputerPort = {
     list: async () => [pc],
     desktopTools: async () => desktop,
     resolve: async () => pc,
     call: async (_pcId, op, args) => {
-      if (op !== "driver") throw new Error(`unexpected op ${op}`)
-      const call = args as DriverCall
-      calls.push(call)
-      return answer(call)
+      if (op === "driver") {
+        const call = args as DriverCall
+        calls.push(call)
+        return answer(call)
+      }
+      if (op !== "browser_steps") throw new Error(`unexpected op ${op}`)
+      const batch = args as { steps: readonly { ref: number; action: string }[] }
+      batches.push(batch)
+      return steps ? steps(batch) : { ok: true, value: { done: batch.steps.length, page: PAGE } }
     },
     link: async () => ({ ok: true }),
   }
@@ -73,7 +94,7 @@ function harness(pc: ComputerSummary, answer: Answer, desktop: readonly DesktopT
     if (!found) throw new Error(`no ${name} tool`)
     return found
   }
-  return { calls, tools, tool }
+  return { batches, calls, tools, tool }
 }
 
 const api = {
@@ -296,19 +317,91 @@ describe("browser_read", () => {
 })
 
 describe("browser_act", () => {
-  it("acts on a tab by ref, then reads it again", async () => {
-    const { tool, calls } = harness(summary(), (call) =>
-      call.method === "browser.act" ? { ok: true, value: { route: "dom" } } : { ok: true, value: PAGE },
+  const steps = [
+    { action: "type", ref: 3, text: "ada" },
+    { action: "click", ref: 2 },
+  ]
+
+  it("runs every step in one call and reads the page after them", async () => {
+    const { tool, batches, calls } = harness(summary(), () => ({ ok: true, value: {} }))
+
+    const out = await tool("browser_act").execute({ tab: "t-1", steps: [...steps] }, api, context)
+
+    expect(batches).toEqual([
+      {
+        tab: "t-1",
+        steps: [...steps],
+        read: true,
+        image: false,
+        max_width: 960,
+        mode: "background",
+      },
+    ])
+    expect(calls).toEqual([])
+    expect(out.isError).toBe(false)
+    expect(textOf(out)).toContain("did 2 of 2 steps on Inbox — https://mail.example/ (tab t-1, read in the background)")
+    expect(textOf(out)).toContain('[2] link "Compose"')
+  })
+
+  it("says which step failed and still shows the page", async () => {
+    const { tool } = harness(
+      summary(),
+      () => ({ ok: true, value: PAGE }),
+      DESKTOP,
+      false,
+      () => ({
+        ok: true,
+        value: {
+          done: 1,
+          failed: { index: 1, code: "stale", error: "that ref is stale; read the page again" },
+          page: PAGE,
+        },
+      }),
     )
 
-    const out = await tool("browser_act").execute({ tab: "t-1", steps: [{ action: "click", ref: 2 }] }, api, context)
+    const out = await tool("browser_act").execute({ tab: "t-1", steps: [...steps] }, api, context)
 
-    expect(calls[0]).toEqual({
-      method: "browser.act",
-      params: { tab: "t-1", ref: 2, action: "click", mode: "background" },
-    })
-    expect(calls.at(-1)?.method).toBe("browser.read")
-    expect(textOf(out)).toContain("did 1 of 1 steps on Inbox — https://mail.example/ (tab t-1, read in the background)")
+    expect(out.isError).toBe(true)
+    expect(textOf(out)).toContain("did 1 of 2 steps on Inbox")
+    expect(textOf(out)).toContain("step 2 failed: that id is from an old view; read the page again")
+  })
+
+  it("stops and tells the model to wait when the owner takes over", async () => {
+    const { tool } = harness(
+      summary(),
+      () => ({ ok: true, value: PAGE }),
+      DESKTOP,
+      false,
+      () => ({ ok: true, value: { done: 1, stoppedBy: "owner" } }),
+    )
+
+    const out = await tool("browser_act").execute({ tab: "t-1", steps: [...steps] }, api, context)
+
+    expect(out.isError).toBe(true)
+    expect(textOf(out)).toContain("did 1 of 2 steps on Mac, then the owner took control of it")
+  })
+
+  it("refuses a ref that is not a whole number without doing anything", async () => {
+    const { tool, batches } = harness(summary(), () => ({ ok: true, value: {} }))
+
+    const out = await tool("browser_act").execute({ tab: "t-1", steps: [{ action: "click", ref: 1.5 }] }, api, context)
+
+    expect(out.isError).toBe(true)
+    expect(textOf(out)).toContain("step 1: ref must be a whole number from browser_read. nothing was done.")
+    expect(batches).toEqual([])
+  })
+
+  it("asks the owner to update the app when it cannot run steps", async () => {
+    const { tool, batches } = harness({ ...summary(), caps: { ...summary().caps, steps: undefined } }, () => ({
+      ok: true,
+      value: {},
+    }))
+
+    const out = await tool("browser_act").execute({ tab: "t-1", steps: [...steps] }, api, context)
+
+    expect(out.isError).toBe(true)
+    expect(textOf(out)).toContain("runs a kiko app that cannot run browser steps in one call; update the app on it.")
+    expect(batches).toEqual([])
   })
 })
 

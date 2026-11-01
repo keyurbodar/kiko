@@ -71,7 +71,7 @@ export function failureMessage(result: AddDiagnosis, target: string): string {
   }
 }
 
-export function daemonLogTailCommand(remoteOs: "macos" | "linux" | "windows" | undefined): string {
+export function daemonLogTailCommand(remoteOs: "macos" | "linux" | undefined): string {
   if (remoteOs === "macos")
     return 'tail -n 20 "$HOME/Library/Application Support/kiko-computer/daemon.log" 2>/dev/null; exit 0'
   return 'tail -n 20 "${XDG_CONFIG_HOME:-$HOME/.config}/kiko-computer/daemon.log" 2>/dev/null; exit 0'

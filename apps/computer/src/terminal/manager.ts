@@ -162,8 +162,7 @@ export class TerminalManager {
       pressed += bytes
     }
     const matcher = args.until === undefined ? null : matcherFor(args.until, args.regex === true)
-    if (text) session.pty.write(text)
-    if (pressed) session.pty.write(pressed)
+    session.pty.write(text + pressed)
     this.scheduleIdle(session)
     const bytes = Buffer.byteLength(text + pressed)
     if (!matcher) return Promise.resolve({ id: session.id, bytes })

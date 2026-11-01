@@ -32,12 +32,22 @@ describe("kiko tool schemas", () => {
     expect(fromServer).toEqual([...KIKO_TOOLS])
   })
 
-  it("offers the shell and file tools without a driver", async () => {
+  it("offers the shell, file and browser tools without a driver", async () => {
     const machine = await createMachine("test-kiko")
     machines.push(machine)
     const contender = kikoContender()
     await contender.start(machine, "foreground")
-    expect(contender.tools().map((tool) => tool.name)).toEqual(["computer_shell", "computer_read", "computer_write"])
+    expect(contender.tools().map((tool) => tool.name)).toEqual([
+      "computer_shell",
+      "computer_read",
+      "computer_write",
+      "browser_tabs",
+      "browser_read",
+      "browser_act",
+      "browser_open",
+      "browser_close",
+      "browser_show",
+    ])
     await contender.stop()
   })
 
@@ -103,6 +113,12 @@ describe("kiko tool schemas", () => {
       "computer_shell",
       "computer_read",
       "computer_write",
+      "browser_tabs",
+      "browser_read",
+      "browser_act",
+      "browser_open",
+      "browser_close",
+      "browser_show",
       "desktop_list_windows",
       "desktop_get_window_state",
     ])
@@ -127,6 +143,53 @@ describe("kiko tool schemas", () => {
 
     const called = calls.find((call) => call.method === "desktop.call" && call.params.name === "get_window_state")
     expect(called).toMatchObject({ params: { name: "get_window_state", args: { window_id: 7 } } })
+    await contender.stop()
+  })
+
+  it("runs a browser batch through the driver and reads the page after it", async () => {
+    const machine = await createMachine("test-kiko")
+    machines.push(machine)
+    const calls: DriverCall[] = []
+    const page = {
+      tab: {
+        id: "t-1",
+        browser: "agent-browser",
+        window_id: 0,
+        index: 0,
+        active: true,
+        title: "Inbox",
+        url: "https://mail.example/",
+      },
+      nodes: [],
+      outline: '[2] link "Compose"',
+    }
+    const driver: Driver = {
+      call: async (call) => {
+        calls.push(call)
+        return call.method === "browser.read" ? page : {}
+      },
+      state: () => null,
+      background: () => true,
+      browser: () => true,
+      close: () => undefined,
+    }
+    const contender = kikoContender({ driver })
+    await contender.start(machine, "foreground")
+    const out = await contender.call(
+      "browser_act",
+      {
+        tab: "t-1",
+        steps: [
+          { action: "type", ref: 3, text: "ada" },
+          { action: "click", ref: 2 },
+        ],
+      },
+      new AbortController().signal,
+    )
+    expect(out.isError).toBe(false)
+    expect(out.text).toContain("did 2 of 2 steps on Inbox — https://mail.example/ (tab t-1, read in the background)")
+    expect(calls.filter((call) => call.method === "browser.act")).toHaveLength(2)
+    expect(calls.at(-1)?.method).toBe("browser.read")
     await contender.stop()
   })
 })

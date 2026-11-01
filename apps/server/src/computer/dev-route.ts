@@ -4,11 +4,12 @@ import { getSessionUser } from "../auth/auth"
 import type { Env } from "../index"
 import { DEV, devRequest } from "../lib/dev-guard"
 import { ownerStub } from "../lib/names"
+import { mintPairCode } from "./pairing"
 
 const PATH = "/api/dev/user/computer"
 
 const OPS = Object.keys(Calls) as Op[]
-const ACTIONS = ["call", "link", "age", "list", "holder"] as const
+const ACTIONS = ["call", "link", "age", "list", "holder", "pair", "desktop"] as const
 type Action = (typeof ACTIONS)[number]
 
 function actionOf(value: unknown): Action | null {
@@ -23,8 +24,16 @@ function bad(message: string): Response {
   return Response.json({ error: message }, { status: 400 })
 }
 
-async function run(body: Record<string, unknown>, action: Action, stub: ReturnType<typeof ownerStub>) {
+async function run(
+  body: Record<string, unknown>,
+  action: Action,
+  stub: ReturnType<typeof ownerStub>,
+  env: Env,
+  userId: string,
+) {
   const pcId = typeof body.pcId === "string" ? body.pcId : ""
+  if (action === "pair") return Response.json(await mintPairCode(env.CREDENTIALS_KEK, userId))
+  if (action === "desktop") return Response.json(await stub.userCall("computerDesktop", pcId ? [pcId] : []))
   if (!pcId && action !== "list") return bad("pcId is required")
   if (action === "list") return Response.json(await stub.userCall("computerList", []))
   if (action === "holder") return Response.json({ holder: await stub.userCall("computerHolder", [pcId]) })
@@ -57,5 +66,5 @@ export async function devComputerRoute(request: Request, env: Env): Promise<Resp
   const body = (await request.json().catch(() => null)) as Record<string, unknown> | null
   const action = actionOf(body?.action)
   if (!action) return bad(`action is one of ${ACTIONS.join(", ")}`)
-  return run(body ?? {}, action, ownerStub(env.OWNER, user.id))
+  return run(body ?? {}, action, ownerStub(env.OWNER, user.id), env, user.id)
 }

@@ -1,7 +1,7 @@
 import { createMemo, For, Show } from "solid-js"
 import { IdentityAvatar } from "../../lib/IdentityAvatar"
 import type { HelperState } from "./helper-model"
-import { flake } from "./snowflake"
+import { flake } from "./flake"
 import "./helpers.css"
 
 const ARMS = [0, 60, 120, 180, 240, 300]

@@ -35,8 +35,6 @@ export function configDir(): string {
   const override = process.env.KIKO_COMPUTER_DIR
   if (override) return override
   if (process.platform === "darwin") return join(homeDir(), "Library", "Application Support", "kiko-computer")
-  if (process.platform === "win32")
-    return join(process.env.APPDATA ?? join(homeDir(), "AppData", "Roaming"), "kiko-computer")
   return join(process.env.XDG_CONFIG_HOME ?? join(homeDir(), ".config"), "kiko-computer")
 }
 
@@ -56,7 +54,6 @@ function appDir(): string {
   const override = process.env.KIKO_APP_DIR
   if (override) return override
   if (process.platform === "darwin") return join(homeDir(), "Library", "Application Support", "kiko")
-  if (process.platform === "win32") return join(process.env.APPDATA ?? join(homeDir(), "AppData", "Roaming"), "kiko")
   return join(process.env.XDG_CONFIG_HOME ?? join(homeDir(), ".config"), "kiko")
 }
 

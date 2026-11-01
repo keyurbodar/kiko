@@ -39,10 +39,8 @@ jobs:
           sudo apt-get install -y --no-install-recommends ffmpeg weston xwayland x11-utils x11-xserver-utils xclip xdotool xvfb
       - name: Install Chromium
         run: node apps/server/node_modules/playwright/cli.js install --with-deps chromium
-      - name: Give the worker an assets directory
-        run: |
-          mkdir -p apps/web-solid/dist
-          echo '<!doctype html><title>kiko</title>' > apps/web-solid/dist/index.html
+      - name: Build the web app
+        run: bun run build
       - name: Paste a Unicode string and pick a display
         run: |
           set -euo pipefail
@@ -84,10 +82,8 @@ jobs:
         run: |
           command -v ffmpeg >/dev/null || brew install ffmpeg
           node apps/server/node_modules/playwright/cli.js install chromium
-      - name: Give the worker an assets directory
-        run: |
-          mkdir -p apps/web-solid/dist
-          echo '<!doctype html><title>kiko</title>' > apps/web-solid/dist/index.html
+      - name: Build the web app
+        run: bun run build
       - name: Grant input and screen capture to the daemon
         run: |
           set -euo pipefail

@@ -3,7 +3,6 @@ import { platform, type Screen } from "./capture"
 import type { Native } from "./native/contract"
 import { linuxNative } from "./native/linux"
 import { macNative } from "./native/macos"
-import { windowsNative } from "./native/windows"
 import { place } from "./place"
 
 const BUTTONS = new Map<number, number>([
@@ -22,10 +21,7 @@ export type Injected = {
 export type Gate = { holder(): Holder; allowed(): boolean }
 
 function createNative(): Native | null {
-  const name = platform()
-  if (name === "macos") return macNative()
-  if (name === "windows") return windowsNative()
-  return linuxNative()
+  return platform() === "macos" ? macNative() : linuxNative()
 }
 
 export function createInput(area: () => Screen | null, gate: Gate, native = createNative()): Injected | null {
