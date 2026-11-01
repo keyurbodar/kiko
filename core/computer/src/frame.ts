@@ -92,3 +92,39 @@ export function decodeBinary(bytes: Uint8Array): BinaryMessage | null {
   if (typeof parsed !== "object" || parsed === null) return null
   return { header: parsed as Record<string, unknown>, data: parts.data.subarray(length) }
 }
+
+export type BrowserFrameHeader = {
+  id: string
+  tab: string
+  seq: number
+  width: number
+  height: number
+  viewportWidth: number
+  viewportHeight: number
+}
+
+export function encodeBrowserFrame(header: BrowserFrameHeader, image: Uint8Array): Uint8Array<ArrayBuffer> {
+  return encodeBinary({ t: "browserFrame", ...header }, image)
+}
+
+export function decodeBrowserFrame(bytes: Uint8Array): { header: BrowserFrameHeader; image: Uint8Array } | null {
+  const message = decodeBinary(bytes)
+  if (!message || message.header.t !== "browserFrame") return null
+  const { id, tab, seq, width, height, viewportWidth, viewportHeight } = message.header
+  if (typeof id !== "string" || typeof tab !== "string" || id.length === 0) return null
+  const numbers = [seq, width, height, viewportWidth, viewportHeight]
+  if (!numbers.every((value) => typeof value === "number" && Number.isFinite(value))) return null
+  if (message.data.byteLength === 0) return null
+  return {
+    header: {
+      id,
+      tab,
+      seq: seq as number,
+      width: width as number,
+      height: height as number,
+      viewportWidth: viewportWidth as number,
+      viewportHeight: viewportHeight as number,
+    },
+    image: message.data,
+  }
+}

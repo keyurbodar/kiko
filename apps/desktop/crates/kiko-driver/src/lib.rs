@@ -25,6 +25,7 @@ pub trait Browser: Send {
     fn read(&mut self, params: &BrowserReadParams) -> Result<Page>;
     fn act(&mut self, params: &BrowserActParams) -> Result<ActResult>;
     fn eval(&mut self, params: &BrowserEvalParams) -> Result<serde_json::Value>;
+    fn stream(&mut self, params: &TabParams) -> Result<String>;
 }
 
 pub struct Unavailable;
@@ -52,6 +53,9 @@ impl Browser for Unavailable {
         Err(unsupported())
     }
     fn eval(&mut self, _: &BrowserEvalParams) -> Result<serde_json::Value> {
+        Err(unsupported())
+    }
+    fn stream(&mut self, _: &TabParams) -> Result<String> {
         Err(unsupported())
     }
 }

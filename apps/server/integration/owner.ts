@@ -15,7 +15,12 @@ import * as Socket from "effect/socket/Socket"
 
 export type Counters = Record<string, number>
 export type StatementRow = { kind: string; sql: string; statements: number; rowsRead: number; rowsWritten: number }
-export type Meter = { counters: Counters; billingVersion?: number; statements?: StatementRow[] }
+export type Meter = {
+  counters: Counters
+  billingVersion?: number
+  statements?: StatementRow[]
+  billedWrites?: { total: number }
+}
 
 type Followed<A> = {
   readonly items: SubscriptionRef.SubscriptionRef<readonly A[]>

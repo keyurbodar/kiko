@@ -322,6 +322,28 @@ export type ComputerSummary = typeof ComputerSummary.Type
 export const TerminalStatus = Schema.Literals(["running", "exited"])
 export type TerminalStatus = typeof TerminalStatus.Type
 
+export const BrowserTab = Schema.Struct({
+  id: Id,
+  browser: Schema.String,
+  title: Schema.String,
+  url: Schema.String,
+  active: Schema.Boolean,
+})
+export type BrowserTab = typeof BrowserTab.Type
+
+export const BrowserEvent = Schema.Union([
+  Schema.Struct({
+    type: Schema.Literal("start"),
+    tab: Id,
+    width: Count,
+    height: Count,
+    viewportWidth: Count,
+    viewportHeight: Count,
+  }),
+  Schema.Struct({ type: Schema.Literal("error"), message: Schema.String }),
+  Schema.Struct({ type: Schema.Literal("end") }),
+])
+export type BrowserEvent = typeof BrowserEvent.Type
 export const TerminalSummary = Schema.Struct({
   id: Id,
   name: Schema.String,

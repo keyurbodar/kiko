@@ -255,6 +255,28 @@ export class ComputerWiring {
     },
   )
 
+  readonly browserTabs = Effect.fn("Browser.tabs")({ self: this }, function* (pcId: string) {
+    const row = yield* this.row(pcId)
+    const out = yield* Effect.promise(() => this.hub.call(row.id, "browser_tabs", {}))
+    if (!out.ok) return yield* new RefusedError({ reason: out.code, message: out.message })
+    return (out.value as Value<"browser_tabs">).tabs.map((tab) => ({
+      id: tab.id,
+      browser: tab.browser,
+      title: tab.title,
+      url: tab.url,
+      active: tab.active,
+    }))
+  })
+
+  readonly browserInput = Effect.fn("Browser.input")(
+    { self: this },
+    function* (socket: WebSocket, pcId: string, tab: string, events: readonly ComputerInput[]) {
+      const row = yield* this.row(pcId)
+      const out = this.hub.browserInput(socket, row.id, tab, events)
+      if (!out.ok) return yield* new RefusedError({ reason: out.code, message: out.message })
+    },
+  )
+
   readonly listForTab = Effect.fn("Computers.list")({ self: this }, function (socket: WebSocket) {
     return Effect.sync(() => this.hub.summaries(socket))
   })

@@ -119,6 +119,9 @@ export const HANDLERS: Handlers = {
   "terminal.ack": ({ pcId, terminalId, bytes }, { host, ws }) =>
     host.user().pc.terminalAck(ws, pcId, terminalId, bytes),
 
+  "browser.tabs": ({ pcId }, { host }) => host.user().pc.browserTabs(pcId),
+  "browser.input": ({ pcId, tab, events }, { host, ws }) => host.user().pc.browserInput(ws, pcId, tab, events),
+
   "recipes.list": (_, { host }) => host.user().recipesList(),
   "recipes.install": (input, { host }) => host.user().recipesInstall(input),
   "recipes.uninstall": ({ installId }, { host }) => host.user().recipesUninstall(installId),

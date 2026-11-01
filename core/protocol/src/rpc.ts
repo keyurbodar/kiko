@@ -31,6 +31,7 @@ import { ThinkingLevel } from "./catalog"
 import {
   AgentOp,
   BrowserLinkResult,
+  BrowserTab,
   Chat,
   ChatOp,
   ComposioResult,
@@ -348,6 +349,12 @@ export const OwnerRpcs = RpcGroup.make(
   }),
   Rpc.make("terminal.ack", {
     payload: { pcId: ComputerId, terminalId: Id, bytes: Count },
+    error: Refusable,
+  }),
+
+  Rpc.make("browser.tabs", { payload: { pcId: ComputerId }, success: Schema.Array(BrowserTab), error: Refusable }),
+  Rpc.make("browser.input", {
+    payload: { pcId: ComputerId, tab: Id, events: Schema.Array(ComputerInput) },
     error: Refusable,
   }),
 
