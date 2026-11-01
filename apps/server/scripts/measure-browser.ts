@@ -125,8 +125,10 @@ html,body{margin:0;height:100%;background:#000;overflow:hidden;font:32px sans-se
 <input id="field" autocomplete="off" spellcheck="false">
 <div id="flash"></div>
 <script>
+window.__clicks = 0
 const flash = document.getElementById("flash")
 addEventListener("pointerdown", (event) => {
+  window.__clicks += 1
   flash.style.left = event.clientX - 60 + "px"
   flash.style.top = event.clientY - 60 + "px"
   flash.style.display = "block"
@@ -162,36 +164,9 @@ const RECORD_FRAMES = () => {
   )
 }
 
-const MEASURE_CLICK = async (timeoutMs: number) => {
+const MEASURE_STATE = () => {
   const store = window as unknown as { __frames: number[]; __click: number }
-  const view = document.querySelector('[data-component="computer-browser"]')
-  const canvas = (view?.querySelector("canvas") ?? null) as HTMLCanvasElement | null
-  const context = canvas?.getContext("2d", { willReadFrequently: true }) ?? null
-  if (!canvas || !context) return null
-  const click = store.__click
-  const end = performance.now() + timeoutMs
-  let painted = 0
-  while (performance.now() < end) {
-    const size = Math.max(8, Math.round(Math.min(canvas.width, canvas.height) / 6))
-    const x = Math.max(0, Math.round(canvas.width / 2 - size / 2))
-    const y = Math.max(0, Math.round(canvas.height / 2 - size / 2))
-    const block = context.getImageData(x, y, size, size).data
-    let sum = 0
-    for (let index = 0; index < block.length; index += 4) sum += block[index] ?? 0
-    if (sum / (block.length / 4) > 190) {
-      painted = performance.now()
-      break
-    }
-    await new Promise((resolve) => setTimeout(resolve, 8))
-  }
-  if (!painted) return { latency: null, frame: null, click, frames: store.__frames.length }
-  const frames = store.__frames.filter((at) => at >= click && at <= painted)
-  return {
-    latency: Math.round(painted - click),
-    frame: frames.length ? Math.round(frames.at(-1)! - click) : null,
-    click,
-    frames: store.__frames.length,
-  }
+  return { click: store.__click, frames: [...store.__frames] }
 }
 
 function percentile(values: readonly number[], p: number): number {
@@ -227,7 +202,11 @@ async function chromeWindows(): Promise<number> {
   return found ? found.split("\n").filter(Boolean).length : 0
 }
 
-type Meter = { counters: Record<string, number>; billedWrites?: { total: number } }
+type Meter = {
+  counters: Record<string, number>
+  billedWrites?: { total: number }
+  statements?: { sql: string; rowsWritten: number }[]
+}
 
 function billableWrites(meter: Meter): number {
   if (meter.billedWrites) return meter.billedWrites.total
@@ -242,12 +221,27 @@ function billableWrites(meter: Meter): number {
   )
 }
 
-async function meter(token: string): Promise<number> {
+type Reading = { total: number; statements: Record<string, number> }
+
+async function meter(token: string): Promise<Reading> {
   const answer = await fetch(`http://127.0.0.1:${SERVER_PORT}/api/dev/stats`, {
     headers: { authorization: `Bearer ${token}` },
   })
   if (!answer.ok) throw new Error(`the stats endpoint answered ${answer.status}`)
-  return billableWrites((await answer.json()) as Meter)
+  const body = (await answer.json()) as Meter
+  const statements: Record<string, number> = {}
+  for (const row of body.statements ?? [])
+    if (row.rowsWritten > 0) statements[row.sql] = (statements[row.sql] ?? 0) + row.rowsWritten
+  return { total: billableWrites(body), statements }
+}
+
+function wrote(from: Reading, to: Reading): { rows: number; statements: Record<string, number> } {
+  const statements: Record<string, number> = {}
+  for (const [sql, rows] of Object.entries(to.statements)) {
+    const added = rows - (from.statements[sql] ?? 0)
+    if (added > 0) statements[sql.slice(0, 200)] = added
+  }
+  return { rows: to.total - from.total, statements }
 }
 
 async function main(): Promise<void> {
@@ -436,23 +430,27 @@ async function main(): Promise<void> {
     if (!stage) throw new Error("the browser stage has no box")
     const x = stage.x + stage.width * 0.5
     const y = stage.y + stage.height * 0.5
-    const clicks: number[] = []
     const frames: number[] = []
+    const received: number[] = []
     const missed: unknown[] = []
     for (let round = 0; round < 5; round++) {
       await page.evaluate(() => {
-        ;(window as unknown as { __click: number }).__click = 0
+        const store = window as unknown as { __click: number; __frames: number[] }
+        store.__click = 0
+        store.__frames.length = 0
       })
-      await wait(900)
+      await wait(700)
       await page.mouse.click(x, y)
-      const seen = (await page.evaluate(MEASURE_CLICK, 4_000)) as {
-        latency: number | null
-        frame: number | null
-      }
-      if (seen.latency !== null) clicks.push(seen.latency)
-      if (seen.frame !== null) frames.push(seen.frame)
-      if (seen.latency === null) missed.push(seen)
-      await wait(900)
+      await wait(700)
+      const sample = (await page.evaluate(MEASURE_STATE)) as { click: number; frames: number[] }
+      const painted = sample.frames.find((at) => at >= sample.click)
+      if (sample.click > 0 && painted !== undefined) frames.push(Math.round(painted - sample.click))
+      else missed.push(sample)
+      const landed = (await driver?.call("browser.eval", {
+        tab: tab.id,
+        expression: "window.__clicks||0",
+      })) as number
+      received.push(Number(landed))
     }
 
     const typeAt = await page.locator('[data-part="stage"]').boundingBox()
@@ -480,7 +478,7 @@ async function main(): Promise<void> {
       tab: tab.id,
       openMs,
       clickToFrame: summary(frames),
-      clickToPaint: summary(clicks),
+      received,
       missed,
       typing: { typed, ok: typed === "hi" },
       focus: { before: frontBefore, after: frontAfter, chrome, raised: frontBefore !== frontAfter || chrome > 0 },
@@ -489,9 +487,9 @@ async function main(): Promise<void> {
         streamed,
         taken,
         after,
-        attachAndFrames: streamed - before,
-        takeover: taken - streamed,
-        inputAndFrames: after - taken,
+        attachAndFrames: wrote(before, streamed),
+        takeover: wrote(streamed, taken),
+        inputAndFrames: wrote(taken, after),
       },
     }
     const out = process.argv.includes("--out") ? process.argv[process.argv.indexOf("--out") + 1] : undefined
