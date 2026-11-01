@@ -220,6 +220,7 @@ jobs:
         run: |
           set -euo pipefail
           if [ "${{ matrix.env }}" = "nixos-25.05" ]; then
+            if [ ! -f .nix-vm/closure.nar ]; then bash apps/bench/scripts/envs/nixos-image.sh build .nix-vm; fi
             echo "path=$(bash apps/bench/scripts/envs/nixos-image.sh restore .nix-vm)" >> "$GITHUB_OUTPUT"
           else
             test -f .omarchy-image/omarchy.qcow2
