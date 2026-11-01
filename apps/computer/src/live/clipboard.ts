@@ -115,7 +115,6 @@ export function createClipboard(deps: ClipboardDeps = {}): Clipboard {
   }
 
   const readOs = async (): Promise<string | null> => {
-    if (name === "windows") return null
     for (const command of OS_READ[name]) {
       const result = await run([...command])
       if (result.code === 0) return result.out
@@ -124,7 +123,6 @@ export function createClipboard(deps: ClipboardDeps = {}): Clipboard {
   }
 
   const writeOs = async (text: string): Promise<boolean> => {
-    if (name === "windows") return false
     for (const command of OS_WRITE[name]) {
       if (name === "linux") {
         if (await keep(spawn, command, text)) return true
