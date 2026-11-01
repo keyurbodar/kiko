@@ -60,7 +60,6 @@ function pointerHandlers(target: InputTarget) {
     },
     down(event: PointerEvent) {
       event.preventDefault()
-      console.info(`kiko stage probe: down at ${event.clientX},${event.clientY}`)
       stage.setPointerCapture(event.pointerId)
       sink.focus({ preventScroll: true })
       last = pointOf(stage, event)
@@ -147,7 +146,6 @@ function keyHandlers(target: InputTarget) {
     paste(event: ClipboardEvent) {
       event.preventDefault()
       const text = event.clipboardData?.getData("text/plain") ?? ""
-      console.info(`kiko paste probe: the sink got ${text.length} characters`)
       if (!text) return
       send([{ k: "paste", s: text, code: "KeyV", mods: target.pasteMods?.() ?? 0 }])
     },

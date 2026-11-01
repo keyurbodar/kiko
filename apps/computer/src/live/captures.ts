@@ -38,7 +38,6 @@ class H264 {
   private launchedAt = 0
   private child: Child | null = null
   private stopped = false
-  private logged = false
   private pending: ReturnType<typeof setTimeout> | null = null
 
   constructor(options: H264Options) {
@@ -66,10 +65,6 @@ class H264 {
   }
 
   private emit(chunk: Uint8Array): void {
-    if (!this.logged) {
-      this.logged = true
-      console.warn(`h264 probe: a chunk of ${chunk.byteLength} bytes`)
-    }
     const timestamp = Math.round((performance.now() - this.epoch) * (CLOCK / 1000)) >>> 0
     for (const unit of this.parser.push(chunk)) this.options.handlers.unit(unit, timestamp)
   }
@@ -77,11 +72,9 @@ class H264 {
   private launch(): void {
     const args = this.plans[this.plan]
     if (this.stopped || !args) return
-    console.warn(`${new Date().toISOString()} h264 probe: ${args.join(" ")}`)
     this.launchedAt = performance.now()
     const child: Child = Bun.spawn(args, { stdin: "ignore", stdout: "pipe", stderr: "pipe" })
     this.child = child
-    describe("h264", child)
     void this.pump(child)
   }
 
@@ -93,10 +86,7 @@ class H264 {
       if (this.stopped || proc !== this.child) return
       this.emit(value)
     }
-    let tail = ""
-    try {
-      tail = await new Response(proc.stderr).text()
-    } catch {}
+    const tail = await new Response(proc.stderr).text().catch(() => "")
     const code = await proc.exited
     if (this.stopped || proc !== this.child) return
     this.child = null
@@ -169,7 +159,6 @@ class Mjpeg {
   private plan = 0
   private child: Child | null = null
   private stopped = false
-  private logged = false
   private pending: Uint8Array = new Uint8Array(0)
 
   constructor(options: MjpegOptions) {
@@ -187,7 +176,6 @@ class Mjpeg {
   }
 
   stop(): void {
-    console.warn("mjpeg probe: stop was called")
     this.stopped = true
     this.child?.kill()
     this.child = null
@@ -196,11 +184,9 @@ class Mjpeg {
   private launch(): void {
     const args = this.plans[this.plan]
     if (this.stopped || !args) return
-    console.warn(`${new Date().toISOString()} mjpeg probe: ${args.join(" ")}`)
     this.pending = new Uint8Array(0)
     const child: Child = Bun.spawn(args, { stdin: "ignore", stdout: "pipe", stderr: "pipe" })
     this.child = child
-    describe("mjpeg", child)
     void this.pump(child)
   }
 
@@ -212,14 +198,10 @@ class Mjpeg {
       if (this.stopped || proc !== this.child) return
       this.emit(value)
     }
-    let tail = ""
-    try {
-      tail = await new Response(proc.stderr).text()
-    } catch {}
+    const tail = await new Response(proc.stderr).text().catch(() => "")
     const code = await proc.exited
     if (this.stopped || proc !== this.child) return
     this.child = null
-    console.warn(`mjpeg probe: ffmpeg exited with ${code}: ${tail.slice(0, 400)}`)
     if (this.plan + 1 < this.plans.length) {
       this.plan++
       this.launch()
@@ -230,10 +212,6 @@ class Mjpeg {
   }
 
   private emit(chunk: Uint8Array): void {
-    if (!this.logged) {
-      this.logged = true
-      console.warn(`${new Date().toISOString()} mjpeg probe: a chunk of ${chunk.byteLength} bytes`)
-    }
     this.pending = join(this.pending, chunk)
     let scan = 0
     while (scan + 3 < this.pending.byteLength) {
@@ -263,30 +241,4 @@ function join(left: Uint8Array, right: Uint8Array): Uint8Array {
   out.set(left, 0)
   out.set(right, left.byteLength)
   return out
-}
-
-function describe(name: string, child: Child): void {
-  const errors: string[] = []
-  void (async () => {
-    if (!child.stderr) return
-    for await (const chunk of child.stderr) errors.push(new TextDecoder().decode(chunk))
-  })()
-  setTimeout(() => {
-    void state(child.pid).then((where) => {
-      console.warn(
-        `${new Date().toISOString()} ${name} probe: 6s later pid=${child.pid} exit=${child.exitCode} state=${where} stderr=${errors.join("").trim().slice(0, 300) || "none"}`,
-      )
-    })
-  }, 6_000)
-}
-
-async function state(pid: number): Promise<string> {
-  try {
-    const proc = Bun.spawn(["ps", "-p", String(pid), "-o", "state="], { stdout: "pipe", stderr: "ignore" })
-    const out = await new Response(proc.stdout).text()
-    await proc.exited
-    return out.trim() || "gone"
-  } catch {
-    return "unknown"
-  }
 }

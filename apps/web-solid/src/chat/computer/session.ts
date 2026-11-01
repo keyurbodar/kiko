@@ -252,7 +252,6 @@ function startRelay(pcId: string, hooks: Hooks, on: { frame(): void; fail(): voi
 
   const announce = () => {
     if (!wants) return
-    console.info("kiko relay probe: asking for frames")
     control({ t: "live", ...profile })
   }
 
@@ -416,7 +415,6 @@ export function startSession(pcId: string, hooks: Hooks): Session {
   return {
     send(events) {
       const overRtc = rtc?.send(events) === true
-      console.info(`kiko input probe: ${overRtc ? "webrtc" : "relay"} ${events.map((event) => event.k).join(",")}`)
       if (overRtc) return
       void run(owner.commands.pcInput, { pcId, events })
     },

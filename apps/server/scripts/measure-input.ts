@@ -214,26 +214,15 @@ async function main(): Promise<void> {
     await watchable(page)
     await page.click('[data-action="computer-watch"]', { timeout: 10_000 })
     await page.waitForSelector('[data-component="computer-screen"]', { timeout: 45_000 })
-    let ticks = 0
     let streaming = true
     try {
       await until(
         "the screen to stream",
         async () => {
-          const state = await page.evaluate(() => {
-            const root = document.querySelector('[data-component="computer-screen"]')
-            const video = root?.querySelector("video") as HTMLVideoElement | null
-            const canvas = root?.querySelector("canvas") as HTMLCanvasElement | null
-            return {
-              mode: root?.getAttribute("data-mode") ?? null,
-              width: video?.videoWidth ?? 0,
-              canvas: canvas?.width ?? 0,
-              ready: video?.readyState ?? 0,
-            }
-          })
-          if (ticks % 8 === 0) process.stderr.write(`[viewer] screen ${JSON.stringify(state)}\n`)
-          ticks += 1
-          return state.mode === "rtc" || state.mode === "relay"
+          const mode = await page.evaluate(
+            () => document.querySelector('[data-component="computer-screen"]')?.getAttribute("data-mode") ?? null,
+          )
+          return mode === "rtc" || mode === "relay"
         },
         60_000,
       )
